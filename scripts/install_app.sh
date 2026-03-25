@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SOURCE_APP="$ROOT_DIR/dist/timed.app"
-TARGET_DIR="$HOME/Applications"
+TARGET_DIR="/Applications"
 TARGET_APP="$TARGET_DIR/timed.app"
 
 if [[ ! -d "$SOURCE_APP" ]]; then

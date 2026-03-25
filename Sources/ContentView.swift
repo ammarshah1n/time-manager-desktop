@@ -132,6 +132,19 @@ struct ContentView: View {
             VStack(alignment: .leading, spacing: 14) {
                 TimedCard(title: "Task Library", icon: "tray.full") {
                     VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Text("All tasks")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(.white.opacity(0.65))
+                            Spacer()
+                            Button {
+                                showAddTaskSheet = true
+                            } label: {
+                                Image(systemName: "plus")
+                            }
+                            .buttonStyle(.bordered)
+                        }
+
                         ForEach(store.tasks.sorted(by: taskLibrarySort)) { task in
                             TimedCard(title: task.title, icon: icon(for: task.source)) {
                                 VStack(alignment: .leading, spacing: 10) {
@@ -691,6 +704,7 @@ private struct AddTaskSheet: View {
             Form {
                 TextField("Title", text: $draft.title)
                 Picker("Subject", selection: $draft.subject) {
+                    Text("Select subject").tag("")
                     ForEach(SubjectCatalog.supported, id: \.self) { subject in
                         Text(subject).tag(subject)
                     }

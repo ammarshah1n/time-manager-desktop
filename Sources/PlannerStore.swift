@@ -17,6 +17,7 @@ final class PlannerStore {
     var isRunningPrompt = false
     var aiErrorText: String?
     var promptBoostSubject: String?
+    var suggestedNextActionsByTaskID: [String: String] = [:]
     var scheduleOverflowCount = 0
     var lastImportMessages: [String] = []
     var pendingImportBatch: ImportBatch?
@@ -125,7 +126,15 @@ final class PlannerStore {
             contexts: contexts,
             now: now,
             promptBoostSubject: promptBoostSubject
-        )
+        ).map { ranked in
+            RankedTask(
+                task: ranked.task,
+                score: ranked.score,
+                band: ranked.band,
+                reasons: ranked.reasons,
+                suggestedNextAction: suggestedNextActionsByTaskID[ranked.task.id] ?? ranked.suggestedNextAction
+            )
+        }
 
         let currentApprovals = Dictionary(uniqueKeysWithValues: schedule.map { ($0.taskID, $0.isApproved) })
         let schedulable = rankedTasks.filter { !dismissedScheduleTaskIDs.contains($0.task.id) }
@@ -459,16 +468,10 @@ final class PlannerStore {
     private func applySuggestedActions(_ actions: [String: String]) {
         guard !actions.isEmpty else { return }
 
-        for index in rankedTasks.indices {
-            let title = rankedTasks[index].task.title
-            guard let action = actions[title] else { continue }
-            rankedTasks[index] = RankedTask(
-                task: rankedTasks[index].task,
-                score: rankedTasks[index].score,
-                band: rankedTasks[index].band,
-                reasons: rankedTasks[index].reasons,
-                suggestedNextAction: action
-            )
+        for task in tasks {
+            if let action = actions[task.title] {
+                suggestedNextActionsByTaskID[task.id] = action
+            }
         }
     }
 
