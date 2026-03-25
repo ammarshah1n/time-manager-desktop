@@ -11,6 +11,16 @@ struct ContentView: View {
     @State private var addTaskError: String?
     @State private var showCompletedToday = false
 
+    @MainActor
+    init() {
+        _store = State(initialValue: PlannerStore())
+    }
+
+    @MainActor
+    init(store: PlannerStore) {
+        _store = State(initialValue: store)
+    }
+
     var body: some View {
         ZStack {
             WindowChromeConfigurator()

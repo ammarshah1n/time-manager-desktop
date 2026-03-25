@@ -2,6 +2,16 @@
 
 Timed is a macOS 15 SwiftUI desktop app for turning scattered school work into a ranked, time-boxed study plan.
 
+## Screenshots
+
+### Planner workspace
+
+![Timed planner workspace](./docs/assets/timed-planner.png)
+
+### Quiz mode
+
+![Timed quiz mode](./docs/assets/timed-quiz.png)
+
 ## What it does
 
 - Imports school work from Seqta-style pasted text.
@@ -17,6 +27,7 @@ Timed is a macOS 15 SwiftUI desktop app for turning scattered school work into a
 - Spec: [PRD.md](./PRD.md)
 - Repo rules: [AGENTS.md](./AGENTS.md)
 - First-run onboarding: [docs/ONBOARDING.md](./docs/ONBOARDING.md)
+- Install guide: [docs/INSTALL.md](./docs/INSTALL.md)
 - UI map: [docs/UI_OVERVIEW.md](./docs/UI_OVERVIEW.md)
 
 ## Local development
@@ -24,6 +35,7 @@ Timed is a macOS 15 SwiftUI desktop app for turning scattered school work into a
 ```bash
 swift build -c release
 swift test
+bash scripts/render_screenshots.sh
 bash scripts/package_app.sh
 bash scripts/install_app.sh
 ```
@@ -75,6 +87,6 @@ GitHub Actions runs:
 
 ## Roadmap
 
-- Add richer screenshot/docs assets for non-technical download flows.
 - Add deeper Seqta parsing and import previews.
 - Add smarter schedule feedback loops and revision tracking.
+- Add richer revision-history insight after each completed block.

@@ -1,5 +1,6 @@
 import SwiftUI
 
+#if !SCREENSHOT_RENDERER
 @main
 struct TimeManagerDesktopApp: App {
     var body: some Scene {
@@ -13,3 +14,4 @@ struct TimeManagerDesktopApp: App {
         }
     }
 }
+#endif
