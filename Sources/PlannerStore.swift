@@ -13,7 +13,9 @@ final class PlannerStore {
     var selectedTaskID: String?
     var selectedContextID: String?
     var promptText = ""
+    var studyPromptText = ""
     var chat: [PromptMessage] = []
+    var studyChat: [PromptMessage] = []
     var isRunningPrompt = false
     var aiErrorText: String?
     var promptBoostSubject: String?
@@ -66,6 +68,7 @@ final class PlannerStore {
             selectedContextID: selectedContextID,
             promptText: promptText,
             chat: chat,
+            studyChat: studyChat,
             promptBoostSubject: promptBoostSubject,
             dismissedScheduleTaskIDs: Array(dismissedScheduleTaskIDs)
         )
@@ -94,17 +97,20 @@ final class PlannerStore {
             selectedContextID = snapshot.selectedContextID
             promptText = snapshot.promptText
             chat = snapshot.chat
+            studyChat = snapshot.studyChat
             promptBoostSubject = snapshot.promptBoostSubject
             dismissedScheduleTaskIDs = Set(snapshot.dismissedScheduleTaskIDs)
         } else {
-            let sample = ShellData.sample
+            let sample = ShellData.empty
             tasks = sample.tasks
             contexts = sample.contexts
             schedule = sample.schedule
             chat = sample.chat
+            studyChat = sample.studyChat
             selectedTaskID = sample.tasks.first?.id
             selectedContextID = sample.contexts.first?.id
-            promptText = "What should I do now?"
+            promptText = ""
+            studyPromptText = ""
         }
 
         rebuildPlan()
@@ -157,32 +163,45 @@ final class PlannerStore {
     }
 
     func submitPrompt() async {
+        await submitPlanningPrompt()
+    }
+
+    func submitPlanningPrompt() async {
         let rawPrompt = promptText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !rawPrompt.isEmpty else { return }
-
-        if rawPrompt.lowercased() == "end quiz" {
-            endQuiz()
-            promptText = ""
-            return
-        }
-
-        if isQuizMode {
-            await continueQuiz(with: rawPrompt)
-            promptText = ""
-            return
-        }
+        promptText = ""
+        let now = Date.now
 
         if let quizSubject = extractQuizSubject(from: rawPrompt) {
             await startQuiz(subject: quizSubject)
-            promptText = ""
             return
         }
 
+        let autonomousContext = AutonomousContextProvider.build(question: rawPrompt, now: now)
+        upsertTaskHints(autonomousContext.taskHints)
+
+        if rawPrompt.lowercased().contains("ticktick") {
+            importRelevantTickTickTasks(now: now)
+        }
+
+        rebuildPlan(now: now)
         aiErrorText = nil
         chat.append(PromptMessage(role: .user, text: rawPrompt))
         isRunningPrompt = true
 
-        let response = await CodexBridge().run(prompt: buildPlanningPrompt(for: rawPrompt))
+        let response = await CodexBridge().run(
+            request: CodexRunRequest(
+                prompt: buildPlanningPrompt(
+                    for: rawPrompt,
+                    now: now,
+                    autonomousContext: autonomousContext,
+                    intent: PromptIntentClassifier.classify(rawPrompt)
+                ),
+                autonomousMode: TimedPreferences.autonomousModeEnabled,
+                workingRoot: TimedPreferences.workingRoot,
+                additionalRoots: TimedPreferences.codexAdditionalRoots
+            )
+        )
         isRunningPrompt = false
 
         guard let response else {
@@ -194,49 +213,130 @@ final class PlannerStore {
 
         let actions = CodexBridge.extractTaskActions(response: response, taskTitles: tasks.map(\.title))
         applySuggestedActions(actions)
+        let subjectConfidences = CodexBridge.extractSubjectConfidences(response: response, knownSubjects: SubjectCatalog.supported)
+        applySubjectConfidences(subjectConfidences)
         if let boostSubject = CodexBridge.extractProminentSubject(response: response, knownSubjects: SubjectCatalog.supported) {
             promptBoostSubject = boostSubject
         }
-        rebuildPlan()
+        rebuildPlan(now: now)
         chat.append(PromptMessage(role: .assistant, text: response))
-        promptText = ""
+        save()
+    }
+
+    func submitStudyPrompt() async {
+        let rawPrompt = studyPromptText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !rawPrompt.isEmpty else { return }
+        studyPromptText = ""
+
+        if rawPrompt.lowercased() == "end quiz" {
+            endQuiz()
+            return
+        }
+
+        if let quizSubject = extractQuizSubject(from: rawPrompt) {
+            await startQuiz(subject: quizSubject)
+            return
+        }
+
+        if isQuizMode {
+            await continueQuiz(with: rawPrompt)
+            return
+        }
+
+        let now = Date.now
+        let autonomousContext = AutonomousContextProvider.build(question: rawPrompt, now: now)
+        let activeTask = selectedTask
+        let subject = activeTask?.subject ?? SubjectCatalog.matchingSubject(in: rawPrompt) ?? "English"
+        let studyContexts = groundedStudyContexts(for: activeTask, subject: subject)
+
+        studyChat.append(PromptMessage(role: .user, text: rawPrompt))
+        aiErrorText = nil
+        isRunningPrompt = true
+
+        let response = await CodexBridge().run(
+            request: CodexRunRequest(
+                prompt: buildStudyPrompt(
+                    for: rawPrompt,
+                    task: activeTask,
+                    subject: subject,
+                    contexts: studyContexts,
+                    autonomousContext: autonomousContext
+                ),
+                autonomousMode: TimedPreferences.autonomousModeEnabled,
+                workingRoot: TimedPreferences.workingRoot,
+                additionalRoots: TimedPreferences.codexAdditionalRoots
+            )
+        )
+
+        isRunningPrompt = false
+
+        guard let response else {
+            aiErrorText = "Could not reach Timed AI — check Codex is installed"
+            studyChat.append(PromptMessage(role: .assistant, text: aiErrorText ?? "Timed AI error"))
+            save()
+            return
+        }
+
+        let subjectConfidences = CodexBridge.extractSubjectConfidences(response: response, knownSubjects: SubjectCatalog.supported)
+        applySubjectConfidences(subjectConfidences)
+        if let boostSubject = CodexBridge.extractProminentSubject(response: response, knownSubjects: SubjectCatalog.supported) {
+            promptBoostSubject = boostSubject
+            rebuildPlan(now: now)
+        } else {
+            save()
+        }
+        studyChat.append(PromptMessage(role: .assistant, text: response))
         save()
     }
 
     func startQuiz(subject: String) async {
         let normalizedSubject = subject.trimmingCharacters(in: .whitespacesAndNewlines)
-        let matchingContexts = sortedContexts.filter { $0.subject.caseInsensitiveCompare(normalizedSubject) == .orderedSame }
+        let matchingContexts = groundedStudyContexts(for: selectedTask, subject: normalizedSubject)
 
         guard !matchingContexts.isEmpty else {
-            chat.append(PromptMessage(role: .assistant, text: "No context is loaded for \(normalizedSubject). Import some notes first."))
+            studyChat.append(PromptMessage(role: .assistant, text: "No grounded study context is loaded for \(normalizedSubject). Import your transcript, notes, or feedback first."))
             save()
             return
         }
 
         isQuizMode = true
         activeQuizSubject = normalizedSubject
+        if let taskForSubject = tasks.first(where: { $0.subject.caseInsensitiveCompare(normalizedSubject) == .orderedSame }) {
+            selectedTaskID = taskForSubject.id
+        }
         aiErrorText = nil
         isRunningPrompt = true
-        chat.append(PromptMessage(role: .student, text: "Quiz me on \(normalizedSubject).", isQuiz: true))
+        studyChat.append(PromptMessage(role: .student, text: "Quiz me on \(normalizedSubject).", isQuiz: true))
 
-        let response = await CodexBridge().run(prompt: buildQuizPrompt(subject: normalizedSubject, contexts: matchingContexts, latestStudentReply: nil))
+        let response = await CodexBridge().run(
+            request: CodexRunRequest(
+                prompt: buildQuizPrompt(
+                    subject: normalizedSubject,
+                    contexts: matchingContexts,
+                    latestStudentReply: nil
+                ),
+                autonomousMode: TimedPreferences.autonomousModeEnabled,
+                workingRoot: TimedPreferences.workingRoot,
+                additionalRoots: TimedPreferences.codexAdditionalRoots
+            )
+        )
         isRunningPrompt = false
 
         guard let response else {
             aiErrorText = "Could not reach Timed AI — check Codex is installed"
-            chat.append(PromptMessage(role: .assistant, text: aiErrorText ?? "Timed AI error"))
+            studyChat.append(PromptMessage(role: .assistant, text: aiErrorText ?? "Timed AI error"))
             save()
             return
         }
 
-        chat.append(PromptMessage(role: .tutor, text: response, isQuiz: true))
+        studyChat.append(PromptMessage(role: .tutor, text: response, isQuiz: true))
         save()
     }
 
     func endQuiz() {
         isQuizMode = false
         activeQuizSubject = nil
-        chat.append(PromptMessage(role: .assistant, text: "Quiz ended. Back to planning mode."))
+        studyChat.append(PromptMessage(role: .assistant, text: "Quiz ended. Back to study mode."))
         save()
     }
 
@@ -352,31 +452,41 @@ final class PlannerStore {
 
     private func continueQuiz(with answer: String) async {
         guard let activeQuizSubject else { return }
-        let matchingContexts = sortedContexts.filter { $0.subject.caseInsensitiveCompare(activeQuizSubject) == .orderedSame }
-        chat.append(PromptMessage(role: .student, text: answer, isQuiz: true))
+        let matchingContexts = groundedStudyContexts(for: selectedTask, subject: activeQuizSubject)
+        studyChat.append(PromptMessage(role: .student, text: answer, isQuiz: true))
         isRunningPrompt = true
 
         let response = await CodexBridge().run(
-            prompt: buildQuizPrompt(
-                subject: activeQuizSubject,
-                contexts: matchingContexts,
-                latestStudentReply: answer
+            request: CodexRunRequest(
+                prompt: buildQuizPrompt(
+                    subject: activeQuizSubject,
+                    contexts: matchingContexts,
+                    latestStudentReply: answer
+                ),
+                autonomousMode: TimedPreferences.autonomousModeEnabled,
+                workingRoot: TimedPreferences.workingRoot,
+                additionalRoots: TimedPreferences.codexAdditionalRoots
             )
         )
 
         isRunningPrompt = false
         guard let response else {
             aiErrorText = "Could not reach Timed AI — check Codex is installed"
-            chat.append(PromptMessage(role: .assistant, text: aiErrorText ?? "Timed AI error"))
+            studyChat.append(PromptMessage(role: .assistant, text: aiErrorText ?? "Timed AI error"))
             save()
             return
         }
 
-        chat.append(PromptMessage(role: .tutor, text: response, isQuiz: true))
+        studyChat.append(PromptMessage(role: .tutor, text: response, isQuiz: true))
         save()
     }
 
-    private func buildPlanningPrompt(for question: String) -> String {
+    private func buildPlanningPrompt(
+        for question: String,
+        now: Date,
+        autonomousContext: AutonomousContextBundle,
+        intent: PromptIntent
+    ) -> String {
         let dateFormatter = DateFormatter()
         dateFormatter.dateStyle = .full
         dateFormatter.timeStyle = .short
@@ -390,20 +500,129 @@ final class PlannerStore {
             "- \(context.subject): \(context.title) — \(context.summary)"
         }.joined(separator: "\n")
 
+        let fileLines = autonomousContext.fileHits.prefix(6).map { hit in
+            "- \(hit.path) (\(hit.source))"
+        }.joined(separator: "\n")
+
+        let memoryLines = autonomousContext.memoryHits.prefix(5).map { hit in
+            "- [\(hit.source)] \(hit.title): \(hit.excerpt)"
+        }.joined(separator: "\n")
+
+        let taskHintLines = autonomousContext.taskHints.map { hint in
+            let due = hint.dueDate.map { dateFormatter.string(from: $0) } ?? "Unknown"
+            return "- \(hint.title) | Subject: \(hint.subject) | Due: \(due)"
+        }.joined(separator: "\n")
+
+        let systemInstruction: String
+        switch intent {
+        case .planner:
+            systemInstruction = """
+            You are Timed, a study planner for a school student. You wrap the local Codex CLI and may inspect local files, OneDrive-synced folders, TickTick exports, ~/.codex-mem/codex-mem.db, and Codex chat logs when useful. If the context below is ambiguous, you may explicitly use terminal commands through Codex to inspect those local sources. Respond in concise plain English. Mention at least one task by its exact title. If you suggest a specific next action for a task, format that line exactly as [task title]: [action]. If you infer subject confidence from memory or feedback, format that line exactly as [subject confidence]: [1-5].
+            """
+        case .lookup:
+            systemInstruction = """
+            You are Timed, a local autonomous Codex wrapper for a school student. Use the file paths, OneDrive hints, TickTick hints, ~/.codex-mem/codex-mem.db, and Codex memory below to answer the question directly. If the context below is ambiguous, you may explicitly use terminal commands through Codex to inspect those local sources. Respond in concise plain English. If you suggest a next action for a current task, format that line exactly as [task title]: [action]. If you infer subject confidence from memory or feedback, format that line exactly as [subject confidence]: [1-5].
+            """
+        }
+
         return """
         System instruction:
-        You are Timed, a study planner for a school student. You are not a coding assistant. Respond in concise plain English. Mention at least one task by its exact title. If you suggest a specific next action for a task, format that line exactly as [task title]: [action].
+        \(systemInstruction)
 
         Current date and time:
-        \(dateFormatter.string(from: .now))
+        \(dateFormatter.string(from: now))
 
         Full ranked task list:
         \(taskLines)
 
+        Current task hints extracted from the user's message:
+        \(taskHintLines.isEmpty ? "- None detected" : taskHintLines)
+
         Top 3 relevant context summaries:
         \(contextLines.isEmpty ? "- None loaded" : contextLines)
 
+        Relevant local file and OneDrive hits:
+        \(fileLines.isEmpty ? "- None found" : fileLines)
+
+        Relevant Codex memory hits:
+        \(memoryLines.isEmpty ? "- None found" : memoryLines)
+
         User question:
+        \(question)
+        """
+    }
+
+    private func buildStudyPrompt(
+        for question: String,
+        task: TaskItem?,
+        subject: String,
+        contexts: [ContextItem],
+        autonomousContext: AutonomousContextBundle
+    ) -> String {
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateStyle = .full
+        dateFormatter.timeStyle = .short
+
+        let taskLine: String
+        if let task {
+            let dueDate = task.dueDate.map { dateFormatter.string(from: $0) } ?? "No due date"
+            taskLine = "- \(task.title) | Subject: \(task.subject) | Due: \(dueDate) | Estimate: \(task.estimateMinutes)m | Confidence: \(task.confidence)/5 | Importance: \(task.importance)/5 | Notes: \(task.notes)"
+        } else {
+            taskLine = "- No task selected"
+        }
+
+        let subjectTasks = tasks
+            .filter { !$0.isCompleted && $0.subject.caseInsensitiveCompare(subject) == .orderedSame }
+            .sorted { lhs, rhs in
+                if let lhsDue = lhs.dueDate, let rhsDue = rhs.dueDate {
+                    return lhsDue < rhsDue
+                }
+                return lhs.title < rhs.title
+            }
+            .map { task in
+                let dueDate = task.dueDate.map { dateFormatter.string(from: $0) } ?? "No due date"
+                return "- \(task.title) | Due: \(dueDate) | Estimate: \(task.estimateMinutes)m | Confidence: \(task.confidence)/5 | Importance: \(task.importance)/5"
+            }
+            .joined(separator: "\n")
+
+        let contextDetails = contexts.prefix(6).map { context in
+            """
+            [\(context.kind)] \(context.title)
+            \(context.detail)
+            """
+        }.joined(separator: "\n\n")
+
+        let fileLines = autonomousContext.fileHits.prefix(6).map { hit in
+            "- \(hit.path) (\(hit.source))"
+        }.joined(separator: "\n")
+
+        let memoryLines = autonomousContext.memoryHits.prefix(5).map { hit in
+            "- [\(hit.source)] \(hit.title): \(hit.excerpt)"
+        }.joined(separator: "\n")
+
+        return """
+        System instruction:
+        You are Timed study mode for a school student. You wrap the local Codex CLI in autonomous mode. You may inspect local files, OneDrive-synced folders, TickTick exports, ~/.codex-mem/codex-mem.db, and Codex chat logs when needed. Only rely on real imported study context, exact file hits, and exact memory hits below. Do not invent extra study material. If the student asks for a quiz, ask one question at a time unless they explicitly ask for a worksheet. If the student asks for a practice sheet or a Word document that mirrors a school formative, you may create files in the working directory and must report the exact output path. Respond in concise plain English.
+
+        Current date and time:
+        \(dateFormatter.string(from: .now))
+
+        Selected task:
+        \(taskLine)
+
+        Other active tasks for this subject:
+        \(subjectTasks.isEmpty ? "- None" : subjectTasks)
+
+        Grounded study context for \(subject):
+        \(contextDetails.isEmpty ? "No imported context is loaded for this subject." : contextDetails)
+
+        Relevant local file and OneDrive hits:
+        \(fileLines.isEmpty ? "- None found" : fileLines)
+
+        Relevant Codex memory hits:
+        \(memoryLines.isEmpty ? "- None found" : memoryLines)
+
+        Student request:
         \(question)
         """
     }
@@ -411,16 +630,20 @@ final class PlannerStore {
     private func buildQuizPrompt(subject: String, contexts: [ContextItem], latestStudentReply: String?) -> String {
         let material = contexts.map { context in
             """
-            [\(context.title)]
+            [\(context.kind)] \(context.title)
             \(context.detail)
             """
         }.joined(separator: "\n\n")
 
-        let transcript = chat
+        let transcript = studyChat
             .filter(\.isQuiz)
             .suffix(8)
             .map { "\($0.role.displayName): \($0.text)" }
             .joined(separator: "\n")
+
+        let memoryLines = CodexMemorySearchProvider.search(question: subject, limit: 4).map { hit in
+            "- [\(hit.source)] \(hit.title): \(hit.excerpt)"
+        }.joined(separator: "\n")
 
         return """
         You are a study tutor. Ask the student one question at a time based on the material below. Wait for their answer before proceeding. Keep questions concise. After their answer, give brief feedback.
@@ -433,6 +656,9 @@ final class PlannerStore {
 
         Recent quiz transcript:
         \(transcript.isEmpty ? "None yet." : transcript)
+
+        Related Codex memory hits:
+        \(memoryLines.isEmpty ? "- None found" : memoryLines)
 
         Latest student answer:
         \(latestStudentReply ?? "Start the quiz now with the first question.")
@@ -465,6 +691,42 @@ final class PlannerStore {
         return total
     }
 
+    func groundedStudyContexts(for task: TaskItem?, subject: String? = nil) -> [ContextItem] {
+        let resolvedSubject = subject ?? task?.subject
+        guard let resolvedSubject else { return [] }
+
+        let subjectContexts = sortedContexts.filter {
+            $0.subject.caseInsensitiveCompare(resolvedSubject) == .orderedSame &&
+            !$0.detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+
+        if let task {
+            let taskKeywords = Set(task.title.lowercased().split(whereSeparator: \.isWhitespace).map(String.init))
+            return subjectContexts.sorted { lhs, rhs in
+                groundedStudyScore(for: lhs, taskKeywords: taskKeywords) >
+                    groundedStudyScore(for: rhs, taskKeywords: taskKeywords)
+            }
+        }
+
+        return subjectContexts
+    }
+
+    private func groundedStudyScore(for context: ContextItem, taskKeywords: Set<String>) -> Int {
+        let haystack = "\(context.title) \(context.summary) \(context.detail)".lowercased()
+        var total = taskKeywords.reduce(into: 0) { partialResult, keyword in
+            if haystack.contains(keyword) {
+                partialResult += 5
+            }
+        }
+
+        if context.kind.caseInsensitiveCompare(ImportSource.transcript.rawValue) == .orderedSame {
+            total += 20
+        }
+
+        total += max(0, 48 - Int(Date.now.timeIntervalSince(context.createdAt) / 3600))
+        return total
+    }
+
     private func applySuggestedActions(_ actions: [String: String]) {
         guard !actions.isEmpty else { return }
 
@@ -472,6 +734,66 @@ final class PlannerStore {
             if let action = actions[task.title] {
                 suggestedNextActionsByTaskID[task.id] = action
             }
+        }
+    }
+
+    private func applySubjectConfidences(_ values: [String: Int]) {
+        guard !values.isEmpty else { return }
+        for index in tasks.indices {
+            if let confidence = values[tasks[index].subject] {
+                tasks[index].confidence = confidence
+            }
+        }
+    }
+
+    private func upsertTaskHints(_ hints: [TaskHint]) {
+        guard !hints.isEmpty else { return }
+
+        for hint in hints {
+            if let index = tasks.firstIndex(where: {
+                $0.title.caseInsensitiveCompare(hint.title) == .orderedSame ||
+                ($0.subject.caseInsensitiveCompare(hint.subject) == .orderedSame && $0.title.lowercased().contains(hint.subject.lowercased()))
+            }) {
+                tasks[index].dueDate = hint.dueDate ?? tasks[index].dueDate
+                if tasks[index].notes.isEmpty {
+                    tasks[index].notes = hint.notes
+                }
+                continue
+            }
+
+            let task = TaskItem(
+                id: StableID.makeTaskID(source: .chat, title: hint.title),
+                title: hint.title,
+                list: "Prompt captured",
+                source: .chat,
+                subject: hint.subject,
+                estimateMinutes: hint.subject == "Maths" ? 90 : 45,
+                confidence: 3,
+                importance: 5,
+                dueDate: hint.dueDate,
+                notes: hint.notes,
+                energy: hint.subject == "Maths" ? .high : .medium,
+                isCompleted: false,
+                completedAt: nil
+            )
+
+            tasks.insert(task, at: 0)
+        }
+    }
+
+    private func importRelevantTickTickTasks(now: Date) {
+        let tickTickTasks = TickTickAutonomousImport.recentRelevantTasks(now: now)
+        guard !tickTickTasks.isEmpty else { return }
+
+        var insertedCount = 0
+        for task in tickTickTasks {
+            guard !tasks.contains(where: { $0.id == task.id }) else { continue }
+            tasks.append(task)
+            insertedCount += 1
+        }
+
+        if insertedCount > 0 {
+            chat.append(PromptMessage(role: .assistant, text: "Imported \(insertedCount) relevant TickTick task(s) from your recent CSV export."))
         }
     }
 

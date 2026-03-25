@@ -137,6 +137,7 @@ struct PlannerSnapshot: Codable {
     let selectedContextID: String?
     let promptText: String
     let chat: [PromptMessage]
+    let studyChat: [PromptMessage]
     let promptBoostSubject: String?
     let dismissedScheduleTaskIDs: [String]
 }
@@ -306,94 +307,17 @@ struct ShellData: Codable {
     let contexts: [ContextItem]
     let schedule: [ScheduleBlock]
     let chat: [PromptMessage]
+    let studyChat: [PromptMessage]
 }
 
 extension ShellData {
-    static let sample: ShellData = {
-        let now = Date()
-        return ShellData(
-            tasks: [
-                TaskItem(
-                    id: StableID.makeTaskID(source: .seqta, title: "English essay draft"),
-                    title: "English essay draft",
-                    list: "School",
-                    source: .seqta,
-                    subject: "English",
-                    estimateMinutes: 45,
-                    confidence: 2,
-                    importance: 5,
-                    dueDate: now,
-                    notes: "Use the evidence sheet before writing the second paragraph.",
-                    energy: .medium,
-                    isCompleted: false,
-                    completedAt: nil
-                ),
-                TaskItem(
-                    id: StableID.makeTaskID(source: .seqta, title: "Maths investigation"),
-                    title: "Maths investigation",
-                    list: "School",
-                    source: .seqta,
-                    subject: "Maths",
-                    estimateMinutes: 75,
-                    confidence: 2,
-                    importance: 5,
-                    dueDate: Calendar.current.date(byAdding: .day, value: 1, to: now),
-                    notes: "Break it into method, working, and explanation.",
-                    energy: .high,
-                    isCompleted: false,
-                    completedAt: nil
-                ),
-                TaskItem(
-                    id: StableID.makeTaskID(source: .tickTick, title: "Economics notes cleanup"),
-                    title: "Economics notes cleanup",
-                    list: "Personal",
-                    source: .tickTick,
-                    subject: "Economics",
-                    estimateMinutes: 30,
-                    confidence: 3,
-                    importance: 3,
-                    dueDate: Calendar.current.date(byAdding: .day, value: 3, to: now),
-                    notes: "Summarise inflation and unemployment examples.",
-                    energy: .low,
-                    isCompleted: false,
-                    completedAt: nil
-                )
-            ],
-            contexts: [
-                ContextItem(
-                    id: StableID.makeContextID(source: .transcript, title: "English quote integration", createdAt: now),
-                    title: "English quote integration",
-                    kind: "Transcript",
-                    subject: "English",
-                    summary: "Integrate shorter quotes, then explain their effect immediately.",
-                    detail: "Use shorter quotes, weave them into your sentence, and explain the effect in the same breath.",
-                    createdAt: now
-                ),
-                ContextItem(
-                    id: StableID.makeContextID(source: .transcript, title: "Maths investigation notes", createdAt: now.addingTimeInterval(-3600)),
-                    title: "Maths investigation notes",
-                    kind: "Transcript",
-                    subject: "Maths",
-                    summary: "State assumptions before calculations and justify the method choice.",
-                    detail: "Investigations score better when assumptions and method choices are explicit before the calculations begin.",
-                    createdAt: now.addingTimeInterval(-3600)
-                ),
-                ContextItem(
-                    id: StableID.makeContextID(source: .chat, title: "Study preferences", createdAt: now.addingTimeInterval(-7200)),
-                    title: "Study preferences",
-                    kind: "Chat",
-                    subject: "English",
-                    summary: "Short blocks work better after school, then one deeper maths sprint.",
-                    detail: "You usually start with one shorter language-heavy task, then shift into a deeper maths block once momentum is up.",
-                    createdAt: now.addingTimeInterval(-7200)
-                )
-            ],
-            schedule: [],
-            chat: [
-                PromptMessage(role: .assistant, text: "Timed is ready. Ask what to do now, plan the next three hours, or start a quiz.")
-            ]
-        )
-    }()
+    static let empty = ShellData(
+        tasks: [],
+        contexts: [],
+        schedule: [],
+        chat: [PromptMessage(role: .assistant, text: "Timed is ready. Import your real tasks, transcript context, or ask it to find a file.")],
+        studyChat: [PromptMessage(role: .assistant, text: "Study mode is ready. Pick a task and ask for a quiz, practice questions, or formative-style drills.")]
+    )
 }
 
 extension JSONEncoder {

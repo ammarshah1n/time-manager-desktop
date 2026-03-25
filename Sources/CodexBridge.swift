@@ -1,7 +1,14 @@
 import Foundation
 
+struct CodexRunRequest {
+    let prompt: String
+    let autonomousMode: Bool
+    let workingRoot: String
+    let additionalRoots: [String]
+}
+
 struct CodexBridge {
-    func run(prompt: String) async -> String? {
+    func run(request: CodexRunRequest) async -> String? {
         let executablePath = TimedPreferences.aiExecutablePath
         guard FileManager.default.isExecutableFile(atPath: executablePath) else {
             return nil
@@ -18,21 +25,15 @@ struct CodexBridge {
                 let outputPipe = Pipe()
 
                 process.executableURL = URL(fileURLWithPath: executablePath)
-                process.arguments = [
-                    "exec",
-                    "--skip-git-repo-check",
-                    "--color", "never",
-                    "--ephemeral",
-                    "--output-last-message", outputFile.path,
-                    "-"
-                ]
+                process.currentDirectoryURL = URL(fileURLWithPath: request.workingRoot)
+                process.arguments = Self.arguments(for: request, outputFile: outputFile.path)
                 process.standardInput = stdinPipe
                 process.standardOutput = outputPipe
                 process.standardError = outputPipe
 
                 do {
                     try process.run()
-                    if let data = prompt.data(using: .utf8) {
+                    if let data = request.prompt.data(using: .utf8) {
                         stdinPipe.fileHandleForWriting.write(data)
                     }
                     stdinPipe.fileHandleForWriting.closeFile()
@@ -61,6 +62,32 @@ struct CodexBridge {
         }
     }
 
+    static func arguments(for request: CodexRunRequest, outputFile: String) -> [String] {
+        var arguments = [
+            "exec",
+            "--skip-git-repo-check",
+            "--color", "never",
+            "-C", request.workingRoot
+        ]
+
+        if request.autonomousMode {
+            arguments.append("--dangerously-bypass-approvals-and-sandbox")
+            arguments.append("--search")
+            for root in request.additionalRoots where root != request.workingRoot {
+                arguments.append(contentsOf: ["--add-dir", root])
+            }
+        } else {
+            arguments.append("--ephemeral")
+        }
+
+        arguments.append(contentsOf: [
+            "--output-last-message", outputFile,
+            "-"
+        ])
+
+        return arguments
+    }
+
     static func extractTaskActions(response: String, taskTitles: [String]) -> [String: String] {
         let lines = response.split(whereSeparator: \.isNewline).map(String.init)
         var actions: [String: String] = [:]
@@ -87,5 +114,35 @@ struct CodexBridge {
             }
         }
         return nil
+    }
+
+    static func extractSubjectConfidences(response: String, knownSubjects: [String]) -> [String: Int] {
+        let lines = response.split(whereSeparator: \.isNewline).map(String.init)
+        var values: [String: Int] = [:]
+
+        for line in lines {
+            let parts = line.components(separatedBy: ":")
+            guard parts.count >= 2 else { continue }
+            let rawKey = parts[0]
+                .trimmingCharacters(in: CharacterSet(charactersIn: "[] ").union(.whitespacesAndNewlines))
+                .lowercased()
+            guard rawKey.hasSuffix("confidence") else { continue }
+
+            let subjectName = rawKey
+                .replacingOccurrences(of: "confidence", with: "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+
+            guard
+                let subject = knownSubjects.first(where: { $0.lowercased() == subjectName }),
+                let confidence = Int(parts[1].trimmingCharacters(in: .whitespacesAndNewlines)),
+                (1...5).contains(confidence)
+            else {
+                continue
+            }
+
+            values[subject] = confidence
+        }
+
+        return values
     }
 }
