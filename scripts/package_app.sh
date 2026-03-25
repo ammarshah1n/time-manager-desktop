@@ -3,8 +3,8 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BUILD_DIR="$ROOT_DIR/.build/debug"
-APP_DIR="$ROOT_DIR/dist/TimeManagerDesktop.app"
-EXECUTABLE_NAME="TimeManagerDesktop"
+APP_DIR="$ROOT_DIR/dist/timed.app"
+EXECUTABLE_NAME="timed"
 
 swift build
 
@@ -21,13 +21,15 @@ cat > "$APP_DIR/Contents/Info.plist" <<'PLIST'
   <key>CFBundleDevelopmentRegion</key>
   <string>en</string>
   <key>CFBundleExecutable</key>
-  <string>TimeManagerDesktop</string>
+  <string>timed</string>
   <key>CFBundleIdentifier</key>
-  <string>com.ammarshahin.timemanagerdesktop</string>
+  <string>com.ammarshahin.timed</string>
   <key>CFBundleInfoDictionaryVersion</key>
   <string>6.0</string>
   <key>CFBundleName</key>
-  <string>Time Manager Desktop</string>
+  <string>timed</string>
+  <key>CFBundleDisplayName</key>
+  <string>timed</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
