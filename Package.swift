@@ -13,5 +13,10 @@ let package = Package(
             name: "time-manager-desktop",
             path: "Sources"
         ),
+        .testTarget(
+            name: "time-manager-desktopTests",
+            dependencies: ["time-manager-desktop"],
+            path: "Tests"
+        ),
     ]
 )
