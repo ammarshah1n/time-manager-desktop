@@ -8,6 +8,7 @@ final class PlannerStore {
     var tasks: [TaskItem]
     var contexts: [ContextItem]
     var schedule: [ScheduleBlock]
+    var rankedTasks: [RankedTask]
     var selectedTaskID: String?
     var selectedContextID: String?
     var promptText: String
@@ -20,18 +21,24 @@ final class PlannerStore {
         self.storageURL = folderURL.appendingPathComponent("planner-state.json")
 
         if let loaded = Self.load(from: storageURL) {
+            let ranked = PlanningEngine.rank(tasks: loaded.tasks)
+            let plannedSchedule = PlanningEngine.buildSchedule(tasks: ranked)
             tasks = loaded.tasks
             contexts = loaded.contexts
-            schedule = loaded.schedule
+            rankedTasks = ranked
+            schedule = plannedSchedule
             selectedTaskID = loaded.selectedTaskID
             selectedContextID = loaded.selectedContextID
             promptText = loaded.promptText
             chat = loaded.chat
         } else {
             let sample = ShellData.sample
+            let ranked = PlanningEngine.rank(tasks: sample.tasks)
+            let plannedSchedule = PlanningEngine.buildSchedule(tasks: ranked)
             tasks = sample.tasks
             contexts = sample.contexts
-            schedule = sample.schedule
+            rankedTasks = ranked
+            schedule = plannedSchedule
             selectedTaskID = sample.tasks.first?.id
             selectedContextID = sample.contexts.first?.id
             promptText = "Rank my school work for tonight"
@@ -60,7 +67,31 @@ final class PlannerStore {
 
     func submitPrompt() {
         chat.append(PromptMessage(role: "User", text: promptText))
-        chat.append(PromptMessage(role: "Assistant", text: "Ranking task priority and building a time box next."))
+        let lowercased = promptText.lowercased()
+
+        if lowercased.contains("plan") || lowercased.contains("rank") || lowercased.contains("box") {
+            rebuildPlan()
+            if let topTask = rankedTasks.first {
+                chat.append(
+                    PromptMessage(
+                        role: "Assistant",
+                        text: "Top task: \(topTask.task.title). Time box: \(schedule.first?.timeRange ?? "none")."
+                    )
+                )
+            } else {
+                chat.append(PromptMessage(role: "Assistant", text: "No tasks to rank yet."))
+            }
+        } else if lowercased.contains("quiz") {
+            chat.append(PromptMessage(role: "Assistant", text: "Loaded the matching context pack for a quiz response."))
+        } else {
+            chat.append(PromptMessage(role: "Assistant", text: "Captured the prompt and kept the current plan in place."))
+        }
+        save()
+    }
+
+    func rebuildPlan() {
+        rankedTasks = PlanningEngine.rank(tasks: tasks)
+        schedule = PlanningEngine.buildSchedule(tasks: rankedTasks)
         save()
     }
 

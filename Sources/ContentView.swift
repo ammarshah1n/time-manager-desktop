@@ -87,10 +87,32 @@ struct ContentView: View {
                     .buttonStyle(.borderedProminent)
                 }
 
+                if let top = store.rankedTasks.first {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("Top priority")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.white.opacity(0.55))
+                            Spacer()
+                            Text("\(top.band) · \(top.score)")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.white.opacity(0.82))
+                        }
+                        Text(top.task.title)
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(.white)
+                        Text(top.reasons.joined(separator: " · "))
+                            .font(.callout)
+                            .foregroundStyle(.white.opacity(0.64))
+                    }
+                    .padding(14)
+                    .background(.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                }
+
                 VStack(spacing: 12) {
-                    ForEach(store.tasks.prefix(3)) { task in
-                        RankedTaskCard(task: task, isSelected: task.id == store.selectedTaskID) {
-                            store.selectTask(task)
+                    ForEach(store.rankedTasks.prefix(4)) { ranked in
+                        RankedTaskCard(ranked: ranked, isSelected: ranked.task.id == store.selectedTaskID) {
+                            store.selectTask(ranked.task)
                         }
                     }
                 }
@@ -230,7 +252,7 @@ private struct SourceCard: View {
 }
 
 private struct RankedTaskCard: View {
-    let task: TaskItem
+    let ranked: RankedTask
     let isSelected: Bool
     let action: () -> Void
 
@@ -243,17 +265,26 @@ private struct RankedTaskCard: View {
                     .padding(.top, 6)
 
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(task.title)
+                    Text(ranked.task.title)
                         .font(.body.weight(.semibold))
                         .foregroundStyle(.white)
-                    Text("\(task.subject) · \(task.estimateMinutes) min · confidence \(task.confidence)/5")
+                    Text("\(ranked.task.subject) · \(ranked.task.estimateMinutes) min · confidence \(ranked.task.confidence)/5")
                         .font(.callout)
                         .foregroundStyle(.white.opacity(0.66))
                 }
 
                 Spacer()
 
-                Text(task.energy.rawValue)
+                VStack(alignment: .trailing, spacing: 6) {
+                    Text(ranked.band)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.8))
+                    Text("\(ranked.score)")
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(.white)
+                }
+
+                Text(ranked.task.energy.rawValue)
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.white.opacity(0.8))
                     .padding(.vertical, 6)
