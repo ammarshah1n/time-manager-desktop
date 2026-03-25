@@ -150,15 +150,19 @@ struct ContentView: View {
     private var header: some View {
         TimedCard(title: "Workspace", icon: "calendar.badge.clock") {
             HStack(alignment: .top, spacing: 16) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Timed.")
-                        .font(.custom("Fraunces", size: 34))
-                        .fontWeight(.bold)
-                        .foregroundStyle(.white)
+                HStack(alignment: .center, spacing: 14) {
+                    TimedLogoMark(size: 54)
 
-                    Text(headerDateString)
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.72))
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Timed.")
+                            .font(.custom("Fraunces", size: 34))
+                            .fontWeight(.bold)
+                            .foregroundStyle(.white)
+
+                        Text(headerDateString)
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.72))
+                    }
                 }
 
                 Spacer()
