@@ -189,6 +189,11 @@ struct ContentView: View {
                             centerTabRawValue = CenterTab.study.rawValue
                             showRight = true
                         }
+                        HeaderActionButton(title: "Load Memory", systemImage: "tray.and.arrow.down") {
+                            store.importCodexMemorySchoolPack()
+                            centerTabRawValue = CenterTab.study.rawValue
+                            showRight = true
+                        }
                         HeaderActionButton(title: "Command", systemImage: "command") {
                             showCommandPalette = true
                         }
@@ -920,6 +925,13 @@ struct ContentView: View {
             return
         }
 
+        if lowered == "import memory" || lowered == "load memory" {
+            store.importCodexMemorySchoolPack()
+            centerTabRawValue = CenterTab.study.rawValue
+            showRight = true
+            return
+        }
+
         if lowered.hasPrefix("add ") {
             addTaskDraft.title = String(trimmed.dropFirst(4))
             showLeft = true
@@ -1565,7 +1577,7 @@ private struct CommandPaletteSheet: View {
             Text("Command palette")
                 .font(.system(size: 18, weight: .bold))
 
-            TextField("quiz maths · plan 3h · done task name · import seqta · add task", text: $query)
+            TextField("quiz maths · import memory · sync vault · done task name", text: $query)
                 .textFieldStyle(.roundedBorder)
                 .onSubmit {
                     let currentQuery = query
@@ -1580,6 +1592,7 @@ private struct CommandPaletteSheet: View {
                 Text("plan 3h")
                 Text("done economics test")
                 Text("import seqta")
+                Text("import memory")
                 Text("add maths worksheet")
                 Text("sync vault")
             }

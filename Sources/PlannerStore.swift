@@ -37,6 +37,7 @@ final class PlannerStore {
         let folderURL = baseURL.appendingPathComponent("Timed", isDirectory: true)
         self.storageURL = storageURL ?? folderURL.appendingPathComponent("planner-state.json")
         load()
+        bootstrapCodexMemoryPackIfNeeded()
         if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil {
             startSeqtaBackgroundSync()
         }
@@ -487,6 +488,53 @@ final class PlannerStore {
             selectedContextID = contexts.first?.id
         }
         rebuildPlan()
+    }
+
+    func importCodexMemorySchoolPack(now: Date = .now, automatic: Bool = false) {
+        guard TimedPreferences.codexMemoryEnabled else {
+            if !automatic {
+                let message = "Codex memory import is disabled in Settings."
+                lastImportMessages = [message]
+                chat.append(PromptMessage(role: .assistant, text: message))
+                save()
+            }
+            return
+        }
+
+        let pack = CodexMemorySchoolPack.load(now: now)
+        var importedTasks = 0
+        var importedContexts = 0
+
+        for task in pack.tasks.map(calibratedTask) {
+            if let index = tasks.firstIndex(where: { $0.id == task.id }) {
+                tasks[index] = task
+            } else {
+                tasks.insert(task, at: 0)
+                importedTasks += 1
+            }
+        }
+
+        for context in pack.contexts {
+            if let index = contexts.firstIndex(where: { $0.id == context.id }) {
+                contexts[index] = context
+            } else {
+                contexts.insert(context, at: 0)
+                importedContexts += 1
+            }
+        }
+
+        contexts.sort { $0.createdAt > $1.createdAt }
+        promptBoostSubject = pack.focusSubject
+        selectedTaskID = pack.preferredTaskID ?? selectedTaskID
+        selectedContextID = pack.preferredContextID ?? selectedContextID
+
+        let message = automatic
+            ? "Auto-loaded Codex memory school pack with \(importedTasks) task(s) and \(importedContexts) context item(s)."
+            : "\(pack.message) Imported \(importedTasks) task(s) and \(importedContexts) context item(s)."
+
+        lastImportMessages = [message]
+        chat.append(PromptMessage(role: .assistant, text: message))
+        rebuildPlan(now: now)
     }
 
     func promptSuggestions(for subject: String?) -> [String] {
@@ -950,5 +998,10 @@ final class PlannerStore {
         merged.notes = incoming.notes
         merged.energy = incoming.energy
         return merged
+    }
+
+    private func bootstrapCodexMemoryPackIfNeeded() {
+        guard tasks.isEmpty else { return }
+        importCodexMemorySchoolPack(automatic: true)
     }
 }
