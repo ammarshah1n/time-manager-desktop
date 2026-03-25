@@ -18,6 +18,7 @@ enum TaskEnergy: String, CaseIterable, Identifiable, Codable {
 }
 
 enum ImportSource: String, CaseIterable, Identifiable, Codable {
+    case tickTick = "TickTick"
     case transcript = "Transcript"
     case seqta = "Seqta"
     case chat = "Chat"

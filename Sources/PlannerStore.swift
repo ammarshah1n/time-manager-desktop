@@ -38,7 +38,7 @@ final class PlannerStore {
             chat = loaded.chat
             isRunningPrompt = false
             importTitle = "Imported context"
-            importSource = .transcript
+            importSource = .tickTick
             importText = ""
         } else {
             let sample = ShellData.sample
@@ -54,7 +54,7 @@ final class PlannerStore {
             chat = [PromptMessage(role: "Assistant", text: "Loaded. Give me a subject, a deadline, or a time window.")]
             isRunningPrompt = false
             importTitle = "Imported context"
-            importSource = .transcript
+            importSource = .tickTick
             importText = ""
             save()
         }
@@ -123,8 +123,8 @@ final class PlannerStore {
         )
         selectedContextID = contextID
 
-        if importSource == .seqta {
-            let parsedTasks = seqtaTasks(from: trimmed)
+        if importSource == .seqta || importSource == .tickTick {
+            let parsedTasks = importSource == .seqta ? seqtaTasks(from: trimmed) : tickTickTasks(from: trimmed)
             if !parsedTasks.isEmpty {
                 tasks.insert(contentsOf: parsedTasks, at: 0)
             }
@@ -263,6 +263,32 @@ final class PlannerStore {
                 importance: 5,
                 dueDate: nil,
                 notes: "Imported from Seqta export.",
+                energy: .medium
+            )
+        }
+    }
+
+    private func tickTickTasks(from text: String) -> [TaskItem] {
+        text.split(whereSeparator: \.isNewline).compactMap { line in
+            let cleaned = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard cleaned.count > 2 else { return nil }
+            let title = cleaned
+                .replacingOccurrences(of: "•", with: "")
+                .replacingOccurrences(of: "-", with: "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !title.isEmpty else { return nil }
+
+            return TaskItem(
+                id: "ticktick-\(UUID().uuidString)",
+                title: title,
+                list: "TickTick",
+                source: .tickTick,
+                subject: inferredSubject(from: title),
+                estimateMinutes: 30,
+                confidence: 3,
+                importance: 4,
+                dueDate: nil,
+                notes: "Imported from TickTick.",
                 energy: .medium
             )
         }
