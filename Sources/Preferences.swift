@@ -7,12 +7,14 @@ enum TimedPreferences {
     static let codexMemoryEnabledKey = "timed.codexMemoryEnabled"
     static let workingRootKey = "timed.workingRoot"
     static let codexMemDBPathKey = "timed.codexMemDBPath"
+    static let obsidianVaultPathKey = "timed.obsidianVaultPath"
     static let defaultAIExecutablePath = "/Applications/Codex.app/Contents/Resources/codex"
     static let defaultWorkingRoot = NSHomeDirectory()
     static let defaultCodexMemDBPath = URL(fileURLWithPath: NSHomeDirectory())
         .appendingPathComponent(".codex-mem", isDirectory: true)
         .appendingPathComponent("codex-mem.db")
         .path
+    static let defaultObsidianVaultPath = detectedObsidianVaultPath() ?? ""
 
     static var aiExecutablePath: String {
         let value = UserDefaults.standard.string(forKey: aiExecutablePathKey)?
@@ -48,12 +50,22 @@ enum TimedPreferences {
         return (value?.isEmpty == false) ? value! : defaultCodexMemDBPath
     }
 
+    static var obsidianVaultPath: String {
+        let value = UserDefaults.standard.string(forKey: obsidianVaultPathKey)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return (value?.isEmpty == false) ? value! : defaultObsidianVaultPath
+    }
+
     static func setWorkingRoot(_ path: String) {
         UserDefaults.standard.set(path.trimmingCharacters(in: .whitespacesAndNewlines), forKey: workingRootKey)
     }
 
     static func setCodexMemDBPath(_ path: String) {
         UserDefaults.standard.set(path.trimmingCharacters(in: .whitespacesAndNewlines), forKey: codexMemDBPathKey)
+    }
+
+    static func setObsidianVaultPath(_ path: String) {
+        UserDefaults.standard.set(path.trimmingCharacters(in: .whitespacesAndNewlines), forKey: obsidianVaultPathKey)
     }
 
     static var oneDriveRoots: [String] {
@@ -88,5 +100,16 @@ enum TimedPreferences {
         }
 
         return Array(Set(roots + [workingRoot])).sorted()
+    }
+
+    private static func detectedObsidianVaultPath() -> String? {
+        let home = URL(fileURLWithPath: NSHomeDirectory())
+        let candidates = [
+            home.appendingPathComponent("Library/Mobile Documents/iCloud~md~obsidian/Documents").path,
+            home.appendingPathComponent("Documents/Obsidian").path,
+            home.appendingPathComponent("Obsidian").path
+        ]
+
+        return candidates.first(where: { FileManager.default.fileExists(atPath: $0) })
     }
 }

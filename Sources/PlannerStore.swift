@@ -419,6 +419,19 @@ final class PlannerStore {
         return nil
     }
 
+    func syncObsidianVault() {
+        let result = ObsidianVaultImporter.sync(vaultPath: TimedPreferences.obsidianVaultPath)
+        contexts.removeAll { $0.kind == "Obsidian" }
+        contexts.insert(contentsOf: result.contexts, at: 0)
+        contexts.sort { $0.createdAt > $1.createdAt }
+        lastImportMessages = [result.message]
+        chat.append(PromptMessage(role: .assistant, text: result.message))
+        if selectedContext == nil {
+            selectedContextID = contexts.first?.id
+        }
+        rebuildPlan()
+    }
+
     func promptSuggestions(for subject: String?) -> [String] {
         let quizSubject = subject ?? selectedContext?.subject ?? selectedTask?.subject ?? "English"
         return [
