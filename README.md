@@ -48,6 +48,7 @@ swift test
 bash scripts/render_screenshots.sh
 bash scripts/package_app.sh
 bash scripts/install_app.sh
+bash scripts/notarize_app.sh # requires Apple notary credentials
 ```
 
 ## Release install
@@ -59,6 +60,8 @@ bash scripts/install_app.sh
 
 The app is ad-hoc signed in the packaging step.
 
+For wider distribution, use the notarization path in [`scripts/notarize_app.sh`](./scripts/notarize_app.sh) and ship the stapled app bundle or zipped release artifact.
+
 ## Architecture
 
 - UI: SwiftUI + AppKit window blur bridge
@@ -67,6 +70,13 @@ The app is ad-hoc signed in the packaging step.
 - Imports: `ImportPipeline`
 - AI bridge: `CodexBridge`
 - Calendar export: `CalendarExporter`
+
+## Trust boundary
+
+- Timed does not embed a cloud LLM SDK.
+- All AI actions route through the local Codex CLI path configured in `Settings`.
+- Imported tasks, context, and chat stay in the local planner snapshot unless the user installs a Codex CLI backend that sends prompts elsewhere.
+- Review the Codex executable you point Timed at. The app trusts that local executable to answer planner and quiz prompts.
 
 ## Key files
 
