@@ -15,6 +15,9 @@ final class PlannerStore {
     var promptText: String
     var chat: [PromptMessage]
     var isRunningPrompt: Bool
+    var importTitle: String
+    var importSource: ImportSource
+    var importText: String
 
     init(fileManager: FileManager = .default) {
         let baseURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
@@ -34,6 +37,9 @@ final class PlannerStore {
             promptText = loaded.promptText
             chat = loaded.chat
             isRunningPrompt = false
+            importTitle = "Imported context"
+            importSource = .transcript
+            importText = ""
         } else {
             let sample = ShellData.sample
             let ranked = PlanningEngine.rank(tasks: sample.tasks)
@@ -47,6 +53,9 @@ final class PlannerStore {
             promptText = "Rank my school work for tonight"
             chat = [PromptMessage(role: "Assistant", text: "Loaded. Give me a subject, a deadline, or a time window.")]
             isRunningPrompt = false
+            importTitle = "Imported context"
+            importSource = .transcript
+            importText = ""
             save()
         }
     }
@@ -93,6 +102,40 @@ final class PlannerStore {
     func rebuildPlan() {
         rankedTasks = PlanningEngine.rank(tasks: tasks)
         schedule = PlanningEngine.buildSchedule(tasks: rankedTasks)
+        save()
+    }
+
+    func importCurrentPayload() {
+        let trimmed = importText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        let contextID = UUID().uuidString
+        contexts.insert(
+            ContextItem(
+                id: contextID,
+                title: importTitle.isEmpty ? "\(importSource.rawValue) import" : importTitle,
+                kind: importSource.rawValue,
+                subject: inferredSubject(from: trimmed),
+                summary: summaryLine(from: trimmed),
+                detail: trimmed
+            ),
+            at: 0
+        )
+        selectedContextID = contextID
+
+        if importSource == .seqta {
+            let parsedTasks = seqtaTasks(from: trimmed)
+            if !parsedTasks.isEmpty {
+                tasks.insert(contentsOf: parsedTasks, at: 0)
+            }
+            rebuildPlan()
+        }
+
+        if importSource == .chat {
+            chat.append(PromptMessage(role: "User", text: trimmed))
+        }
+
+        importText = ""
         save()
     }
 
@@ -165,6 +208,48 @@ final class PlannerStore {
             return "Top task: \(topTask.task.title). Time box: \(schedule.first?.timeRange ?? "none")."
         }
         return "Captured the prompt and kept the current plan in place."
+    }
+
+    private func summaryLine(from text: String) -> String {
+        let sanitized = text.replacingOccurrences(of: "\n", with: " ")
+        let firstSentence = sanitized.split(separator: ".").first.map(String.init) ?? sanitized
+        return String(firstSentence.prefix(140))
+    }
+
+    private func inferredSubject(from text: String) -> String {
+        let lowered = text.lowercased()
+        if lowered.contains("english") { return "English" }
+        if lowered.contains("math") { return "Maths" }
+        if lowered.contains("economics") { return "Economics" }
+        if lowered.contains("society") || lowered.contains("culture") { return "Society and Culture" }
+        if lowered.contains("seqta") { return "School" }
+        return "Context"
+    }
+
+    private func seqtaTasks(from text: String) -> [TaskItem] {
+        text.split(whereSeparator: \.isNewline).compactMap { line in
+            let cleaned = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard cleaned.count > 10 else { return nil }
+            let title = cleaned
+                .replacingOccurrences(of: "•", with: "")
+                .replacingOccurrences(of: "-", with: "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !title.isEmpty else { return nil }
+
+            return TaskItem(
+                id: "seqta-\(UUID().uuidString)",
+                title: title,
+                list: "Seqta",
+                source: .seqta,
+                subject: inferredSubject(from: title),
+                estimateMinutes: 45,
+                confidence: 2,
+                importance: 5,
+                dueDate: nil,
+                notes: "Imported from Seqta export.",
+                energy: .medium
+            )
+        }
     }
 
     private static func load(from url: URL) -> PlannerSnapshot? {

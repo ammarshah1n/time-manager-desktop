@@ -3,6 +3,9 @@ import SwiftUI
 struct ContentView: View {
     @State private var store = PlannerStore()
     @State private var promptText = "Rank my school work for tonight"
+    @State private var importTitle = "Imported context"
+    @State private var importSource: ImportSource = .transcript
+    @State private var importText = ""
 
     var body: some View {
         ZStack {
@@ -66,6 +69,42 @@ struct ContentView: View {
                         store.selectTask(task)
                     }
                 }
+            }
+
+            Divider()
+                .overlay(.white.opacity(0.12))
+                .padding(.vertical, 6)
+
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Import context")
+                    .font(.headline)
+                    .foregroundStyle(.white)
+
+                TextField("Title", text: $importTitle)
+                    .textFieldStyle(.plain)
+                    .padding(12)
+                    .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+
+                Picker("Source", selection: $importSource) {
+                    ForEach(ImportSource.allCases) { source in
+                        Text(source.rawValue).tag(source)
+                    }
+                }
+                .pickerStyle(.segmented)
+
+                TextEditor(text: $importText)
+                    .frame(minHeight: 180)
+                    .padding(10)
+                    .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+
+                Button("Import into context pack") {
+                    store.importTitle = importTitle
+                    store.importSource = importSource
+                    store.importText = importText
+                    store.importCurrentPayload()
+                    importText = ""
+                }
+                .buttonStyle(.borderedProminent)
             }
         }
         .frame(width: 340)

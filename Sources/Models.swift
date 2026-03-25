@@ -17,6 +17,14 @@ enum TaskEnergy: String, CaseIterable, Identifiable, Codable {
     var id: String { rawValue }
 }
 
+enum ImportSource: String, CaseIterable, Identifiable, Codable {
+    case transcript = "Transcript"
+    case seqta = "Seqta"
+    case chat = "Chat"
+
+    var id: String { rawValue }
+}
+
 struct TaskItem: Identifiable, Hashable, Codable {
     let id: String
     let title: String
