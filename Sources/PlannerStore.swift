@@ -348,6 +348,59 @@ final class PlannerStore {
         rebuildPlan(now: now)
     }
 
+    func recordStudyDebrief(taskID: String, confidence: Int, covered: String, blockers: String, at: Date = .now) {
+        guard let index = tasks.firstIndex(where: { $0.id == taskID }) else { return }
+
+        tasks[index].confidence = max(1, min(5, confidence))
+        let task = tasks[index]
+        let trimmedCovered = covered.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedBlockers = blockers.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let summaryText: String
+        if !trimmedCovered.isEmpty {
+            summaryText = trimmedCovered
+        } else if !trimmedBlockers.isEmpty {
+            summaryText = "Blockers: \(trimmedBlockers)"
+        } else {
+            summaryText = "Confidence updated to \(task.confidence)/5."
+        }
+
+        let detail = """
+        Task: \(task.title)
+        Subject: \(task.subject)
+        Confidence now: \(task.confidence)/5
+        Covered:
+        \(trimmedCovered.isEmpty ? "Nothing entered." : trimmedCovered)
+
+        Blockers:
+        \(trimmedBlockers.isEmpty ? "None." : trimmedBlockers)
+        """
+
+        let context = ContextItem(
+            id: StableID.makeContextID(source: .chat, title: "\(task.title)-debrief", createdAt: at),
+            title: "\(task.title) debrief",
+            kind: "Debrief",
+            subject: task.subject,
+            summary: summaryText,
+            detail: detail,
+            createdAt: at
+        )
+
+        contexts.removeAll { $0.id == context.id }
+        contexts.insert(context, at: 0)
+        contexts.sort { $0.createdAt > $1.createdAt }
+        selectedContextID = context.id
+        studyChat.append(PromptMessage(role: .assistant, text: "Debrief saved for \(task.title). Confidence is now \(task.confidence)/5."))
+        CodexMemoryInsights.recordDebrief(
+            task: task,
+            confidence: task.confidence,
+            covered: trimmedCovered,
+            blockers: trimmedBlockers,
+            at: at
+        )
+        rebuildPlan(now: at)
+    }
+
     func removeScheduleBlock(_ block: ScheduleBlock) {
         dismissedScheduleTaskIDs.insert(block.taskID)
         schedule.removeAll { $0.id == block.id }
@@ -409,7 +462,7 @@ final class PlannerStore {
             return "Estimate must be greater than zero."
         }
 
-        let task = draft.makeTask()
+        let task = calibratedTask(draft.makeTask())
         if tasks.contains(where: { $0.id == task.id }) {
             return "That task already exists."
         }
@@ -451,7 +504,7 @@ final class PlannerStore {
         }
 
         for draft in batch.taskDrafts {
-            let task = draft.makeTask()
+            let task = calibratedTask(draft.makeTask())
             guard !tasks.contains(where: { $0.id == task.id }) else { continue }
             tasks.insert(task, at: 0)
         }
@@ -771,10 +824,13 @@ final class PlannerStore {
                 if tasks[index].notes.isEmpty {
                     tasks[index].notes = hint.notes
                 }
+                if tasks[index].confidence == 3 {
+                    tasks[index].confidence = inferredConfidence(for: tasks[index])
+                }
                 continue
             }
 
-            let task = TaskItem(
+            let task = calibratedTask(TaskItem(
                 id: StableID.makeTaskID(source: .chat, title: hint.title),
                 title: hint.title,
                 list: "Prompt captured",
@@ -788,7 +844,7 @@ final class PlannerStore {
                 energy: hint.subject == "Maths" ? .high : .medium,
                 isCompleted: false,
                 completedAt: nil
-            )
+            ))
 
             tasks.insert(task, at: 0)
         }
@@ -800,8 +856,9 @@ final class PlannerStore {
 
         var insertedCount = 0
         for task in tickTickTasks {
-            guard !tasks.contains(where: { $0.id == task.id }) else { continue }
-            tasks.append(task)
+            let calibrated = calibratedTask(task)
+            guard !tasks.contains(where: { $0.id == calibrated.id }) else { continue }
+            tasks.append(calibrated)
             insertedCount += 1
         }
 
@@ -819,5 +876,20 @@ final class PlannerStore {
 
         let parts = prompt.components(separatedBy: "on")
         return parts.last?.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func calibratedTask(_ task: TaskItem) -> TaskItem {
+        var mutable = task
+        mutable.confidence = inferredConfidence(for: task)
+        return mutable
+    }
+
+    private func inferredConfidence(for task: TaskItem) -> Int {
+        guard task.confidence == 3 else { return task.confidence }
+        return CodexMemoryInsights.inferredConfidence(
+            subject: task.subject,
+            title: task.title,
+            fallback: task.confidence
+        )
     }
 }
