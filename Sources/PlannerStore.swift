@@ -119,6 +119,7 @@ final class PlannerStore {
             studyPromptText = ""
         }
 
+        migrateTaskIdentityIfNeeded()
         rebuildPlan()
     }
 
@@ -1018,6 +1019,100 @@ final class PlannerStore {
         merged.notes = incoming.notes
         merged.energy = incoming.energy
         return merged
+    }
+
+    private func migrateTaskIdentityIfNeeded() {
+        guard !tasks.isEmpty else { return }
+
+        var migratedTasks: [TaskItem] = []
+        var selectedTaskReplacement = selectedTaskID
+        var taskIDMap: [String: String] = [:]
+
+        for task in tasks {
+            let canonicalID = StableID.makeTaskID(source: task.source, title: task.title)
+            taskIDMap[task.id] = canonicalID
+
+            var canonicalTask = task
+            canonicalTask = withTaskID(task: canonicalTask, id: canonicalID)
+
+            if let existingIndex = migratedTasks.firstIndex(where: { $0.id == canonicalID }) {
+                migratedTasks[existingIndex] = mergeDuplicateTasks(existing: migratedTasks[existingIndex], incoming: canonicalTask)
+            } else {
+                migratedTasks.append(canonicalTask)
+            }
+
+            if selectedTaskID == task.id {
+                selectedTaskReplacement = canonicalID
+            }
+        }
+
+        let migratedSchedule = schedule.compactMap { block -> ScheduleBlock? in
+            guard let canonicalTaskID = taskIDMap[block.taskID] else { return block }
+            var migratedBlock = block
+            migratedBlock.taskID = canonicalTaskID
+            return migratedBlock
+        }
+
+        tasks = migratedTasks
+        schedule = deduplicatedScheduleBlocks(migratedSchedule)
+        dismissedScheduleTaskIDs = Set(dismissedScheduleTaskIDs.compactMap { taskIDMap[$0] ?? $0 })
+        selectedTaskID = selectedTaskReplacement
+    }
+
+    private func mergeDuplicateTasks(existing: TaskItem, incoming: TaskItem) -> TaskItem {
+        var merged = existing
+
+        if merged.subject.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            merged.subject = incoming.subject
+        }
+        merged.estimateMinutes = max(existing.estimateMinutes, incoming.estimateMinutes)
+        merged.importance = max(existing.importance, incoming.importance)
+        merged.dueDate = [existing.dueDate, incoming.dueDate].compactMap { $0 }.min()
+
+        if merged.notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            merged.notes = incoming.notes
+        } else if incoming.notes != merged.notes && !incoming.notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            merged.notes = [merged.notes, incoming.notes].joined(separator: "\n")
+        }
+
+        if existing.energy != .high {
+            merged.energy = incoming.energy == .high ? .high : existing.energy
+        }
+        merged.isCompleted = existing.isCompleted || incoming.isCompleted
+        merged.completedAt = [existing.completedAt, incoming.completedAt].compactMap { $0 }.max()
+
+        return merged
+    }
+
+    private func withTaskID(task: TaskItem, id: String) -> TaskItem {
+        TaskItem(
+            id: id,
+            title: task.title,
+            list: task.list,
+            source: task.source,
+            subject: task.subject,
+            estimateMinutes: task.estimateMinutes,
+            confidence: task.confidence,
+            importance: task.importance,
+            dueDate: task.dueDate,
+            notes: task.notes,
+            energy: task.energy,
+            isCompleted: task.isCompleted,
+            completedAt: task.completedAt
+        )
+    }
+
+    private func deduplicatedScheduleBlocks(_ blocks: [ScheduleBlock]) -> [ScheduleBlock] {
+        var seenTaskIDs: Set<String> = []
+        var deduplicated: [ScheduleBlock] = []
+
+        for block in blocks.sorted(by: { $0.start < $1.start }) {
+            guard !seenTaskIDs.contains(block.taskID) else { continue }
+            seenTaskIDs.insert(block.taskID)
+            deduplicated.append(block)
+        }
+
+        return deduplicated
     }
 
     private func bootstrapCodexMemoryPackIfNeeded() {

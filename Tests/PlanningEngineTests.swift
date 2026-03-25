@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import Testing
 
@@ -69,6 +70,103 @@ struct PlanningEngineTests {
         }
 
         #expect(store.tasks.count == 1)
+    }
+
+    @Test("testCrossSourceDeduplication")
+    @MainActor
+    func testCrossSourceDeduplication() {
+        let storageURL = FileManager.default.temporaryDirectory.appendingPathComponent("timed-cross-source-\(UUID().uuidString).json")
+        let store = PlannerStore(storageURL: storageURL)
+        store.tasks = []
+        store.contexts = []
+        store.chat = []
+        store.schedule = []
+
+        store.importTitle = "Seqta import"
+        store.importSource = .seqta
+        store.importText = "Due Monday: Maths investigation"
+        store.importCurrentPayload(now: fixedNow)
+        store.applyPendingImport()
+
+        store.importTitle = "TickTick import"
+        store.importSource = .tickTick
+        store.importText = "Maths investigation"
+        store.importCurrentPayload(now: fixedNow)
+        if store.pendingImportBatch != nil {
+            store.applyPendingImport()
+        }
+
+        #expect(store.tasks.count == 1)
+        #expect(store.tasks.first?.title == "Maths investigation")
+    }
+
+    @Test("testLegacyTaskIDsCollapseOnLoad")
+    @MainActor
+    func testLegacyTaskIDsCollapseOnLoad() throws {
+        let storageURL = FileManager.default.temporaryDirectory.appendingPathComponent("timed-legacy-\(UUID().uuidString).json")
+        let task = TaskItem(
+            id: legacyTaskID(source: .seqta, title: "Maths investigation"),
+            title: "Maths investigation",
+            list: "Seqta",
+            source: .seqta,
+            subject: "Maths",
+            estimateMinutes: 45,
+            confidence: 3,
+            importance: 3,
+            dueDate: Calendar.current.date(byAdding: .day, value: 1, to: fixedNow),
+            notes: "Imported from Seqta.",
+            energy: .medium,
+            isCompleted: false,
+            completedAt: nil
+        )
+        let duplicate = TaskItem(
+            id: legacyTaskID(source: .tickTick, title: "Maths investigation"),
+            title: "Maths investigation",
+            list: "TickTick",
+            source: .tickTick,
+            subject: "Maths",
+            estimateMinutes: 30,
+            confidence: 3,
+            importance: 4,
+            dueDate: Calendar.current.date(byAdding: .day, value: 2, to: fixedNow),
+            notes: "Imported from TickTick.",
+            energy: .medium,
+            isCompleted: false,
+            completedAt: nil
+        )
+        let snapshot = PlannerSnapshot(
+            tasks: [task, duplicate],
+            contexts: [],
+            schedule: [
+                ScheduleBlock(
+                    id: "block-1",
+                    taskID: duplicate.id,
+                    title: duplicate.title,
+                    start: fixedNow,
+                    end: fixedNow.addingTimeInterval(1800),
+                    timeRange: "10:00 AM - 10:30 AM",
+                    note: "Legacy duplicate",
+                    isApproved: true
+                )
+            ],
+            selectedTaskID: duplicate.id,
+            selectedContextID: nil,
+            promptText: "",
+            chat: [],
+            studyChat: [],
+            promptBoostSubject: nil,
+            dismissedScheduleTaskIDs: []
+        )
+        let data = try JSONEncoder.pretty.encode(snapshot)
+        try data.write(to: storageURL, options: [.atomic])
+
+        let reloaded = PlannerStore(storageURL: storageURL)
+        let canonicalID = StableID.makeTaskID(source: .seqta, title: "Maths investigation")
+
+        #expect(reloaded.tasks.count == 1)
+        #expect(reloaded.tasks.first?.id == canonicalID)
+        #expect(reloaded.selectedTaskID == canonicalID)
+        #expect(reloaded.schedule.first?.taskID == canonicalID)
     }
 
     @Test("testCompletedTasksExcludedFromRanking")
@@ -187,5 +285,12 @@ struct PlanningEngineTests {
             isCompleted: false,
             completedAt: nil
         )
+    }
+
+    private func legacyTaskID(source: TaskSource, title: String) -> String {
+        let seed = "\(source.rawValue)-\(title.lowercased().trimmingCharacters(in: .whitespacesAndNewlines))"
+        let digest = SHA256.hash(data: Data(seed.utf8))
+        let hash = digest.prefix(12).map { String(format: "%02x", $0) }.joined()
+        return "task-\(hash)"
     }
 }

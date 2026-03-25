@@ -288,10 +288,16 @@ enum SubjectCatalog {
 
 enum StableID {
     static func makeTaskID(source: TaskSource, title: String) -> String {
-        let seed = "\(source.rawValue)-\(title.lowercased().trimmingCharacters(in: .whitespacesAndNewlines))"
+        let seed = normalizedTaskIdentityTitle(from: title)
         let digest = SHA256.hash(data: Data(seed.utf8))
         let hash = digest.prefix(12).map { String(format: "%02x", $0) }.joined()
         return "task-\(hash)"
+    }
+
+    static func normalizedTaskIdentityTitle(from title: String) -> String {
+        title
+            .lowercased()
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     static func makeContextID(source: ImportSource, title: String, createdAt: Date) -> String {

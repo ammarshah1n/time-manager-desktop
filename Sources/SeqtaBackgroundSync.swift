@@ -90,14 +90,13 @@ enum SeqtaBackgroundSync {
             guard let title = stringValue(assessment["title"]) else { return nil }
             let rawSubject = stringValue(assessment["subject"]) ?? "General"
             let subject = normalizedSubject(rawSubject)
-            let assessmentID = stringValue(assessment["id"]) ?? title
             let dueDate = parseDueDate(stringValue(assessment["due"]), now: now)
             let status = stringValue(assessment["status"]) ?? "UNKNOWN"
             let overdue = boolValue(assessment["overdue"])
             let hasFeedback = boolValue(assessment["hasFeedback"])
 
             return TaskItem(
-                id: StableID.makeTaskID(source: .seqta, title: "\(assessmentID)-\(title)"),
+                id: StableID.makeTaskID(source: .seqta, title: title),
                 title: title,
                 list: "Seqta",
                 source: .seqta,
