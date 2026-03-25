@@ -1,16 +1,19 @@
 <svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="bg" x1="24" y1="20" x2="226" y2="236" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#2B2D33"/>
-      <stop offset="1" stop-color="#17181C"/>
+    <linearGradient id="shell" x1="28" y1="24" x2="224" y2="232" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#343944"/>
+      <stop offset="1" stop-color="#171A20"/>
     </linearGradient>
   </defs>
-  <circle cx="128" cy="128" r="116" fill="url(#bg)"/>
-  <circle cx="128" cy="128" r="116" stroke="rgba(255,255,255,0.18)" stroke-width="12"/>
-  <circle cx="128" cy="128" r="82" stroke="#D32F2F" stroke-width="12"/>
-  <path d="M128 78V151" stroke="#F8F6F6" stroke-width="14" stroke-linecap="round"/>
-  <path d="M128 128L177 96" stroke="#F8F6F6" stroke-width="14" stroke-linecap="round"/>
-  <rect x="58" y="92" width="88" height="16" rx="2" fill="#F8F6F6"/>
-  <rect x="94" y="92" width="18" height="72" rx="2" fill="#F8F6F6"/>
-  <circle cx="128" cy="128" r="14" fill="#D32F2F"/>
+  <rect x="24" y="28" width="208" height="208" rx="56" fill="url(#shell)"/>
+  <rect x="24" y="28" width="208" height="208" rx="56" stroke="rgba(255,255,255,0.10)" stroke-width="4"/>
+  <rect x="100" y="10" width="56" height="26" rx="13" fill="#D32F2F"/>
+  <circle cx="128" cy="138" r="78" fill="#F7F2E8"/>
+  <circle cx="128" cy="138" r="78" stroke="#1E2128" stroke-opacity="0.14" stroke-width="10"/>
+  <path d="M66 165C75 117 116 82 170 87C186 89 202 95 214 105" stroke="#D32F2F" stroke-width="14" stroke-linecap="round"/>
+  <rect x="98" y="128" width="60" height="16" rx="2" fill="#1E2128"/>
+  <rect x="120" y="128" width="16" height="70" rx="2" fill="#1E2128"/>
+  <path d="M128 138L176 103" stroke="#D32F2F" stroke-width="10" stroke-linecap="round"/>
+  <path d="M128 138L128 92" stroke="#1E2128" stroke-width="8" stroke-linecap="round"/>
+  <circle cx="128" cy="138" r="11" fill="#D32F2F"/>
 </svg>

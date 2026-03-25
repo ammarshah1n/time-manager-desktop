@@ -2,9 +2,9 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SOURCE_APP="$ROOT_DIR/dist/timed.app"
+SOURCE_APP="$ROOT_DIR/dist/Timed.app"
 TARGET_DIR="/Applications"
-TARGET_APP="$TARGET_DIR/timed.app"
+TARGET_APP="$TARGET_DIR/Timed.app"
 
 if [[ ! -d "$SOURCE_APP" ]]; then
   echo "Missing app bundle at $SOURCE_APP. Run scripts/package_app.sh first."
