@@ -37,6 +37,7 @@ final class PlannerStore {
         let folderURL = baseURL.appendingPathComponent("Timed", isDirectory: true)
         self.storageURL = storageURL ?? folderURL.appendingPathComponent("planner-state.json")
         load()
+        syncChatsFromCodexMemoryIfAvailable()
         bootstrapCodexMemoryPackIfNeeded()
         if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil {
             startSeqtaBackgroundSync()
@@ -191,7 +192,7 @@ final class PlannerStore {
 
         rebuildPlan(now: now)
         aiErrorText = nil
-        chat.append(PromptMessage(role: .user, text: rawPrompt))
+        appendPlannerMessage(PromptMessage(role: .user, text: rawPrompt), subject: SubjectCatalog.matchingSubject(in: rawPrompt))
         isRunningPrompt = true
 
         let response = await CodexBridge().run(
@@ -211,7 +212,7 @@ final class PlannerStore {
 
         guard let response else {
             aiErrorText = "Could not reach Timed AI — check Codex is installed"
-            chat.append(PromptMessage(role: .assistant, text: aiErrorText ?? "Timed AI error"))
+            appendPlannerMessage(PromptMessage(role: .assistant, text: aiErrorText ?? "Timed AI error"), subject: SubjectCatalog.matchingSubject(in: rawPrompt))
             save()
             return
         }
@@ -224,7 +225,7 @@ final class PlannerStore {
             promptBoostSubject = boostSubject
         }
         rebuildPlan(now: now)
-        chat.append(PromptMessage(role: .assistant, text: response))
+        appendPlannerMessage(PromptMessage(role: .assistant, text: response), subject: promptBoostSubject ?? SubjectCatalog.matchingSubject(in: rawPrompt))
         save()
     }
 
@@ -254,7 +255,7 @@ final class PlannerStore {
         let subject = activeTask?.subject ?? SubjectCatalog.matchingSubject(in: rawPrompt) ?? "English"
         let studyContexts = groundedStudyContexts(for: activeTask, subject: subject)
 
-        studyChat.append(PromptMessage(role: .user, text: rawPrompt))
+        appendStudyMessage(PromptMessage(role: .user, text: rawPrompt), subject: subject)
         aiErrorText = nil
         isRunningPrompt = true
 
@@ -277,7 +278,7 @@ final class PlannerStore {
 
         guard let response else {
             aiErrorText = "Could not reach Timed AI — check Codex is installed"
-            studyChat.append(PromptMessage(role: .assistant, text: aiErrorText ?? "Timed AI error"))
+            appendStudyMessage(PromptMessage(role: .assistant, text: aiErrorText ?? "Timed AI error"), subject: subject)
             save()
             return
         }
@@ -290,7 +291,7 @@ final class PlannerStore {
         } else {
             save()
         }
-        studyChat.append(PromptMessage(role: .assistant, text: response))
+        appendStudyMessage(PromptMessage(role: .assistant, text: response), subject: subject)
         save()
     }
 
@@ -299,7 +300,10 @@ final class PlannerStore {
         let matchingContexts = groundedStudyContexts(for: selectedTask, subject: normalizedSubject)
 
         guard !matchingContexts.isEmpty else {
-            studyChat.append(PromptMessage(role: .assistant, text: "No grounded study context is loaded for \(normalizedSubject). Import your transcript, notes, or feedback first."))
+            appendStudyMessage(
+                PromptMessage(role: .assistant, text: "No grounded study context is loaded for \(normalizedSubject). Import your transcript, notes, or feedback first."),
+                subject: normalizedSubject
+            )
             save()
             return
         }
@@ -311,7 +315,10 @@ final class PlannerStore {
         }
         aiErrorText = nil
         isRunningPrompt = true
-        studyChat.append(PromptMessage(role: .student, text: "Quiz me on \(normalizedSubject).", isQuiz: true))
+        appendStudyMessage(
+            PromptMessage(role: .student, text: "Quiz me on \(normalizedSubject).", isQuiz: true),
+            subject: normalizedSubject
+        )
 
         let response = await CodexBridge().run(
             request: CodexRunRequest(
@@ -329,19 +336,19 @@ final class PlannerStore {
 
         guard let response else {
             aiErrorText = "Could not reach Timed AI — check Codex is installed"
-            studyChat.append(PromptMessage(role: .assistant, text: aiErrorText ?? "Timed AI error"))
+            appendStudyMessage(PromptMessage(role: .assistant, text: aiErrorText ?? "Timed AI error"), subject: normalizedSubject)
             save()
             return
         }
 
-        studyChat.append(PromptMessage(role: .tutor, text: response, isQuiz: true))
+        appendStudyMessage(PromptMessage(role: .tutor, text: response, isQuiz: true), subject: normalizedSubject)
         save()
     }
 
     func endQuiz() {
         isQuizMode = false
         activeQuizSubject = nil
-        studyChat.append(PromptMessage(role: .assistant, text: "Quiz ended. Back to study mode."))
+        appendStudyMessage(PromptMessage(role: .assistant, text: "Quiz ended. Back to study mode."))
         save()
     }
 
@@ -395,7 +402,10 @@ final class PlannerStore {
         contexts.insert(context, at: 0)
         contexts.sort { $0.createdAt > $1.createdAt }
         selectedContextID = context.id
-        studyChat.append(PromptMessage(role: .assistant, text: "Debrief saved for \(task.title). Confidence is now \(task.confidence)/5."))
+        appendStudyMessage(
+            PromptMessage(role: .assistant, text: "Debrief saved for \(task.title). Confidence is now \(task.confidence)/5."),
+            subject: task.subject
+        )
         CodexMemoryInsights.recordDebrief(
             task: task,
             confidence: task.confidence,
@@ -421,7 +431,7 @@ final class PlannerStore {
     func exportCalendar() async {
         let result = await CalendarExporter.exportApprovedBlocks(schedule)
         let extra = result.fallbackICSURL.map { " \($0.lastPathComponent)" } ?? ""
-        chat.append(PromptMessage(role: .assistant, text: "\(result.message)\(extra)"))
+        appendPlannerMessage(PromptMessage(role: .assistant, text: "\(result.message)\(extra)"))
         save()
     }
 
@@ -483,7 +493,7 @@ final class PlannerStore {
         contexts.insert(contentsOf: result.contexts, at: 0)
         contexts.sort { $0.createdAt > $1.createdAt }
         lastImportMessages = [result.message]
-        chat.append(PromptMessage(role: .assistant, text: result.message))
+        appendPlannerMessage(PromptMessage(role: .assistant, text: result.message))
         if selectedContext == nil {
             selectedContextID = contexts.first?.id
         }
@@ -533,7 +543,7 @@ final class PlannerStore {
             : "\(pack.message) Imported \(importedTasks) task(s) and \(importedContexts) context item(s)."
 
         lastImportMessages = [message]
-        chat.append(PromptMessage(role: .assistant, text: message))
+        appendPlannerMessage(PromptMessage(role: .assistant, text: message), subject: pack.focusSubject)
         rebuildPlan(now: now)
     }
 
@@ -563,7 +573,7 @@ final class PlannerStore {
 
         lastImportMessages = batch.messages
         if !batch.messages.isEmpty {
-            chat.append(PromptMessage(role: .assistant, text: batch.messages.joined(separator: "\n")))
+            appendPlannerMessage(PromptMessage(role: .assistant, text: batch.messages.joined(separator: "\n")))
         }
         rebuildPlan()
     }
@@ -571,7 +581,7 @@ final class PlannerStore {
     private func continueQuiz(with answer: String) async {
         guard let activeQuizSubject else { return }
         let matchingContexts = groundedStudyContexts(for: selectedTask, subject: activeQuizSubject)
-        studyChat.append(PromptMessage(role: .student, text: answer, isQuiz: true))
+        appendStudyMessage(PromptMessage(role: .student, text: answer, isQuiz: true), subject: activeQuizSubject)
         isRunningPrompt = true
 
         let response = await CodexBridge().run(
@@ -590,12 +600,12 @@ final class PlannerStore {
         isRunningPrompt = false
         guard let response else {
             aiErrorText = "Could not reach Timed AI — check Codex is installed"
-            studyChat.append(PromptMessage(role: .assistant, text: aiErrorText ?? "Timed AI error"))
+            appendStudyMessage(PromptMessage(role: .assistant, text: aiErrorText ?? "Timed AI error"), subject: activeQuizSubject)
             save()
             return
         }
 
-        studyChat.append(PromptMessage(role: .tutor, text: response, isQuiz: true))
+        appendStudyMessage(PromptMessage(role: .tutor, text: response, isQuiz: true), subject: activeQuizSubject)
         save()
     }
 
@@ -915,7 +925,7 @@ final class PlannerStore {
         }
 
         if insertedCount > 0 {
-            chat.append(PromptMessage(role: .assistant, text: "Imported \(insertedCount) relevant TickTick task(s) from your recent CSV export."))
+            appendPlannerMessage(PromptMessage(role: .assistant, text: "Imported \(insertedCount) relevant TickTick task(s) from your recent CSV export."))
         }
     }
 
@@ -953,7 +963,7 @@ final class PlannerStore {
         guard insertedCount > 0 || updatedCount > 0 else { return }
         let message = "Seqta background sync updated \(insertedCount) new task(s) and \(updatedCount) existing task(s)."
         lastImportMessages = [message]
-        chat.append(PromptMessage(role: .assistant, text: message))
+        appendPlannerMessage(PromptMessage(role: .assistant, text: message))
         rebuildPlan(now: now)
     }
 
@@ -983,6 +993,16 @@ final class PlannerStore {
         )
     }
 
+    private func appendPlannerMessage(_ message: PromptMessage, subject: String? = nil) {
+        chat.append(message)
+        CodexMemorySync.recordMessage(message, channel: .planner, subject: subject)
+    }
+
+    private func appendStudyMessage(_ message: PromptMessage, subject: String? = nil) {
+        studyChat.append(message)
+        CodexMemorySync.recordMessage(message, channel: .study, subject: subject)
+    }
+
     private func mergeSeqtaTask(existing: TaskItem, incoming: TaskItem) -> TaskItem {
         var merged = existing
         merged.title = incoming.title
@@ -1003,5 +1023,21 @@ final class PlannerStore {
     private func bootstrapCodexMemoryPackIfNeeded() {
         guard tasks.isEmpty else { return }
         importCodexMemorySchoolPack(automatic: true)
+    }
+
+    private func syncChatsFromCodexMemoryIfAvailable() {
+        guard TimedPreferences.codexMemoryEnabled else { return }
+
+        let remotePlannerChat = CodexMemorySync.loadConversation(channel: .planner)
+        let remoteStudyChat = CodexMemorySync.loadConversation(channel: .study)
+
+        let mergedPlannerChat = CodexMemorySync.merge(local: chat, remote: remotePlannerChat)
+        let mergedStudyChat = CodexMemorySync.merge(local: studyChat, remote: remoteStudyChat)
+
+        if mergedPlannerChat != chat || mergedStudyChat != studyChat {
+            chat = mergedPlannerChat
+            studyChat = mergedStudyChat
+            save()
+        }
     }
 }

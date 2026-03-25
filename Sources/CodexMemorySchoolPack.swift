@@ -10,9 +10,6 @@ struct SchoolContextPack {
 }
 
 enum CodexMemorySchoolPack {
-    private static let mathsSessionID = "codex-live-maths-investigation-20260325"
-    private static let economicsSessionID = "codex_import:019d196e-3f71-7a30-b87b-ac8d57542a46"
-
     static func load(
         now: Date = .now,
         homeDirectory: String = NSHomeDirectory(),
@@ -60,64 +57,30 @@ enum CodexMemorySchoolPack {
         var contexts: [ContextItem] = []
 
         if dbExists {
-            let mathsObservations = queryLines(
-                sql: """
-                SELECT title || ': ' || replace(content_text, char(10), ' ')
-                FROM observations
-                WHERE session_id = '\(mathsSessionID)'
-                ORDER BY created_at_epoch DESC
-                LIMIT 3;
-                """,
-                dbPath: codexMemDBPath
-            )
-
-            if !mathsObservations.isEmpty {
-                contexts.append(
-                    makeContext(
-                        title: "Maths investigation feedback — priority fixes",
-                        kind: "Feedback",
-                        subject: "Maths",
-                        summary: "Teacher feedback says the folio needs a stronger intro, clearer calculation explanation, explicit subtraction logic, dimensions on diagrams, fuller limitations, and a tighter conclusion.",
-                        detail: """
-                        Source: codex-mem session \(mathsSessionID)
-
-                        \(mathsObservations.joined(separator: "\n\n"))
-                        """,
-                        createdAt: now
-                    )
-                )
-            }
-
-            let economicsSummary = queryFirstLine(
-                sql: """
-                SELECT one_line_summary
-                FROM sessions
-                WHERE id = '\(economicsSessionID)'
-                LIMIT 1;
-                """,
-                dbPath: codexMemDBPath
-            )
-
-            if !economicsSummary.isEmpty {
-                contexts.append(
-                    makeContext(
-                        title: "Economics stimulus rules from codex-mem",
-                        kind: "Feedback",
-                        subject: "Economics",
-                        summary: economicsSummary,
-                        detail: """
-                        Source: codex-mem session \(economicsSessionID)
-
-                        Active rules:
-                        - Mirror the workbook question structure and only change the content.
-                        - Keep the practice inside workbook bounds.
-                        - Do not give away the answer or the determinants in the stimulus.
-                        - Keep it test-like: no task tips, no weird curveballs, full written interpretation.
-                        """,
-                        createdAt: calendar.date(byAdding: .minute, value: -5, to: now) ?? now
-                    )
-                )
-            }
+            contexts.append(contentsOf: memoryContexts(
+                subject: "Maths",
+                keywords: ["maths", "mathematics", "investigation", "measurement"],
+                kind: "Feedback",
+                limit: 2,
+                dbPath: codexMemDBPath,
+                createdAt: now
+            ))
+            contexts.append(contentsOf: memoryContexts(
+                subject: "English",
+                keywords: ["english", "poetry", "comparative", "literary"],
+                kind: "Feedback",
+                limit: 2,
+                dbPath: codexMemDBPath,
+                createdAt: calendar.date(byAdding: .minute, value: -4, to: now) ?? now
+            ))
+            contexts.append(contentsOf: memoryContexts(
+                subject: "Economics",
+                keywords: ["economics", "elasticity", "ped", "pes", "surplus", "microeconomics"],
+                kind: "Feedback",
+                limit: 3,
+                dbPath: codexMemDBPath,
+                createdAt: calendar.date(byAdding: .minute, value: -8, to: now) ?? now
+            ))
         }
 
         if fileManager.fileExists(atPath: mathsMapURL.path) {
@@ -213,7 +176,7 @@ enum CodexMemorySchoolPack {
         }
 
         let messageParts = [
-            dbExists ? "codex-mem" : nil,
+            dbExists ? "codex-mem discovery" : nil,
             fileManager.fileExists(atPath: studyPlanURL.path) ? "study-plan" : nil,
             fileManager.fileExists(atPath: mathsMapURL.path) ? "maths HTML map" : nil
         ].compactMap { $0 }
@@ -230,6 +193,13 @@ enum CodexMemorySchoolPack {
             message: message,
             focusSubject: "Maths"
         )
+    }
+
+    private struct MemorySessionRecord {
+        let id: String
+        let title: String
+        let subject: String
+        let oneLineSummary: String
     }
 
     private static func makeTask(
@@ -304,6 +274,151 @@ enum CodexMemorySchoolPack {
         queryLines(sql: sql, dbPath: dbPath).first ?? ""
     }
 
+    private static func memoryContexts(
+        subject: String,
+        keywords: [String],
+        kind: String,
+        limit: Int,
+        dbPath: String,
+        createdAt: Date
+    ) -> [ContextItem] {
+        recentSessions(subject: subject, keywords: keywords, limit: limit, dbPath: dbPath)
+            .enumerated()
+            .compactMap { index, session in
+                let observations = sessionObservations(sessionID: session.id, dbPath: dbPath)
+                let summaries = sessionSummaries(sessionID: session.id, dbPath: dbPath)
+
+                let summary = [
+                    session.oneLineSummary,
+                    summaries.first,
+                    observations.first
+                ]
+                .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .first(where: { !$0.isEmpty })
+
+                let detailSections = [
+                    "Source session: \(session.id)",
+                    session.subject.isEmpty ? nil : "Subject: \(session.subject)",
+                    session.oneLineSummary.isEmpty ? nil : "One-line summary:\n\(session.oneLineSummary)",
+                    summaries.isEmpty ? nil : "Session summaries:\n\(summaries.joined(separator: "\n\n"))",
+                    observations.isEmpty ? nil : "Observations:\n\(observations.joined(separator: "\n\n"))"
+                ].compactMap { $0 }
+
+                guard !detailSections.isEmpty else { return nil }
+
+                let titleSeed = session.title.isEmpty ? session.id : session.title
+                let offsetMinutes = index * 2
+                return makeContext(
+                    title: "\(subject) codex-mem — \(titleSeed)",
+                    kind: kind,
+                    subject: subject,
+                    summary: summary ?? "Recovered relevant \(subject) context from codex-mem.",
+                    detail: detailSections.joined(separator: "\n\n"),
+                    createdAt: Calendar.current.date(byAdding: .minute, value: -offsetMinutes, to: createdAt) ?? createdAt
+                )
+            }
+    }
+
+    private static func recentSessions(
+        subject: String,
+        keywords: [String],
+        limit: Int,
+        dbPath: String
+    ) -> [MemorySessionRecord] {
+        let clause = sessionMatchClause(subject: subject, keywords: keywords)
+        guard !clause.isEmpty else { return [] }
+
+        let sql = """
+        SELECT
+          id,
+          COALESCE(title, '') AS title,
+          COALESCE(subject, '') AS subject,
+          COALESCE(one_line_summary, '') AS one_line_summary
+        FROM sessions
+        WHERE \(clause)
+        ORDER BY COALESCE(updated_at_epoch, created_at_epoch) DESC
+        LIMIT \(limit);
+        """
+
+        return queryRows(sql: sql, dbPath: dbPath).compactMap { row in
+            guard let id = row["id"] as? String else { return nil }
+
+            return MemorySessionRecord(
+                id: id,
+                title: row["title"] as? String ?? "",
+                subject: row["subject"] as? String ?? "",
+                oneLineSummary: row["one_line_summary"] as? String ?? ""
+            )
+        }
+    }
+
+    private static func sessionObservations(sessionID: String, dbPath: String) -> [String] {
+        queryLines(
+            sql: """
+            SELECT title || ': ' || replace(content_text, char(10), ' ')
+            FROM observations
+            WHERE session_id = '\(escapeSQL(sessionID))'
+            ORDER BY created_at_epoch DESC
+            LIMIT 4;
+            """,
+            dbPath: dbPath
+        )
+    }
+
+    private static func sessionSummaries(sessionID: String, dbPath: String) -> [String] {
+        queryLines(
+            sql: """
+            SELECT replace(summary_text, char(10), ' ')
+            FROM session_summaries
+            WHERE session_id = '\(escapeSQL(sessionID))'
+            ORDER BY created_at_epoch DESC
+            LIMIT 2;
+            """,
+            dbPath: dbPath
+        )
+    }
+
+    private static func sessionMatchClause(subject: String, keywords: [String]) -> String {
+        let termClauses = keywords
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+            .filter { !$0.isEmpty }
+            .map { keyword in
+                let escaped = escapeSQL(keyword)
+                return """
+                lower(COALESCE(title, '')) LIKE '%\(escaped)%' OR
+                lower(COALESCE(one_line_summary, '')) LIKE '%\(escaped)%' OR
+                lower(COALESCE(id, '')) LIKE '%\(escaped)%'
+                """
+            }
+
+        let subjectClause = "lower(COALESCE(subject, '')) = lower('\(escapeSQL(subject))')"
+        return ([subjectClause] + termClauses).joined(separator: " OR ")
+    }
+
+    private static func queryRows(sql: String, dbPath: String) -> [[String: Any]] {
+        guard FileManager.default.fileExists(atPath: dbPath) else { return [] }
+
+        let process = Process()
+        let outputPipe = Pipe()
+
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/sqlite3")
+        process.arguments = ["-json", dbPath, sql]
+        process.standardOutput = outputPipe
+        process.standardError = Pipe()
+
+        do {
+            try process.run()
+            process.waitUntilExit()
+            let data = outputPipe.fileHandleForReading.readDataToEndOfFile()
+            guard !data.isEmpty else { return [] }
+
+            let json = try JSONSerialization.jsonObject(with: data)
+            return json as? [[String: Any]] ?? []
+        } catch {
+            return []
+        }
+    }
+
     private static func queryLines(sql: String, dbPath: String) -> [String] {
         guard FileManager.default.fileExists(atPath: dbPath) else { return [] }
 
@@ -327,5 +442,9 @@ enum CodexMemorySchoolPack {
         } catch {
             return []
         }
+    }
+
+    private static func escapeSQL(_ value: String) -> String {
+        value.replacingOccurrences(of: "'", with: "''")
     }
 }

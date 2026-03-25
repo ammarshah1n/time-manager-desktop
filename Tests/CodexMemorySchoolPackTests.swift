@@ -22,7 +22,26 @@ struct CodexMemorySchoolPackTests {
             sql: """
             CREATE TABLE sessions (
               id TEXT PRIMARY KEY,
+              source TEXT,
+              external_id TEXT,
+              title TEXT,
+              project_label TEXT,
+              project_path TEXT,
+              started_at_epoch INTEGER,
+              updated_at_epoch INTEGER,
+              status TEXT,
+              metadata_json TEXT,
+              created_at_epoch INTEGER,
+              subject TEXT,
               one_line_summary TEXT
+            );
+            CREATE TABLE session_summaries (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              session_id TEXT NOT NULL,
+              source_type TEXT NOT NULL,
+              summary_text TEXT NOT NULL,
+              structured_json TEXT,
+              created_at_epoch INTEGER NOT NULL
             );
             CREATE TABLE observations (
               id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -33,15 +52,35 @@ struct CodexMemorySchoolPackTests {
               metadata_json TEXT,
               created_at_epoch INTEGER NOT NULL
             );
-            INSERT INTO sessions (id, one_line_summary)
-            VALUES (
-              'codex_import:019d196e-3f71-7a30-b87b-ac8d57542a46',
-              'Session focused on workbook-style economics revision without giving away elasticity answers.'
-            );
+            INSERT INTO sessions (id, source, external_id, title, updated_at_epoch, created_at_epoch, subject, one_line_summary)
+            VALUES
+              (
+                'codex_import:019d196e-3f71-7a30-b87b-ac8d57542a46',
+                'timed',
+                'codex_import:019d196e-3f71-7a30-b87b-ac8d57542a46',
+                'Economics revision session',
+                20,
+                20,
+                'Economics',
+                'Session focused on workbook-style economics revision without giving away elasticity answers.'
+              ),
+              (
+                'codex-live-maths-investigation-20260325',
+                'timed',
+                'codex-live-maths-investigation-20260325',
+                'Maths investigation feedback cleanup',
+                10,
+                10,
+                'Maths',
+                'Maths feedback session.'
+              );
             INSERT INTO observations (session_id, observation_type, title, content_text, created_at_epoch)
             VALUES
               ('codex-live-maths-investigation-20260325', 'feedback', 'Teacher feedback scan 1', 'Define the task and explain the subtraction logic.', 1),
               ('codex-live-maths-investigation-20260325', 'feedback', 'Teacher feedback scan 2', 'Label dimensions and tighten the conclusion.', 2);
+            INSERT INTO session_summaries (session_id, source_type, summary_text, created_at_epoch)
+            VALUES
+              ('codex_import:019d196e-3f71-7a30-b87b-ac8d57542a46', 'manual', 'Keep the practice inside workbook bounds and do not give away determinant answers.', 3);
             """,
             dbPath: dbURL.path
         )

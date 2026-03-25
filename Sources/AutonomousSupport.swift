@@ -150,24 +150,149 @@ enum LocalFileSearchProvider {
 }
 
 enum CodexMemorySearchProvider {
-    static func search(question: String, limit: Int = 5) -> [CodexMemoryHit] {
+    static func search(
+        question: String,
+        limit: Int = 5,
+        dbPath: String = TimedPreferences.codexMemDBPath
+    ) -> [CodexMemoryHit] {
         guard TimedPreferences.codexMemoryEnabled else { return [] }
-        guard FileManager.default.fileExists(atPath: TimedPreferences.codexMemDBPath) else { return [] }
+        guard FileManager.default.fileExists(atPath: dbPath) else { return [] }
 
-        let query = ftsQuery(from: question)
-        guard !query.isEmpty else { return [] }
+        let tokens = searchTokens(from: question)
+        let ftsQuery = ftsQuery(from: tokens)
+        let observationClause = observationClause(from: tokens)
+        let summaryClause = summaryClause(from: tokens)
+        let sessionClause = sessionClause(from: tokens)
+        guard !ftsQuery.isEmpty || !observationClause.isEmpty || !summaryClause.isEmpty || !sessionClause.isEmpty else { return [] }
 
-        let sql = """
-        SELECT COALESCE(search_documents.title, ''), substr(search_documents.content, 1, 320), search_documents.doc_type
+        var hits: [CodexMemoryHit] = []
+        hits.append(contentsOf: queryHits(sql: searchDocumentsSQL(ftsQuery: ftsQuery, limit: limit * 2), dbPath: dbPath))
+        hits.append(contentsOf: queryHits(sql: observationsSQL(clause: observationClause, limit: limit), dbPath: dbPath))
+        hits.append(contentsOf: queryHits(sql: summariesSQL(clause: summaryClause, limit: limit), dbPath: dbPath))
+        hits.append(contentsOf: queryHits(sql: sessionsSQL(clause: sessionClause, limit: limit), dbPath: dbPath))
+
+        var deduped: [CodexMemoryHit] = []
+        var seen: Set<String> = []
+
+        for hit in hits {
+            let key = "\(hit.source)|\(hit.title)|\(hit.excerpt)"
+            guard !seen.contains(key) else { continue }
+            seen.insert(key)
+            deduped.append(hit)
+            if deduped.count >= limit {
+                break
+            }
+        }
+
+        return deduped
+    }
+
+    private static func searchTokens(from question: String) -> [String] {
+        question
+            .replacingOccurrences(of: "[^A-Za-z0-9 ]", with: " ", options: .regularExpression)
+            .split(whereSeparator: \.isWhitespace)
+            .map { String($0).lowercased() }
+            .filter { $0.count >= 3 }
+    }
+
+    private static func ftsQuery(from tokens: [String]) -> String {
+        guard !tokens.isEmpty else { return "" }
+        return Array(tokens.prefix(6)).map { "\"\(escapeFTS($0))\"" }.joined(separator: " OR ")
+    }
+
+    private static func observationClause(from tokens: [String]) -> String {
+        let scopedTokens = Array(tokens.prefix(5))
+        guard !scopedTokens.isEmpty else { return "" }
+
+        return scopedTokens.map { token in
+            let escaped = escapeLike(token)
+            return """
+            lower(COALESCE(o.title, '')) LIKE '%\(escaped)%' OR
+            lower(COALESCE(o.content_text, '')) LIKE '%\(escaped)%'
+            """
+        }.joined(separator: " OR ")
+    }
+
+    private static func summaryClause(from tokens: [String]) -> String {
+        let scopedTokens = Array(tokens.prefix(5))
+        guard !scopedTokens.isEmpty else { return "" }
+
+        return scopedTokens.map { token in
+            let escaped = escapeLike(token)
+            return """
+            lower(COALESCE(s.title, '')) LIKE '%\(escaped)%' OR
+            lower(COALESCE(s.one_line_summary, '')) LIKE '%\(escaped)%' OR
+            lower(COALESCE(ss.summary_text, '')) LIKE '%\(escaped)%'
+            """
+        }.joined(separator: " OR ")
+    }
+
+    private static func sessionClause(from tokens: [String]) -> String {
+        let scopedTokens = Array(tokens.prefix(5))
+        guard !scopedTokens.isEmpty else { return "" }
+
+        return scopedTokens.map { token in
+            let escaped = escapeLike(token)
+            return """
+            lower(COALESCE(title, '')) LIKE '%\(escaped)%' OR
+            lower(COALESCE(one_line_summary, '')) LIKE '%\(escaped)%' OR
+            lower(COALESCE(subject, '')) LIKE '%\(escaped)%'
+            """
+        }.joined(separator: " OR ")
+    }
+
+    private static func searchDocumentsSQL(ftsQuery: String, limit: Int) -> String {
+        guard !ftsQuery.isEmpty else { return "" }
+        return """
+        SELECT COALESCE(search_documents.title, ''), substr(replace(search_documents.content, char(10), ' '), 1, 320), search_documents.doc_type
         FROM search_documents_fts
         JOIN search_documents ON search_documents_fts.rowid = search_documents.id
-        WHERE search_documents_fts MATCH '\(query)'
+        WHERE search_documents_fts MATCH '\(ftsQuery)'
+        ORDER BY search_documents.created_at_epoch DESC
         LIMIT \(limit);
         """
+    }
+
+    private static func observationsSQL(clause: String, limit: Int) -> String {
+        guard !clause.isEmpty else { return "" }
+        return """
+        SELECT COALESCE(o.title, ''), substr(replace(o.content_text, char(10), ' '), 1, 320), 'observation'
+        FROM observations o
+        WHERE \(clause)
+        ORDER BY o.created_at_epoch DESC
+        LIMIT \(limit);
+        """
+    }
+
+    private static func summariesSQL(clause: String, limit: Int) -> String {
+        guard !clause.isEmpty else { return "" }
+        return """
+        SELECT COALESCE(s.title, ''), substr(replace(ss.summary_text, char(10), ' '), 1, 320), 'summary'
+        FROM session_summaries ss
+        JOIN sessions s ON s.id = ss.session_id
+        WHERE \(clause)
+        ORDER BY ss.created_at_epoch DESC
+        LIMIT \(limit);
+        """
+    }
+
+    private static func sessionsSQL(clause: String, limit: Int) -> String {
+        guard !clause.isEmpty else { return "" }
+        return """
+        SELECT COALESCE(title, ''), substr(replace(COALESCE(one_line_summary, title), char(10), ' '), 1, 320), 'session'
+        FROM sessions
+        WHERE \(clause)
+        ORDER BY COALESCE(updated_at_epoch, created_at_epoch) DESC
+        LIMIT \(limit);
+        """
+    }
+
+    private static func queryHits(sql: String, dbPath: String) -> [CodexMemoryHit] {
+        guard !sql.isEmpty else { return [] }
 
         let output = runProcess(
             executable: "/usr/bin/sqlite3",
-            arguments: ["-separator", "||", TimedPreferences.codexMemDBPath, sql]
+            arguments: ["-separator", "||", dbPath, sql]
         )
 
         return output
@@ -176,23 +301,26 @@ enum CodexMemorySearchProvider {
             .compactMap { line in
                 let columns = line.components(separatedBy: "||")
                 guard columns.count >= 3 else { return nil }
+                let excerpt = columns[1].trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !excerpt.isEmpty else { return nil }
+
                 return CodexMemoryHit(
                     title: columns[0].isEmpty ? "Untitled memory" : columns[0],
-                    excerpt: columns[1].trimmingCharacters(in: .whitespacesAndNewlines),
+                    excerpt: excerpt,
                     source: columns[2]
                 )
             }
     }
 
-    private static func ftsQuery(from question: String) -> String {
-        let tokens = question
-            .replacingOccurrences(of: "[^A-Za-z0-9 ]", with: " ", options: .regularExpression)
-            .split(whereSeparator: \.isWhitespace)
-            .map { String($0).lowercased() }
-            .filter { $0.count >= 3 }
+    private static func escapeFTS(_ value: String) -> String {
+        value.replacingOccurrences(of: "\"", with: "\"\"")
+    }
 
-        guard !tokens.isEmpty else { return "" }
-        return Array(tokens.prefix(6)).map { "\"\($0)\"" }.joined(separator: " OR ")
+    private static func escapeLike(_ value: String) -> String {
+        value
+            .replacingOccurrences(of: "'", with: "''")
+            .replacingOccurrences(of: "%", with: "\\%")
+            .replacingOccurrences(of: "_", with: "\\_")
     }
 }
 
