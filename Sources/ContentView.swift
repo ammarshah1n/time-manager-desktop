@@ -82,9 +82,22 @@ struct ContentView: View {
 
                     Button("Rank") {
                         store.promptText = promptText
-                        store.submitPrompt()
+                        Task {
+                            await store.submitPrompt()
+                        }
                     }
                     .buttonStyle(.borderedProminent)
+                }
+
+                if store.isRunningPrompt {
+                    HStack(spacing: 10) {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("Running Codex prompt...")
+                            .font(.callout)
+                            .foregroundStyle(.white.opacity(0.7))
+                    }
+                    .padding(.leading, 4)
                 }
 
                 if let top = store.rankedTasks.first {

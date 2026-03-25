@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 
+@MainActor
 @Observable
 final class PlannerStore {
     private let storageURL: URL
@@ -13,6 +14,7 @@ final class PlannerStore {
     var selectedContextID: String?
     var promptText: String
     var chat: [PromptMessage]
+    var isRunningPrompt: Bool
 
     init(fileManager: FileManager = .default) {
         let baseURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
@@ -31,6 +33,7 @@ final class PlannerStore {
             selectedContextID = loaded.selectedContextID
             promptText = loaded.promptText
             chat = loaded.chat
+            isRunningPrompt = false
         } else {
             let sample = ShellData.sample
             let ranked = PlanningEngine.rank(tasks: sample.tasks)
@@ -43,6 +46,7 @@ final class PlannerStore {
             selectedContextID = sample.contexts.first?.id
             promptText = "Rank my school work for tonight"
             chat = [PromptMessage(role: "Assistant", text: "Loaded. Give me a subject, a deadline, or a time window.")]
+            isRunningPrompt = false
             save()
         }
     }
@@ -65,27 +69,24 @@ final class PlannerStore {
         save()
     }
 
-    func submitPrompt() {
-        chat.append(PromptMessage(role: "User", text: promptText))
-        let lowercased = promptText.lowercased()
+    func submitPrompt() async {
+        let rawPrompt = promptText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !rawPrompt.isEmpty else { return }
 
-        if lowercased.contains("plan") || lowercased.contains("rank") || lowercased.contains("box") {
-            rebuildPlan()
-            if let topTask = rankedTasks.first {
-                chat.append(
-                    PromptMessage(
-                        role: "Assistant",
-                        text: "Top task: \(topTask.task.title). Time box: \(schedule.first?.timeRange ?? "none")."
-                    )
-                )
-            } else {
-                chat.append(PromptMessage(role: "Assistant", text: "No tasks to rank yet."))
-            }
-        } else if lowercased.contains("quiz") {
-            chat.append(PromptMessage(role: "Assistant", text: "Loaded the matching context pack for a quiz response."))
+        chat.append(PromptMessage(role: "User", text: rawPrompt))
+        isRunningPrompt = true
+        rebuildPlan()
+
+        let plannerPrompt = buildCodexPrompt(for: rawPrompt)
+        let response = await CodexBridge().run(prompt: plannerPrompt)
+
+        if let response {
+            chat.append(PromptMessage(role: "Assistant", text: response))
         } else {
-            chat.append(PromptMessage(role: "Assistant", text: "Captured the prompt and kept the current plan in place."))
+            chat.append(PromptMessage(role: "Assistant", text: fallbackResponse(for: rawPrompt)))
         }
+
+        isRunningPrompt = false
         save()
     }
 
@@ -116,6 +117,54 @@ final class PlannerStore {
         } catch {
             // Persistence is best-effort for now; the shell still works without it.
         }
+    }
+
+    private func buildCodexPrompt(for prompt: String) -> String {
+        let rankedSummary = rankedTasks.prefix(5).map { ranked in
+            "- \(ranked.task.title) | score \(ranked.score) | \(ranked.band) | \(ranked.task.subject)"
+        }.joined(separator: "\n")
+
+        let contextSummary = selectedContext.map {
+            """
+            Selected context:
+            - \($0.title)
+            - \($0.summary)
+            - \($0.detail)
+            """
+        } ?? "Selected context: none"
+
+        return """
+        You are my time-management planner inside a macOS desktop app.
+        Keep the response short, direct, and actionable.
+
+        User prompt:
+        \(prompt)
+
+        Ranked tasks:
+        \(rankedSummary)
+
+        \(contextSummary)
+
+        Current time boxes:
+        \(schedule.map { "- \($0.timeRange): \($0.title)" }.joined(separator: "\n"))
+
+        Answer with:
+        - the next action
+        - the top ranked task
+        - any context that should be loaded
+        - a time box recommendation
+        """
+    }
+
+    private func fallbackResponse(for prompt: String) -> String {
+        let lowercased = prompt.lowercased()
+        if lowercased.contains("quiz") {
+            return "Loaded the matching context pack for a quiz response."
+        }
+        if let topTask = rankedTasks.first {
+            return "Top task: \(topTask.task.title). Time box: \(schedule.first?.timeRange ?? "none")."
+        }
+        return "Captured the prompt and kept the current plan in place."
     }
 
     private static func load(from url: URL) -> PlannerSnapshot? {
