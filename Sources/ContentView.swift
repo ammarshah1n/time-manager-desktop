@@ -1,21 +1,8 @@
 import SwiftUI
 
 struct ContentView: View {
-    private let shellData = ShellData.sample
-    @State private var selectedTaskID: String? = ShellData.sample.tasks.first?.id
-    @State private var selectedContextID: String? = ShellData.sample.contexts.first?.id
+    @State private var store = PlannerStore()
     @State private var promptText = "Rank my school work for tonight"
-    @State private var chat: [PromptMessage] = [
-        PromptMessage(role: "Assistant", text: "Loaded. Give me a subject, a deadline, or a time window.")
-    ]
-
-    private var selectedTask: TaskItem? {
-        shellData.tasks.first(where: { $0.id == selectedTaskID }) ?? shellData.tasks.first
-    }
-
-    private var selectedContext: ContextItem? {
-        shellData.contexts.first(where: { $0.id == selectedContextID }) ?? shellData.contexts.first
-    }
 
     var body: some View {
         ZStack {
@@ -74,9 +61,9 @@ struct ContentView: View {
     private var leftPane: some View {
         glassColumn(title: "Sources") {
             VStack(spacing: 10) {
-                ForEach(shellData.tasks) { task in
-                    SourceCard(task: task, isSelected: task.id == selectedTaskID) {
-                        selectedTaskID = task.id
+                ForEach(store.tasks) { task in
+                    SourceCard(task: task, isSelected: task.id == store.selectedTaskID) {
+                        store.selectTask(task)
                     }
                 }
             }
@@ -94,16 +81,16 @@ struct ContentView: View {
                         .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
 
                     Button("Rank") {
-                        chat.append(PromptMessage(role: "User", text: promptText))
-                        chat.append(PromptMessage(role: "Assistant", text: "Ranking task priority and building a time box next."))
+                        store.promptText = promptText
+                        store.submitPrompt()
                     }
                     .buttonStyle(.borderedProminent)
                 }
 
                 VStack(spacing: 12) {
-                    ForEach(shellData.tasks.prefix(3)) { task in
-                        RankedTaskCard(task: task, isSelected: task.id == selectedTaskID) {
-                            selectedTaskID = task.id
+                    ForEach(store.tasks.prefix(3)) { task in
+                        RankedTaskCard(task: task, isSelected: task.id == store.selectedTaskID) {
+                            store.selectTask(task)
                         }
                     }
                 }
@@ -112,7 +99,7 @@ struct ContentView: View {
                     Text("Time boxes")
                         .font(.headline)
                         .foregroundStyle(.white)
-                    ForEach(shellData.schedule) { block in
+                    ForEach(store.schedule) { block in
                         ScheduleCard(block: block)
                     }
                 }
@@ -123,7 +110,7 @@ struct ContentView: View {
     private var rightPane: some View {
         glassColumn(title: "Context pack") {
             VStack(alignment: .leading, spacing: 14) {
-                if let context = selectedContext {
+                if let context = store.selectedContext {
                     VStack(alignment: .leading, spacing: 8) {
                         Text(context.title)
                             .font(.headline)
@@ -143,9 +130,9 @@ struct ContentView: View {
                         .font(.headline)
                         .foregroundStyle(.white)
 
-                    ForEach(shellData.contexts) { context in
-                        ContextCard(context: context, isSelected: context.id == selectedContextID) {
-                            selectedContextID = context.id
+                    ForEach(store.contexts) { context in
+                        ContextCard(context: context, isSelected: context.id == store.selectedContextID) {
+                            store.selectContext(context)
                         }
                     }
                 }
@@ -157,7 +144,7 @@ struct ContentView: View {
 
                     ScrollView {
                         VStack(alignment: .leading, spacing: 8) {
-                            ForEach(chat) { message in
+                            ForEach(store.chat) { message in
                                 ChatBubble(message: message)
                             }
                         }

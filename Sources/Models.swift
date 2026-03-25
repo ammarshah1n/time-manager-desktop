@@ -1,6 +1,6 @@
 import Foundation
 
-enum TaskSource: String, CaseIterable, Identifiable {
+enum TaskSource: String, CaseIterable, Identifiable, Codable {
     case tickTick = "TickTick"
     case seqta = "Seqta"
     case transcript = "Transcript"
@@ -9,7 +9,7 @@ enum TaskSource: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
-enum TaskEnergy: String, CaseIterable, Identifiable {
+enum TaskEnergy: String, CaseIterable, Identifiable, Codable {
     case low = "Low"
     case medium = "Medium"
     case high = "High"
@@ -17,7 +17,7 @@ enum TaskEnergy: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
-struct TaskItem: Identifiable, Hashable {
+struct TaskItem: Identifiable, Hashable, Codable {
     let id: String
     let title: String
     let list: String
@@ -31,7 +31,7 @@ struct TaskItem: Identifiable, Hashable {
     let energy: TaskEnergy
 }
 
-struct ContextItem: Identifiable, Hashable {
+struct ContextItem: Identifiable, Hashable, Codable {
     let id: String
     let title: String
     let kind: String
@@ -40,20 +40,26 @@ struct ContextItem: Identifiable, Hashable {
     let detail: String
 }
 
-struct ScheduleBlock: Identifiable, Hashable {
+struct ScheduleBlock: Identifiable, Hashable, Codable {
     let id: String
     let title: String
     let timeRange: String
     let note: String
 }
 
-struct PromptMessage: Identifiable, Hashable {
-    let id = UUID()
+struct PromptMessage: Identifiable, Hashable, Codable {
+    let id: UUID
     let role: String
     let text: String
+
+    init(id: UUID = UUID(), role: String, text: String) {
+        self.id = id
+        self.role = role
+        self.text = text
+    }
 }
 
-struct ShellData {
+struct ShellData: Codable {
     let tasks: [TaskItem]
     let contexts: [ContextItem]
     let schedule: [ScheduleBlock]
