@@ -139,6 +139,22 @@ final class PlannerStore {
         save()
     }
 
+    func exportCalendar() {
+        let downloads = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
+        let exportURL = downloads.appendingPathComponent("time-manager-plan.ics")
+        let ics = CalendarExporter.makeICS(schedule: schedule)
+
+        do {
+            try ics.write(to: exportURL, atomically: true, encoding: .utf8)
+            chat.append(PromptMessage(role: "Assistant", text: "Exported calendar blocks to \(exportURL.lastPathComponent)."))
+        } catch {
+            chat.append(PromptMessage(role: "Assistant", text: "Could not export calendar blocks."))
+        }
+
+        save()
+    }
+
     private func save() {
         let payload = PlannerSnapshot(
             tasks: tasks,

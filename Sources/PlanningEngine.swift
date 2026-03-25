@@ -51,6 +51,8 @@ enum PlanningEngine {
             return ScheduleBlock(
                 id: "block-\(ranked.task.id)",
                 title: "\(titlePrefix): \(ranked.task.title)",
+                start: blockStart,
+                end: blockEnd,
                 timeRange: formatter.string(from: blockStart, to: blockEnd),
                 note: ranked.reasons.joined(separator: " · ")
             )

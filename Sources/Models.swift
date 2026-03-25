@@ -51,6 +51,8 @@ struct ContextItem: Identifiable, Hashable, Codable {
 struct ScheduleBlock: Identifiable, Hashable, Codable {
     let id: String
     let title: String
+    let start: Date
+    let end: Date
     let timeRange: String
     let note: String
 }
@@ -146,18 +148,24 @@ extension ShellData {
             ScheduleBlock(
                 id: "slot-1",
                 title: "Deep work",
+                start: Date(),
+                end: Date().addingTimeInterval(60 * 60),
                 timeRange: "4:30 PM - 5:30 PM",
                 note: "Maths investigation, high energy block."
             ),
             ScheduleBlock(
                 id: "slot-2",
                 title: "Recovery / admin",
+                start: Date().addingTimeInterval(60 * 60),
+                end: Date().addingTimeInterval(60 * 60 + 20 * 60),
                 timeRange: "5:30 PM - 5:50 PM",
                 note: "Short reset and paperwork."
             ),
             ScheduleBlock(
                 id: "slot-3",
                 title: "Essay sprint",
+                start: Date().addingTimeInterval(80 * 60),
+                end: Date().addingTimeInterval(120 * 60),
                 timeRange: "6:00 PM - 6:40 PM",
                 note: "English quote integration and cleanup."
             )

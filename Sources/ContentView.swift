@@ -51,6 +51,10 @@ struct ContentView: View {
                 StatusPill(label: "Local first")
                 StatusPill(label: "Apple glass")
                 StatusPill(label: "Codex-ready")
+                Button("Export calendar") {
+                    store.exportCalendar()
+                }
+                .buttonStyle(.bordered)
             }
         }
         .padding(18)
