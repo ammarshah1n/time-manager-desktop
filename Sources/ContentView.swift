@@ -8,6 +8,7 @@ struct ContentView: View {
     @AppStorage("timed.centerTab") private var centerTabRawValue = CenterTab.plan.rawValue
     @State private var selectedContextFilter = "All"
     @State private var selectedStudySubject = ""
+    @State private var expandedStudySubject = ""
     @State private var showAddTaskSheet = false
     @State private var addTaskDraft = AddTaskDraft()
     @State private var addTaskError: String?
@@ -219,9 +220,9 @@ struct ContentView: View {
                             ForEach(studySubjects, id: \.self) { subject in
                                 DisclosureGroup(
                                     isExpanded: Binding(
-                                        get: { activeStudySubject == subject },
+                                        get: { expandedStudySubject == subject },
                                         set: { isExpanded in
-                                            selectedStudySubject = isExpanded ? subject : ""
+                                            expandedStudySubject = isExpanded ? subject : ""
                                         }
                                     )
                                 ) {
@@ -290,6 +291,7 @@ struct ContentView: View {
                             .overlay(selectionBorder(isSelected: store.selectedTaskID == task.id))
                             .onTapGesture {
                                 selectedStudySubject = task.subject
+                                expandedStudySubject = task.subject
                                 store.selectTask(task)
                             }
                         }
@@ -550,6 +552,7 @@ struct ContentView: View {
                             HStack(spacing: 10) {
                                 Button("Start this now") {
                                     selectedStudySubject = topRankedTask.task.subject
+                                    expandedStudySubject = topRankedTask.task.subject
                                     store.selectTask(topRankedTask.task)
                                     centerTabRawValue = CenterTab.study.rawValue
                                     showRight = true
@@ -964,6 +967,7 @@ struct ContentView: View {
                 HStack(spacing: 10) {
                     Button {
                         selectedStudySubject = ranked.task.subject
+                        expandedStudySubject = ranked.task.subject
                         store.selectTask(ranked.task)
                         centerTabRawValue = CenterTab.study.rawValue
                         showRight = true
@@ -1043,6 +1047,7 @@ struct ContentView: View {
         .overlay(selectionBorder(isSelected: selectedStudyTask?.id == task.id))
         .onTapGesture {
             selectedStudySubject = task.subject
+            expandedStudySubject = task.subject
             store.selectTask(task)
             centerTabRawValue = CenterTab.study.rawValue
         }
@@ -1126,6 +1131,9 @@ struct ContentView: View {
     private var activeStudySubject: String {
         if !selectedStudySubject.isEmpty {
             return selectedStudySubject
+        }
+        if !expandedStudySubject.isEmpty {
+            return expandedStudySubject
         }
         if let selectedTask = store.selectedTask, !selectedTask.isCompleted {
             return selectedTask.subject
@@ -1351,6 +1359,7 @@ struct ContentView: View {
 
         if let task = store.tasks.first(where: { $0.id == block.taskID }) {
             selectedStudySubject = task.subject
+            expandedStudySubject = task.subject
             store.selectTask(task)
             centerTabRawValue = CenterTab.study.rawValue
             showRight = true
