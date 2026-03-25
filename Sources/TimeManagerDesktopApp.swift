@@ -6,7 +6,10 @@ struct TimeManagerDesktopApp: App {
         WindowGroup {
             ContentView()
         }
-        .windowStyle(.automatic)
         .defaultSize(width: 1480, height: 940)
+
+        Settings {
+            SettingsView()
+        }
     }
 }

@@ -6,58 +6,33 @@ import Observation
 final class PlannerStore {
     private let storageURL: URL
 
-    var tasks: [TaskItem]
-    var contexts: [ContextItem]
-    var schedule: [ScheduleBlock]
-    var rankedTasks: [RankedTask]
+    var tasks: [TaskItem] = []
+    var contexts: [ContextItem] = []
+    var schedule: [ScheduleBlock] = []
+    var rankedTasks: [RankedTask] = []
     var selectedTaskID: String?
     var selectedContextID: String?
-    var promptText: String
-    var chat: [PromptMessage]
-    var isRunningPrompt: Bool
-    var importTitle: String
-    var importSource: ImportSource
-    var importText: String
+    var promptText = ""
+    var chat: [PromptMessage] = []
+    var isRunningPrompt = false
+    var aiErrorText: String?
+    var promptBoostSubject: String?
+    var scheduleOverflowCount = 0
+    var lastImportMessages: [String] = []
+    var pendingImportBatch: ImportBatch?
+    var dismissedScheduleTaskIDs: Set<String> = []
+    var isQuizMode = false
+    var activeQuizSubject: String?
+    var importTitle = "Imported context"
+    var importSource: ImportSource = .transcript
+    var importText = ""
 
-    init(fileManager: FileManager = .default) {
+    init(storageURL: URL? = nil, fileManager: FileManager = .default) {
         let baseURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? fileManager.temporaryDirectory
-        let folderURL = baseURL.appendingPathComponent("TimeManagerDesktop", isDirectory: true)
-        self.storageURL = folderURL.appendingPathComponent("planner-state.json")
-
-        if let loaded = Self.load(from: storageURL) {
-            let ranked = PlanningEngine.rank(tasks: loaded.tasks)
-            let plannedSchedule = PlanningEngine.buildSchedule(tasks: ranked)
-            tasks = loaded.tasks
-            contexts = loaded.contexts
-            rankedTasks = ranked
-            schedule = plannedSchedule
-            selectedTaskID = loaded.selectedTaskID
-            selectedContextID = loaded.selectedContextID
-            promptText = loaded.promptText
-            chat = loaded.chat
-            isRunningPrompt = false
-            importTitle = "Imported context"
-            importSource = .tickTick
-            importText = ""
-        } else {
-            let sample = ShellData.sample
-            let ranked = PlanningEngine.rank(tasks: sample.tasks)
-            let plannedSchedule = PlanningEngine.buildSchedule(tasks: ranked)
-            tasks = sample.tasks
-            contexts = sample.contexts
-            rankedTasks = ranked
-            schedule = plannedSchedule
-            selectedTaskID = sample.tasks.first?.id
-            selectedContextID = sample.contexts.first?.id
-            promptText = "Rank my school work for tonight"
-            chat = [PromptMessage(role: "Assistant", text: "Loaded. Give me a subject, a deadline, or a time window.")]
-            isRunningPrompt = false
-            importTitle = "Imported context"
-            importSource = .tickTick
-            importText = ""
-            save()
-        }
+        let folderURL = baseURL.appendingPathComponent("Timed", isDirectory: true)
+        self.storageURL = storageURL ?? folderURL.appendingPathComponent("planner-state.json")
+        load()
     }
 
     var selectedTask: TaskItem? {
@@ -66,6 +41,72 @@ final class PlannerStore {
 
     var selectedContext: ContextItem? {
         contexts.first(where: { $0.id == selectedContextID }) ?? contexts.first
+    }
+
+    var completedToday: [TaskItem] {
+        tasks
+            .filter { task in
+                guard let completedAt = task.completedAt else { return false }
+                return task.isCompleted && Calendar.current.isDateInToday(completedAt)
+            }
+            .sorted { ($0.completedAt ?? .distantPast) > ($1.completedAt ?? .distantPast) }
+    }
+
+    var sortedContexts: [ContextItem] {
+        contexts.sorted { $0.createdAt > $1.createdAt }
+    }
+
+    func save() {
+        let snapshot = PlannerSnapshot(
+            tasks: tasks,
+            contexts: contexts,
+            schedule: schedule,
+            selectedTaskID: selectedTaskID,
+            selectedContextID: selectedContextID,
+            promptText: promptText,
+            chat: chat,
+            promptBoostSubject: promptBoostSubject,
+            dismissedScheduleTaskIDs: Array(dismissedScheduleTaskIDs)
+        )
+
+        do {
+            try FileManager.default.createDirectory(
+                at: storageURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            let data = try JSONEncoder.pretty.encode(snapshot)
+            try data.write(to: storageURL, options: [.atomic])
+        } catch {
+            aiErrorText = "Could not save Timed data."
+        }
+    }
+
+    func load() {
+        if
+            let data = try? Data(contentsOf: storageURL),
+            let snapshot = try? JSONDecoder(iso8601: true).decode(PlannerSnapshot.self, from: data)
+        {
+            tasks = snapshot.tasks
+            contexts = snapshot.contexts
+            schedule = snapshot.schedule
+            selectedTaskID = snapshot.selectedTaskID
+            selectedContextID = snapshot.selectedContextID
+            promptText = snapshot.promptText
+            chat = snapshot.chat
+            promptBoostSubject = snapshot.promptBoostSubject
+            dismissedScheduleTaskIDs = Set(snapshot.dismissedScheduleTaskIDs)
+        } else {
+            let sample = ShellData.sample
+            tasks = sample.tasks
+            contexts = sample.contexts
+            schedule = sample.schedule
+            chat = sample.chat
+            selectedTaskID = sample.tasks.first?.id
+            selectedContextID = sample.contexts.first?.id
+            promptText = "What should I do now?"
+        }
+
+        rebuildPlan()
     }
 
     func selectTask(_ task: TaskItem) {
@@ -78,252 +119,367 @@ final class PlannerStore {
         save()
     }
 
+    func rebuildPlan(now: Date = .now) {
+        rankedTasks = PlanningEngine.rank(
+            tasks: tasks,
+            contexts: contexts,
+            now: now,
+            promptBoostSubject: promptBoostSubject
+        )
+
+        let currentApprovals = Dictionary(uniqueKeysWithValues: schedule.map { ($0.taskID, $0.isApproved) })
+        let schedulable = rankedTasks.filter { !dismissedScheduleTaskIDs.contains($0.task.id) }
+        let rebuiltSchedule = PlanningEngine.buildSchedule(tasks: schedulable, now: now, windowMinutes: 180)
+        scheduleOverflowCount = max(0, schedulable.count - rebuiltSchedule.count)
+        schedule = rebuiltSchedule.map { block in
+            var mutable = block
+            mutable.isApproved = currentApprovals[block.taskID] ?? block.isApproved
+            return mutable
+        }
+
+        if selectedTask == nil {
+            selectedTaskID = rankedTasks.first?.task.id
+        }
+        if selectedContext == nil {
+            selectedContextID = sortedContexts.first?.id
+        }
+
+        save()
+    }
+
     func submitPrompt() async {
         let rawPrompt = promptText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !rawPrompt.isEmpty else { return }
 
-        chat.append(PromptMessage(role: "User", text: rawPrompt))
-        isRunningPrompt = true
-        rebuildPlan()
-
-        let plannerPrompt = buildCodexPrompt(for: rawPrompt)
-        let response = await CodexBridge().run(prompt: plannerPrompt)
-
-        if let response {
-            chat.append(PromptMessage(role: "Assistant", text: response))
-        } else {
-            chat.append(PromptMessage(role: "Assistant", text: fallbackResponse(for: rawPrompt)))
+        if rawPrompt.lowercased() == "end quiz" {
+            endQuiz()
+            promptText = ""
+            return
         }
 
+        if isQuizMode {
+            await continueQuiz(with: rawPrompt)
+            promptText = ""
+            return
+        }
+
+        if let quizSubject = extractQuizSubject(from: rawPrompt) {
+            await startQuiz(subject: quizSubject)
+            promptText = ""
+            return
+        }
+
+        aiErrorText = nil
+        chat.append(PromptMessage(role: .user, text: rawPrompt))
+        isRunningPrompt = true
+
+        let response = await CodexBridge().run(prompt: buildPlanningPrompt(for: rawPrompt))
         isRunningPrompt = false
+
+        guard let response else {
+            aiErrorText = "Could not reach Timed AI — check Codex is installed"
+            chat.append(PromptMessage(role: .assistant, text: aiErrorText ?? "Timed AI error"))
+            save()
+            return
+        }
+
+        let actions = CodexBridge.extractTaskActions(response: response, taskTitles: tasks.map(\.title))
+        applySuggestedActions(actions)
+        if let boostSubject = CodexBridge.extractProminentSubject(response: response, knownSubjects: SubjectCatalog.supported) {
+            promptBoostSubject = boostSubject
+        }
+        rebuildPlan()
+        chat.append(PromptMessage(role: .assistant, text: response))
+        promptText = ""
         save()
     }
 
-    func rebuildPlan() {
-        rankedTasks = PlanningEngine.rank(tasks: tasks)
-        schedule = PlanningEngine.buildSchedule(tasks: rankedTasks)
+    func startQuiz(subject: String) async {
+        let normalizedSubject = subject.trimmingCharacters(in: .whitespacesAndNewlines)
+        let matchingContexts = sortedContexts.filter { $0.subject.caseInsensitiveCompare(normalizedSubject) == .orderedSame }
+
+        guard !matchingContexts.isEmpty else {
+            chat.append(PromptMessage(role: .assistant, text: "No context is loaded for \(normalizedSubject). Import some notes first."))
+            save()
+            return
+        }
+
+        isQuizMode = true
+        activeQuizSubject = normalizedSubject
+        aiErrorText = nil
+        isRunningPrompt = true
+        chat.append(PromptMessage(role: .student, text: "Quiz me on \(normalizedSubject).", isQuiz: true))
+
+        let response = await CodexBridge().run(prompt: buildQuizPrompt(subject: normalizedSubject, contexts: matchingContexts, latestStudentReply: nil))
+        isRunningPrompt = false
+
+        guard let response else {
+            aiErrorText = "Could not reach Timed AI — check Codex is installed"
+            chat.append(PromptMessage(role: .assistant, text: aiErrorText ?? "Timed AI error"))
+            save()
+            return
+        }
+
+        chat.append(PromptMessage(role: .tutor, text: response, isQuiz: true))
         save()
     }
 
-    func importCurrentPayload() {
+    func endQuiz() {
+        isQuizMode = false
+        activeQuizSubject = nil
+        chat.append(PromptMessage(role: .assistant, text: "Quiz ended. Back to planning mode."))
+        save()
+    }
+
+    func markTaskCompleted(_ task: TaskItem, now: Date = .now) {
+        guard let index = tasks.firstIndex(where: { $0.id == task.id }) else { return }
+        tasks[index].isCompleted = true
+        tasks[index].completedAt = now
+        dismissedScheduleTaskIDs.insert(task.id)
+        rebuildPlan(now: now)
+    }
+
+    func removeScheduleBlock(_ block: ScheduleBlock) {
+        dismissedScheduleTaskIDs.insert(block.taskID)
+        schedule.removeAll { $0.id == block.id }
+        save()
+    }
+
+    func toggleScheduleApproval(_ block: ScheduleBlock) {
+        guard let index = schedule.firstIndex(where: { $0.id == block.id }) else { return }
+        schedule[index].isApproved.toggle()
+        save()
+    }
+
+    func exportCalendar() async {
+        let result = await CalendarExporter.exportApprovedBlocks(schedule)
+        let extra = result.fallbackICSURL.map { " \($0.lastPathComponent)" } ?? ""
+        chat.append(PromptMessage(role: .assistant, text: "\(result.message)\(extra)"))
+        save()
+    }
+
+    func importCurrentPayload(now: Date = .now) {
         let trimmed = importText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
-        let contextID = UUID().uuidString
-        contexts.insert(
-            ContextItem(
-                id: contextID,
-                title: importTitle.isEmpty ? "\(importSource.rawValue) import" : importTitle,
-                kind: importSource.rawValue,
-                subject: inferredSubject(from: trimmed),
-                summary: summaryLine(from: trimmed),
-                detail: trimmed
-            ),
-            at: 0
+        let existingIDs = Set(tasks.map(\.id))
+        let batch = ImportPipeline.parseImport(
+            title: importTitle,
+            source: importSource,
+            text: trimmed,
+            now: now,
+            existingTaskIDs: existingIDs
         )
-        selectedContextID = contextID
 
-        if importSource == .seqta || importSource == .tickTick {
-            let parsedTasks = importSource == .seqta ? seqtaTasks(from: trimmed) : tickTickTasks(from: trimmed)
-            if !parsedTasks.isEmpty {
-                tasks.insert(contentsOf: parsedTasks, at: 0)
-            }
-            rebuildPlan()
+        if batch.taskDrafts.isEmpty {
+            applyImport(batch)
+            importText = ""
+            return
         }
 
-        if importSource == .chat {
-            chat.append(PromptMessage(role: "User", text: trimmed))
-        }
+        pendingImportBatch = batch
+        lastImportMessages = batch.messages
+    }
 
+    func applyPendingImport() {
+        guard let batch = pendingImportBatch else { return }
+        applyImport(batch)
+        pendingImportBatch = nil
         importText = ""
-        save()
     }
 
-    func exportCalendar() {
-        let downloads = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
-            ?? FileManager.default.temporaryDirectory
-        let exportURL = downloads.appendingPathComponent("time-manager-plan.ics")
-        let ics = CalendarExporter.makeICS(schedule: schedule)
+    func discardPendingImport() {
+        pendingImportBatch = nil
+    }
 
-        do {
-            try ics.write(to: exportURL, atomically: true, encoding: .utf8)
-            chat.append(PromptMessage(role: "Assistant", text: "Exported calendar blocks to \(exportURL.lastPathComponent)."))
-        } catch {
-            chat.append(PromptMessage(role: "Assistant", text: "Could not export calendar blocks."))
+    func addManualTask(_ draft: AddTaskDraft) -> String? {
+        guard !draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return "Task title is required."
+        }
+        guard draft.estimateMinutes > 0 else {
+            return "Estimate must be greater than zero."
         }
 
-        save()
+        let task = draft.makeTask()
+        if tasks.contains(where: { $0.id == task.id }) {
+            return "That task already exists."
+        }
+
+        tasks.insert(task, at: 0)
+        rebuildPlan()
+        return nil
     }
 
-    private func save() {
-        let payload = PlannerSnapshot(
-            tasks: tasks,
-            contexts: contexts,
-            schedule: schedule,
-            selectedTaskID: selectedTaskID,
-            selectedContextID: selectedContextID,
-            promptText: promptText,
-            chat: chat
+    func promptSuggestions(for subject: String?) -> [String] {
+        let quizSubject = subject ?? selectedContext?.subject ?? selectedTask?.subject ?? "English"
+        return [
+            "What should I do now?",
+            "Plan my next 3 hours",
+            "Rank my tasks",
+            "Quiz me on \(quizSubject)"
+        ]
+    }
+
+    private func applyImport(_ batch: ImportBatch) {
+        if let context = batch.context {
+            contexts.removeAll { $0.id == context.id }
+            contexts.insert(context, at: 0)
+            contexts.sort { $0.createdAt > $1.createdAt }
+            selectedContextID = context.id
+        }
+
+        for draft in batch.taskDrafts {
+            let task = draft.makeTask()
+            guard !tasks.contains(where: { $0.id == task.id }) else { continue }
+            tasks.insert(task, at: 0)
+        }
+
+        lastImportMessages = batch.messages
+        if !batch.messages.isEmpty {
+            chat.append(PromptMessage(role: .assistant, text: batch.messages.joined(separator: "\n")))
+        }
+        rebuildPlan()
+    }
+
+    private func continueQuiz(with answer: String) async {
+        guard let activeQuizSubject else { return }
+        let matchingContexts = sortedContexts.filter { $0.subject.caseInsensitiveCompare(activeQuizSubject) == .orderedSame }
+        chat.append(PromptMessage(role: .student, text: answer, isQuiz: true))
+        isRunningPrompt = true
+
+        let response = await CodexBridge().run(
+            prompt: buildQuizPrompt(
+                subject: activeQuizSubject,
+                contexts: matchingContexts,
+                latestStudentReply: answer
+            )
         )
 
-        do {
-            try FileManager.default.createDirectory(
-                at: storageURL.deletingLastPathComponent(),
-                withIntermediateDirectories: true
-            )
-            let data = try JSONEncoder.pretty.encode(payload)
-            try data.write(to: storageURL, options: [.atomic])
-        } catch {
-            // Persistence is best-effort for now; the shell still works without it.
+        isRunningPrompt = false
+        guard let response else {
+            aiErrorText = "Could not reach Timed AI — check Codex is installed"
+            chat.append(PromptMessage(role: .assistant, text: aiErrorText ?? "Timed AI error"))
+            save()
+            return
         }
+
+        chat.append(PromptMessage(role: .tutor, text: response, isQuiz: true))
+        save()
     }
 
-    private func buildCodexPrompt(for prompt: String) -> String {
-        let rankedSummary = rankedTasks.prefix(5).map { ranked in
-            "- \(ranked.task.title) | score \(ranked.score) | \(ranked.band) | \(ranked.task.subject)"
+    private func buildPlanningPrompt(for question: String) -> String {
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateStyle = .full
+        dateFormatter.timeStyle = .short
+
+        let taskLines = rankedTasks.map { ranked in
+            let dueDate = ranked.task.dueDate.map { dateFormatter.string(from: $0) } ?? "No due date"
+            return "- Title: \(ranked.task.title) | Subject: \(ranked.task.subject) | Score: \(ranked.score) | Band: \(ranked.band) | Due: \(dueDate) | Estimate: \(ranked.task.estimateMinutes)m | Confidence: \(ranked.task.confidence)/5 | Importance: \(ranked.task.importance)/5 | Source: \(ranked.task.source.rawValue)"
         }.joined(separator: "\n")
 
-        let contextSummary = selectedContext.map {
-            """
-            Selected context:
-            - \($0.title)
-            - \($0.summary)
-            - \($0.detail)
-            """
-        } ?? "Selected context: none"
+        let contextLines = relevantContexts(for: question).prefix(3).map { context in
+            "- \(context.subject): \(context.title) — \(context.summary)"
+        }.joined(separator: "\n")
 
         return """
-        You are my time-management planner inside a macOS desktop app.
-        Keep the response short, direct, and actionable.
+        System instruction:
+        You are Timed, a study planner for a school student. You are not a coding assistant. Respond in concise plain English. Mention at least one task by its exact title. If you suggest a specific next action for a task, format that line exactly as [task title]: [action].
 
-        User prompt:
-        \(prompt)
+        Current date and time:
+        \(dateFormatter.string(from: .now))
 
-        Ranked tasks:
-        \(rankedSummary)
+        Full ranked task list:
+        \(taskLines)
 
-        \(contextSummary)
+        Top 3 relevant context summaries:
+        \(contextLines.isEmpty ? "- None loaded" : contextLines)
 
-        Current time boxes:
-        \(schedule.map { "- \($0.timeRange): \($0.title)" }.joined(separator: "\n"))
-
-        Answer with:
-        - the next action
-        - the top ranked task
-        - any context that should be loaded
-        - a time box recommendation
+        User question:
+        \(question)
         """
     }
 
-    private func fallbackResponse(for prompt: String) -> String {
-        let lowercased = prompt.lowercased()
-        if lowercased.contains("quiz") {
-            return "Loaded the matching context pack for a quiz response."
+    private func buildQuizPrompt(subject: String, contexts: [ContextItem], latestStudentReply: String?) -> String {
+        let material = contexts.map { context in
+            """
+            [\(context.title)]
+            \(context.detail)
+            """
+        }.joined(separator: "\n\n")
+
+        let transcript = chat
+            .filter(\.isQuiz)
+            .suffix(8)
+            .map { "\($0.role.displayName): \($0.text)" }
+            .joined(separator: "\n")
+
+        return """
+        You are a study tutor. Ask the student one question at a time based on the material below. Wait for their answer before proceeding. Keep questions concise. After their answer, give brief feedback.
+
+        Subject:
+        \(subject)
+
+        Material:
+        \(material)
+
+        Recent quiz transcript:
+        \(transcript.isEmpty ? "None yet." : transcript)
+
+        Latest student answer:
+        \(latestStudentReply ?? "Start the quiz now with the first question.")
+        """
+    }
+
+    private func relevantContexts(for question: String) -> [ContextItem] {
+        let focusSubject = SubjectCatalog.matchingSubject(in: question)
+        let keywords = Set(question.lowercased().split(whereSeparator: \.isWhitespace).map(String.init))
+
+        return sortedContexts.sorted { lhs, rhs in
+            score(context: lhs, focusSubject: focusSubject, keywords: keywords) >
+                score(context: rhs, focusSubject: focusSubject, keywords: keywords)
         }
-        if let topTask = rankedTasks.first {
-            return "Top task: \(topTask.task.title). Time box: \(schedule.first?.timeRange ?? "none")."
+    }
+
+    private func score(context: ContextItem, focusSubject: String?, keywords: Set<String>) -> Int {
+        var total = 0
+        if let focusSubject, context.subject.caseInsensitiveCompare(focusSubject) == .orderedSame {
+            total += 30
         }
-        return "Captured the prompt and kept the current plan in place."
+
+        let haystack = "\(context.title) \(context.summary) \(context.detail)".lowercased()
+        total += keywords.reduce(into: 0) { partialResult, keyword in
+            if haystack.contains(keyword) {
+                partialResult += 4
+            }
+        }
+        total += Int(context.createdAt.timeIntervalSinceNow / 3600 * -0.1) * -1
+        return total
     }
 
-    private func summaryLine(from text: String) -> String {
-        let sanitized = text.replacingOccurrences(of: "\n", with: " ")
-        let firstSentence = sanitized.split(separator: ".").first.map(String.init) ?? sanitized
-        return String(firstSentence.prefix(140))
-    }
+    private func applySuggestedActions(_ actions: [String: String]) {
+        guard !actions.isEmpty else { return }
 
-    private func inferredSubject(from text: String) -> String {
-        let lowered = text.lowercased()
-        if lowered.contains("english") { return "English" }
-        if lowered.contains("math") { return "Maths" }
-        if lowered.contains("economics") { return "Economics" }
-        if lowered.contains("society") || lowered.contains("culture") { return "Society and Culture" }
-        if lowered.contains("seqta") { return "School" }
-        return "Context"
-    }
-
-    private func seqtaTasks(from text: String) -> [TaskItem] {
-        text.split(whereSeparator: \.isNewline).compactMap { line in
-            let cleaned = line.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard cleaned.count > 10 else { return nil }
-            let title = cleaned
-                .replacingOccurrences(of: "•", with: "")
-                .replacingOccurrences(of: "-", with: "")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !title.isEmpty else { return nil }
-
-            return TaskItem(
-                id: "seqta-\(UUID().uuidString)",
-                title: title,
-                list: "Seqta",
-                source: .seqta,
-                subject: inferredSubject(from: title),
-                estimateMinutes: 45,
-                confidence: 2,
-                importance: 5,
-                dueDate: nil,
-                notes: "Imported from Seqta export.",
-                energy: .medium
+        for index in rankedTasks.indices {
+            let title = rankedTasks[index].task.title
+            guard let action = actions[title] else { continue }
+            rankedTasks[index] = RankedTask(
+                task: rankedTasks[index].task,
+                score: rankedTasks[index].score,
+                band: rankedTasks[index].band,
+                reasons: rankedTasks[index].reasons,
+                suggestedNextAction: action
             )
         }
     }
 
-    private func tickTickTasks(from text: String) -> [TaskItem] {
-        text.split(whereSeparator: \.isNewline).compactMap { line in
-            let cleaned = line.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard cleaned.count > 2 else { return nil }
-            let title = cleaned
-                .replacingOccurrences(of: "•", with: "")
-                .replacingOccurrences(of: "-", with: "")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !title.isEmpty else { return nil }
-
-            return TaskItem(
-                id: "ticktick-\(UUID().uuidString)",
-                title: title,
-                list: "TickTick",
-                source: .tickTick,
-                subject: inferredSubject(from: title),
-                estimateMinutes: 30,
-                confidence: 3,
-                importance: 4,
-                dueDate: nil,
-                notes: "Imported from TickTick.",
-                energy: .medium
-            )
+    private func extractQuizSubject(from prompt: String) -> String? {
+        let lowered = prompt.lowercased()
+        guard lowered.contains("quiz me on") else { return nil }
+        if let subject = SubjectCatalog.matchingSubject(in: prompt) {
+            return subject
         }
-    }
 
-    private static func load(from url: URL) -> PlannerSnapshot? {
-        guard let data = try? Data(contentsOf: url) else { return nil }
-        return try? JSONDecoder(iso8601: true).decode(PlannerSnapshot.self, from: data)
-    }
-}
-
-private struct PlannerSnapshot: Codable {
-    let tasks: [TaskItem]
-    let contexts: [ContextItem]
-    let schedule: [ScheduleBlock]
-    let selectedTaskID: String?
-    let selectedContextID: String?
-    let promptText: String
-    let chat: [PromptMessage]
-}
-
-private extension JSONEncoder {
-    static var pretty: JSONEncoder {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        encoder.dateEncodingStrategy = .iso8601
-        return encoder
-    }
-}
-
-private extension JSONDecoder {
-    convenience init(iso8601: Bool = true) {
-        self.init()
-        if iso8601 {
-            dateDecodingStrategy = .iso8601
-        }
+        let parts = prompt.components(separatedBy: "on")
+        return parts.last?.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
