@@ -44,10 +44,10 @@ func makeQuizStore() -> PlannerStore {
 }
 
 @MainActor
-func writePNG<V: View>(_ view: V, to path: String) throws {
+func writePNG<V: View>(_ view: V, size: CGSize, to path: String) throws {
     let renderer = ImageRenderer(
         content: view
-            .frame(width: 1480, height: 940)
+            .frame(width: size.width, height: size.height)
             .preferredColorScheme(.dark)
     )
     renderer.scale = 2
@@ -72,8 +72,21 @@ func writePNG<V: View>(_ view: V, to path: String) throws {
 struct TimedScreenshotRenderer {
     static func main() async throws {
         try await MainActor.run {
-            try writePNG(ContentView(store: makePlannerStore()), to: CommandLine.arguments[1])
-            try writePNG(ContentView(store: makeQuizStore()), to: CommandLine.arguments[2])
+            try writePNG(
+                ContentView(store: makePlannerStore()),
+                size: CGSize(width: 1480, height: 940),
+                to: CommandLine.arguments[1]
+            )
+            try writePNG(
+                ContentView(store: makeQuizStore()),
+                size: CGSize(width: 1480, height: 940),
+                to: CommandLine.arguments[2]
+            )
+            try writePNG(
+                SettingsView(),
+                size: CGSize(width: 900, height: 520),
+                to: CommandLine.arguments[3]
+            )
         }
     }
 }
@@ -89,7 +102,8 @@ xcrun swiftc \
 
 "$BIN" \
     "$OUT_DIR/timed-planner.png" \
-    "$OUT_DIR/timed-quiz.png"
+    "$OUT_DIR/timed-quiz.png" \
+    "$OUT_DIR/timed-settings.png"
 
 echo "Rendered screenshots:"
 ls -lh "$OUT_DIR"/timed-*.png

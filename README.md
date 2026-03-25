@@ -1,5 +1,8 @@
 # Timed
 
+[![macOS CI](https://github.com/ammarshah1n/time-manager-desktop/actions/workflows/macos-ci.yml/badge.svg)](https://github.com/ammarshah1n/time-manager-desktop/actions/workflows/macos-ci.yml)
+[![Latest Release](https://img.shields.io/github/v/release/ammarshah1n/time-manager-desktop)](https://github.com/ammarshah1n/time-manager-desktop/releases/latest)
+
 Timed is a macOS 15 SwiftUI desktop app for turning scattered school work into a ranked, time-boxed study plan.
 
 ## Screenshots
@@ -11,6 +14,10 @@ Timed is a macOS 15 SwiftUI desktop app for turning scattered school work into a
 ### Quiz mode
 
 ![Timed quiz mode](./docs/assets/timed-quiz.png)
+
+### AI settings
+
+![Timed settings](./docs/assets/timed-settings.png)
 
 ## What it does
 
@@ -29,6 +36,9 @@ Timed is a macOS 15 SwiftUI desktop app for turning scattered school work into a
 - First-run onboarding: [docs/ONBOARDING.md](./docs/ONBOARDING.md)
 - Install guide: [docs/INSTALL.md](./docs/INSTALL.md)
 - UI map: [docs/UI_OVERVIEW.md](./docs/UI_OVERVIEW.md)
+- Acceptance matrix: [docs/ACCEPTANCE.md](./docs/ACCEPTANCE.md)
+- Validation log: [docs/VALIDATION.md](./docs/VALIDATION.md)
+- Architecture: [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)
 
 ## Local development
 
@@ -84,6 +94,15 @@ GitHub Actions runs:
 - Packaging scripts: done
 - CI: done
 - Onboarding docs: done
+
+## Prompt-to-code coverage
+
+- UI rebuild and shared card system: [`Sources/ContentView.swift`](./Sources/ContentView.swift), [`Sources/TimedCard.swift`](./Sources/TimedCard.swift), [`Sources/VisualEffectView.swift`](./Sources/VisualEffectView.swift)
+- Codex study-planner bridge and quiz prompts: [`Sources/CodexBridge.swift`](./Sources/CodexBridge.swift), [`Sources/PlannerStore.swift`](./Sources/PlannerStore.swift)
+- Import parsing, subject inference, and dedupe: [`Sources/ImportPipeline.swift`](./Sources/ImportPipeline.swift), [`Sources/Models.swift`](./Sources/Models.swift)
+- Ranking and scheduling: [`Sources/PlanningEngine.swift`](./Sources/PlanningEngine.swift)
+- Calendar export and ICS fallback: [`Sources/CalendarExporter.swift`](./Sources/CalendarExporter.swift)
+- Regression coverage: [`Tests/PlanningEngineTests.swift`](./Tests/PlanningEngineTests.swift)
 
 ## Roadmap
 
