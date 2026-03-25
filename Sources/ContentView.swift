@@ -17,6 +17,14 @@ struct ContentView: View {
     @State private var isLoadingDayPlan = false
     @State private var showCommandPalette = false
     @State private var commandPaletteText = ""
+    @State private var activeFocusBlock: ScheduleBlock?
+    @State private var activeFocusTaskID: String?
+    @State private var focusNow = Date.now
+    @State private var showDebriefSheet = false
+    @State private var debriefConfidence = 3.0
+    @State private var debriefCovered = ""
+    @State private var debriefBlockers = ""
+    private let focusTicker = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     @MainActor
     init() {
@@ -68,6 +76,12 @@ struct ContentView: View {
                 .animation(.easeInOut(duration: 0.24), value: showRight)
             }
             .padding(20)
+            .opacity(activeFocusBlock == nil ? 1 : 0.1)
+            .allowsHitTesting(activeFocusBlock == nil)
+
+            if activeFocusBlock != nil {
+                focusOverlay
+            }
         }
         .frame(minWidth: 1360, minHeight: 900)
         .preferredColorScheme(.dark)
@@ -106,6 +120,14 @@ struct ContentView: View {
                 }
             )
         }
+        .sheet(isPresented: $showDebriefSheet) {
+            StudyDebriefSheet(
+                confidence: $debriefConfidence,
+                covered: $debriefCovered,
+                blockers: $debriefBlockers,
+                onSave: saveDebrief
+            )
+        }
         .task {
             store.syncObsidianVault()
             await refreshDayPlan()
@@ -113,6 +135,13 @@ struct ContentView: View {
         .onChange(of: selectedCenterTab) { _, newTab in
             if newTab == .day {
                 Task { await refreshDayPlan() }
+            }
+        }
+        .onReceive(focusTicker) { tick in
+            guard let activeFocusBlock, !showDebriefSheet else { return }
+            focusNow = tick
+            if tick >= activeFocusBlock.end {
+                presentDebrief(for: activeFocusBlock)
             }
         }
     }
@@ -976,6 +1005,12 @@ struct ContentView: View {
                     }
                     .buttonStyle(.borderedProminent)
 
+                    Button("Start") {
+                        beginFocus(with: block)
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(!block.isApproved)
+
                     Button("Remove") {
                         store.removeScheduleBlock(block)
                     }
@@ -1219,6 +1254,135 @@ struct ContentView: View {
         formatter.dateStyle = .full
         formatter.timeStyle = .none
         return formatter.string(from: .now)
+    }
+
+    private var focusOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.6)
+                .ignoresSafeArea()
+
+            VStack(spacing: 18) {
+                Text("Focus mode")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.62))
+                    .textCase(.uppercase)
+
+                Text(activeFocusTask?.title ?? activeFocusBlock?.title ?? "Study block")
+                    .font(.custom("Fraunces", size: 36))
+                    .fontWeight(.bold)
+                    .foregroundStyle(.white)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 760)
+
+                Text(focusRemainingText)
+                    .font(.system(size: 54, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+
+                if let activeFocusBlock {
+                    Text(activeFocusBlock.timeRange)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.58))
+                }
+
+                if let context = activeFocusContext {
+                    TimedCard(title: "Most relevant context", icon: "text.book.closed") {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text(context.title)
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(.white)
+
+                            Text(context.summary)
+                                .font(.system(size: 14))
+                                .foregroundStyle(.white.opacity(0.76))
+
+                            Text(context.detail)
+                                .font(.system(size: 12))
+                                .foregroundStyle(.white.opacity(0.58))
+                                .lineLimit(10)
+                        }
+                    }
+                    .frame(maxWidth: 760)
+                }
+
+                HStack(spacing: 10) {
+                    Button("End and debrief") {
+                        if let activeFocusBlock {
+                            presentDebrief(for: activeFocusBlock)
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+            }
+            .padding(32)
+        }
+    }
+
+    private var activeFocusTask: TaskItem? {
+        let focusTaskID = activeFocusBlock?.taskID ?? activeFocusTaskID
+        guard let focusTaskID else { return nil }
+        return store.tasks.first(where: { $0.id == focusTaskID })
+    }
+
+    private var activeFocusContext: ContextItem? {
+        guard let activeFocusTask else { return nil }
+        return store.groundedStudyContexts(for: activeFocusTask).first
+    }
+
+    private var focusRemainingText: String {
+        guard let activeFocusBlock else { return "00:00" }
+        let remaining = max(0, Int(activeFocusBlock.end.timeIntervalSince(focusNow)))
+        let hours = remaining / 3600
+        let minutes = (remaining % 3600) / 60
+        let seconds = remaining % 60
+
+        if hours > 0 {
+            return String(format: "%02d:%02d:%02d", hours, minutes, seconds)
+        }
+        return String(format: "%02d:%02d", minutes, seconds)
+    }
+
+    private func beginFocus(with block: ScheduleBlock) {
+        activeFocusBlock = block
+        activeFocusTaskID = block.taskID
+        focusNow = .now
+        debriefCovered = ""
+        debriefBlockers = ""
+        debriefConfidence = Double(store.tasks.first(where: { $0.id == block.taskID })?.confidence ?? 3)
+
+        if let task = store.tasks.first(where: { $0.id == block.taskID }) {
+            selectedStudySubject = task.subject
+            store.selectTask(task)
+            centerTabRawValue = CenterTab.study.rawValue
+            showRight = true
+        }
+    }
+
+    private func presentDebrief(for block: ScheduleBlock) {
+        activeFocusTaskID = block.taskID
+        debriefConfidence = Double(store.tasks.first(where: { $0.id == block.taskID })?.confidence ?? 3)
+        activeFocusBlock = nil
+        showDebriefSheet = true
+    }
+
+    private func saveDebrief() {
+        guard let activeFocusTaskID else {
+            showDebriefSheet = false
+            return
+        }
+
+        store.recordStudyDebrief(
+            taskID: activeFocusTaskID,
+            confidence: Int(debriefConfidence.rounded()),
+            covered: debriefCovered,
+            blockers: debriefBlockers,
+            at: .now
+        )
+        centerTabRawValue = CenterTab.study.rawValue
+        showRight = true
+        showDebriefSheet = false
+        self.activeFocusTaskID = nil
+        debriefCovered = ""
+        debriefBlockers = ""
     }
 
     private var rowBackground: some View {
@@ -1484,6 +1648,56 @@ private struct AddTaskSheet: View {
             }
         }
         .frame(minWidth: 480, minHeight: 560)
+    }
+}
+
+private struct StudyDebriefSheet: View {
+    @Binding var confidence: Double
+    @Binding var covered: String
+    @Binding var blockers: String
+    let onSave: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Study debrief")
+                .font(.system(size: 18, weight: .bold))
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("How confident are you now? \(Int(confidence.rounded()))/5")
+                    .font(.system(size: 13, weight: .semibold))
+                Slider(value: $confidence, in: 1...5, step: 1)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("What did you cover?")
+                    .font(.system(size: 13, weight: .semibold))
+                TextEditor(text: $covered)
+                    .frame(minHeight: 120)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                    )
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Any blockers?")
+                    .font(.system(size: 13, weight: .semibold))
+                TextEditor(text: $blockers)
+                    .frame(minHeight: 90)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                    )
+            }
+
+            HStack {
+                Spacer()
+                Button("Save debrief", action: onSave)
+                    .buttonStyle(.borderedProminent)
+            }
+        }
+        .padding(20)
+        .frame(width: 520)
     }
 }
 
