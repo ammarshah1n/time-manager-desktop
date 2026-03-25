@@ -16,6 +16,8 @@ Timed is a macOS 15 SwiftUI desktop app for turning scattered school work into a
 
 - Spec: [PRD.md](./PRD.md)
 - Repo rules: [AGENTS.md](./AGENTS.md)
+- First-run onboarding: [docs/ONBOARDING.md](./docs/ONBOARDING.md)
+- UI map: [docs/UI_OVERVIEW.md](./docs/UI_OVERVIEW.md)
 
 ## Local development
 
@@ -69,6 +71,7 @@ GitHub Actions runs:
 - Calendar export: done
 - Packaging scripts: done
 - CI: done
+- Onboarding docs: done
 
 ## Roadmap
 
