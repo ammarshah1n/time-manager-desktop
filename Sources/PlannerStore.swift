@@ -5,6 +5,7 @@ import Observation
 @Observable
 final class PlannerStore {
     private let storageURL: URL
+    @ObservationIgnored private var seqtaWatcher: SeqtaFileWatcher?
 
     var tasks: [TaskItem] = []
     var contexts: [ContextItem] = []
@@ -36,6 +37,9 @@ final class PlannerStore {
         let folderURL = baseURL.appendingPathComponent("Timed", isDirectory: true)
         self.storageURL = storageURL ?? folderURL.appendingPathComponent("planner-state.json")
         load()
+        if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil {
+            startSeqtaBackgroundSync()
+        }
     }
 
     var selectedTask: TaskItem? {
@@ -867,6 +871,44 @@ final class PlannerStore {
         }
     }
 
+    private func startSeqtaBackgroundSync() {
+        SeqtaBackgroundSync.ensureLaunchAgentInstalled()
+        seqtaWatcher = SeqtaFileWatcher { [weak self] in
+            DispatchQueue.main.async {
+                self?.refreshSeqtaSnapshotIfAvailable()
+            }
+        }
+        refreshSeqtaSnapshotIfAvailable()
+    }
+
+    private func refreshSeqtaSnapshotIfAvailable(now: Date = .now) {
+        let seqtaTasks = SeqtaBackgroundSync.loadTasks(now: now)
+        guard !seqtaTasks.isEmpty else { return }
+
+        var insertedCount = 0
+        var updatedCount = 0
+
+        for task in seqtaTasks.map(calibratedTask) {
+            if let index = tasks.firstIndex(where: { $0.id == task.id }) {
+                let merged = mergeSeqtaTask(existing: tasks[index], incoming: task)
+                if merged != tasks[index] {
+                    tasks[index] = merged
+                    updatedCount += 1
+                }
+                continue
+            }
+
+            tasks.insert(task, at: 0)
+            insertedCount += 1
+        }
+
+        guard insertedCount > 0 || updatedCount > 0 else { return }
+        let message = "Seqta background sync updated \(insertedCount) new task(s) and \(updatedCount) existing task(s)."
+        lastImportMessages = [message]
+        chat.append(PromptMessage(role: .assistant, text: message))
+        rebuildPlan(now: now)
+    }
+
     private func extractQuizSubject(from prompt: String) -> String? {
         let lowered = prompt.lowercased()
         guard lowered.contains("quiz me on") else { return nil }
@@ -891,5 +933,22 @@ final class PlannerStore {
             title: task.title,
             fallback: task.confidence
         )
+    }
+
+    private func mergeSeqtaTask(existing: TaskItem, incoming: TaskItem) -> TaskItem {
+        var merged = existing
+        merged.title = incoming.title
+        merged.list = incoming.list
+        merged.source = incoming.source
+        merged.subject = incoming.subject
+        merged.estimateMinutes = incoming.estimateMinutes
+        if !existing.isCompleted {
+            merged.confidence = incoming.confidence
+        }
+        merged.importance = incoming.importance
+        merged.dueDate = incoming.dueDate
+        merged.notes = incoming.notes
+        merged.energy = incoming.energy
+        return merged
     }
 }
