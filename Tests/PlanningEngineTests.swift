@@ -25,6 +25,26 @@ struct PlanningEngineTests {
         #expect(interval <= 7 * 24 * 60 * 60)
     }
 
+    @Test("testSeqtaParsingMatchesSubjectAliases")
+    func testSeqtaParsingMatchesSubjectAliases() {
+        let batch = ImportPipeline.parseImport(
+            title: "Seqta import",
+            source: .seqta,
+            text: """
+            Due Monday: SACE Economics test prep
+            Due: tomorrow: Eng Stds comparative response
+            Due 30 March 2026: Specialist practice set
+            Due: Monday: S&C photo essay notes
+            """,
+            now: fixedNow,
+            existingTaskIDs: []
+        )
+
+        #expect(batch.taskDrafts.count == 4)
+        #expect(batch.taskDrafts.map(\.subject) == ["Economics", "English", "Maths", "Society and Culture"])
+        #expect(batch.taskDrafts.allSatisfy { $0.dueDate >= fixedNow })
+    }
+
     @Test("testTickTickCSVParsing")
     func testTickTickCSVParsing() {
         let csv = """
@@ -111,6 +131,43 @@ struct PlanningEngineTests {
         }
 
         #expect(store.tasks.count == 1)
+    }
+
+    @Test("testSeqtaReimportMergesLegacyTaskIdentity")
+    @MainActor
+    func testSeqtaReimportMergesLegacyTaskIdentity() {
+        let storageURL = FileManager.default.temporaryDirectory.appendingPathComponent("timed-seqta-legacy-\(UUID().uuidString).json")
+        let store = PlannerStore(storageURL: storageURL)
+        store.tasks = [
+            TaskItem(
+                id: legacyTaskID(source: .seqta, title: "English comparative essay"),
+                title: "English comparative essay",
+                list: "Seqta",
+                source: .seqta,
+                subject: "English",
+                estimateMinutes: 45,
+                confidence: 3,
+                importance: 3,
+                dueDate: nil,
+                notes: "Imported from Seqta.",
+                energy: .medium,
+                isCompleted: false,
+                completedAt: nil
+            )
+        ]
+        store.contexts = []
+        store.chat = []
+        store.schedule = []
+
+        store.importTitle = "Seqta import"
+        store.importSource = .seqta
+        store.importText = "Due Monday: Eng Stds English comparative essay"
+        store.importCurrentPayload(now: fixedNow)
+        store.applyPendingImport()
+
+        #expect(store.tasks.count == 1)
+        #expect(store.tasks.first?.subject == "English")
+        #expect(store.tasks.first?.dueDate != nil)
     }
 
     @Test("testCrossSourceDeduplication")

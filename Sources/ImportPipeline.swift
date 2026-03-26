@@ -83,7 +83,16 @@ enum ImportPipeline {
             let cleanedTitle = task.title.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !cleanedTitle.isEmpty else { continue }
 
-            let stableID = StableID.makeTaskID(source: source.taskSource, title: cleanedTitle)
+            let stableID: String
+            if source == .seqta {
+                stableID = StableID.makeSeqtaTaskID(
+                    remoteID: nil,
+                    title: cleanedTitle,
+                    subject: task.subject?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                )
+            } else {
+                stableID = StableID.makeTaskID(source: source.taskSource, title: cleanedTitle)
+            }
             if knownIDs.contains(stableID) {
                 messages.append("duplicate skipped: \(cleanedTitle)")
                 continue
@@ -135,7 +144,11 @@ enum ImportPipeline {
             guard cleaned.count > 4 else { continue }
 
             let parsed = parseSeqtaLine(cleaned, now: now)
-            let stableID = StableID.makeTaskID(source: .seqta, title: parsed.title)
+            let stableID = StableID.makeSeqtaTaskID(
+                remoteID: parsed.remoteID,
+                title: parsed.title,
+                subject: parsed.subject ?? ""
+            )
             if knownIDs.contains(stableID) {
                 messages.append("duplicate skipped: \(parsed.title)")
                 continue
@@ -261,75 +274,46 @@ enum ImportPipeline {
         return (drafts, messages)
     }
 
-    private static func parseSeqtaLine(_ line: String, now: Date) -> (title: String, dueDate: Date?, subject: String?) {
-        let pattern = #"(?i)due\s+([^:]+):\s*(.+)$"#
-        let range = NSRange(location: 0, length: (line as NSString).length)
-        if
-            let regex = try? NSRegularExpression(pattern: pattern),
-            let match = regex.firstMatch(in: line, range: range),
-            match.numberOfRanges == 3,
-            let dueRange = Range(match.range(at: 1), in: line),
-            let titleRange = Range(match.range(at: 2), in: line)
-        {
-            let duePhrase = String(line[dueRange])
-            let title = String(line[titleRange]).trimmingCharacters(in: .whitespacesAndNewlines)
-            return (title, parseDuePhrase(duePhrase, now: now), inferredSubject(from: title))
+    private static func parseSeqtaLine(_ line: String, now: Date) -> (title: String, dueDate: Date?, subject: String?, remoteID: String?) {
+        let trimmedLine = line.trimmingCharacters(in: .whitespacesAndNewlines)
+        let loweredLine = trimmedLine.lowercased()
+
+        if loweredLine.hasPrefix("due ") || loweredLine.hasPrefix("due:") {
+            var remainder = String(trimmedLine.dropFirst(3)).trimmingCharacters(in: .whitespacesAndNewlines)
+            if remainder.hasPrefix(":") {
+                remainder = String(remainder.dropFirst()).trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+
+            if let separatorIndex = remainder.firstIndex(where: { $0 == ":" || $0 == "-" }) {
+                let duePhrase = String(remainder[..<separatorIndex])
+                let title = cleanedSeqtaTitle(String(remainder[remainder.index(after: separatorIndex)...]))
+                let subject = inferredSubject(from: "\(trimmedLine) \(title)")
+                return (title, parseDuePhrase(duePhrase, now: now), subject, nil)
+            }
         }
 
-        return (
-            line
-                .replacingOccurrences(of: "•", with: "")
-                .replacingOccurrences(of: "-", with: "")
-                .trimmingCharacters(in: .whitespacesAndNewlines),
-            nil,
-            inferredSubject(from: line)
-        )
+        if let dueRange = trimmedLine.range(of: " due on ", options: .caseInsensitive) ??
+            trimmedLine.range(of: " due ", options: .caseInsensitive)
+        {
+            let title = cleanedSeqtaTitle(String(trimmedLine[..<dueRange.lowerBound]))
+            let duePhrase = String(trimmedLine[dueRange.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+            let subject = inferredSubject(from: "\(trimmedLine) \(title)")
+            return (title, parseDuePhrase(duePhrase, now: now), subject, nil)
+        }
+
+        let cleanedTitle = cleanedSeqtaTitle(trimmedLine)
+        return (cleanedTitle, nil, inferredSubject(from: cleanedTitle), nil)
     }
 
     fileprivate static func parseDuePhrase(_ phrase: String, now: Date) -> Date? {
-        let cleaned = phrase.trimmingCharacters(in: .whitespacesAndNewlines)
-        let calendar = Calendar.current
+        SeqtaBackgroundSync.parseDueDate(phrase, now: now)
+    }
 
-        let weekdayMap: [String: Int] = [
-            "sunday": 1, "monday": 2, "tuesday": 3, "wednesday": 4,
-            "thursday": 5, "friday": 6, "saturday": 7
-        ]
-
-        if let weekday = weekdayMap[cleaned.lowercased()] {
-            var components = calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: now)
-            components.weekday = weekday
-            guard let startOfWeek = calendar.date(from: components) else { return nil }
-            let candidate = calendar.date(byAdding: .day, value: 0, to: startOfWeek) ?? startOfWeek
-            if candidate >= now {
-                return candidate
-            }
-            return calendar.date(byAdding: .day, value: 7, to: candidate)
-        }
-
-        let monthDayFormats = ["d MMM yyyy", "d MMM", "d/M/yyyy", "d/M/yy", "d/M"]
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_AU")
-
-        for format in monthDayFormats {
-            formatter.dateFormat = format
-            if let parsed = formatter.date(from: cleaned) {
-                if format == "d MMM" || format == "d/M" {
-                    let components = calendar.dateComponents([.day, .month], from: parsed)
-                    var yearComponents = calendar.dateComponents([.year], from: now)
-                    yearComponents.day = components.day
-                    yearComponents.month = components.month
-                    if let currentYearDate = calendar.date(from: yearComponents) {
-                        if currentYearDate >= now {
-                            return currentYearDate
-                        }
-                        return calendar.date(byAdding: .year, value: 1, to: currentYearDate)
-                    }
-                }
-                return parsed
-            }
-        }
-
-        return nil
+    private static func cleanedSeqtaTitle(_ value: String) -> String {
+        value
+            .replacingOccurrences(of: #"^\s*[•\-–—]+\s*"#, with: "", options: .regularExpression)
+            .replacingOccurrences(of: #"\s{2,}"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private static func parseTickTickDueDate(_ value: String, now: Date) -> Date? {

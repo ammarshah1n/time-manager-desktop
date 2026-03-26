@@ -89,14 +89,15 @@ enum SeqtaBackgroundSync {
         return assessments.compactMap { assessment in
             guard let title = stringValue(assessment["title"]) else { return nil }
             let rawSubject = stringValue(assessment["subject"]) ?? "General"
-            let subject = normalizedSubject(rawSubject)
+            let subject = canonicalSubject(from: rawSubject)
+            let remoteID = stringValue(assessment["id"])
             let dueDate = parseDueDate(stringValue(assessment["due"]), now: now)
             let status = stringValue(assessment["status"]) ?? "UNKNOWN"
             let overdue = boolValue(assessment["overdue"])
             let hasFeedback = boolValue(assessment["hasFeedback"])
 
             return TaskItem(
-                id: StableID.makeTaskID(source: .seqta, title: title),
+                id: StableID.makeSeqtaTaskID(remoteID: remoteID, title: title, subject: subject),
                 title: title,
                 list: "Seqta",
                 source: .seqta,
@@ -124,36 +125,110 @@ enum SeqtaBackgroundSync {
         return parts.joined(separator: " ")
     }
 
-    private static func normalizedSubject(_ rawSubject: String) -> String {
-        let lowered = rawSubject.lowercased()
-
-        if lowered.contains("english") { return "English" }
-        if lowered.contains("math") { return "Maths" }
-        if lowered.contains("economic") { return "Economics" }
-        if lowered.contains("chem") { return "Chemistry" }
-        if lowered.contains("physics") { return "Physics" }
-        if lowered.contains("biology") { return "Biology" }
-        if lowered.contains("legal") { return "Legal Studies" }
-        if lowered.contains("history") { return "Modern History" }
-        if lowered.contains("geography") { return "Geography" }
-        if lowered.contains("physical") || lowered == "pe" { return "PE" }
-
-        return SubjectCatalog.matchingSubject(in: rawSubject) ?? rawSubject
+    static func canonicalSubject(from rawSubject: String) -> String {
+        let trimmed = rawSubject.trimmingCharacters(in: .whitespacesAndNewlines)
+        return SubjectCatalog.matchingSubject(in: trimmed) ?? trimmed
     }
 
-    private static func parseDueDate(_ rawValue: String?, now: Date) -> Date? {
+    static func parseDueDate(_ rawValue: String?, now: Date) -> Date? {
         guard let rawValue, !rawValue.isEmpty else { return nil }
+        let cleaned = cleanedDueString(rawValue)
+        guard !cleaned.isEmpty else { return nil }
+
+        if let relativeDate = relativeDueDate(cleaned, now: now) {
+            return endOfDay(relativeDate)
+        }
+
+        let calendar = Calendar.current
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_AU_POSIX")
-        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.timeZone = calendar.timeZone
 
-        guard let parsed = formatter.date(from: rawValue) else { return nil }
-        return Calendar.current.date(
+        for format in ["yyyy-MM-dd", "d MMMM yyyy", "d MMM yyyy", "d/MM/yyyy", "d/M/yyyy", "d/M/yy"] {
+            formatter.dateFormat = format
+            if let parsed = formatter.date(from: cleaned) {
+                return endOfDay(parsed)
+            }
+        }
+
+        if let parsedWithoutYear = parseDayMonthDate(cleaned, now: now, formatter: formatter, calendar: calendar) {
+            return endOfDay(parsedWithoutYear)
+        }
+
+        return nil
+    }
+
+    private static func cleanedDueString(_ rawValue: String) -> String {
+        rawValue
+            .replacingOccurrences(of: #"(?i)^\s*due\s*[:\-]?\s*"#, with: "", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func relativeDueDate(_ cleaned: String, now: Date) -> Date? {
+        let normalized = cleaned.lowercased()
+        let calendar = Calendar.current
+
+        if normalized == "today" {
+            return now
+        }
+
+        if normalized == "tomorrow" {
+            return calendar.date(byAdding: .day, value: 1, to: now)
+        }
+
+        let weekdayMap: [String: Int] = [
+            "sunday": 1,
+            "monday": 2,
+            "tuesday": 3,
+            "wednesday": 4,
+            "thursday": 5,
+            "friday": 6,
+            "saturday": 7
+        ]
+
+        guard let weekday = weekdayMap[normalized] else { return nil }
+
+        let startOfDay = calendar.startOfDay(for: now)
+        return calendar.nextDate(
+            after: startOfDay.addingTimeInterval(-1),
+            matching: DateComponents(weekday: weekday),
+            matchingPolicy: .nextTimePreservingSmallerComponents
+        )
+    }
+
+    private static func parseDayMonthDate(
+        _ cleaned: String,
+        now: Date,
+        formatter: DateFormatter,
+        calendar: Calendar
+    ) -> Date? {
+        for format in ["EEE d MMM", "EEEE d MMM", "d MMM"] {
+            formatter.dateFormat = format
+            guard let parsed = formatter.date(from: cleaned) else { continue }
+
+            let components = calendar.dateComponents([.day, .month], from: parsed)
+            var yearComponents = calendar.dateComponents([.year], from: now)
+            yearComponents.day = components.day
+            yearComponents.month = components.month
+
+            guard let currentYearDate = calendar.date(from: yearComponents) else { continue }
+            if currentYearDate >= calendar.startOfDay(for: now) {
+                return currentYearDate
+            }
+
+            return calendar.date(byAdding: .year, value: 1, to: currentYearDate)
+        }
+
+        return nil
+    }
+
+    private static func endOfDay(_ date: Date) -> Date {
+        Calendar.current.date(
             bySettingHour: 17,
             minute: 0,
             second: 0,
-            of: parsed
-        ) ?? parsed
+            of: date
+        ) ?? date
     }
 
     private static func stringValue(_ value: Any?) -> String? {

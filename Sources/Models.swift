@@ -329,38 +329,124 @@ enum SubjectCatalog {
         "Languages"
     ]
 
+    private static let aliasRules: [(subject: String, patterns: [String])] = [
+        ("Society and Culture", [
+            "society and culture",
+            "soc and culture",
+            "society culture",
+            "soc",
+            "so c",
+            "s and c"
+        ]),
+        ("Economics", [
+            "sace economics",
+            "economics",
+            "economic",
+            "eco",
+            "microeconomics",
+            "macroeconomics",
+            "markets"
+        ]),
+        ("English", [
+            "eng stds",
+            "eng standards",
+            "english studies",
+            "english",
+            "essay",
+            "quote",
+            "literature",
+            "text response"
+        ]),
+        ("Maths", [
+            "specialist mathematics",
+            "specialist maths",
+            "mathematical methods",
+            "general mathematics",
+            "general maths",
+            "mathematics",
+            "specialist",
+            "methods",
+            "maths",
+            "math",
+            "calculus",
+            "algebra",
+            "statistics"
+        ]),
+        ("Chemistry", ["chemistry", "chemical", "stoichiometry", "molecule", "equilibrium", "chem"]),
+        ("Physics", ["physics", "kinematics", "forces", "motion", "electricity"]),
+        ("Biology", ["biology", "cell", "genetics", "ecosystem", "photosynthesis"]),
+        ("Legal Studies", ["legal studies", "legal", "law", "court", "rights", "constitution"]),
+        ("Modern History", ["modern history", "history", "source analysis", "historian", "war"]),
+        ("Geography", ["geography", "geographic", "climate", "urban", "population"]),
+        ("PE", ["physical education", "pe", "sport", "exercise", "training"]),
+        ("Languages", ["language", "french", "japanese", "spanish", "german", "vocabulary"])
+    ]
+
     static func matchingSubject(in text: String) -> String? {
-        let lowered = text.lowercased()
+        let normalizedText = normalizedSubjectText(text)
+        guard !normalizedText.isEmpty else { return nil }
 
-        let rules: [(String, [String])] = [
-            ("English", ["english", "essay", "quote", "literature", "text response"]),
-            ("Maths", ["math", "maths", "mathematics", "calculus", "algebra", "statistics"]),
-            ("Economics", ["economics", "economic", "markets", "microeconomics", "macroeconomics"]),
-            ("Chemistry", ["chemistry", "chemical", "stoichiometry", "molecule", "equilibrium"]),
-            ("Physics", ["physics", "kinematics", "forces", "motion", "electricity"]),
-            ("Biology", ["biology", "cell", "genetics", "ecosystem", "photosynthesis"]),
-            ("Legal Studies", ["legal", "law", "court", "rights", "constitution"]),
-            ("Society and Culture", ["society", "culture", "social", "identity", "community"]),
-            ("Modern History", ["modern history", "history", "source analysis", "historian", "war"]),
-            ("Geography", ["geography", "geographic", "climate", "urban", "population"]),
-            ("PE", ["pe", "physical education", "sport", "exercise", "training"]),
-            ("Languages", ["language", "french", "japanese", "spanish", "german", "vocabulary"])
-        ]
-
-        for (subject, keywords) in rules where keywords.contains(where: lowered.contains) {
-            return subject
+        for rule in aliasRules {
+            if rule.patterns.contains(where: { matches(pattern: $0, in: normalizedText) }) {
+                return rule.subject
+            }
         }
 
         return nil
+    }
+
+    static func normalizedSubjectText(_ text: String) -> String {
+        let lowered = text
+            .lowercased()
+            .replacingOccurrences(of: "&", with: " and ")
+            .replacingOccurrences(of: "/", with: " ")
+        let components = lowered.components(separatedBy: CharacterSet.alphanumerics.inverted)
+        return components
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func matches(pattern: String, in normalizedText: String) -> Bool {
+        let normalizedPattern = normalizedSubjectText(pattern)
+        guard !normalizedPattern.isEmpty else { return false }
+
+        if normalizedText == normalizedPattern {
+            return true
+        }
+
+        if normalizedText.hasPrefix("\(normalizedPattern) ") || normalizedText.hasSuffix(" \(normalizedPattern)") {
+            return true
+        }
+
+        let paddedText = " \(normalizedText) "
+        let paddedPattern = " \(normalizedPattern) "
+        if paddedText.contains(paddedPattern) {
+            return true
+        }
+
+        return normalizedText.contains(normalizedPattern)
     }
 }
 
 enum StableID {
     static func makeTaskID(source: TaskSource, title: String) -> String {
         let seed = normalizedTaskIdentityTitle(from: title)
-        let digest = SHA256.hash(data: Data(seed.utf8))
-        let hash = digest.prefix(12).map { String(format: "%02x", $0) }.joined()
-        return "task-\(hash)"
+        return hashedID(prefix: "task", seed: seed)
+    }
+
+    static func makeSeqtaTaskID(remoteID: String?, title: String, subject: String) -> String {
+        let trimmedRemoteID = remoteID?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !trimmedRemoteID.isEmpty {
+            return hashedID(prefix: "seqta", seed: "seqta-id|\(trimmedRemoteID)")
+        }
+
+        let seed = [
+            "seqta",
+            normalizedTaskIdentityTitle(from: title),
+            normalizedSubjectIdentity(from: subject)
+        ].joined(separator: "|")
+        return hashedID(prefix: "seqta", seed: seed)
     }
 
     static func normalizedTaskIdentityTitle(from title: String) -> String {
@@ -369,11 +455,19 @@ enum StableID {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    static func normalizedSubjectIdentity(from subject: String) -> String {
+        SubjectCatalog.normalizedSubjectText(subject)
+    }
+
     static func makeContextID(source: ImportSource, title: String, createdAt: Date) -> String {
         let seed = "\(source.rawValue)-\(title)-\(createdAt.timeIntervalSince1970)"
+        return hashedID(prefix: "ctx", seed: seed)
+    }
+
+    private static func hashedID(prefix: String, seed: String) -> String {
         let digest = SHA256.hash(data: Data(seed.utf8))
         let hash = digest.prefix(12).map { String(format: "%02x", $0) }.joined()
-        return "ctx-\(hash)"
+        return "\(prefix)-\(hash)"
     }
 }
 

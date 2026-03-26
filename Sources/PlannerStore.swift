@@ -642,10 +642,32 @@ final class PlannerStore {
             selectedContextID = context.id
         }
 
+        var createdCount = 0
+        var updatedCount = 0
+        var skippedCount = 0
+
         for draft in batch.taskDrafts {
             let task = calibratedTask(draft.makeTask())
-            guard !tasks.contains(where: { $0.id == task.id }) else { continue }
+
+            if let index = matchingImportedTaskIndex(for: task) {
+                let merged = task.source == .seqta
+                    ? mergeSeqtaTask(existing: tasks[index], incoming: task)
+                    : mergeDuplicateTasks(existing: tasks[index], incoming: task)
+                if merged != tasks[index] {
+                    tasks[index] = merged
+                    updatedCount += 1
+                } else {
+                    skippedCount += 1
+                }
+                continue
+            }
+
             tasks.insert(task, at: 0)
+            createdCount += 1
+        }
+
+        if !batch.taskDrafts.isEmpty, batch.taskDrafts.allSatisfy({ $0.source == .seqta }) {
+            print("[SeqtaImport] tasks found=\(batch.taskDrafts.count) tasks created=\(createdCount) tasks updated=\(updatedCount) tasks skipped=\(skippedCount)")
         }
 
         lastImportMessages = batch.messages
@@ -1020,15 +1042,19 @@ final class PlannerStore {
         let seqtaTasks = SeqtaBackgroundSync.loadTasks(now: now)
         guard !seqtaTasks.isEmpty else { return }
 
+        let totalFound = seqtaTasks.count
         var insertedCount = 0
         var updatedCount = 0
+        var skippedCount = 0
 
         for task in seqtaTasks.map(calibratedTask) {
-            if let index = tasks.firstIndex(where: { $0.id == task.id }) {
+            if let index = matchingImportedTaskIndex(for: task) {
                 let merged = mergeSeqtaTask(existing: tasks[index], incoming: task)
                 if merged != tasks[index] {
                     tasks[index] = merged
                     updatedCount += 1
+                } else {
+                    skippedCount += 1
                 }
                 continue
             }
@@ -1036,6 +1062,8 @@ final class PlannerStore {
             tasks.insert(task, at: 0)
             insertedCount += 1
         }
+
+        print("[SeqtaBackgroundSync] tasks found=\(totalFound) tasks created=\(insertedCount) tasks updated=\(updatedCount) tasks skipped=\(skippedCount)")
 
         guard insertedCount > 0 || updatedCount > 0 else { return }
         let message = "Seqta background sync updated \(insertedCount) new task(s) and \(updatedCount) existing task(s)."
@@ -1125,6 +1153,31 @@ final class PlannerStore {
         merged.notes = incoming.notes
         merged.energy = incoming.energy
         return merged
+    }
+
+    private func matchingImportedTaskIndex(for incoming: TaskItem) -> Int? {
+        if let exactIndex = tasks.firstIndex(where: { $0.id == incoming.id }) {
+            return exactIndex
+        }
+
+        let incomingTitle = StableID.normalizedTaskIdentityTitle(from: incoming.title)
+        let incomingSubject = incoming.subject.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        return tasks.firstIndex { existing in
+            let existingTitle = StableID.normalizedTaskIdentityTitle(from: existing.title)
+            let existingSubject = existing.subject.trimmingCharacters(in: .whitespacesAndNewlines)
+            let sameSubject: Bool
+            if existingSubject.isEmpty || incomingSubject.isEmpty {
+                sameSubject = true
+            } else {
+                sameSubject = existingSubject.caseInsensitiveCompare(incomingSubject) == .orderedSame
+            }
+
+            guard sameSubject else { return false }
+            return existingTitle == incomingTitle ||
+                existingTitle.contains(incomingTitle) ||
+                incomingTitle.contains(existingTitle)
+        }
     }
 
     private static var isRunningUnderTests: Bool {
