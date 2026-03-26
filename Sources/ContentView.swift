@@ -4,12 +4,13 @@ import SwiftUI
 
 struct ContentView: View {
     @State private var store = PlannerStore()
-    @AppStorage("timed.showLeft") private var showLeft = false
+    @AppStorage("timed.showLeft") private var showLeft = true
     @AppStorage("timed.showRight") private var showRight = false
     @AppStorage("timed.centerTab") private var centerTabRawValue = CenterTab.plan.rawValue
     @State private var selectedContextFilter = "All"
     @State private var selectedStudySubject = ""
     @State private var expandedStudySubject = ""
+    @State private var contextTaskID: String?
     @State private var showAddTaskSheet = false
     @State private var addTaskDraft = AddTaskDraft()
     @State private var addTaskError: String?
@@ -61,21 +62,21 @@ struct ContentView: View {
                 HStack(alignment: .top, spacing: 16) {
                     if showLeft {
                         leftColumn
-                            .frame(width: 320)
+                            .frame(minWidth: 180, idealWidth: 220, maxWidth: 260)
                             .transition(.move(edge: .leading).combined(with: .opacity))
                     }
 
                     centerColumn
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                    if showRight {
+                    if isContextDrawerVisible {
                         rightColumn
-                            .frame(width: 360)
+                            .frame(minWidth: 260, idealWidth: 320, maxWidth: 360)
                             .transition(.move(edge: .trailing).combined(with: .opacity))
                     }
                 }
                 .animation(.easeInOut(duration: 0.24), value: showLeft)
-                .animation(.easeInOut(duration: 0.24), value: showRight)
+                .animation(.easeInOut(duration: 0.24), value: isContextDrawerVisible)
             }
             .padding(20)
             .opacity(activeFocusBlock == nil ? 1 : 0.1)
@@ -168,50 +169,42 @@ struct ContentView: View {
 
                 Spacer()
 
-                VStack(alignment: .trailing, spacing: 10) {
-                    Picker("Center tab", selection: centerTabSelection) {
-                        ForEach(CenterTab.allCases) { tab in
-                            Text(tab.rawValue).tag(tab)
+                HStack(spacing: 10) {
+                    HeaderActionButton(title: "Export", systemImage: "square.and.arrow.up") {
+                        Task { await store.exportCalendar() }
+                    }
+                    HeaderActionButton(title: "Add Task", systemImage: "plus") {
+                        showLeft = true
+                        showAddTaskSheet = true
+                    }
+                    HeaderActionButton(title: "Sync Vault", systemImage: "books.vertical") {
+                        store.syncObsidianVault()
+                        if let task = contextDrawerTask ?? store.rankedTasks.first?.task {
+                            selectTaskForContext(task)
                         }
                     }
-                    .pickerStyle(.segmented)
-                    .frame(width: 320)
-
-                    HStack(spacing: 10) {
-                        HeaderActionButton(title: "Export", systemImage: "square.and.arrow.up") {
-                            Task { await store.exportCalendar() }
+                    HeaderActionButton(title: "Load Memory", systemImage: "tray.and.arrow.down") {
+                        store.importCodexMemorySchoolPack()
+                        if let task = contextDrawerTask ?? store.rankedTasks.first?.task {
+                            selectTaskForContext(task)
                         }
-                        HeaderActionButton(title: "Add Task", systemImage: "plus") {
-                            showLeft = true
-                            showAddTaskSheet = true
-                        }
-                        HeaderActionButton(title: "Sync Vault", systemImage: "books.vertical") {
-                            store.syncObsidianVault()
-                            centerTabRawValue = CenterTab.study.rawValue
-                            showRight = true
-                        }
-                        HeaderActionButton(title: "Load Memory", systemImage: "tray.and.arrow.down") {
-                            store.importCodexMemorySchoolPack()
-                            centerTabRawValue = CenterTab.study.rawValue
-                            showRight = true
-                        }
-                        HeaderActionButton(title: "Command", systemImage: "command") {
-                            showCommandPalette = true
-                        }
-                        .keyboardShortcut("k", modifiers: [.command])
-                        HeaderActionButton(title: showLeft ? "Hide Left" : "Show Left", systemImage: "sidebar.leading") {
-                            showLeft.toggle()
-                        }
-                        HeaderActionButton(title: showRight ? "Hide Right" : "Show Right", systemImage: "sidebar.trailing") {
-                            showRight.toggle()
-                        }
-                        SettingsLink {
-                            Label("Settings", systemImage: "gearshape")
-                                .labelStyle(.titleAndIcon)
-                        }
-                        .buttonStyle(.bordered)
-                        .tint(.white.opacity(0.22))
                     }
+                    HeaderActionButton(title: "Command", systemImage: "command") {
+                        showCommandPalette = true
+                    }
+                    .keyboardShortcut("k", modifiers: [.command])
+                    HeaderActionButton(title: isContextDrawerVisible ? "Hide Context" : "Context", systemImage: "sidebar.trailing") {
+                        toggleContextDrawer()
+                    }
+                    HeaderActionButton(title: showLeft ? "Hide Tasks" : "Tasks", systemImage: "sidebar.leading") {
+                        showLeft.toggle()
+                    }
+                    SettingsLink {
+                        Label("Settings", systemImage: "gearshape")
+                            .labelStyle(.titleAndIcon)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(.white.opacity(0.22))
                 }
             }
         }
@@ -232,145 +225,36 @@ struct ContentView: View {
             )
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
-                    TimedCard(title: "Study folders", icon: "books.vertical") {
-                        VStack(alignment: .leading, spacing: 12) {
-                            if studySubjects.isEmpty {
-                                Text("No active subject folders yet. Import tasks or sync your vault.")
-                                    .font(.system(size: 13))
-                                    .foregroundStyle(.white.opacity(0.6))
-                            } else {
-                                ForEach(studySubjects, id: \.self) { subject in
-                                    DisclosureGroup(
-                                        isExpanded: Binding(
-                                            get: { expandedStudySubject == subject },
-                                            set: { isExpanded in
-                                                expandedStudySubject = isExpanded ? subject : ""
-                                            }
-                                        )
-                                    ) {
-                                        VStack(alignment: .leading, spacing: 10) {
-                                            ForEach(studyTasks(for: subject)) { task in
-                                                studyFolderRow(task)
-                                            }
-                                        }
-                                        .padding(.top, 10)
-                                    } label: {
-                                        HStack {
-                                            Text(subject)
-                                                .font(.system(size: 13, weight: .semibold))
-                                                .foregroundStyle(.white.opacity(0.82))
-                                            Spacer()
-                                            badge(text: "\(studyTasks(for: subject).count)", emphasis: .secondary)
-                                        }
+                VStack(alignment: .leading, spacing: 0) {
+                    TimedSectionHeader(title: "Task Library")
+
+                    if taskLibraryItems.isEmpty {
+                        Text("No tasks loaded yet.")
+                            .font(.system(size: 13))
+                            .foregroundStyle(.white.opacity(0.58))
+                            .padding(.horizontal, 18)
+                            .padding(.bottom, 18)
+                    } else {
+                        LazyVStack(spacing: 6) {
+                            ForEach(taskLibraryItems) { task in
+                                TaskLibraryCompactRow(
+                                    title: task.title,
+                                    iconName: icon(for: task.source),
+                                    dueText: dueLabel(for: task.dueDate),
+                                    urgencyColor: urgencyColor(for: task),
+                                    isSelected: contextTaskID == task.id,
+                                    isCompleted: task.isCompleted,
+                                    action: {
+                                        selectTaskForContext(task)
                                     }
-                                }
+                                )
                             }
                         }
-                    }
-
-                    TimedCard(title: "Task Library", icon: "tray.full") {
-                        VStack(alignment: .leading, spacing: 12) {
-                            HStack {
-                                Text("All tasks")
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .foregroundStyle(.white.opacity(0.65))
-                                Spacer()
-                                Button {
-                                    showAddTaskSheet = true
-                                } label: {
-                                    Image(systemName: "plus")
-                                }
-                                .buttonStyle(.bordered)
-                            }
-
-                            ForEach(store.tasks.sorted(by: taskLibrarySort)) { task in
-                                TimedCard(title: task.title, icon: icon(for: task.source)) {
-                                    VStack(alignment: .leading, spacing: 10) {
-                                        HStack {
-                                            Text(task.subject)
-                                                .font(.system(size: 12, weight: .semibold))
-                                                .foregroundStyle(.white.opacity(0.72))
-
-                                            Spacer()
-
-                                            Text(task.source.rawValue)
-                                                .font(.system(size: 12, weight: .semibold))
-                                                .foregroundStyle(.white.opacity(0.6))
-                                        }
-
-                                        Text(task.notes.isEmpty ? "No notes yet." : task.notes)
-                                            .font(.system(size: 13))
-                                            .foregroundStyle(.white.opacity(0.68))
-                                            .lineLimit(2)
-
-                                        if let dueDate = task.dueDate {
-                                            Text("Due \(dueDate.formatted(date: .abbreviated, time: .omitted))")
-                                                .font(.system(size: 12, weight: .medium))
-                                                .foregroundStyle(.white.opacity(0.55))
-                                        }
-                                    }
-                                }
-                                .overlay(selectionBorder(isSelected: store.selectedTaskID == task.id))
-                                .onTapGesture {
-                                    selectedStudySubject = task.subject
-                                    expandedStudySubject = task.subject
-                                    store.selectTask(task)
-                                }
-                            }
-                        }
-                    }
-
-                    TimedCard(title: "Import", icon: "square.and.arrow.down") {
-                        VStack(alignment: .leading, spacing: 12) {
-                            TextField("Import title", text: $store.importTitle)
-                                .textFieldStyle(.plain)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 10)
-                                .background(rowBackground)
-
-                            Picker("Source", selection: $store.importSource) {
-                                ForEach(ImportSource.allCases) { source in
-                                    Text(source.rawValue).tag(source)
-                                }
-                            }
-                            .pickerStyle(.segmented)
-
-                            TextEditor(text: $store.importText)
-                                .scrollContentBackground(.hidden)
-                                .frame(minHeight: 180)
-                                .padding(10)
-                                .background(rowBackground)
-
-                            HStack(spacing: 10) {
-                                Button("Parse import") {
-                                    Task {
-                                        await store.importCurrentPayloadUsingAI()
-                                    }
-                                }
-                                .buttonStyle(.borderedProminent)
-
-                                Button("Sync from Vault") {
-                                    store.syncObsidianVault()
-                                    centerTabRawValue = CenterTab.study.rawValue
-                                    showRight = true
-                                }
-                                .buttonStyle(.bordered)
-                            }
-
-                            if !store.lastImportMessages.isEmpty {
-                                VStack(alignment: .leading, spacing: 6) {
-                                    ForEach(store.lastImportMessages, id: \.self) { line in
-                                        Text(line)
-                                            .font(.system(size: 12))
-                                            .foregroundStyle(.white.opacity(0.62))
-                                    }
-                                }
-                            }
-                        }
+                        .padding(.horizontal, 12)
+                        .padding(.bottom, 12)
                     }
                 }
-                .padding(14)
+                .padding(.vertical, 8)
             }
             .scrollIndicators(.hidden)
         }
@@ -396,28 +280,119 @@ struct ContentView: View {
                 endPoint: .bottomTrailing
             )
 
-            VStack(spacing: 14) {
-                TabView(selection: centerTabSelection) {
-                    planTab
-                        .tag(CenterTab.plan)
-                        .tabItem { Text("Plan") }
+            VStack(spacing: 0) {
+                TimedSectionHeader(title: "Next Up")
 
-                    planningChatTab
-                        .tag(CenterTab.chat)
-                        .tabItem { Text("Chat") }
+                VStack(alignment: .leading, spacing: 12) {
+                    if store.rankedTasks.isEmpty {
+                        Text("No ranked tasks yet. Import work or add a task to start planning.")
+                            .font(.system(size: 13))
+                            .foregroundStyle(.white.opacity(0.6))
+                    } else {
+                        ForEach(Array(store.rankedTasks.prefix(3))) { ranked in
+                            NextUpTaskCard(
+                                ranked: ranked,
+                                iconName: icon(for: ranked.task.source),
+                                isSelected: contextTaskID == ranked.task.id,
+                                onStart: {
+                                    selectTaskForContext(ranked.task)
+                                },
+                                onContext: {
+                                    selectTaskForContext(ranked.task)
+                                },
+                                onComplete: {
+                                    markTaskCompleteAndRefreshDrawer(ranked.task)
+                                }
+                            )
+                        }
+                    }
+                }
+                .padding(.horizontal, 18)
+                .padding(.bottom, 18)
 
-                    studyTab
-                        .tag(CenterTab.study)
-                        .tabItem { Text("Study") }
+                Divider()
+                    .overlay(Color.white.opacity(0.08))
 
-                    dayTab
-                        .tag(CenterTab.day)
-                        .tabItem { Text("Day") }
+                TimedSectionHeader(title: "Today's Plan")
+
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 12) {
+                        if store.schedule.isEmpty {
+                            Text("No schedule blocks yet. Approve the next ranked task or ask Timed to plan your next few hours.")
+                                .font(.system(size: 13))
+                                .foregroundStyle(.white.opacity(0.6))
+                        } else {
+                            ForEach(store.schedule) { block in
+                                scheduleRow(block)
+                            }
+                        }
+
+                        if store.scheduleOverflowCount > 0 {
+                            Text("\(store.scheduleOverflowCount) task(s) are still unscheduled.")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(.white.opacity(0.56))
+                        }
+                    }
+                    .padding(.horizontal, 18)
+                    .padding(.bottom, 18)
                 }
 
-                activePromptComposer
+                Divider()
+                    .overlay(Color.white.opacity(0.08))
+
+                TimedSectionHeader(title: "Command")
+
+                VStack(alignment: .leading, spacing: 12) {
+                    if !commandMessages.isEmpty {
+                        ScrollView {
+                            VStack(alignment: .leading, spacing: 10) {
+                                ForEach(commandMessages) { message in
+                                    PromptBubble(message: message)
+                                }
+                            }
+                        }
+                        .frame(minHeight: 72, maxHeight: 180)
+                    }
+
+                    HStack(alignment: .center, spacing: 12) {
+                        TextField(
+                            store.isQuizMode ? "Answer the quiz or type \"End quiz\"" : "Ask Timed to plan, rank, quiz, or find context",
+                            text: activeCommandText
+                        )
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 14))
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 12)
+                        .background(rowBackground)
+                        .onSubmit {
+                            Task { await submitActiveCommand() }
+                        }
+
+                        Button(store.isQuizMode ? "Send" : "Ask") {
+                            Task { await submitActiveCommand() }
+                        }
+                        .buttonStyle(.borderedProminent)
+
+                        if store.isQuizMode {
+                            Button("End quiz") {
+                                store.endQuiz()
+                                if contextTaskID == nil {
+                                    selectedStudySubject = ""
+                                }
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                    }
+
+                    promptStatusLine(
+                        defaultText: store.isQuizMode
+                            ? "Quiz mode is grounded on the selected task and imported subject context."
+                            : "Planning mode injects your ranked task list, memory hits, and local context."
+                    )
+                }
+                .padding(.horizontal, 18)
+                .padding(.bottom, 18)
             }
-            .padding(14)
         }
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .overlay(
@@ -442,26 +417,91 @@ struct ContentView: View {
             )
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
-                    subjectHealthCard
-                    contextPanelCard
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack {
+                        TimedSectionHeader(title: store.isQuizMode ? "Context Drawer · Quiz" : "Context Drawer")
+                            .padding(.horizontal, 0)
+                            .padding(.vertical, 0)
 
-                    if let selectedContext = store.selectedContext {
-                        TimedCard(title: selectedContext.title, icon: "text.book.closed") {
-                            VStack(alignment: .leading, spacing: 10) {
-                                Text(selectedContext.summary)
-                                    .font(.system(size: 13, weight: .medium))
-                                    .foregroundStyle(.white.opacity(0.82))
+                        Spacer()
 
-                                Text(selectedContext.detail)
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(.white.opacity(0.64))
-                                    .textSelection(.enabled)
+                        if contextTaskID != nil {
+                            Button {
+                                contextTaskID = nil
+                            } label: {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 12, weight: .bold))
+                                    .foregroundStyle(.white.opacity(0.7))
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.trailing, 18)
+                        }
+                    }
+                    .padding(.top, 12)
+
+                    VStack(alignment: .leading, spacing: 14) {
+                        if store.isQuizMode {
+                            TimedCard(title: "Quiz Mode", icon: "questionmark.circle") {
+                                VStack(alignment: .leading, spacing: 10) {
+                                    Text(store.activeQuizSubject ?? activeStudySubject)
+                                        .font(.system(size: 18, weight: .bold))
+                                        .foregroundStyle(.white)
+
+                                    Text("Timed is using grounded context for one-question-at-a-time tutoring.")
+                                        .font(.system(size: 13))
+                                        .foregroundStyle(.white.opacity(0.76))
+                                }
+                            }
+                        }
+
+                        if let contextDrawerTask {
+                            TimedCard(title: "Task Detail", icon: icon(for: contextDrawerTask.source)) {
+                                VStack(alignment: .leading, spacing: 10) {
+                                    Text(contextDrawerTask.title)
+                                        .font(.system(size: 22, weight: .bold))
+                                        .foregroundStyle(.white)
+
+                                    Text("\(contextDrawerTask.subject) · \(contextDrawerTask.estimateMinutes) min · confidence \(contextDrawerTask.confidence)/5 · importance \(contextDrawerTask.importance)/5")
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .foregroundStyle(.white.opacity(0.62))
+
+                                    Text(contextDrawerTask.notes.isEmpty ? "No task notes yet." : contextDrawerTask.notes)
+                                        .font(.system(size: 13))
+                                        .foregroundStyle(.white.opacity(0.78))
+
+                                    HStack(spacing: 10) {
+                                        Button("Quiz me") {
+                                            Task { await store.startQuiz(subject: contextDrawerTask.subject) }
+                                        }
+                                        .buttonStyle(.borderedProminent)
+
+                                        Button("Complete") {
+                                            markTaskCompleteAndRefreshDrawer(contextDrawerTask)
+                                        }
+                                        .buttonStyle(.bordered)
+                                    }
+                                }
+                            }
+                        }
+
+                        if contextDrawerContexts.isEmpty {
+                            Text("No grounded context is loaded for this selection yet.")
+                                .font(.system(size: 13))
+                                .foregroundStyle(.white.opacity(0.58))
+                        } else {
+                            ForEach(contextDrawerContexts.prefix(4)) { context in
+                                ContextSnippetCard(
+                                    context: context,
+                                    onQuiz: {
+                                        Task { await store.startQuiz(subject: context.subject) }
+                                    }
+                                )
                             }
                         }
                     }
+                    .padding(.horizontal, 18)
+                    .padding(.bottom, 18)
                 }
-                .padding(14)
             }
             .scrollIndicators(.hidden)
         }
@@ -927,6 +967,120 @@ struct ContentView: View {
                     .font(.system(size: 12))
                     .foregroundStyle(.white.opacity(0.58))
             }
+        }
+    }
+
+    private var isContextDrawerVisible: Bool {
+        contextDrawerTask != nil || store.isQuizMode
+    }
+
+    private var contextDrawerTask: TaskItem? {
+        guard let contextTaskID else { return nil }
+        return store.tasks.first(where: { $0.id == contextTaskID && !$0.isCompleted })
+    }
+
+    private var contextDrawerContexts: [ContextItem] {
+        if let contextDrawerTask {
+            return store.groundedStudyContexts(for: contextDrawerTask)
+        }
+        if store.isQuizMode {
+            return store.groundedStudyContexts(for: nil, subject: store.activeQuizSubject ?? activeStudySubject)
+        }
+        return []
+    }
+
+    private var commandMessages: [PromptMessage] {
+        Array((store.isQuizMode ? store.studyChat : store.chat).suffix(4))
+    }
+
+    private var activeCommandText: Binding<String> {
+        Binding(
+            get: { store.isQuizMode ? store.studyPromptText : store.promptText },
+            set: { newValue in
+                if store.isQuizMode {
+                    store.studyPromptText = newValue
+                } else {
+                    store.promptText = newValue
+                }
+            }
+        )
+    }
+
+    private var taskLibraryItems: [TaskItem] {
+        let rankedOrder = Dictionary(uniqueKeysWithValues: store.rankedTasks.enumerated().map { ($0.element.task.id, $0.offset) })
+        return store.tasks.sorted { lhs, rhs in
+            if lhs.isCompleted != rhs.isCompleted {
+                return !lhs.isCompleted
+            }
+            let lhsRank = rankedOrder[lhs.id] ?? Int.max
+            let rhsRank = rankedOrder[rhs.id] ?? Int.max
+            if lhsRank != rhsRank {
+                return lhsRank < rhsRank
+            }
+            if let lhsDue = lhs.dueDate, let rhsDue = rhs.dueDate, lhsDue != rhsDue {
+                return lhsDue < rhsDue
+            }
+            return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
+        }
+    }
+
+    private func submitActiveCommand() async {
+        if store.isQuizMode {
+            await store.submitStudyPrompt()
+            return
+        }
+
+        await store.submitPlanningPrompt()
+        if store.isQuizMode && contextTaskID == nil {
+            if let quizTask = store.selectedTask {
+                selectTaskForContext(quizTask)
+            }
+        }
+    }
+
+    private func toggleContextDrawer() {
+        if isContextDrawerVisible {
+            contextTaskID = nil
+            return
+        }
+
+        if let selectedTask = contextDrawerTask ?? store.selectedTask ?? store.rankedTasks.first?.task {
+            selectTaskForContext(selectedTask)
+        }
+    }
+
+    private func selectTaskForContext(_ task: TaskItem) {
+        selectedStudySubject = task.subject
+        expandedStudySubject = task.subject
+        contextTaskID = task.id
+        store.selectTask(task)
+    }
+
+    private func markTaskCompleteAndRefreshDrawer(_ task: TaskItem) {
+        if contextTaskID == task.id {
+            contextTaskID = nil
+        }
+        store.markTaskCompleted(task)
+    }
+
+    private func dueLabel(for dueDate: Date?) -> String {
+        guard let dueDate else { return "No date" }
+        return dueDate.formatted(.dateTime.month(.abbreviated).day())
+    }
+
+    private func urgencyColor(for task: TaskItem) -> Color {
+        guard !task.isCompleted else { return Color.white.opacity(0.18) }
+        switch store.rankedTasks.first(where: { $0.task.id == task.id })?.band {
+        case "Do now":
+            return .red
+        case "Today":
+            return .orange
+        case "This week":
+            return .yellow
+        case "Later":
+            return .green
+        default:
+            return .white.opacity(0.28)
         }
     }
 
