@@ -224,6 +224,47 @@ struct PromptMessage: Identifiable, Hashable, Codable {
     }
 }
 
+struct PromptErrorState: Identifiable, Equatable {
+    let id: UUID
+    var message: String
+
+    init(id: UUID = UUID(), message: String) {
+        self.id = id
+        self.message = message
+    }
+}
+
+struct SettingsIssueState: Equatable {
+    var message: String
+}
+
+enum ToastTone: String, Equatable {
+    case info
+    case error
+}
+
+struct ToastState: Identifiable, Equatable {
+    let id: UUID
+    var title: String
+    var message: String
+    var systemImage: String
+    var tone: ToastTone
+
+    init(
+        id: UUID = UUID(),
+        title: String,
+        message: String,
+        systemImage: String,
+        tone: ToastTone
+    ) {
+        self.id = id
+        self.title = title
+        self.message = message
+        self.systemImage = systemImage
+        self.tone = tone
+    }
+}
+
 struct RankedTask: Identifiable, Hashable {
     let task: TaskItem
     let score: Int

@@ -1,6 +1,13 @@
 import Foundation
 import Observation
 
+private enum FailedAIAction {
+    case planning(String)
+    case study(String)
+    case quizStart(String)
+    case quizReply(String)
+}
+
 @MainActor
 @Observable
 final class PlannerStore {
@@ -8,6 +15,8 @@ final class PlannerStore {
     @ObservationIgnored private var seqtaWatcher: SeqtaFileWatcher?
     @ObservationIgnored private var deadlineMonitorTask: Task<Void, Never>?
     @ObservationIgnored private var pendingCalibrationQueue: [String] = []
+    @ObservationIgnored private var lastFailedAIAction: FailedAIAction?
+    @ObservationIgnored private var toastDismissTask: Task<Void, Never>?
 
     var tasks: [TaskItem] = []
     var contexts: [ContextItem] = []
@@ -24,6 +33,9 @@ final class PlannerStore {
     var studyChat: [PromptMessage] = []
     var isRunningPrompt = false
     var aiErrorText: String?
+    var promptErrorState: PromptErrorState?
+    var settingsIssue: SettingsIssueState?
+    var toastState: ToastState?
     var promptBoostSubject: String?
     var suggestedNextActionsByTaskID: [String: String] = [:]
     var scheduleOverflowCount = 0
@@ -56,6 +68,7 @@ final class PlannerStore {
 
     deinit {
         deadlineMonitorTask?.cancel()
+        toastDismissTask?.cancel()
     }
 
     var selectedTask: TaskItem? {
@@ -204,10 +217,14 @@ final class PlannerStore {
         let rawPrompt = promptText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !rawPrompt.isEmpty else { return }
         promptText = ""
+        await runPlanningPrompt(rawPrompt, appendUserMessage: true)
+    }
+
+    private func runPlanningPrompt(_ rawPrompt: String, appendUserMessage: Bool) async {
         let now = Date.now
 
         if let quizSubject = extractQuizSubject(from: rawPrompt) {
-            await startQuiz(subject: quizSubject)
+            await startQuiz(subject: quizSubject, appendPromptMessage: appendUserMessage)
             return
         }
 
@@ -219,11 +236,13 @@ final class PlannerStore {
         }
 
         rebuildPlan(now: now)
-        aiErrorText = nil
-        appendPlannerMessage(PromptMessage(role: .user, text: rawPrompt), subject: SubjectCatalog.matchingSubject(in: rawPrompt))
+        clearPromptError()
+        if appendUserMessage {
+            appendPlannerMessage(PromptMessage(role: .user, text: rawPrompt), subject: SubjectCatalog.matchingSubject(in: rawPrompt))
+        }
         isRunningPrompt = true
 
-        let response = await CodexBridge().run(
+        let result = await CodexBridge().run(
             request: CodexRunRequest(
                 prompt: buildPlanningPrompt(
                     for: rawPrompt,
@@ -238,9 +257,11 @@ final class PlannerStore {
         )
         isRunningPrompt = false
 
-        guard let response else {
-            aiErrorText = "Could not reach Timed AI — check Codex is installed"
-            appendPlannerMessage(PromptMessage(role: .assistant, text: aiErrorText ?? "Timed AI error"), subject: SubjectCatalog.matchingSubject(in: rawPrompt))
+        guard let response = CodexBridge.response(from: result) else {
+            handlePromptFailure(
+                result: result,
+                action: .planning(rawPrompt)
+            )
             save()
             return
         }
@@ -264,7 +285,7 @@ final class PlannerStore {
         aiErrorText = nil
         isRunningPrompt = true
 
-        let response = await CodexBridge().run(
+        let result = await CodexBridge().run(
             request: CodexRunRequest(
                 prompt: buildDayPlanPrompt(now: now, topTasks: topTasks),
                 autonomousMode: TimedPreferences.autonomousModeEnabled,
@@ -275,8 +296,8 @@ final class PlannerStore {
 
         isRunningPrompt = false
 
-        guard let response else {
-            aiErrorText = "Could not reach Timed AI — check Codex is installed"
+        guard let response = CodexBridge.response(from: result) else {
+            aiErrorText = CodexBridge.handleFailureMessage(result) ?? "Timed AI failed before returning a response."
             appendPlannerMessage(PromptMessage(role: .assistant, text: aiErrorText ?? "Timed AI error"))
             save()
             return nil
@@ -315,17 +336,23 @@ final class PlannerStore {
             return
         }
 
+        await runStudyPrompt(rawPrompt, appendUserMessage: true)
+    }
+
+    private func runStudyPrompt(_ rawPrompt: String, appendUserMessage: Bool) async {
         let now = Date.now
         let autonomousContext = AutonomousContextProvider.build(question: rawPrompt, now: now)
         let activeTask = selectedTask
         let subject = activeTask?.subject ?? SubjectCatalog.matchingSubject(in: rawPrompt) ?? "English"
         let studyContexts = groundedStudyContexts(for: activeTask, subject: subject)
 
-        appendStudyMessage(PromptMessage(role: .user, text: rawPrompt), subject: subject)
-        aiErrorText = nil
+        if appendUserMessage {
+            appendStudyMessage(PromptMessage(role: .user, text: rawPrompt), subject: subject)
+        }
+        clearPromptError()
         isRunningPrompt = true
 
-        let response = await CodexBridge().run(
+        let result = await CodexBridge().run(
             request: CodexRunRequest(
                 prompt: buildStudyPrompt(
                     for: rawPrompt,
@@ -342,9 +369,11 @@ final class PlannerStore {
 
         isRunningPrompt = false
 
-        guard let response else {
-            aiErrorText = "Could not reach Timed AI — check Codex is installed"
-            appendStudyMessage(PromptMessage(role: .assistant, text: aiErrorText ?? "Timed AI error"), subject: subject)
+        guard let response = CodexBridge.response(from: result) else {
+            handlePromptFailure(
+                result: result,
+                action: .study(rawPrompt)
+            )
             save()
             return
         }
@@ -361,7 +390,7 @@ final class PlannerStore {
         save()
     }
 
-    func startQuiz(subject: String) async {
+    func startQuiz(subject: String, appendPromptMessage: Bool = true) async {
         let normalizedSubject = subject.trimmingCharacters(in: .whitespacesAndNewlines)
         let matchingContexts = groundedStudyContexts(for: selectedTask, subject: normalizedSubject)
 
@@ -379,14 +408,16 @@ final class PlannerStore {
         if let taskForSubject = tasks.first(where: { $0.subject.caseInsensitiveCompare(normalizedSubject) == .orderedSame }) {
             selectedTaskID = taskForSubject.id
         }
-        aiErrorText = nil
+        clearPromptError()
         isRunningPrompt = true
-        appendStudyMessage(
-            PromptMessage(role: .student, text: "Quiz me on \(normalizedSubject).", isQuiz: true),
-            subject: normalizedSubject
-        )
+        if appendPromptMessage {
+            appendStudyMessage(
+                PromptMessage(role: .student, text: "Quiz me on \(normalizedSubject).", isQuiz: true),
+                subject: normalizedSubject
+            )
+        }
 
-        let response = await CodexBridge().run(
+        let result = await CodexBridge().run(
             request: CodexRunRequest(
                 prompt: buildQuizPrompt(
                     subject: normalizedSubject,
@@ -400,9 +431,11 @@ final class PlannerStore {
         )
         isRunningPrompt = false
 
-        guard let response else {
-            aiErrorText = "Could not reach Timed AI — check Codex is installed"
-            appendStudyMessage(PromptMessage(role: .assistant, text: aiErrorText ?? "Timed AI error"), subject: normalizedSubject)
+        guard let response = CodexBridge.response(from: result) else {
+            handlePromptFailure(
+                result: result,
+                action: .quizStart(normalizedSubject)
+            )
             save()
             return
         }
@@ -511,6 +544,31 @@ final class PlannerStore {
         save()
     }
 
+    func dismissPromptError() {
+        clearPromptError()
+    }
+
+    func dismissToast() {
+        toastDismissTask?.cancel()
+        toastState = nil
+    }
+
+    func retryLastFailedAIAction() async {
+        guard let lastFailedAIAction else { return }
+        clearPromptError()
+
+        switch lastFailedAIAction {
+        case let .planning(prompt):
+            await runPlanningPrompt(prompt, appendUserMessage: false)
+        case let .study(prompt):
+            await runStudyPrompt(prompt, appendUserMessage: false)
+        case let .quizStart(subject):
+            await startQuiz(subject: subject, appendPromptMessage: false)
+        case let .quizReply(answer):
+            await continueQuiz(with: answer, appendStudentMessage: false)
+        }
+    }
+
     func importCurrentPayload(now: Date = .now) {
         let trimmed = importText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
@@ -604,7 +662,7 @@ final class PlannerStore {
         let subject = canonicalSubjectName(draft.subject)
         guard !subject.isEmpty else { return "Subject is missing." }
 
-        let response = await CodexBridge().run(
+        let result = await CodexBridge().run(
             request: CodexRunRequest(
                 prompt: buildConfidenceCalibrationPrompt(for: draft, subject: subject, now: now),
                 autonomousMode: TimedPreferences.autonomousModeEnabled,
@@ -613,8 +671,8 @@ final class PlannerStore {
             )
         )
 
-        guard let response else {
-            return "Could not reach Timed AI — check Codex is installed"
+        guard let response = CodexBridge.response(from: result) else {
+            return CodexBridge.handleFailureMessage(result) ?? "Timed AI failed before returning a response."
         }
 
         guard let calibration = decodeConfidenceCalibrationResponse(from: response) else {
@@ -899,6 +957,58 @@ final class PlannerStore {
         ]
     }
 
+    private func clearPromptError() {
+        aiErrorText = nil
+        promptErrorState = nil
+        lastFailedAIAction = nil
+    }
+
+    private func handlePromptFailure(result: CodexRunResult, action: FailedAIAction) {
+        let fallback = "Timed AI failed before returning a response."
+        let message = CodexBridge.handleFailureMessage(result) ?? fallback
+        aiErrorText = message
+        promptErrorState = PromptErrorState(message: message)
+        lastFailedAIAction = action
+    }
+
+    private func presentToast(
+        title: String,
+        message: String,
+        systemImage: String,
+        tone: ToastTone,
+        autoDismissAfter seconds: Double = 5
+    ) {
+        toastDismissTask?.cancel()
+        toastState = ToastState(
+            title: title,
+            message: message,
+            systemImage: systemImage,
+            tone: tone
+        )
+
+        toastDismissTask = Task { [weak self] in
+            let nanoseconds = UInt64(max(seconds, 0) * 1_000_000_000)
+            try? await Task.sleep(nanoseconds: nanoseconds)
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                self?.toastState = nil
+            }
+        }
+    }
+
+    private func presentSeqtaSyncFailure(_ message: String) {
+        let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        settingsIssue = SettingsIssueState(message: trimmed)
+        lastImportMessages = [trimmed]
+        presentToast(
+            title: "Seqta sync failed",
+            message: trimmed,
+            systemImage: "gear.badge.xmark",
+            tone: .error
+        )
+    }
+
     private func buildConfidenceCalibrationPrompt(
         for draft: ConfidenceCalibrationDraft,
         subject: String,
@@ -1085,13 +1195,16 @@ final class PlannerStore {
             .min()
     }
 
-    private func continueQuiz(with answer: String) async {
+    private func continueQuiz(with answer: String, appendStudentMessage: Bool = true) async {
         guard let activeQuizSubject else { return }
         let matchingContexts = groundedStudyContexts(for: selectedTask, subject: activeQuizSubject)
-        appendStudyMessage(PromptMessage(role: .student, text: answer, isQuiz: true), subject: activeQuizSubject)
+        if appendStudentMessage {
+            appendStudyMessage(PromptMessage(role: .student, text: answer, isQuiz: true), subject: activeQuizSubject)
+        }
+        clearPromptError()
         isRunningPrompt = true
 
-        let response = await CodexBridge().run(
+        let result = await CodexBridge().run(
             request: CodexRunRequest(
                 prompt: buildQuizPrompt(
                     subject: activeQuizSubject,
@@ -1105,9 +1218,11 @@ final class PlannerStore {
         )
 
         isRunningPrompt = false
-        guard let response else {
-            aiErrorText = "Could not reach Timed AI — check Codex is installed"
-            appendStudyMessage(PromptMessage(role: .assistant, text: aiErrorText ?? "Timed AI error"), subject: activeQuizSubject)
+        guard let response = CodexBridge.response(from: result) else {
+            handlePromptFailure(
+                result: result,
+                action: .quizReply(answer)
+            )
             save()
             return
         }
@@ -1569,7 +1684,12 @@ final class PlannerStore {
     }
 
     private func startSeqtaBackgroundSync() {
-        SeqtaBackgroundSync.ensureLaunchAgentInstalled()
+        switch SeqtaBackgroundSync.ensureLaunchAgentInstalled() {
+        case .success:
+            settingsIssue = nil
+        case let .failure(message):
+            presentSeqtaSyncFailure(message)
+        }
         seqtaWatcher = SeqtaFileWatcher { [weak self] in
             DispatchQueue.main.async {
                 self?.refreshSeqtaSnapshotIfAvailable()

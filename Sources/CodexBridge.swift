@@ -7,11 +7,26 @@ struct CodexRunRequest {
     let additionalRoots: [String]
 }
 
+struct CodexRunFailure: Equatable {
+    let message: String
+    let exitCode: Int32?
+}
+
+enum CodexRunResult: Equatable {
+    case success(String)
+    case failure(CodexRunFailure)
+}
+
 struct CodexBridge {
-    func run(request: CodexRunRequest) async -> String? {
+    func run(request: CodexRunRequest) async -> CodexRunResult {
         let executablePath = TimedPreferences.aiExecutablePath
         guard FileManager.default.isExecutableFile(atPath: executablePath) else {
-            return nil
+            return .failure(
+                CodexRunFailure(
+                    message: "Codex executable not found at \(executablePath). Update the path in Settings.",
+                    exitCode: nil
+                )
+            )
         }
 
         let outputFile = FileManager.default.temporaryDirectory
@@ -22,14 +37,15 @@ struct CodexBridge {
             DispatchQueue.global(qos: .userInitiated).async {
                 let process = Process()
                 let stdinPipe = Pipe()
-                let outputPipe = Pipe()
+                let stdoutPipe = Pipe()
+                let stderrPipe = Pipe()
 
                 process.executableURL = URL(fileURLWithPath: executablePath)
                 process.currentDirectoryURL = URL(fileURLWithPath: request.workingRoot)
                 process.arguments = Self.arguments(for: request, outputFile: outputFile.path)
                 process.standardInput = stdinPipe
-                process.standardOutput = outputPipe
-                process.standardError = outputPipe
+                process.standardOutput = stdoutPipe
+                process.standardError = stderrPipe
 
                 do {
                     try process.run()
@@ -39,6 +55,9 @@ struct CodexBridge {
                     stdinPipe.fileHandleForWriting.closeFile()
                     process.waitUntilExit()
 
+                    let stderr = Self.cleanedOutput(from: stderrPipe.fileHandleForReading.readDataToEndOfFile())
+                    let stdout = Self.cleanedOutput(from: stdoutPipe.fileHandleForReading.readDataToEndOfFile())
+
                     if
                         process.terminationStatus == 0,
                         let data = try? Data(contentsOf: outputFile),
@@ -46,20 +65,97 @@ struct CodexBridge {
                             .trimmingCharacters(in: .whitespacesAndNewlines),
                         !response.isEmpty
                     {
-                        continuation.resume(returning: response)
+                        continuation.resume(returning: .success(response))
                         return
                     }
 
-                    let fallbackData = outputPipe.fileHandleForReading.readDataToEndOfFile()
-                    let fallback = String(data: fallbackData, encoding: .utf8)?
-                        .replacingOccurrences(of: #"\u{001B}\[[0-9;]*[A-Za-z]"#, with: "", options: .regularExpression)
-                        .trimmingCharacters(in: .whitespacesAndNewlines)
-                    continuation.resume(returning: fallback?.isEmpty == false ? fallback : nil)
+                    let failureMessage: String
+                    if process.terminationStatus != 0 {
+                        failureMessage = stderr.isEmpty ? (stdout.isEmpty ? "Codex exited with status \(process.terminationStatus)." : stdout) : stderr
+                        continuation.resume(
+                            returning: .failure(
+                                CodexRunFailure(
+                                    message: failureMessage,
+                                    exitCode: process.terminationStatus
+                                )
+                            )
+                        )
+                        return
+                    }
+
+                    if !stderr.isEmpty {
+                        failureMessage = "Timed AI returned an empty response. \(stderr)"
+                    } else if !stdout.isEmpty {
+                        failureMessage = "Timed AI returned an empty response. \(stdout)"
+                    } else {
+                        failureMessage = "Timed AI returned an empty response."
+                    }
+
+                    continuation.resume(
+                        returning: .failure(
+                            CodexRunFailure(
+                                message: failureMessage,
+                                exitCode: process.terminationStatus
+                            )
+                        )
+                    )
                 } catch {
-                    continuation.resume(returning: nil)
+                    continuation.resume(
+                        returning: .failure(
+                            CodexRunFailure(
+                                message: error.localizedDescription,
+                                exitCode: nil
+                            )
+                        )
+                    )
                 }
             }
         }
+    }
+
+    private static func cleanedOutput(from data: Data) -> String {
+        String(data: data, encoding: .utf8)?
+            .replacingOccurrences(of: #"\u{001B}\[[0-9;]*[A-Za-z]"#, with: "", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    }
+
+    static func userFacingErrorMessage(for failure: CodexRunFailure) -> String {
+        let trimmed = failure.message.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            if let exitCode = failure.exitCode {
+                return "Codex failed with exit code \(exitCode)."
+            }
+            return "Timed AI failed before returning a response."
+        }
+
+        if let exitCode = failure.exitCode, !trimmed.localizedCaseInsensitiveContains("exit") {
+            return "\(trimmed) (exit \(exitCode))"
+        }
+
+        return trimmed
+    }
+
+    static func response(from result: CodexRunResult) -> String? {
+        switch result {
+        case let .success(response):
+            return response
+        case .failure:
+            return nil
+        }
+    }
+
+    static func failure(from result: CodexRunResult) -> CodexRunFailure? {
+        switch result {
+        case .success:
+            return nil
+        case let .failure(failure):
+            return failure
+        }
+    }
+
+    static func handleFailureMessage(_ result: CodexRunResult) -> String? {
+        guard let failure = failure(from: result) else { return nil }
+        return userFacingErrorMessage(for: failure)
     }
 
     static func arguments(for request: CodexRunRequest, outputFile: String) -> [String] {

@@ -65,6 +65,7 @@ struct TaskLibraryCompactRow: View {
             )
         }
         .buttonStyle(.plain)
+        .transition(.asymmetric(insertion: .scale.combined(with: .opacity), removal: .opacity))
     }
 }
 
@@ -106,6 +107,7 @@ struct NextUpTaskCard: View {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .stroke(isSelected ? Color.white.opacity(0.18) : Color.clear, lineWidth: 1)
         )
+        .transition(.asymmetric(insertion: .scale.combined(with: .opacity), removal: .opacity))
     }
 
     private func pill(text: String, highlighted: Bool = false) -> some View {
@@ -150,5 +152,6 @@ struct ContextSnippetCard: View {
                     .buttonStyle(.bordered)
             }
         }
+        .transition(.asymmetric(insertion: .scale.combined(with: .opacity), removal: .opacity))
     }
 }

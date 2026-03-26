@@ -95,7 +95,7 @@ struct PlanningEngineTests {
             workingRoot: "/tmp",
             additionalRoots: [],
             autonomousMode: false,
-            runner: { _ in response }
+            runner: { _ in .success(response) }
         )
 
         let task = batch.taskDrafts.first

@@ -224,6 +224,8 @@ struct ContentView: View {
             mainSurface
             overlayLayers
         }
+        .animation(.spring(response: 0.3), value: store.toastState?.id)
+        .animation(.spring(response: 0.3), value: store.promptErrorState?.id)
     }
 
     private var backgroundLayers: some View {
@@ -302,6 +304,22 @@ struct ContentView: View {
                 }
             )
         }
+
+        if let toast = store.toastState {
+            VStack {
+                HStack {
+                    Spacer()
+                    ToastNotificationView(toast: toast) {
+                        store.dismissToast()
+                    }
+                    .padding(.top, 20)
+                    .padding(.trailing, 20)
+                }
+
+                Spacer()
+            }
+            .transition(.move(edge: .top).combined(with: .opacity))
+        }
     }
 
     private var header: some View {
@@ -358,8 +376,7 @@ struct ContentView: View {
                         showLeft.toggle()
                     }
                     SettingsLink {
-                        Label("Settings", systemImage: "gearshape")
-                            .labelStyle(.titleAndIcon)
+                        settingsLinkLabel
                     }
                     .buttonStyle(.bordered)
                     .tint(.white.opacity(0.22))
@@ -387,11 +404,16 @@ struct ContentView: View {
                     TimedSectionHeader(title: "Task Library")
 
                     if taskLibraryItems.isEmpty {
-                        Text("No tasks loaded yet.")
-                            .font(.system(size: 13))
-                            .foregroundStyle(.white.opacity(0.58))
-                            .padding(.horizontal, 18)
-                            .padding(.bottom, 18)
+                        EmptyStateView(
+                            systemImage: "checklist",
+                            title: "Add your first task with ⌘N",
+                            subtitle: "Timed will rank it, schedule it, and pull the right study context after that.",
+                            actionTitle: "Add Task"
+                        ) {
+                            showAddTaskSheet = true
+                        }
+                        .padding(.horizontal, 18)
+                        .padding(.bottom, 18)
                     } else {
                         LazyVStack(spacing: 6) {
                             ForEach(taskLibraryItems) { task in
@@ -409,6 +431,7 @@ struct ContentView: View {
                                 )
                             }
                         }
+                        .animation(.spring(response: 0.3), value: taskLibraryItems.map(\.id))
                         .padding(.horizontal, 12)
                         .padding(.bottom, 12)
                     }
@@ -481,9 +504,11 @@ struct ContentView: View {
                     }
 
                     if store.rankedTasks.isEmpty {
-                        Text("No ranked tasks yet. Import work or add a task to start planning.")
-                            .font(.system(size: 13))
-                            .foregroundStyle(.white.opacity(0.6))
+                        EmptyStateView(
+                            systemImage: "sparkles.rectangle.stack",
+                            title: "Add your first task with ⌘N",
+                            subtitle: "Import work or add a task so Timed can rank what matters first."
+                        )
                     } else {
                         ForEach(Array(store.rankedTasks.prefix(3))) { ranked in
                             NextUpTaskCard(
@@ -501,6 +526,7 @@ struct ContentView: View {
                                 }
                             )
                         }
+                        .animation(.spring(response: 0.3), value: store.rankedTasks.map(\.id))
                     }
                 }
                 .padding(.horizontal, 18)
@@ -514,13 +540,20 @@ struct ContentView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 12) {
                         if store.schedule.isEmpty {
-                            Text("No schedule blocks yet. Approve the next ranked task or ask Timed to plan your next few hours.")
-                                .font(.system(size: 13))
-                                .foregroundStyle(.white.opacity(0.6))
+                            EmptyStateView(
+                                systemImage: "calendar.badge.plus",
+                                title: "Ask Timed to plan your day",
+                                subtitle: "Approved blocks will land here once Timed builds the next few hours.",
+                                actionTitle: "Plan my day"
+                            ) {
+                                store.promptText = "Plan my day"
+                                Task { await store.submitPlanningPrompt() }
+                            }
                         } else {
                             ForEach(store.schedule) { block in
                                 scheduleRow(block)
                             }
+                            .animation(.spring(response: 0.3), value: store.schedule.map(\.id))
                         }
 
                         if store.scheduleOverflowCount > 0 {
@@ -539,6 +572,15 @@ struct ContentView: View {
                 TimedSectionHeader(title: "Command")
 
                 VStack(alignment: .leading, spacing: 12) {
+                    if let promptError = store.promptErrorState {
+                        PromptErrorBanner(error: promptError) {
+                            Task { await store.retryLastFailedAIAction() }
+                        } onDismiss: {
+                            store.dismissPromptError()
+                        }
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                    }
+
                     if focusTimer.isVisible {
                         FocusTimerWidget(
                             timer: focusTimer,
@@ -564,6 +606,7 @@ struct ContentView: View {
                             }
                         }
                         .frame(minHeight: 72, maxHeight: 180)
+                        .animation(.spring(response: 0.3), value: commandMessages.map(\.id))
                     }
 
                     HStack(alignment: .center, spacing: 12) {
@@ -775,9 +818,11 @@ struct ContentView: View {
                         }
 
                         if contextDrawerContexts.isEmpty {
-                            Text("No grounded context is loaded for this selection yet.")
-                                .font(.system(size: 13))
-                                .foregroundStyle(.white.opacity(0.58))
+                            EmptyStateView(
+                                systemImage: "doc.text.magnifyingglass",
+                                title: "Select a task to see context",
+                                subtitle: "Timed will surface notes, transcripts, vault matches, and memory linked to that task."
+                            )
                         } else {
                             ForEach(contextDrawerContexts.prefix(4)) { context in
                                 ContextSnippetCard(
@@ -787,6 +832,7 @@ struct ContentView: View {
                                     }
                                 )
                             }
+                            .animation(.spring(response: 0.3), value: contextDrawerContexts.map(\.id))
                         }
                     }
                     .padding(.horizontal, 18)
@@ -852,13 +898,16 @@ struct ContentView: View {
                 }
 
                 if contextPanelItems.isEmpty {
-                    Text(contextPanelEmptyState)
-                        .font(.system(size: 13))
-                        .foregroundStyle(.white.opacity(0.6))
+                    EmptyStateView(
+                        systemImage: "text.book.closed",
+                        title: contextPanelEmptyState,
+                        subtitle: "Timed only shows grounded context once a task or subject is active."
+                    )
                 } else {
                     ForEach(contextPanelItems) { context in
                         contextPanelRow(context)
                     }
+                    .animation(.spring(response: 0.3), value: contextPanelItems.map(\.id))
                 }
             }
         }
@@ -895,6 +944,7 @@ struct ContentView: View {
             }
         }
         .overlay(selectionBorder(isSelected: store.selectedContextID == context.id))
+        .transition(.asymmetric(insertion: .scale.combined(with: .opacity), removal: .opacity))
     }
 
     private var planTab: some View {
@@ -1004,6 +1054,7 @@ struct ContentView: View {
                                 }
                             }
                         }
+                        .animation(.spring(response: 0.3), value: rankedTasksForPlan.map(\.id))
 
                         DisclosureGroup(isExpanded: $showCompletedToday) {
                             VStack(alignment: .leading, spacing: 10) {
@@ -1032,13 +1083,16 @@ struct ContentView: View {
                 TimedCard(title: "Schedule", icon: "clock") {
                     VStack(alignment: .leading, spacing: 12) {
                         if store.schedule.isEmpty {
-                            Text("No schedule blocks yet. Rank tasks to build the next three hours.")
-                                .font(.system(size: 13))
-                                .foregroundStyle(.white.opacity(0.6))
+                            EmptyStateView(
+                                systemImage: "calendar.badge.plus",
+                                title: "Ask Timed to plan your day",
+                                subtitle: "Your approved study blocks will appear here."
+                            )
                         } else {
                             ForEach(store.schedule) { block in
                                 scheduleRow(block)
                             }
+                            .animation(.spring(response: 0.3), value: store.schedule.map(\.id))
                         }
 
                         if store.scheduleOverflowCount > 0 {
@@ -1059,7 +1113,14 @@ struct ContentView: View {
                 title: "Chat",
                 icon: "message",
                 messages: orderedPlannerMessages,
-                highlightedMessageID: highlightedPlannerChatMessageID
+                highlightedMessageID: highlightedPlannerChatMessageID,
+                errorState: store.promptErrorState,
+                onRetry: {
+                    Task { await store.retryLastFailedAIAction() }
+                },
+                onDismissError: {
+                    store.dismissPromptError()
+                }
             )
         }
         .scrollIndicators(.hidden)
@@ -1125,7 +1186,14 @@ struct ContentView: View {
                 TimedCard(title: store.isQuizMode ? "Tutor chat" : "Study chat", icon: store.isQuizMode ? "questionmark.bubble" : "message") {
                     PromptConversationList(
                         messages: store.studyChat,
-                        highlightedMessageID: highlightedStudyChatMessageID
+                        highlightedMessageID: highlightedStudyChatMessageID,
+                        errorState: store.promptErrorState,
+                        onRetry: {
+                            Task { await store.retryLastFailedAIAction() }
+                        },
+                        onDismissError: {
+                            store.dismissPromptError()
+                        }
                     )
                 }
             }
@@ -1257,19 +1325,29 @@ struct ContentView: View {
                 Text("Asking Timed...")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(.white.opacity(0.68))
-            } else if let aiErrorText = store.aiErrorText {
-                Text(aiErrorText)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.red.opacity(0.9))
-                SettingsLink {
-                    Text("Configure AI path")
-                }
             } else {
                 Text(defaultText)
                     .font(.system(size: 12))
                     .foregroundStyle(.white.opacity(0.58))
             }
         }
+    }
+
+    private var settingsLinkLabel: some View {
+        Label {
+            HStack(spacing: 8) {
+                Text("Settings")
+                if store.settingsIssue != nil {
+                    Circle()
+                        .fill(Color.red.opacity(0.9))
+                        .frame(width: 8, height: 8)
+                }
+            }
+        } icon: {
+            Image(systemName: "gearshape")
+        }
+        .labelStyle(.titleAndIcon)
+        .help(store.settingsIssue?.message ?? "Open Settings")
     }
 
     private var isContextDrawerVisible: Bool {
@@ -1503,7 +1581,8 @@ struct ContentView: View {
             additionalRoots: TimedPreferences.codexAdditionalRoots,
             autonomousMode: TimedPreferences.autonomousModeEnabled,
             runner: { request in
-                await CodexBridge().run(request: request)
+                let result = await CodexBridge().run(request: request)
+                return CodexBridge.response(from: result)
             }
         )
     }
@@ -1920,6 +1999,7 @@ struct ContentView: View {
             focusedPanel = .center
             selectRankedTask(ranked.task)
         }
+        .transition(.asymmetric(insertion: .scale.combined(with: .opacity), removal: .opacity))
     }
 
     private func scheduleRow(_ block: ScheduleBlock) -> some View {
@@ -1956,6 +2036,7 @@ struct ContentView: View {
                 }
             }
         }
+        .transition(.asymmetric(insertion: .scale.combined(with: .opacity), removal: .opacity))
     }
 
     private func studyFolderRow(_ task: TaskItem) -> some View {
@@ -1991,6 +2072,7 @@ struct ContentView: View {
             store.selectTask(task)
             centerTabRawValue = CenterTab.study.rawValue
         }
+        .transition(.asymmetric(insertion: .scale.combined(with: .opacity), removal: .opacity))
     }
 
     private func lessonRow(_ lesson: SchoolLesson) -> some View {
@@ -2047,9 +2129,7 @@ struct ContentView: View {
     }
 
     private var contextPanelEmptyState: String {
-        selectedCenterTab == .study
-            ? "No grounded context matches the selected study task yet."
-            : "No context matches this subject yet."
+        "Select a task to see context"
     }
 
     private var contextFilterOptions: [String] {
@@ -2700,6 +2780,7 @@ private struct PromptBubble: View {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .stroke(Color.white.opacity(isHighlighted ? 0.22 : 0.1), lineWidth: 1)
         )
+        .transition(.asymmetric(insertion: .scale.combined(with: .opacity), removal: .opacity))
     }
 
     private var iconName: String {
@@ -2721,12 +2802,18 @@ private struct PromptConversationCard: View {
     let icon: String
     let messages: [PromptMessage]
     let highlightedMessageID: UUID?
+    let errorState: PromptErrorState?
+    let onRetry: (() -> Void)?
+    let onDismissError: (() -> Void)?
 
     var body: some View {
         TimedCard(title: title, icon: icon) {
             PromptConversationList(
                 messages: messages,
-                highlightedMessageID: highlightedMessageID
+                highlightedMessageID: highlightedMessageID,
+                errorState: errorState,
+                onRetry: onRetry,
+                onDismissError: onDismissError
             )
         }
     }
@@ -2735,6 +2822,9 @@ private struct PromptConversationCard: View {
 private struct PromptConversationList: View {
     let messages: [PromptMessage]
     let highlightedMessageID: UUID?
+    let errorState: PromptErrorState?
+    let onRetry: (() -> Void)?
+    let onDismissError: (() -> Void)?
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -2744,6 +2834,19 @@ private struct PromptConversationList: View {
 
     private func conversationContent(proxy: ScrollViewProxy) -> some View {
         VStack(alignment: .leading, spacing: 10) {
+            if let errorState, let onRetry, let onDismissError {
+                PromptErrorBanner(error: errorState, onRetry: onRetry, onDismiss: onDismissError)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+
+            if messages.isEmpty {
+                EmptyStateView(
+                    systemImage: "message",
+                    title: "No chat yet",
+                    subtitle: "Ask Timed to plan, study, or quiz and the conversation will appear here."
+                )
+            }
+
             ForEach(messages) { message in
                 PromptBubble(
                     message: message,
@@ -2752,6 +2855,8 @@ private struct PromptConversationList: View {
                 .id(message.id)
             }
         }
+        .animation(.spring(response: 0.3), value: messages.map(\.id))
+        .animation(.spring(response: 0.3), value: errorState?.id)
         .onChange(of: highlightedMessageID) { _, messageID in
             scrollToChatMessage(messageID, with: proxy)
         }

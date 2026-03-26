@@ -1,7 +1,7 @@
 import Foundation
 
 enum ImportPipeline {
-    typealias AIRunner = (CodexRunRequest) async -> String?
+    typealias AIRunner = (CodexRunRequest) async -> CodexRunResult
 
     static func parseImport(
         title: String,
@@ -60,14 +60,16 @@ enum ImportPipeline {
             return fallback
         }
 
-        guard let response = await runner(
+        let result = await runner(
             CodexRunRequest(
                 prompt: aiImportPrompt(source: source, text: text, now: now),
                 autonomousMode: autonomousMode,
                 workingRoot: workingRoot,
                 additionalRoots: additionalRoots
             )
-        ) else {
+        )
+
+        guard let response = CodexBridge.response(from: result) else {
             return fallback
         }
 

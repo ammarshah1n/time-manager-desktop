@@ -1,6 +1,11 @@
 import Foundation
 import Darwin
 
+enum SeqtaBootstrapResult: Equatable {
+    case success
+    case failure(String)
+}
+
 enum SeqtaBackgroundSync {
     static let launchAgentLabel = "au.facilitated.timed.seqta-sync"
     static let snapshotURL = FileManager.default.homeDirectoryForCurrentUser
@@ -12,14 +17,22 @@ enum SeqtaBackgroundSync {
     static let transcriberPythonURL = URL(fileURLWithPath: "/Users/ammarshahin/Transcriber/.venv/bin/python")
     static let transcriberCrawlerURL = URL(fileURLWithPath: "/Users/ammarshahin/Transcriber/seqta_crawl.py")
 
-    static func ensureLaunchAgentInstalled() {
-        guard FileManager.default.fileExists(atPath: transcriberPythonURL.path) else { return }
-        guard FileManager.default.fileExists(atPath: transcriberCrawlerURL.path) else { return }
+    static func ensureLaunchAgentInstalled() -> SeqtaBootstrapResult {
+        guard FileManager.default.fileExists(atPath: transcriberPythonURL.path) else {
+            return .failure("Timed couldn't find the Seqta Python runtime at \(transcriberPythonURL.path).")
+        }
+        guard FileManager.default.fileExists(atPath: transcriberCrawlerURL.path) else {
+            return .failure("Timed couldn't find the Seqta crawler at \(transcriberCrawlerURL.path).")
+        }
 
         let fileManager = FileManager.default
         let timedDirectory = snapshotURL.deletingLastPathComponent()
-        try? fileManager.createDirectory(at: timedDirectory, withIntermediateDirectories: true)
-        try? fileManager.createDirectory(at: launchAgentURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        do {
+            try fileManager.createDirectory(at: timedDirectory, withIntermediateDirectories: true)
+            try fileManager.createDirectory(at: launchAgentURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        } catch {
+            return .failure("Timed couldn't prepare the Seqta sync folder. \(error.localizedDescription)")
+        }
 
         let script = """
         #!/bin/zsh
@@ -41,7 +54,11 @@ enum SeqtaBackgroundSync {
         /bin/rm -f "$TMP_OUTPUT"
         """
 
-        try? script.write(to: supportScriptURL, atomically: true, encoding: .utf8)
+        do {
+            try script.write(to: supportScriptURL, atomically: true, encoding: .utf8)
+        } catch {
+            return .failure("Timed couldn't write the Seqta support script. \(error.localizedDescription)")
+        }
         chmod(supportScriptURL.path, 0o755)
 
         let plist = """
@@ -68,13 +85,30 @@ enum SeqtaBackgroundSync {
         </plist>
         """
 
-        try? plist.write(to: launchAgentURL, atomically: true, encoding: .utf8)
+        do {
+            try plist.write(to: launchAgentURL, atomically: true, encoding: .utf8)
+        } catch {
+            return .failure("Timed couldn't write the Seqta launch agent. \(error.localizedDescription)")
+        }
 
         let domain = "gui/\(getuid())"
         _ = runLaunchctl(arguments: ["bootout", domain, launchAgentURL.path])
-        _ = runLaunchctl(arguments: ["bootstrap", domain, launchAgentURL.path])
-        _ = runLaunchctl(arguments: ["enable", "\(domain)/\(launchAgentLabel)"])
-        _ = runLaunchctl(arguments: ["kickstart", "-k", "\(domain)/\(launchAgentLabel)"])
+        let bootstrapStatus = runLaunchctl(arguments: ["bootstrap", domain, launchAgentURL.path])
+        guard bootstrapStatus == 0 else {
+            return .failure("Timed couldn't bootstrap the Seqta launch agent. launchctl exited with \(bootstrapStatus).")
+        }
+
+        let enableStatus = runLaunchctl(arguments: ["enable", "\(domain)/\(launchAgentLabel)"])
+        guard enableStatus == 0 else {
+            return .failure("Timed couldn't enable the Seqta launch agent. launchctl exited with \(enableStatus).")
+        }
+
+        let kickstartStatus = runLaunchctl(arguments: ["kickstart", "-k", "\(domain)/\(launchAgentLabel)"])
+        guard kickstartStatus == 0 else {
+            return .failure("Timed couldn't start the Seqta launch agent. launchctl exited with \(kickstartStatus).")
+        }
+
+        return .success
     }
 
     static func loadTasks(now: Date = .now, snapshotURL: URL = snapshotURL) -> [TaskItem] {

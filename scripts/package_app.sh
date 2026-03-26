@@ -6,10 +6,11 @@ BUILD_DIR="$ROOT_DIR/.build/release"
 APP_DIR="$ROOT_DIR/dist/Timed.app"
 EXECUTABLE_NAME="timed"
 ICON_SOURCE="$ROOT_DIR/docs/timed-logo.svg"
-ICONSET_SOURCE="$ROOT_DIR/Assets/Timed.iconset"
+ICONSET_SOURCE="$ROOT_DIR/Assets.xcassets/AppIcon.appiconset"
 ICON_NAME="Timed"
 
 swift build -c release
+bash "$ROOT_DIR/scripts/render_app_icons.sh"
 
 rm -rf "$APP_DIR"
 mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
@@ -18,7 +19,11 @@ cp "$BUILD_DIR/time-manager-desktop" "$APP_DIR/Contents/MacOS/$EXECUTABLE_NAME"
 echo "APPL????" > "$APP_DIR/Contents/PkgInfo"
 
 if [[ -d "$ICONSET_SOURCE" ]]; then
-  iconutil -c icns "$ICONSET_SOURCE" -o "$APP_DIR/Contents/Resources/${ICON_NAME}.icns"
+  ICONSET_DIR="$(mktemp -d)"
+  mkdir -p "$ICONSET_DIR/${ICON_NAME}.iconset"
+  cp "$ICONSET_SOURCE"/icon_*.png "$ICONSET_DIR/${ICON_NAME}.iconset/"
+  iconutil -c icns "$ICONSET_DIR/${ICON_NAME}.iconset" -o "$APP_DIR/Contents/Resources/${ICON_NAME}.icns"
+  rm -rf "$ICONSET_DIR"
 elif [[ -f "$ICON_SOURCE" ]]; then
   ICONSET_DIR="$(mktemp -d)"
   mkdir -p "$ICONSET_DIR/${ICON_NAME}.iconset"
