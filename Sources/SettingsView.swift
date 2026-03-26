@@ -9,6 +9,7 @@ struct SettingsView: View {
     @AppStorage(TimedPreferences.workingRootKey) private var workingRoot = TimedPreferences.defaultWorkingRoot
     @AppStorage(TimedPreferences.codexMemDBPathKey) private var codexMemDBPath = TimedPreferences.defaultCodexMemDBPath
     @AppStorage(TimedPreferences.obsidianVaultPathKey) private var obsidianVaultPath = TimedPreferences.defaultObsidianVaultPath
+    @AppStorage(TimedPreferences.focusSessionMinutesKey) private var focusSessionMinutes = TimedPreferences.defaultFocusSessionMinutes
 
     var body: some View {
         Form {
@@ -83,6 +84,19 @@ struct SettingsView: View {
                     }
                     .disabled(obsidianVaultPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
+            }
+
+            Section("Focus timer") {
+                Picker("Pomodoro length", selection: $focusSessionMinutes) {
+                    ForEach(TimedPreferences.supportedFocusSessionMinutes, id: \.self) { minutes in
+                        Text("\(minutes) min").tag(minutes)
+                    }
+                }
+                .pickerStyle(.segmented)
+
+                Text("The inline focus timer uses this duration for task-bound Pomodoro sessions.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
             }
 
             Section("Detected OneDrive roots") {

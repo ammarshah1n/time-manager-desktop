@@ -76,6 +76,7 @@ struct TaskItem: Identifiable, Hashable, Codable {
     var isCompleted: Bool
     var completedAt: Date?
     var isAutoDiscovered: Bool
+    var pomodoroCount: Int
 
     init(
         id: String,
@@ -91,7 +92,8 @@ struct TaskItem: Identifiable, Hashable, Codable {
         energy: TaskEnergy,
         isCompleted: Bool,
         completedAt: Date?,
-        isAutoDiscovered: Bool = false
+        isAutoDiscovered: Bool = false,
+        pomodoroCount: Int = 0
     ) {
         self.id = id
         self.title = title
@@ -107,6 +109,7 @@ struct TaskItem: Identifiable, Hashable, Codable {
         self.isCompleted = isCompleted
         self.completedAt = completedAt
         self.isAutoDiscovered = isAutoDiscovered
+        self.pomodoroCount = max(0, pomodoroCount)
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -124,6 +127,7 @@ struct TaskItem: Identifiable, Hashable, Codable {
         case isCompleted
         case completedAt
         case isAutoDiscovered
+        case pomodoroCount
     }
 
     init(from decoder: Decoder) throws {
@@ -142,6 +146,7 @@ struct TaskItem: Identifiable, Hashable, Codable {
         isCompleted = try container.decode(Bool.self, forKey: .isCompleted)
         completedAt = try container.decodeIfPresent(Date.self, forKey: .completedAt)
         isAutoDiscovered = try container.decodeIfPresent(Bool.self, forKey: .isAutoDiscovered) ?? false
+        pomodoroCount = try container.decodeIfPresent(Int.self, forKey: .pomodoroCount) ?? 0
     }
 }
 

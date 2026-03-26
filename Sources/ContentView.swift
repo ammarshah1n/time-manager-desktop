@@ -4,6 +4,7 @@ import SwiftUI
 
 struct ContentView: View {
     @State private var store = PlannerStore()
+    @State private var focusTimer = FocusTimerModel()
     @AppStorage("timed.showLeft") private var showLeft = true
     @AppStorage("timed.showRight") private var showRight = false
     @AppStorage("timed.centerTab") private var centerTabRawValue = CenterTab.plan.rawValue
@@ -358,6 +359,22 @@ struct ContentView: View {
                 TimedSectionHeader(title: "Command")
 
                 VStack(alignment: .leading, spacing: 12) {
+                    if focusTimer.isVisible {
+                        FocusTimerWidget(
+                            timer: focusTimer,
+                            onTogglePause: focusTimer.togglePause,
+                            onStop: { focusTimer.stop() }
+                        )
+                    }
+
+                    if let breakPrompt = focusTimer.breakPrompt {
+                        FocusBreakBanner(
+                            prompt: breakPrompt,
+                            onStartBreak: focusTimer.startSuggestedBreak,
+                            onDismiss: { focusTimer.stop() }
+                        )
+                    }
+
                     if !commandMessages.isEmpty {
                         ScrollView {
                             VStack(alignment: .leading, spacing: 10) {
@@ -702,7 +719,7 @@ struct ContentView: View {
                                 .buttonStyle(.borderedProminent)
 
                                 Button("Mark complete") {
-                                    store.markTaskCompleted(topRankedTask.task)
+                                    completeTask(topRankedTask.task)
                                 }
                                 .buttonStyle(.bordered)
                             }
@@ -819,7 +836,7 @@ struct ContentView: View {
                                 .buttonStyle(.borderedProminent)
 
                                 Button("Mark complete") {
-                                    store.markTaskCompleted(selectedStudyTask)
+                                    completeTask(selectedStudyTask)
                                 }
                                 .buttonStyle(.bordered)
                             }
@@ -1189,6 +1206,20 @@ struct ContentView: View {
         if contextTaskID == task.id {
             contextTaskID = nil
         }
+        completeTask(task)
+    }
+
+    private func startFocusTimer(for task: TaskItem) {
+        selectTaskForContext(task)
+        focusTimer.start(for: task) { completedTask in
+            store.recordPomodoro(for: completedTask.id)
+        }
+    }
+
+    private func completeTask(_ task: TaskItem) {
+        if focusTimer.currentTask?.id == task.id {
+            focusTimer.stop()
+        }
         store.markTaskCompleted(task)
     }
 
@@ -1257,7 +1288,7 @@ struct ContentView: View {
         if lowered.hasPrefix("done ") {
             let taskName = String(trimmed.dropFirst(5))
             if let task = store.tasks.first(where: { $0.title.localizedCaseInsensitiveContains(taskName) }) {
-                store.markTaskCompleted(task)
+                completeTask(task)
             }
             centerTabRawValue = CenterTab.plan.rawValue
             return
@@ -1313,10 +1344,25 @@ struct ContentView: View {
 
                     Spacer()
 
-                    HStack(spacing: 8) {
-                        badge(text: ranked.band, emphasis: .secondary)
-                        badge(text: "\(ranked.score)", emphasis: .primary)
+                HStack(spacing: 8) {
+                    Button {
+                        startFocusTimer(for: ranked.task)
+                    } label: {
+                        Image(systemName: "play.fill")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(.white.opacity(0.94))
+                            .frame(width: 28, height: 28)
+                            .background(
+                                Circle()
+                                    .fill(Color.white.opacity(0.12))
+                            )
                     }
+                    .buttonStyle(.plain)
+                    .help("Start focus timer")
+
+                    badge(text: ranked.band, emphasis: .secondary)
+                    badge(text: "\(ranked.score)", emphasis: .primary)
+                }
                 }
 
                 VStack(alignment: .leading, spacing: 6) {
@@ -1340,7 +1386,7 @@ struct ContentView: View {
                     .buttonStyle(.borderedProminent)
 
                     Button {
-                        store.markTaskCompleted(ranked.task)
+                        completeTask(ranked.task)
                     } label: {
                         Label("Complete", systemImage: "checkmark.circle")
                     }

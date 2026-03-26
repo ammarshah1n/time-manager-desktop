@@ -9,9 +9,12 @@ enum TimedPreferences {
     static let codexMemDBPathKey = "timed.codexMemDBPath"
     static let obsidianVaultPathKey = "obsidianVaultPath"
     static let obsidianVaultPromptedKey = "timed.obsidianVaultPrompted"
+    static let focusSessionMinutesKey = "timed.focusSessionMinutes"
     private static let legacyObsidianVaultPathKey = "timed.obsidianVaultPath"
     static let defaultAIExecutablePath = "/Applications/Codex.app/Contents/Resources/codex"
     static let defaultWorkingRoot = NSHomeDirectory()
+    static let supportedFocusSessionMinutes = [15, 25, 45, 60]
+    static let defaultFocusSessionMinutes = 25
     static let defaultCodexMemDBPath = URL(fileURLWithPath: NSHomeDirectory())
         .appendingPathComponent(".codex-mem", isDirectory: true)
         .appendingPathComponent("codex-mem.db")
@@ -72,6 +75,11 @@ enum TimedPreferences {
         return (value?.isEmpty == false) ? value! : defaultObsidianVaultPath
     }
 
+    static var focusSessionMinutes: Int {
+        let value = UserDefaults.standard.object(forKey: focusSessionMinutesKey) as? Int ?? defaultFocusSessionMinutes
+        return supportedFocusSessionMinutes.contains(value) ? value : defaultFocusSessionMinutes
+    }
+
     static var hasPromptedForObsidianVault: Bool {
         UserDefaults.standard.object(forKey: obsidianVaultPromptedKey) as? Bool ?? false
     }
@@ -93,6 +101,11 @@ enum TimedPreferences {
         let defaults = UserDefaults.standard
         defaults.set(trimmed, forKey: obsidianVaultPathKey)
         defaults.removeObject(forKey: legacyObsidianVaultPathKey)
+    }
+
+    static func setFocusSessionMinutes(_ minutes: Int) {
+        let resolvedMinutes = supportedFocusSessionMinutes.contains(minutes) ? minutes : defaultFocusSessionMinutes
+        UserDefaults.standard.set(resolvedMinutes, forKey: focusSessionMinutesKey)
     }
 
     static func markObsidianVaultPromptHandled() {

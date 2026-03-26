@@ -373,6 +373,15 @@ final class PlannerStore {
         rebuildPlan(now: now)
     }
 
+    @discardableResult
+    func recordPomodoro(for taskID: String, at now: Date = .now) -> Int {
+        guard let index = tasks.firstIndex(where: { $0.id == taskID }) else { return 0 }
+        tasks[index].pomodoroCount += 1
+        let updatedCount = tasks[index].pomodoroCount
+        save()
+        return updatedCount
+    }
+
     func recordStudyDebrief(taskID: String, confidence: Int, covered: String, blockers: String, at: Date = .now) {
         guard let index = tasks.firstIndex(where: { $0.id == taskID }) else { return }
 
@@ -1247,6 +1256,7 @@ final class PlannerStore {
         merged.dueDate = incoming.dueDate
         merged.notes = incoming.notes
         merged.energy = incoming.energy
+        merged.pomodoroCount = max(existing.pomodoroCount, incoming.pomodoroCount)
         return merged
     }
 
@@ -1351,6 +1361,7 @@ final class PlannerStore {
         merged.isCompleted = existing.isCompleted || incoming.isCompleted
         merged.completedAt = [existing.completedAt, incoming.completedAt].compactMap { $0 }.max()
         merged.isAutoDiscovered = existing.isAutoDiscovered || incoming.isAutoDiscovered
+        merged.pomodoroCount = max(existing.pomodoroCount, incoming.pomodoroCount)
 
         return merged
     }
@@ -1370,7 +1381,8 @@ final class PlannerStore {
             energy: task.energy,
             isCompleted: task.isCompleted,
             completedAt: task.completedAt,
-            isAutoDiscovered: task.isAutoDiscovered
+            isAutoDiscovered: task.isAutoDiscovered,
+            pomodoroCount: task.pomodoroCount
         )
     }
 
