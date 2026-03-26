@@ -259,7 +259,7 @@
         "App launches in under 2 seconds on first cold start"
       ],
       "priority": 15,
-      "passes": false,
+      "passes": true,
       "notes": "For animations: add .transition(.asymmetric(insertion: .scale.combined(with: .opacity), removal: .opacity)) to task rows and schedule blocks. For empty states: create EmptyStateView.swift with icon + title + subtitle + optional action button. For error handling in CodexBridge: capture stderr separately, surface it to PlannerStore as a @Published lastError: String?, show as a dismissable banner. For app icon: in TimedLogoMark.swift there is already a logo render — export it using ImageRenderer at all required sizes and write PNG files to Assets.xcassets/AppIcon.appiconset/ along with a Contents.json. Fix all Swift warnings (unused vars, deprecated APIs). Run swift build and resolve every diagnostic."
     }
   ]

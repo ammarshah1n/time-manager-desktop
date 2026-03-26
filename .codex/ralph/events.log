@@ -40,3 +40,6 @@
 [2026-03-26T21:25:45+1030] COMMIT story=STORY-013 sha=4e9254c
 [2026-03-26T21:25:47+1030] STORY START id=STORY-014 attempt=1 title=Keyboard-first navigation and command palette 
 [2026-03-26T21:32:29+1030] STORY COMPLETE id=STORY-014 attempt=1
+[2026-03-26T21:32:30+1030] COMMIT story=STORY-014 sha=9548211
+[2026-03-26T21:32:32+1030] STORY START id=STORY-015 attempt=1 title=Polish pass — animations, empty states, error handling, and app icon 
+[2026-03-26T21:46:46+1030] STORY COMPLETE id=STORY-015 attempt=1
