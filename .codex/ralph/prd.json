@@ -54,7 +54,7 @@
         "App builds and the discovery runs without crashing"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": "CodexMemorySchoolPack.swift already exists. Extend it with a `discoverDeadlines()` async method. The codex-mem MCP server exposes a search tool. Check if there is a CLI: `codex-mem search <query>` or if it's accessed via the MCP protocol. If CLI: use Process() to call it and parse JSON output. If MCP only: check if there is a REST shim at http://localhost:PORT. The method should run 4 searches (one per subject), parse results, and call back into PlannerStore to upsert tasks. Use `PlannerStore.upsertTaskHints()` or create a new `applyDiscoveredDeadlines([DiscoveredDeadline])` method. Importance mapping: Economics=10, English=8, Maths=7, SoC=5. Deadline mapping: Economics=next Friday (calculate from today), Maths=next Wednesday, English/SoC=no hard deadline unless found in memory. Call `discoverDeadlines()` from PlannerStore.init() via Task { await ... }."
     },
     {
