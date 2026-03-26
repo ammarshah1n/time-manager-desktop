@@ -1047,13 +1047,25 @@ final class PlannerStore {
         }
     }
 
-    private func applySubjectConfidences(_ values: [String: Int]) {
+    func applySubjectConfidences(_ values: [String: Int]) {
         guard !values.isEmpty else { return }
         for index in tasks.indices {
             if let confidence = values[tasks[index].subject] {
                 tasks[index].confidence = confidence
             }
         }
+    }
+
+    func recordQuizSession(subject: String, summary: QuizSessionSummary) {
+        let deltaPrefix = summary.confidenceDeltaPercent >= 0 ? "+" : ""
+        appendStudyMessage(
+            PromptMessage(
+                role: .assistant,
+                text: "Study session finished for \(subject): \(summary.correctCount)/\(summary.attemptedCount) correct. Confidence delta \(deltaPrefix)\(summary.confidenceDeltaPercent)%."
+            ),
+            subject: subject
+        )
+        save()
     }
 
     private func upsertTaskHints(_ hints: [TaskHint]) {

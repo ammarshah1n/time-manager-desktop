@@ -24,6 +24,7 @@ struct ContentView: View {
     @State private var activeFocusTaskID: String?
     @State private var focusNow = Date.now
     @State private var showDebriefSheet = false
+    @State private var activeQuizSession: QuizSessionModel?
     @State private var debriefConfidence = 3.0
     @State private var debriefCovered = ""
     @State private var debriefBlockers = ""
@@ -80,11 +81,21 @@ struct ContentView: View {
                 .animation(.easeInOut(duration: 0.24), value: isContextDrawerVisible)
             }
             .padding(20)
-            .opacity(activeFocusBlock == nil ? 1 : 0.1)
-            .allowsHitTesting(activeFocusBlock == nil)
+            .opacity(isGlobalOverlayVisible ? 0.08 : 1)
+            .allowsHitTesting(!isGlobalOverlayVisible)
 
             if activeFocusBlock != nil {
                 focusOverlay
+            }
+
+            if let activeQuizSession {
+                QuizView(
+                    session: activeQuizSession,
+                    onClose: closeStudyOverlay,
+                    onEndSession: { summary in
+                        finishStudyOverlay(summary: summary)
+                    }
+                )
             }
         }
         .frame(minWidth: 1360, minHeight: 900)
@@ -474,8 +485,8 @@ struct ContentView: View {
                                         .foregroundStyle(.white.opacity(0.78))
 
                                     HStack(spacing: 10) {
-                                        Button("Quiz me") {
-                                            Task { await store.startQuiz(subject: contextDrawerTask.subject) }
+                                        Button("Study") {
+                                            openStudyOverlay(for: contextDrawerTask)
                                         }
                                         .buttonStyle(.borderedProminent)
 
@@ -511,7 +522,7 @@ struct ContentView: View {
                                 ContextSnippetCard(
                                     context: context,
                                     onQuiz: {
-                                        Task { await store.startQuiz(subject: context.subject) }
+                                        openStudyOverlay(forSubject: context.subject)
                                     }
                                 )
                             }
@@ -609,10 +620,8 @@ struct ContentView: View {
                     }
                     .buttonStyle(.bordered)
 
-                    Button("Quiz me") {
-                        centerTabRawValue = CenterTab.study.rawValue
-                        selectedStudySubject = context.subject
-                        Task { await store.startQuiz(subject: context.subject) }
+                    Button("Study") {
+                        openStudyOverlay(forSubject: context.subject)
                     }
                     .buttonStyle(.borderedProminent)
                 }
@@ -804,8 +813,8 @@ struct ContentView: View {
                                 .foregroundStyle(.white.opacity(0.76))
 
                             HStack(spacing: 10) {
-                                Button("Quiz me") {
-                                    Task { await store.startQuiz(subject: selectedStudyTask.subject) }
+                                Button("Study") {
+                                    openStudyOverlay(for: selectedStudyTask)
                                 }
                                 .buttonStyle(.borderedProminent)
 
@@ -992,6 +1001,10 @@ struct ContentView: View {
         contextDrawerTask != nil || store.isQuizMode
     }
 
+    private var isGlobalOverlayVisible: Bool {
+        activeFocusBlock != nil || activeQuizSession != nil
+    }
+
     private var contextDrawerTask: TaskItem? {
         guard let contextTaskID else { return nil }
         return store.tasks.first(where: { $0.id == contextTaskID && !$0.isCompleted })
@@ -1121,6 +1134,57 @@ struct ContentView: View {
         store.selectTask(task)
     }
 
+    private func openStudyOverlay(for task: TaskItem) {
+        if store.isQuizMode {
+            store.endQuiz()
+        }
+
+        selectTaskForContext(task)
+        centerTabRawValue = CenterTab.study.rawValue
+        showRight = true
+
+        activeQuizSession = QuizSessionModel(
+            task: task,
+            documents: store.topDocuments(for: task.subject, limit: 3),
+            contexts: store.groundedStudyContexts(for: task),
+            workingRoot: TimedPreferences.workingRoot,
+            additionalRoots: TimedPreferences.codexAdditionalRoots,
+            autonomousMode: TimedPreferences.autonomousModeEnabled,
+            runner: { request in
+                await CodexBridge().run(request: request)
+            }
+        )
+    }
+
+    @discardableResult
+    private func openStudyOverlay(forSubject subject: String) -> Bool {
+        guard let task = preferredTask(for: subject) else { return false }
+        openStudyOverlay(for: task)
+        return true
+    }
+
+    private func preferredTask(for subject: String) -> TaskItem? {
+        if let selectedTask = selectedStudyTask, selectedTask.subject.caseInsensitiveCompare(subject) == .orderedSame {
+            return selectedTask
+        }
+
+        return studyTasks(for: subject).first ?? store.tasks.first {
+            !$0.isCompleted && $0.subject.caseInsensitiveCompare(subject) == .orderedSame
+        }
+    }
+
+    private func closeStudyOverlay() {
+        activeQuizSession = nil
+    }
+
+    private func finishStudyOverlay(summary: QuizSessionSummary) {
+        guard let activeQuizSession else { return }
+        store.applySubjectConfidences([activeQuizSession.subject: summary.updatedConfidence])
+        store.rebuildPlan()
+        store.recordQuizSession(subject: activeQuizSession.subject, summary: summary)
+        self.activeQuizSession = nil
+    }
+
     private func markTaskCompleteAndRefreshDrawer(_ task: TaskItem) {
         if contextTaskID == task.id {
             contextTaskID = nil
@@ -1176,9 +1240,11 @@ struct ContentView: View {
 
         if lowered.hasPrefix("quiz ") {
             let subject = String(trimmed.dropFirst(5))
-            centerTabRawValue = CenterTab.study.rawValue
-            selectedStudySubject = subject
-            await store.startQuiz(subject: subject)
+            if openStudyOverlay(forSubject: subject) == false {
+                centerTabRawValue = CenterTab.study.rawValue
+                selectedStudySubject = subject
+                await store.startQuiz(subject: subject)
+            }
             return
         }
 
@@ -1267,11 +1333,7 @@ struct ContentView: View {
 
                 HStack(spacing: 10) {
                     Button {
-                        selectedStudySubject = ranked.task.subject
-                        expandedStudySubject = ranked.task.subject
-                        store.selectTask(ranked.task)
-                        centerTabRawValue = CenterTab.study.rawValue
-                        showRight = true
+                        openStudyOverlay(for: ranked.task)
                     } label: {
                         Label("Study", systemImage: "play.circle")
                     }

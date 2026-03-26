@@ -141,7 +141,7 @@ struct ContextSnippetCard: View {
                     .foregroundStyle(.white.opacity(0.56))
                     .lineLimit(6)
 
-                Button("Quiz me", action: onQuiz)
+                Button("Study", action: onQuiz)
                     .buttonStyle(.bordered)
             }
         }
