@@ -156,7 +156,7 @@
         "App builds without errors"
       ],
       "priority": 9,
-      "passes": false,
+      "passes": true,
       "notes": "Create DeadlineAlertService.swift with a `scheduleAlerts(for tasks: [PlannerTask])` method. Use UNUserNotificationCenter: for each task with deadline != nil && !task.completed, remove existing notifications (removeDeliveredNotifications + removePendingNotificationRequests with task-based IDs), then add three new requests at t-24h, t-4h, t-1h. In PlannerStore, call scheduleAlerts whenever tasks change (in save() or a didSet observer). For Dock badge: `NSApp.dockTile.badgeLabel = count > 0 ? \"\\(count)\" : nil`. For the countdown display in task rows: compute `timeUntilDeadline` as a formatted string using `RelativeDateTimeFormatter` or manual calculation. Countdown badge: use a Text with foreground color .red and a small capsule background."
     },
     {
@@ -173,7 +173,7 @@
         "App builds without errors"
       ],
       "priority": 10,
-      "passes": false,
+      "passes": true,
       "notes": "Create StudyModeView.swift as a top-level View. Add @State isStudyMode: Bool to ContentView (or to PlannerStore). When isStudyMode is true, the main body shows StudyModeView instead of the normal HSplitView. StudyModeView: left panel is a List of SubjectStudyRow (subject name + ProgressView(value: confidence/100)); right panel is SubjectStudyDetail (notes, excerpts, quiz button). Use the Obsidian docs from STORY-006 and ContextDocument list. Subject list is derived from: Set of all task subjects + all ContextDocument subjects. Confidence values come from task.confidence or a dedicated subjectConfidences: [String: Double] dictionary in PlannerStore (add this field). Sync subjectConfidences after quiz sessions."
     },
     {
