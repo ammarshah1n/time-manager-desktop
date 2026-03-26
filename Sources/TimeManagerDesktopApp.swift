@@ -8,6 +8,7 @@ struct TimeManagerDesktopApp: App {
             ContentView()
         }
         .defaultSize(width: 1480, height: 940)
+        .windowStyle(.hiddenTitleBar)
 
         Settings {
             SettingsView()

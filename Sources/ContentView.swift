@@ -1,3 +1,4 @@
+import AppKit
 import Observation
 import SwiftUI
 
@@ -40,14 +41,14 @@ struct ContentView: View {
     var body: some View {
         ZStack {
             WindowChromeConfigurator()
-            TimedVisualEffectBackground()
+            TimedVisualEffectBackground(material: .underWindowBackground, blendingMode: .behindWindow)
                 .ignoresSafeArea()
 
             LinearGradient(
                 colors: [
-                    Color.black.opacity(0.18),
-                    Color(red: 0.09, green: 0.10, blue: 0.14).opacity(0.28),
-                    Color.black.opacity(0.24)
+                    Color.white.opacity(0.04),
+                    Color(red: 0.09, green: 0.10, blue: 0.14).opacity(0.10),
+                    Color.black.opacity(0.10)
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
@@ -217,194 +218,259 @@ struct ContentView: View {
     }
 
     private var leftColumn: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-                TimedCard(title: "Study folders", icon: "books.vertical") {
-                    VStack(alignment: .leading, spacing: 12) {
-                        if studySubjects.isEmpty {
-                            Text("No active subject folders yet. Import tasks or sync your vault.")
-                                .font(.system(size: 13))
-                                .foregroundStyle(.white.opacity(0.6))
-                        } else {
-                            ForEach(studySubjects, id: \.self) { subject in
-                                DisclosureGroup(
-                                    isExpanded: Binding(
-                                        get: { expandedStudySubject == subject },
-                                        set: { isExpanded in
-                                            expandedStudySubject = isExpanded ? subject : ""
+        ZStack {
+            TimedVisualEffectBackground(material: .sidebar, blendingMode: .withinWindow)
+
+            LinearGradient(
+                colors: [
+                    Color.white.opacity(0.06),
+                    Color.clear,
+                    Color.black.opacity(0.04)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    TimedCard(title: "Study folders", icon: "books.vertical") {
+                        VStack(alignment: .leading, spacing: 12) {
+                            if studySubjects.isEmpty {
+                                Text("No active subject folders yet. Import tasks or sync your vault.")
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(.white.opacity(0.6))
+                            } else {
+                                ForEach(studySubjects, id: \.self) { subject in
+                                    DisclosureGroup(
+                                        isExpanded: Binding(
+                                            get: { expandedStudySubject == subject },
+                                            set: { isExpanded in
+                                                expandedStudySubject = isExpanded ? subject : ""
+                                            }
+                                        )
+                                    ) {
+                                        VStack(alignment: .leading, spacing: 10) {
+                                            ForEach(studyTasks(for: subject)) { task in
+                                                studyFolderRow(task)
+                                            }
                                         }
-                                    )
-                                ) {
-                                    VStack(alignment: .leading, spacing: 10) {
-                                        ForEach(studyTasks(for: subject)) { task in
-                                            studyFolderRow(task)
+                                        .padding(.top, 10)
+                                    } label: {
+                                        HStack {
+                                            Text(subject)
+                                                .font(.system(size: 13, weight: .semibold))
+                                                .foregroundStyle(.white.opacity(0.82))
+                                            Spacer()
+                                            badge(text: "\(studyTasks(for: subject).count)", emphasis: .secondary)
                                         }
                                     }
-                                    .padding(.top, 10)
+                                }
+                            }
+                        }
+                    }
+
+                    TimedCard(title: "Task Library", icon: "tray.full") {
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack {
+                                Text("All tasks")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundStyle(.white.opacity(0.65))
+                                Spacer()
+                                Button {
+                                    showAddTaskSheet = true
                                 } label: {
-                                    HStack {
-                                        Text(subject)
-                                            .font(.system(size: 13, weight: .semibold))
-                                            .foregroundStyle(.white.opacity(0.82))
-                                        Spacer()
-                                        badge(text: "\(studyTasks(for: subject).count)", emphasis: .secondary)
+                                    Image(systemName: "plus")
+                                }
+                                .buttonStyle(.bordered)
+                            }
+
+                            ForEach(store.tasks.sorted(by: taskLibrarySort)) { task in
+                                TimedCard(title: task.title, icon: icon(for: task.source)) {
+                                    VStack(alignment: .leading, spacing: 10) {
+                                        HStack {
+                                            Text(task.subject)
+                                                .font(.system(size: 12, weight: .semibold))
+                                                .foregroundStyle(.white.opacity(0.72))
+
+                                            Spacer()
+
+                                            Text(task.source.rawValue)
+                                                .font(.system(size: 12, weight: .semibold))
+                                                .foregroundStyle(.white.opacity(0.6))
+                                        }
+
+                                        Text(task.notes.isEmpty ? "No notes yet." : task.notes)
+                                            .font(.system(size: 13))
+                                            .foregroundStyle(.white.opacity(0.68))
+                                            .lineLimit(2)
+
+                                        if let dueDate = task.dueDate {
+                                            Text("Due \(dueDate.formatted(date: .abbreviated, time: .omitted))")
+                                                .font(.system(size: 12, weight: .medium))
+                                                .foregroundStyle(.white.opacity(0.55))
+                                        }
+                                    }
+                                }
+                                .overlay(selectionBorder(isSelected: store.selectedTaskID == task.id))
+                                .onTapGesture {
+                                    selectedStudySubject = task.subject
+                                    expandedStudySubject = task.subject
+                                    store.selectTask(task)
+                                }
+                            }
+                        }
+                    }
+
+                    TimedCard(title: "Import", icon: "square.and.arrow.down") {
+                        VStack(alignment: .leading, spacing: 12) {
+                            TextField("Import title", text: $store.importTitle)
+                                .textFieldStyle(.plain)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 10)
+                                .background(rowBackground)
+
+                            Picker("Source", selection: $store.importSource) {
+                                ForEach(ImportSource.allCases) { source in
+                                    Text(source.rawValue).tag(source)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+
+                            TextEditor(text: $store.importText)
+                                .scrollContentBackground(.hidden)
+                                .frame(minHeight: 180)
+                                .padding(10)
+                                .background(rowBackground)
+
+                            HStack(spacing: 10) {
+                                Button("Parse import") {
+                                    Task {
+                                        await store.importCurrentPayloadUsingAI()
+                                    }
+                                }
+                                .buttonStyle(.borderedProminent)
+
+                                Button("Sync from Vault") {
+                                    store.syncObsidianVault()
+                                    centerTabRawValue = CenterTab.study.rawValue
+                                    showRight = true
+                                }
+                                .buttonStyle(.bordered)
+                            }
+
+                            if !store.lastImportMessages.isEmpty {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    ForEach(store.lastImportMessages, id: \.self) { line in
+                                        Text(line)
+                                            .font(.system(size: 12))
+                                            .foregroundStyle(.white.opacity(0.62))
                                     }
                                 }
                             }
                         }
                     }
                 }
-
-                TimedCard(title: "Task Library", icon: "tray.full") {
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack {
-                            Text("All tasks")
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundStyle(.white.opacity(0.65))
-                            Spacer()
-                            Button {
-                                showAddTaskSheet = true
-                            } label: {
-                                Image(systemName: "plus")
-                            }
-                            .buttonStyle(.bordered)
-                        }
-
-                        ForEach(store.tasks.sorted(by: taskLibrarySort)) { task in
-                            TimedCard(title: task.title, icon: icon(for: task.source)) {
-                                VStack(alignment: .leading, spacing: 10) {
-                                    HStack {
-                                        Text(task.subject)
-                                            .font(.system(size: 12, weight: .semibold))
-                                            .foregroundStyle(.white.opacity(0.72))
-
-                                        Spacer()
-
-                                        Text(task.source.rawValue)
-                                            .font(.system(size: 12, weight: .semibold))
-                                            .foregroundStyle(.white.opacity(0.6))
-                                    }
-
-                                    Text(task.notes.isEmpty ? "No notes yet." : task.notes)
-                                        .font(.system(size: 13))
-                                        .foregroundStyle(.white.opacity(0.68))
-                                        .lineLimit(2)
-
-                                    if let dueDate = task.dueDate {
-                                        Text("Due \(dueDate.formatted(date: .abbreviated, time: .omitted))")
-                                            .font(.system(size: 12, weight: .medium))
-                                            .foregroundStyle(.white.opacity(0.55))
-                                    }
-                                }
-                            }
-                            .overlay(selectionBorder(isSelected: store.selectedTaskID == task.id))
-                            .onTapGesture {
-                                selectedStudySubject = task.subject
-                                expandedStudySubject = task.subject
-                                store.selectTask(task)
-                            }
-                        }
-                    }
-                }
-
-                TimedCard(title: "Import", icon: "square.and.arrow.down") {
-                    VStack(alignment: .leading, spacing: 12) {
-                        TextField("Import title", text: $store.importTitle)
-                            .textFieldStyle(.plain)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 10)
-                            .background(rowBackground)
-
-                        Picker("Source", selection: $store.importSource) {
-                            ForEach(ImportSource.allCases) { source in
-                                Text(source.rawValue).tag(source)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-
-                        TextEditor(text: $store.importText)
-                            .scrollContentBackground(.hidden)
-                            .frame(minHeight: 180)
-                            .padding(10)
-                            .background(rowBackground)
-
-                        HStack(spacing: 10) {
-                            Button("Parse import") {
-                                store.importCurrentPayload()
-                            }
-                            .buttonStyle(.borderedProminent)
-
-                            Button("Sync from Vault") {
-                                store.syncObsidianVault()
-                                centerTabRawValue = CenterTab.study.rawValue
-                                showRight = true
-                            }
-                            .buttonStyle(.bordered)
-                        }
-
-                        if !store.lastImportMessages.isEmpty {
-                            VStack(alignment: .leading, spacing: 6) {
-                                ForEach(store.lastImportMessages, id: \.self) { line in
-                                    Text(line)
-                                        .font(.system(size: 12))
-                                        .foregroundStyle(.white.opacity(0.62))
-                                }
-                            }
-                        }
-                    }
-                }
+                .padding(14)
             }
+            .scrollIndicators(.hidden)
         }
-        .scrollIndicators(.hidden)
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(Color.white.opacity(0.10), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.12), radius: 24, x: 0, y: 14)
     }
 
     private var centerColumn: some View {
-        VStack(spacing: 14) {
-            TabView(selection: centerTabSelection) {
-                planTab
-                    .tag(CenterTab.plan)
-                    .tabItem { Text("Plan") }
+        ZStack {
+            TimedVisualEffectBackground(material: .fullScreenUI, blendingMode: .withinWindow)
 
-                planningChatTab
-                    .tag(CenterTab.chat)
-                    .tabItem { Text("Chat") }
+            LinearGradient(
+                colors: [
+                    Color.white.opacity(0.04),
+                    Color.clear,
+                    Color.black.opacity(0.05)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
 
-                studyTab
-                    .tag(CenterTab.study)
-                    .tabItem { Text("Study") }
+            VStack(spacing: 14) {
+                TabView(selection: centerTabSelection) {
+                    planTab
+                        .tag(CenterTab.plan)
+                        .tabItem { Text("Plan") }
 
-                dayTab
-                    .tag(CenterTab.day)
-                    .tabItem { Text("Day") }
+                    planningChatTab
+                        .tag(CenterTab.chat)
+                        .tabItem { Text("Chat") }
+
+                    studyTab
+                        .tag(CenterTab.study)
+                        .tabItem { Text("Study") }
+
+                    dayTab
+                        .tag(CenterTab.day)
+                        .tabItem { Text("Day") }
+                }
+
+                activePromptComposer
             }
-
-            activePromptComposer
+            .padding(14)
         }
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(Color.white.opacity(0.10), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.12), radius: 28, x: 0, y: 16)
     }
 
     private var rightColumn: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-                subjectHealthCard
-                contextPanelCard
+        ZStack {
+            TimedVisualEffectBackground(material: .hudWindow, blendingMode: .withinWindow)
 
-                if let selectedContext = store.selectedContext {
-                    TimedCard(title: selectedContext.title, icon: "text.book.closed") {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text(selectedContext.summary)
-                                .font(.system(size: 13, weight: .medium))
-                                .foregroundStyle(.white.opacity(0.82))
+            LinearGradient(
+                colors: [
+                    Color.white.opacity(0.05),
+                    Color.clear,
+                    Color.black.opacity(0.06)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
 
-                            Text(selectedContext.detail)
-                                .font(.system(size: 12))
-                                .foregroundStyle(.white.opacity(0.64))
-                                .textSelection(.enabled)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    subjectHealthCard
+                    contextPanelCard
+
+                    if let selectedContext = store.selectedContext {
+                        TimedCard(title: selectedContext.title, icon: "text.book.closed") {
+                            VStack(alignment: .leading, spacing: 10) {
+                                Text(selectedContext.summary)
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundStyle(.white.opacity(0.82))
+
+                                Text(selectedContext.detail)
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(.white.opacity(0.64))
+                                    .textSelection(.enabled)
+                            }
                         }
                     }
                 }
+                .padding(14)
             }
+            .scrollIndicators(.hidden)
         }
-        .scrollIndicators(.hidden)
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(Color.white.opacity(0.10), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.14), radius: 24, x: 0, y: 14)
     }
 
     private var subjectHealthCard: some View {
@@ -1412,7 +1478,7 @@ struct ContentView: View {
 
     private var rowBackground: some View {
         RoundedRectangle(cornerRadius: 12, style: .continuous)
-            .fill(Color.white.opacity(0.06))
+            .fill(Color(nsColor: .windowBackgroundColor).opacity(0.18))
             .overlay(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .stroke(Color.white.opacity(0.08), lineWidth: 1)
