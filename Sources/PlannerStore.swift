@@ -7,12 +7,14 @@ final class PlannerStore {
     private let storageURL: URL
     @ObservationIgnored private var seqtaWatcher: SeqtaFileWatcher?
     @ObservationIgnored private var deadlineMonitorTask: Task<Void, Never>?
+    @ObservationIgnored private var pendingCalibrationQueue: [String] = []
 
     var tasks: [TaskItem] = []
     var contexts: [ContextItem] = []
     var obsidianDocuments: [ContextDocument] = []
     var schedule: [ScheduleBlock] = []
     var subjectConfidences: [String: Int] = [:]
+    var pendingCalibrationSubject: String?
     var rankedTasks: [RankedTask] = []
     var selectedTaskID: String?
     var selectedContextID: String?
@@ -437,7 +439,7 @@ final class PlannerStore {
         contexts.insert(context, at: 0)
         contexts.sort { $0.createdAt > $1.createdAt }
         selectedContextID = context.id
-        subjectConfidences[canonicalSubjectName(task.subject)] = clampedConfidence(task.confidence)
+        subjectConfidences[canonicalSubjectName(task.subject)] = normalizedConfidencePercent(task.confidence)
         appendStudyMessage(
             PromptMessage(role: .assistant, text: "Debrief saved for \(task.title). Confidence is now \(task.confidence)/5."),
             subject: task.subject
@@ -545,8 +547,107 @@ final class PlannerStore {
         }
 
         tasks.insert(task, at: 0)
+        queueCalibrationIfNeeded(for: task)
         rebuildPlan()
         return nil
+    }
+
+    func suggestedAssessmentDateText(for subject: String) -> String {
+        guard let dueDate = earliestDueDate(for: subject) else { return "" }
+        return dueDate.formatted(date: .abbreviated, time: .omitted)
+    }
+
+    func skipPendingCalibration() {
+        advancePendingCalibrationQueue()
+        save()
+    }
+
+    func submitConfidenceCalibration(_ draft: ConfidenceCalibrationDraft, now: Date = .now) async -> String? {
+        let subject = canonicalSubjectName(draft.subject)
+        guard !subject.isEmpty else { return "Subject is missing." }
+
+        let response = await CodexBridge().run(
+            request: CodexRunRequest(
+                prompt: buildConfidenceCalibrationPrompt(for: draft, subject: subject, now: now),
+                autonomousMode: TimedPreferences.autonomousModeEnabled,
+                workingRoot: TimedPreferences.workingRoot,
+                additionalRoots: TimedPreferences.codexAdditionalRoots
+            )
+        )
+
+        guard let response else {
+            return "Could not reach Timed AI — check Codex is installed"
+        }
+
+        guard let calibration = decodeConfidenceCalibrationResponse(from: response) else {
+            return "Timed couldn't parse the calibration result. Try again."
+        }
+
+        applyConfidenceCalibration(
+            subject: subject,
+            percentConfidence: calibration.confidence,
+            hints: calibration.hints,
+            draft: draft,
+            now: now
+        )
+        return nil
+    }
+
+    func applyConfidenceCalibration(
+        subject: String,
+        percentConfidence: Int,
+        hints: [String],
+        draft: ConfidenceCalibrationDraft,
+        now: Date = .now
+    ) {
+        let canonicalSubject = canonicalSubjectName(subject)
+        guard !canonicalSubject.isEmpty else { return }
+
+        let normalizedPercent = normalizedConfidencePercent(percentConfidence)
+        var seenHints: Set<String> = []
+        let normalizedHints = hints
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { hint in
+                guard !hint.isEmpty else { return false }
+                return seenHints.insert(hint).inserted
+            }
+            .prefix(3)
+            .map { $0 }
+
+        subjectConfidences[canonicalSubject] = normalizedPercent
+
+        let calibratedConfidence = confidenceStars(fromPercent: normalizedPercent)
+        // Calibration hints are subject-level, so apply them to every task in that subject.
+        for index in tasks.indices where tasks[index].subject.caseInsensitiveCompare(canonicalSubject) == .orderedSame {
+            tasks[index].confidence = calibratedConfidence
+            tasks[index].notes = mergedCalibrationNotes(
+                existingNotes: tasks[index].notes,
+                subject: canonicalSubject,
+                hints: normalizedHints
+            )
+        }
+
+        let context = ContextItem(
+            id: StableID.makeContextID(source: .chat, title: "\(canonicalSubject)-confidence-calibration", createdAt: now),
+            title: "\(canonicalSubject) confidence calibration",
+            kind: "Calibration",
+            subject: canonicalSubject,
+            summary: normalizedHints.first ?? "Initial confidence calibrated to \(normalizedPercent)%.",
+            detail: calibrationContextDetail(
+                subject: canonicalSubject,
+                percentConfidence: normalizedPercent,
+                hints: normalizedHints,
+                draft: draft
+            ),
+            createdAt: now
+        )
+
+        contexts.removeAll { $0.id == context.id }
+        contexts.insert(context, at: 0)
+        contexts.sort { $0.createdAt > $1.createdAt }
+        selectedContextID = context.id
+        advancePendingCalibrationQueue(resolving: canonicalSubject)
+        rebuildPlan(now: now)
     }
 
     func syncObsidianVault(announce: Bool = true) {
@@ -620,14 +721,21 @@ final class PlannerStore {
         guard !canonicalSubject.isEmpty else { return 3 }
 
         if let storedValue = subjectConfidences[canonicalSubject] {
-            return clampedConfidence(storedValue)
+            return confidenceStars(fromPercent: storedValue)
         }
 
         return derivedConfidence(for: canonicalSubject)
     }
 
     func subjectConfidencePercent(for subject: String) -> Int {
-        subjectConfidenceValue(for: subject) * 20
+        let canonicalSubject = canonicalSubjectName(subject)
+        guard !canonicalSubject.isEmpty else { return 60 }
+
+        if let storedValue = subjectConfidences[canonicalSubject] {
+            return normalizedConfidencePercent(storedValue)
+        }
+
+        return derivedConfidence(for: canonicalSubject) * 20
     }
 
     func transcriptStudyContexts(for subject: String, searchText: String = "", limit: Int = 6) -> [ContextItem] {
@@ -670,6 +778,9 @@ final class PlannerStore {
             } else {
                 tasks.insert(task, at: 0)
                 importedTasks += 1
+                if !automatic {
+                    queueCalibrationIfNeeded(for: task)
+                }
             }
         }
 
@@ -750,6 +861,55 @@ final class PlannerStore {
         ]
     }
 
+    private func buildConfidenceCalibrationPrompt(
+        for draft: ConfidenceCalibrationDraft,
+        subject: String,
+        now: Date
+    ) -> String {
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateStyle = .full
+        dateFormatter.timeStyle = .short
+
+        let activeTasks = tasks
+            .filter { !$0.isCompleted && $0.subject.caseInsensitiveCompare(subject) == .orderedSame }
+            .prefix(4)
+            .map { task in
+                let dueDate = task.dueDate.map { dateFormatter.string(from: $0) } ?? "No due date"
+                return "- \(task.title) | Due: \(dueDate) | Notes: \(task.notes.isEmpty ? "None" : task.notes)"
+            }
+            .joined(separator: "\n")
+
+        return """
+        You are calibrating an initial subject confidence score for a Year 11 student using self-assessment answers.
+        Return JSON only. No markdown. No explanation.
+
+        Required shape:
+        {"confidence": 0-100 integer, "hints": ["hint 1", "hint 2", "hint 3"]}
+
+        Rules:
+        - Confidence must be slightly pessimistic, realistic, and integer 0-100.
+        - Hints must be specific to the subject and the student's weak points.
+        - Return exactly 3 hints.
+        - Each hint should be one sentence and actionable.
+
+        Current date:
+        \(dateFormatter.string(from: now))
+
+        Subject:
+        \(subject)
+
+        Active tasks for this subject:
+        \(activeTasks.isEmpty ? "- None loaded" : activeTasks)
+
+        Self-assessment answers:
+        - Confidence rating (1-5): \(Int(draft.confidence.rounded()))
+        - Most recent thing covered: \(draft.recentTopic.trimmingCharacters(in: .whitespacesAndNewlines))
+        - Least sure about: \(draft.leastSureAbout.trimmingCharacters(in: .whitespacesAndNewlines))
+        - Assessment timing: \(draft.assessmentDate.trimmingCharacters(in: .whitespacesAndNewlines))
+        - Available resources: \(draft.resources.trimmingCharacters(in: .whitespacesAndNewlines))
+        """
+    }
+
     private func applyImport(_ batch: ImportBatch) {
         if let context = batch.context {
             contexts.removeAll { $0.id == context.id }
@@ -780,6 +940,7 @@ final class PlannerStore {
 
             tasks.insert(task, at: 0)
             createdCount += 1
+            queueCalibrationIfNeeded(for: task)
         }
 
         if !batch.taskDrafts.isEmpty, batch.taskDrafts.allSatisfy({ $0.source == .seqta }) {
@@ -791,6 +952,99 @@ final class PlannerStore {
             appendPlannerMessage(PromptMessage(role: .assistant, text: batch.messages.joined(separator: "\n")))
         }
         rebuildPlan()
+    }
+
+    private func decodeConfidenceCalibrationResponse(from response: String) -> ConfidenceCalibrationResponse? {
+        let trimmed = response.trimmingCharacters(in: .whitespacesAndNewlines)
+        let candidate: String
+
+        if
+            let start = trimmed.firstIndex(of: "{"),
+            let end = trimmed.lastIndex(of: "}")
+        {
+            candidate = String(trimmed[start...end])
+        } else {
+            candidate = trimmed
+        }
+
+        guard let data = candidate.data(using: .utf8) else { return nil }
+        return try? JSONDecoder().decode(ConfidenceCalibrationResponse.self, from: data)
+    }
+
+    private func calibrationContextDetail(
+        subject: String,
+        percentConfidence: Int,
+        hints: [String],
+        draft: ConfidenceCalibrationDraft
+    ) -> String {
+        let hintsText = hints.isEmpty
+            ? "No hints returned."
+            : hints.map { "- \($0)" }.joined(separator: "\n")
+
+        return """
+        Subject: \(subject)
+        Calibrated confidence: \(percentConfidence)%
+
+        Most recent thing covered:
+        \(draft.recentTopic.trimmingCharacters(in: .whitespacesAndNewlines))
+
+        Least sure about:
+        \(draft.leastSureAbout.trimmingCharacters(in: .whitespacesAndNewlines))
+
+        Assessment timing:
+        \(draft.assessmentDate.trimmingCharacters(in: .whitespacesAndNewlines))
+
+        Available resources:
+        \(draft.resources.trimmingCharacters(in: .whitespacesAndNewlines))
+
+        Study hints:
+        \(hintsText)
+        """
+    }
+
+    private func mergedCalibrationNotes(existingNotes: String, subject: String, hints: [String]) -> String {
+        guard !hints.isEmpty else { return existingNotes }
+
+        let hintSection = """
+        Study hints for \(subject):
+        \(hints.map { "- \($0)" }.joined(separator: "\n"))
+        """
+        let trimmedExisting = existingNotes.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !trimmedExisting.contains(hintSection) else { return trimmedExisting }
+        guard !trimmedExisting.isEmpty else { return hintSection }
+        return "\(trimmedExisting)\n\n\(hintSection)"
+    }
+
+    private func queueCalibrationIfNeeded(for task: TaskItem) {
+        let subject = canonicalSubjectName(task.subject)
+        guard !subject.isEmpty else { return }
+        guard subjectConfidences[subject] == nil else { return }
+        guard pendingCalibrationSubject != subject else { return }
+        guard !pendingCalibrationQueue.contains(subject) else { return }
+        pendingCalibrationQueue.append(subject)
+        if pendingCalibrationSubject == nil {
+            pendingCalibrationSubject = pendingCalibrationQueue.removeFirst()
+        }
+    }
+
+    private func advancePendingCalibrationQueue(resolving resolvedSubject: String? = nil) {
+        if
+            let resolvedSubject,
+            pendingCalibrationSubject?.caseInsensitiveCompare(resolvedSubject) != .orderedSame
+        {
+            pendingCalibrationQueue.removeAll { $0.caseInsensitiveCompare(resolvedSubject) == .orderedSame }
+            return
+        }
+
+        pendingCalibrationSubject = pendingCalibrationQueue.isEmpty ? nil : pendingCalibrationQueue.removeFirst()
+    }
+
+    private func earliestDueDate(for subject: String) -> Date? {
+        tasks
+            .filter { !$0.isCompleted && $0.subject.caseInsensitiveCompare(subject) == .orderedSame }
+            .compactMap(\.dueDate)
+            .min()
     }
 
     private func continueQuiz(with answer: String) async {
@@ -1130,11 +1384,12 @@ final class PlannerStore {
             let canonicalSubject = canonicalSubjectName(subject)
             guard !canonicalSubject.isEmpty else { continue }
 
-            let clampedValue = clampedConfidence(confidence)
-            subjectConfidences[canonicalSubject] = clampedValue
+            let normalizedPercent = normalizedConfidencePercent(confidence)
+            subjectConfidences[canonicalSubject] = normalizedPercent
+            let calibratedConfidence = confidenceStars(fromPercent: normalizedPercent)
 
             for index in tasks.indices where tasks[index].subject.caseInsensitiveCompare(canonicalSubject) == .orderedSame {
-                tasks[index].confidence = clampedValue
+                tasks[index].confidence = calibratedConfidence
             }
         }
     }
@@ -1186,6 +1441,7 @@ final class PlannerStore {
             ))
 
             tasks.insert(task, at: 0)
+            queueCalibrationIfNeeded(for: task)
         }
     }
 
@@ -1199,6 +1455,7 @@ final class PlannerStore {
             guard !tasks.contains(where: { $0.id == calibrated.id }) else { continue }
             tasks.append(calibrated)
             insertedCount += 1
+            queueCalibrationIfNeeded(for: calibrated)
         }
 
         if insertedCount > 0 {
@@ -1239,6 +1496,7 @@ final class PlannerStore {
 
             tasks.insert(task, at: 0)
             insertedCount += 1
+            queueCalibrationIfNeeded(for: task)
         }
 
         print("[SeqtaBackgroundSync] tasks found=\(totalFound) tasks created=\(insertedCount) tasks updated=\(updatedCount) tasks skipped=\(skippedCount)")
@@ -1288,7 +1546,7 @@ final class PlannerStore {
         for (subject, confidence) in subjectConfidences {
             let canonicalSubject = canonicalSubjectName(subject)
             guard !canonicalSubject.isEmpty else { continue }
-            values[canonicalSubject] = Double(clampedConfidence(confidence))
+            values[canonicalSubject] = Double(confidenceStars(fromPercent: confidence))
         }
 
         for task in tasks where task.source == .codexMem || task.isAutoDiscovered {
@@ -1307,7 +1565,7 @@ final class PlannerStore {
     private func inferredConfidence(for task: TaskItem) -> Int {
         let canonicalSubject = canonicalSubjectName(task.subject)
         if let storedValue = subjectConfidences[canonicalSubject] {
-            return clampedConfidence(storedValue)
+            return confidenceStars(fromPercent: storedValue)
         }
         guard task.confidence == 3 else { return task.confidence }
         return CodexMemoryInsights.inferredConfidence(
@@ -1319,8 +1577,10 @@ final class PlannerStore {
 
     private func syncSubjectConfidenceState() {
         var nextValues: [String: Int] = [:]
-        for subject in studyModeSubjects() {
-            nextValues[subject] = subjectConfidences[subject].map { clampedConfidence($0) } ?? derivedConfidence(for: subject)
+        for (subject, confidence) in subjectConfidences {
+            let canonicalSubject = canonicalSubjectName(subject)
+            guard !canonicalSubject.isEmpty else { continue }
+            nextValues[canonicalSubject] = normalizedConfidencePercent(confidence)
         }
         subjectConfidences = nextValues
     }
@@ -1344,6 +1604,19 @@ final class PlannerStore {
 
     private func clampedConfidence(_ value: Int) -> Int {
         max(1, min(5, value))
+    }
+
+    private func normalizedConfidencePercent(_ value: Int) -> Int {
+        if value <= 5 {
+            return max(0, min(100, value * 20))
+        }
+        return max(0, min(100, value))
+    }
+
+    private func confidenceStars(fromPercent percent: Int) -> Int {
+        let normalizedPercent = normalizedConfidencePercent(percent)
+        guard normalizedPercent > 0 else { return 1 }
+        return max(1, min(5, Int(ceil(Double(normalizedPercent) / 20.0))))
     }
 
     private func canonicalSubject(_ subject: String?) -> String? {

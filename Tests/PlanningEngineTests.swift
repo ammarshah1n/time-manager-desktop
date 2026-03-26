@@ -198,6 +198,87 @@ struct PlanningEngineTests {
         #expect(store.tasks.first?.title == "Maths investigation")
     }
 
+    @Test("testManualTaskQueuesConfidenceCalibrationForNewSubject")
+    @MainActor
+    func testManualTaskQueuesConfidenceCalibrationForNewSubject() {
+        let storageURL = FileManager.default.temporaryDirectory.appendingPathComponent("timed-calibration-queue-\(UUID().uuidString).json")
+        let store = PlannerStore(storageURL: storageURL)
+        store.tasks = []
+        store.contexts = []
+        store.chat = []
+        store.schedule = []
+        store.subjectConfidences = [:]
+
+        let error = store.addManualTask(
+            AddTaskDraft(
+                title: "Economics test revision",
+                subject: "Economics",
+                estimateMinutes: 45,
+                importance: 5,
+                confidence: 3,
+                dueDate: fixedNow,
+                energy: .medium,
+                source: .chat,
+                notes: "Revise workbook."
+            )
+        )
+
+        #expect(error == nil)
+        #expect(store.pendingCalibrationSubject == "Economics")
+        #expect(store.subjectConfidences["Economics"] == nil)
+    }
+
+    @Test("testConfidenceCalibrationAppliesPercentAndHints")
+    @MainActor
+    func testConfidenceCalibrationAppliesPercentAndHints() {
+        let storageURL = FileManager.default.temporaryDirectory.appendingPathComponent("timed-calibration-apply-\(UUID().uuidString).json")
+        let store = PlannerStore(storageURL: storageURL)
+        store.tasks = [
+            TaskItem(
+                id: StableID.makeTaskID(source: .seqta, title: "Economics test"),
+                title: "Economics test",
+                list: "Seqta",
+                source: .seqta,
+                subject: "Economics",
+                estimateMinutes: 60,
+                confidence: 3,
+                importance: 5,
+                dueDate: fixedNow,
+                notes: "Workbook questions.",
+                energy: .high,
+                isCompleted: false,
+                completedAt: nil
+            )
+        ]
+        store.pendingCalibrationSubject = "Economics"
+
+        store.applyConfidenceCalibration(
+            subject: "Economics",
+            percentConfidence: 42,
+            hints: [
+                "Redo elasticity graphs from the workbook.",
+                "Turn the latest class example into a 10-minute recap.",
+                "Write one definition from memory for each weak concept."
+            ],
+            draft: ConfidenceCalibrationDraft(
+                subject: "Economics",
+                confidence: 2,
+                recentTopic: "Elasticity",
+                leastSureAbout: "PES vs PED",
+                assessmentDate: "Friday",
+                resources: "Workbook and class notes"
+            ),
+            now: fixedNow
+        )
+
+        #expect(store.subjectConfidences["Economics"] == 42)
+        #expect(store.subjectConfidenceValue(for: "Economics") == 3)
+        #expect(store.tasks.first?.confidence == 3)
+        #expect(store.tasks.first?.notes.contains("Study hints for Economics:") == true)
+        #expect(store.tasks.first?.notes.contains("Redo elasticity graphs from the workbook.") == true)
+        #expect(store.pendingCalibrationSubject == nil)
+    }
+
     @Test("testLegacyTaskIDsCollapseOnLoad")
     @MainActor
     func testLegacyTaskIDsCollapseOnLoad() throws {

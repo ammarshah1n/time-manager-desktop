@@ -23,6 +23,7 @@ struct ContentView: View {
     @State private var showSearchPanel = false
     @State private var searchQuery = ""
     @State private var showCommandPalette = false
+    @State private var showCalibrationPopover = false
     @State private var commandPaletteText = ""
     @State private var activeFocusBlock: ScheduleBlock?
     @State private var activeFocusTaskID: String?
@@ -158,6 +159,11 @@ struct ContentView: View {
                 }
                 .onChange(of: store.studyChat) { _, _ in
                     searchService.invalidateIndex()
+                }
+                .onChange(of: store.pendingCalibrationSubject) { _, newValue in
+                    if newValue == nil {
+                        showCalibrationPopover = false
+                    }
                 }
                 .onChange(of: selectedCenterTab) { _, newTab in
                     if newTab == .day {
@@ -402,6 +408,37 @@ struct ContentView: View {
                 TimedSectionHeader(title: "Next Up")
 
                 VStack(alignment: .leading, spacing: 12) {
+                    if let pendingCalibrationSubject = store.pendingCalibrationSubject {
+                        ConfidenceCalibrationBanner(
+                            subject: pendingCalibrationSubject,
+                            onAccept: {
+                                showCalibrationPopover = true
+                            },
+                            onSkip: {
+                                showCalibrationPopover = false
+                                store.skipPendingCalibration()
+                            }
+                        )
+                        .popover(isPresented: $showCalibrationPopover, arrowEdge: .top) {
+                            ConfidenceCalibrationView(
+                                subject: pendingCalibrationSubject,
+                                suggestedAssessmentDate: store.suggestedAssessmentDateText(for: pendingCalibrationSubject),
+                                onSubmit: { draft in
+                                    await store.submitConfidenceCalibration(draft)
+                                },
+                                onCancel: {
+                                    showCalibrationPopover = false
+                                },
+                                onComplete: {
+                                    showCalibrationPopover = false
+                                    if let task = preferredTask(for: pendingCalibrationSubject) {
+                                        selectTaskForContext(task)
+                                    }
+                                }
+                            )
+                        }
+                    }
+
                     if store.rankedTasks.isEmpty {
                         Text("No ranked tasks yet. Import work or add a task to start planning.")
                             .font(.system(size: 13))
