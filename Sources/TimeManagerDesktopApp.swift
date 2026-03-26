@@ -13,6 +13,9 @@ struct TimeManagerDesktopApp: App {
         }
         .defaultSize(width: 1480, height: 940)
         .windowStyle(.hiddenTitleBar)
+        .commands {
+            TimedKeyboardCommands()
+        }
 
         Settings {
             SettingsView()

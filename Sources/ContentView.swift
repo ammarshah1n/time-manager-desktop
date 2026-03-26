@@ -5,6 +5,7 @@ import SwiftUI
 struct ContentView: View {
     @State private var store = PlannerStore()
     @State private var focusTimer = FocusTimerModel()
+    @FocusState private var focusedPanel: PlannerPanel?
     @AppStorage("timed.showLeft") private var showLeft = true
     @AppStorage("timed.showRight") private var showRight = false
     @AppStorage("timed.centerTab") private var centerTabRawValue = CenterTab.plan.rawValue
@@ -22,6 +23,7 @@ struct ContentView: View {
     @State private var isLoadingDayPlan = false
     @State private var showSearchPanel = false
     @State private var searchQuery = ""
+    @State private var showKeyboardShortcutsHelp = false
     @State private var showCommandPalette = false
     @State private var showCalibrationPopover = false
     @State private var commandPaletteText = ""
@@ -36,6 +38,8 @@ struct ContentView: View {
     @State private var didHandleInitialVaultSync = false
     @State private var deadlineNow = Date.now
     @State private var searchService = ContextSearchService()
+    @State private var selectedTaskIndex = 0
+    @State private var localKeyMonitor: Any?
     @State private var selectedSearchDocumentID: String?
     @State private var selectedSearchContextID: String?
     @State private var highlightedPlannerChatMessageID: UUID?
@@ -138,15 +142,34 @@ struct ContentView: View {
     private var configuredRootView: some View {
         AnyView(
             sheetConfiguredView
+                .focusedValue(\.timedKeyboardActions, keyboardActions)
+                .focusedValue(\.timedRankedTaskSelection, TimedRankedTaskSelection(task: currentKeyboardSelectedTask))
+                .popover(isPresented: $showKeyboardShortcutsHelp, arrowEdge: .top) {
+                    KeyboardShortcutsHelpView()
+                }
                 .task {
                     await handleInitialVaultSyncIfNeeded()
                     await refreshDayPlan()
                 }
+                .onAppear {
+                    if focusedPanel == nil {
+                        focusedPanel = .center
+                    }
+                    installLocalKeyMonitor()
+                    syncSelectedTaskIndex()
+                }
+                .onDisappear {
+                    removeLocalKeyMonitor()
+                }
                 .onReceive(NotificationCenter.default.publisher(for: .timedSyncObsidianVaultRequested)) { _ in
                     store.syncObsidianVault()
                 }
+                .onChange(of: store.selectedTaskID) { _, _ in
+                    syncSelectedTaskIndex()
+                }
                 .onChange(of: store.tasks) { _, _ in
                     searchService.invalidateIndex()
+                    syncSelectedTaskIndex()
                 }
                 .onChange(of: store.contexts) { _, _ in
                     searchService.invalidateIndex()
@@ -169,6 +192,18 @@ struct ContentView: View {
                     if newTab == .day {
                         Task { await refreshDayPlan() }
                     }
+                    if newTab == .plan {
+                        syncSelectedTaskIndex()
+                    }
+                }
+                .onChange(of: selectedWeekDeadline) { _, _ in
+                    syncSelectedTaskIndex()
+                }
+                .onChange(of: showLeft) { _, _ in
+                    normalizeFocusedPanel()
+                }
+                .onChange(of: isContextDrawerVisible) { _, _ in
+                    normalizeFocusedPanel()
                 }
                 .onReceive(focusTicker) { tick in
                     guard let activeFocusBlock, !showDebriefSheet else { return }
@@ -387,7 +422,13 @@ struct ContentView: View {
             RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .stroke(Color.white.opacity(0.10), lineWidth: 1)
         )
+        .overlay(panelFocusBorder(for: .left))
         .shadow(color: .black.opacity(0.12), radius: 24, x: 0, y: 14)
+        .focusable()
+        .focused($focusedPanel, equals: .left)
+        .onTapGesture {
+            focusedPanel = .left
+        }
     }
 
     private var centerColumn: some View {
@@ -570,7 +611,22 @@ struct ContentView: View {
             RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .stroke(Color.white.opacity(0.10), lineWidth: 1)
         )
+        .overlay(panelFocusBorder(for: .center))
         .shadow(color: .black.opacity(0.12), radius: 28, x: 0, y: 16)
+        .focusable()
+        .focused($focusedPanel, equals: .center)
+        .onTapGesture {
+            focusedPanel = .center
+        }
+        .onKeyPress(.upArrow) {
+            handleRankedTaskMovement(delta: -1)
+        }
+        .onKeyPress(.downArrow) {
+            handleRankedTaskMovement(delta: 1)
+        }
+        .onKeyPress(.return) {
+            openFocusedRankedTask()
+        }
     }
 
     private var rightColumn: some View {
@@ -744,7 +800,13 @@ struct ContentView: View {
             RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .stroke(Color.white.opacity(0.10), lineWidth: 1)
         )
+        .overlay(panelFocusBorder(for: .right))
         .shadow(color: .black.opacity(0.14), radius: 24, x: 0, y: 14)
+        .focusable()
+        .focused($focusedPanel, equals: .right)
+        .onTapGesture {
+            focusedPanel = .right
+        }
     }
 
     private var subjectHealthCard: some View {
@@ -1285,6 +1347,30 @@ struct ContentView: View {
         )
     }
 
+    private var keyboardActions: TimedKeyboardActions {
+        TimedKeyboardActions(
+            addTask: {
+                showLeft = true
+                showAddTaskSheet = true
+            },
+            toggleStudyMode: {
+                toggleStudyMode()
+            },
+            startFocusTimer: {
+                startFocusTimerForSelectedTask()
+            },
+            exportCalendar: {
+                Task { await store.exportCalendar() }
+            },
+            focusSearch: {
+                showSearchPanel = true
+            },
+            showKeyboardShortcuts: {
+                showKeyboardShortcutsHelp = true
+            }
+        )
+    }
+
     private var taskLibraryItems: [TaskItem] {
         let rankedOrder = Dictionary(uniqueKeysWithValues: store.rankedTasks.enumerated().map { ($0.element.task.id, $0.offset) })
         return store.tasks.sorted { lhs, rhs in
@@ -1366,6 +1452,7 @@ struct ContentView: View {
         selectedStudySubject = task.subject
         expandedStudySubject = task.subject
         contextTaskID = task.id
+        syncSelectedTaskIndex(preferredTaskID: task.id)
         store.selectTask(task)
     }
 
@@ -1822,7 +1909,17 @@ struct ContentView: View {
                 }
             }
         }
-        .overlay(selectionBorder(isSelected: store.selectedTaskID == ranked.task.id))
+        .overlay(
+            selectionBorder(
+                isSelected: store.selectedTaskID == ranked.task.id,
+                isFocused: focusedPanel == .center && selectedCenterTab == .plan && currentKeyboardSelectedTask?.id == ranked.task.id
+            )
+        )
+        .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .onTapGesture {
+            focusedPanel = .center
+            selectRankedTask(ranked.task)
+        }
     }
 
     private func scheduleRow(_ block: ScheduleBlock) -> some View {
@@ -2267,9 +2364,14 @@ struct ContentView: View {
             )
     }
 
-    private func selectionBorder(isSelected: Bool) -> some View {
+    private func selectionBorder(isSelected: Bool, isFocused: Bool = false) -> some View {
         RoundedRectangle(cornerRadius: 12, style: .continuous)
-            .stroke(isSelected ? Color.white.opacity(0.22) : Color.clear, lineWidth: 1)
+            .stroke(
+                isSelected
+                    ? Color.white.opacity(isFocused ? 0.78 : 0.22)
+                    : Color.clear,
+                lineWidth: isFocused ? 2 : 1
+            )
     }
 
     private func taskLibrarySort(lhs: TaskItem, rhs: TaskItem) -> Bool {
@@ -2293,6 +2395,194 @@ struct ContentView: View {
             return "message"
         }
     }
+
+    private var keyboardNavigableTasks: [TaskItem] {
+        rankedTasksForPlan.map(\.task)
+    }
+
+    private var currentKeyboardSelectedTask: TaskItem? {
+        guard !keyboardNavigableTasks.isEmpty else { return nil }
+        let safeIndex = min(max(selectedTaskIndex, 0), keyboardNavigableTasks.count - 1)
+        return keyboardNavigableTasks[safeIndex]
+    }
+
+    private func syncSelectedTaskIndex(preferredTaskID: String? = nil) {
+        let tasks = keyboardNavigableTasks
+        guard !tasks.isEmpty else {
+            selectedTaskIndex = 0
+            return
+        }
+
+        let targetID = preferredTaskID ?? store.selectedTaskID
+
+        if let targetID, let matchedIndex = tasks.firstIndex(where: { $0.id == targetID }) {
+            selectedTaskIndex = matchedIndex
+            return
+        }
+
+        selectedTaskIndex = min(selectedTaskIndex, tasks.count - 1)
+
+        if let fallbackTask = tasks[safe: selectedTaskIndex], store.selectedTaskID != fallbackTask.id {
+            store.selectTask(fallbackTask)
+        }
+    }
+
+    @discardableResult
+    private func handleRankedTaskMovement(delta: Int) -> KeyPress.Result {
+        guard focusedPanel == .center, !isStudyMode, selectedCenterTab == .plan else {
+            return .ignored
+        }
+
+        let tasks = keyboardNavigableTasks
+        guard !tasks.isEmpty else { return .handled }
+
+        let newIndex = min(max(selectedTaskIndex + delta, 0), tasks.count - 1)
+        guard tasks.indices.contains(newIndex) else { return .handled }
+
+        selectedTaskIndex = newIndex
+        let task = tasks[newIndex]
+        store.selectTask(task)
+        return .handled
+    }
+
+    @discardableResult
+    private func openFocusedRankedTask() -> KeyPress.Result {
+        guard focusedPanel == .center, !isStudyMode, selectedCenterTab == .plan else {
+            return .ignored
+        }
+
+        guard let task = currentKeyboardSelectedTask else {
+            return .handled
+        }
+
+        selectTaskForContext(task)
+        focusedPanel = .right
+        return .handled
+    }
+
+    private func selectRankedTask(_ task: TaskItem) {
+        if let index = keyboardNavigableTasks.firstIndex(where: { $0.id == task.id }) {
+            selectedTaskIndex = index
+        }
+        store.selectTask(task)
+    }
+
+    private func startFocusTimerForSelectedTask() {
+        guard let task = currentKeyboardSelectedTask ?? store.selectedTask ?? rankedTasksForPlan.first?.task else {
+            return
+        }
+        focusedPanel = .center
+        startFocusTimer(for: task)
+    }
+
+    private func panelFocusBorder(for panel: PlannerPanel) -> some View {
+        RoundedRectangle(cornerRadius: 24, style: .continuous)
+            .stroke(
+                focusedPanel == panel
+                    ? Color.white.opacity(0.28)
+                    : Color.clear,
+                lineWidth: 2
+            )
+    }
+
+    private var orderedPanels: [PlannerPanel] {
+        var panels: [PlannerPanel] = []
+        if showLeft {
+            panels.append(.left)
+        }
+        panels.append(.center)
+        if isContextDrawerVisible {
+            panels.append(.right)
+        }
+        return panels
+    }
+
+    private func normalizeFocusedPanel() {
+        let panels = orderedPanels
+        guard !panels.isEmpty else {
+            focusedPanel = nil
+            return
+        }
+
+        if let focusedPanel, panels.contains(focusedPanel) {
+            return
+        }
+
+        focusedPanel = panels.contains(.center) ? .center : panels[0]
+    }
+
+    private func cycleFocusedPanel(backward: Bool) {
+        guard !isStudyMode else { return }
+        let panels = orderedPanels
+        guard !panels.isEmpty else { return }
+
+        let currentIndex = panels.firstIndex(of: focusedPanel ?? .center) ?? 0
+        let nextIndex: Int
+
+        if backward {
+            nextIndex = currentIndex == 0 ? panels.count - 1 : currentIndex - 1
+        } else {
+            nextIndex = currentIndex == panels.count - 1 ? 0 : currentIndex + 1
+        }
+
+        focusedPanel = panels[nextIndex]
+    }
+
+    private func installLocalKeyMonitor() {
+        guard localKeyMonitor == nil else { return }
+        localKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { event in
+            handleLocalKeyEvent(event)
+        }
+    }
+
+    private func removeLocalKeyMonitor() {
+        guard let localKeyMonitor else { return }
+        NSEvent.removeMonitor(localKeyMonitor)
+        self.localKeyMonitor = nil
+    }
+
+    private func handleLocalKeyEvent(_ event: NSEvent) -> NSEvent? {
+        guard shouldHandleGlobalPlannerKeys else { return event }
+
+        let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+
+        if event.keyCode == 48 {
+            cycleFocusedPanel(backward: modifiers.contains(.shift))
+            return nil
+        }
+
+        if modifiers.isEmpty, event.characters == "?" {
+            showKeyboardShortcutsHelp = true
+            return nil
+        }
+
+        return event
+    }
+
+    private var shouldHandleGlobalPlannerKeys: Bool {
+        guard !showAddTaskSheet,
+              !showSearchPanel,
+              !showCommandPalette,
+              !showDebriefSheet,
+              activeQuizSession == nil,
+              !isTextInputFocused
+        else {
+            return false
+        }
+
+        return true
+    }
+
+    private var isTextInputFocused: Bool {
+        guard let firstResponder = NSApp.keyWindow?.firstResponder else { return false }
+        return firstResponder is NSTextView
+    }
+}
+
+private enum PlannerPanel: Hashable {
+    case left
+    case center
+    case right
 }
 
 private enum CenterTab: String, CaseIterable, Identifiable {
@@ -2326,6 +2616,13 @@ private struct SubjectHealthRow: Identifiable {
     let status: String
 
     var id: String { subject }
+}
+
+private extension Array {
+    subscript(safe index: Int) -> Element? {
+        guard indices.contains(index) else { return nil }
+        return self[index]
+    }
 }
 
 private struct HeaderActionButton: View {
