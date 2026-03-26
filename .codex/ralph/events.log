@@ -28,3 +28,6 @@
 [2026-03-26T20:50:15+1030] RUN START project=Timed total=15 done=9 max=300 sandbox=danger-full-access search=true
 [2026-03-26T20:50:15+1030] STORY START id=STORY-010 attempt=1 title=Subject study pane — dedicated study mode with progress tracking 
 [2026-03-26T20:59:39+1030] STORY COMPLETE id=STORY-010 attempt=1
+[2026-03-26T20:59:39+1030] COMMIT story=STORY-010 sha=0a716ff
+[2026-03-26T20:59:41+1030] STORY START id=STORY-011 attempt=1 title=Full-text context search across all imported content 
+[2026-03-26T21:13:31+1030] STORY COMPLETE id=STORY-011 attempt=1

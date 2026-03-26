@@ -190,7 +190,7 @@
         "App builds without errors"
       ],
       "priority": 11,
-      "passes": false,
+      "passes": true,
       "notes": "Create a ContextSearchService.swift with: `func search(_ query: String, in store: PlannerStore) -> [SearchResult]`. SearchResult: { id, type: .task/.note/.transcript/.chat, title, subject, snippet, relevanceScore }. Scoring: exact title match = 100, substring match in title = 80, content match = 50, weighted by recency. For performance: build an in-memory index at startup — Dict<String, [SearchResult]> keyed by first 3 chars of each word. For the UI: create SearchPanelView.swift with a focused TextField, results List grouped by type. Wire ⌘K using .keyboardShortcut('k', modifiers: .command) on a hidden Button."
     },
     {
