@@ -39,6 +39,7 @@ final class PlannerStore {
         load()
         syncChatsFromCodexMemoryIfAvailable()
         bootstrapCodexMemoryPackIfNeeded()
+        scheduleCodexMemoryDeadlineDiscovery()
         if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil {
             startSeqtaBackgroundSync()
         }
@@ -574,6 +575,50 @@ final class PlannerStore {
         rebuildPlan(now: now)
     }
 
+    func applyDiscoveredDeadlines(_ deadlines: [DiscoveredDeadline], now: Date = .now) {
+        guard !deadlines.isEmpty else { return }
+
+        var insertedCount = 0
+        var updatedCount = 0
+
+        for deadline in deadlines {
+            let discoveredTask = calibratedTask(deadline.makeTask())
+
+            if let existingIndex = tasks.firstIndex(where: {
+                StableID.normalizedTaskIdentityTitle(from: $0.title) ==
+                    StableID.normalizedTaskIdentityTitle(from: deadline.title)
+            }) {
+                let existingTask = tasks[existingIndex]
+                var updatedTask = existingTask
+                updatedTask.subject = deadline.subject
+                updatedTask.importance = max(existingTask.importance, deadline.importance)
+                updatedTask.dueDate = deadline.dueDate ?? existingTask.dueDate
+                updatedTask.estimateMinutes = max(existingTask.estimateMinutes, deadline.estimateMinutes)
+                updatedTask.energy = deadline.energy == .high ? .high : existingTask.energy
+                if existingTask.notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    updatedTask.notes = deadline.notes
+                } else if !existingTask.notes.contains(deadline.query) {
+                    updatedTask.notes = "\(existingTask.notes)\n\n\(deadline.notes)"
+                }
+                updatedTask.isAutoDiscovered = existingTask.isAutoDiscovered || discoveredTask.isAutoDiscovered
+                tasks[existingIndex] = calibratedTask(updatedTask)
+                updatedCount += 1
+            } else {
+                tasks.insert(discoveredTask, at: 0)
+                insertedCount += 1
+            }
+
+            let matched = deadline.matchedMemoryTitles.isEmpty
+                ? "no direct codex-mem hits"
+                : deadline.matchedMemoryTitles.joined(separator: " | ")
+            print("[PlannerStore] startup deadline \(deadline.title) <- \(matched)")
+        }
+
+        let message = "Codex memory deadline discovery inserted \(insertedCount) task(s) and updated \(updatedCount) existing task(s)."
+        lastImportMessages = [message]
+        rebuildPlan(now: now)
+    }
+
     func promptSuggestions(for subject: String?) -> [String] {
         let quizSubject = subject ?? selectedContext?.subject ?? selectedTask?.subject ?? "English"
         return [
@@ -1106,6 +1151,7 @@ final class PlannerStore {
         }
         merged.isCompleted = existing.isCompleted || incoming.isCompleted
         merged.completedAt = [existing.completedAt, incoming.completedAt].compactMap { $0 }.max()
+        merged.isAutoDiscovered = existing.isAutoDiscovered || incoming.isAutoDiscovered
 
         return merged
     }
@@ -1124,7 +1170,8 @@ final class PlannerStore {
             notes: task.notes,
             energy: task.energy,
             isCompleted: task.isCompleted,
-            completedAt: task.completedAt
+            completedAt: task.completedAt,
+            isAutoDiscovered: task.isAutoDiscovered
         )
     }
 
@@ -1144,6 +1191,16 @@ final class PlannerStore {
     private func bootstrapCodexMemoryPackIfNeeded() {
         guard tasks.isEmpty else { return }
         importCodexMemorySchoolPack(automatic: true)
+    }
+
+    private func scheduleCodexMemoryDeadlineDiscovery() {
+        guard TimedPreferences.codexMemoryEnabled else { return }
+        guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else { return }
+
+        Task {
+            let deadlines = await CodexMemorySchoolPack.discoverDeadlines()
+            applyDiscoveredDeadlines(deadlines)
+        }
     }
 
     private func syncChatsFromCodexMemoryIfAvailable() {

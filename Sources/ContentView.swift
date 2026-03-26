@@ -1669,6 +1669,8 @@ struct ContentView: View {
 
     private func icon(for source: TaskSource) -> String {
         switch source {
+        case .codexMem:
+            return "brain"
         case .seqta:
             return "graduationcap"
         case .tickTick:

@@ -2,6 +2,7 @@ import CryptoKit
 import Foundation
 
 enum TaskSource: String, CaseIterable, Identifiable, Codable {
+    case codexMem = "codex-mem"
     case tickTick = "TickTick"
     case seqta = "Seqta"
     case transcript = "Transcript"
@@ -74,6 +75,74 @@ struct TaskItem: Identifiable, Hashable, Codable {
     var energy: TaskEnergy
     var isCompleted: Bool
     var completedAt: Date?
+    var isAutoDiscovered: Bool
+
+    init(
+        id: String,
+        title: String,
+        list: String,
+        source: TaskSource,
+        subject: String,
+        estimateMinutes: Int,
+        confidence: Int,
+        importance: Int,
+        dueDate: Date?,
+        notes: String,
+        energy: TaskEnergy,
+        isCompleted: Bool,
+        completedAt: Date?,
+        isAutoDiscovered: Bool = false
+    ) {
+        self.id = id
+        self.title = title
+        self.list = list
+        self.source = source
+        self.subject = subject
+        self.estimateMinutes = estimateMinutes
+        self.confidence = confidence
+        self.importance = importance
+        self.dueDate = dueDate
+        self.notes = notes
+        self.energy = energy
+        self.isCompleted = isCompleted
+        self.completedAt = completedAt
+        self.isAutoDiscovered = isAutoDiscovered
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case title
+        case list
+        case source
+        case subject
+        case estimateMinutes
+        case confidence
+        case importance
+        case dueDate
+        case notes
+        case energy
+        case isCompleted
+        case completedAt
+        case isAutoDiscovered
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        title = try container.decode(String.self, forKey: .title)
+        list = try container.decode(String.self, forKey: .list)
+        source = try container.decode(TaskSource.self, forKey: .source)
+        subject = try container.decode(String.self, forKey: .subject)
+        estimateMinutes = try container.decode(Int.self, forKey: .estimateMinutes)
+        confidence = try container.decode(Int.self, forKey: .confidence)
+        importance = try container.decode(Int.self, forKey: .importance)
+        dueDate = try container.decodeIfPresent(Date.self, forKey: .dueDate)
+        notes = try container.decode(String.self, forKey: .notes)
+        energy = try container.decode(TaskEnergy.self, forKey: .energy)
+        isCompleted = try container.decode(Bool.self, forKey: .isCompleted)
+        completedAt = try container.decodeIfPresent(Date.self, forKey: .completedAt)
+        isAutoDiscovered = try container.decodeIfPresent(Bool.self, forKey: .isAutoDiscovered) ?? false
+    }
 }
 
 struct ContextItem: Identifiable, Hashable, Codable {

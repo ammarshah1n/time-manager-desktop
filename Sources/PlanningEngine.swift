@@ -132,6 +132,8 @@ enum PlanningEngine {
 
     private static func sourceWeight(_ source: TaskSource) -> Int {
         switch source {
+        case .codexMem:
+            return 16
         case .seqta:
             return 16
         case .transcript:

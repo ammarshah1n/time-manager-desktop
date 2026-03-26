@@ -9,7 +9,46 @@ struct SchoolContextPack {
     let focusSubject: String?
 }
 
+struct DiscoveredDeadline: Equatable, Sendable {
+    let title: String
+    let subject: String
+    let importance: Int
+    let dueDate: Date?
+    let estimateMinutes: Int
+    let energy: TaskEnergy
+    let query: String
+    let notes: String
+    let matchedMemoryTitles: [String]
+
+    func makeTask() -> TaskItem {
+        TaskItem(
+            id: StableID.makeTaskID(source: .codexMem, title: title),
+            title: title,
+            list: "codex-mem",
+            source: .codexMem,
+            subject: subject,
+            estimateMinutes: estimateMinutes,
+            confidence: 3,
+            importance: importance,
+            dueDate: dueDate,
+            notes: notes,
+            energy: energy,
+            isCompleted: false,
+            completedAt: nil,
+            isAutoDiscovered: true
+        )
+    }
+}
+
+struct DiscoveredMemoryHit: Equatable, Sendable {
+    let source: String
+    let title: String
+    let snippet: String
+}
+
 enum CodexMemorySchoolPack {
+    typealias DiscoverySearchProvider = @Sendable (_ query: String, _ limit: Int) -> [DiscoveredMemoryHit]
+
     static func load(
         now: Date = .now,
         homeDirectory: String = NSHomeDirectory(),
@@ -195,11 +234,84 @@ enum CodexMemorySchoolPack {
         )
     }
 
+    static func discoverDeadlines(
+        now: Date = .now,
+        codexMemDBPath: String = TimedPreferences.codexMemDBPath,
+        codexConfigPath: String = defaultCodexConfigPath,
+        searchProvider: DiscoverySearchProvider? = nil
+    ) async -> [DiscoveredDeadline] {
+        await Task.detached(priority: .utility) {
+            let calendar = Calendar.current
+            let provider = searchProvider ?? { query, limit in
+                searchCodexMem(
+                    query: query,
+                    limit: limit,
+                    codexMemDBPath: codexMemDBPath,
+                    codexConfigPath: codexConfigPath
+                )
+            }
+
+            return deadlineSpecs(now: now, calendar: calendar).map { spec in
+                let hits = provider(spec.query, 5)
+                let matchedHits = relevantHits(from: hits, keywords: spec.keywords)
+                let effectiveHits = matchedHits.isEmpty ? Array(hits.prefix(3)) : matchedHits
+                let matchedTitles = effectiveHits
+                    .map(\.title)
+                    .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+
+                let dueDate = spec.fixedDueDate ?? inferredDueDate(from: effectiveHits, now: now, calendar: calendar)
+                let notes = discoveryNotes(for: spec, hits: effectiveHits, dueDate: dueDate)
+                let label = matchedTitles.isEmpty ? "no direct hits" : matchedTitles.joined(separator: " | ")
+                print("[PlannerStore] codex-mem deadline query '\(spec.query)' -> \(label)")
+
+                return DiscoveredDeadline(
+                    title: spec.title,
+                    subject: spec.subject,
+                    importance: spec.importance,
+                    dueDate: dueDate,
+                    estimateMinutes: spec.estimateMinutes,
+                    energy: spec.energy,
+                    query: spec.query,
+                    notes: notes,
+                    matchedMemoryTitles: matchedTitles
+                )
+            }
+        }.value
+    }
+
     private struct MemorySessionRecord {
         let id: String
         let title: String
         let subject: String
         let oneLineSummary: String
+    }
+
+    private struct DeadlineSpec {
+        let title: String
+        let subject: String
+        let importance: Int
+        let estimateMinutes: Int
+        let energy: TaskEnergy
+        let query: String
+        let fixedDueDate: Date?
+        let keywords: [String]
+    }
+
+    private struct CodexMemCLIResponse: Decodable {
+        let workstreams: [CodexMemCLIWorkstream]?
+        let rawResults: [CodexMemCLIRawResult]?
+    }
+
+    private struct CodexMemCLIWorkstream: Decodable {
+        let canonicalName: String?
+        let summary: String?
+        let representativeTitle: String?
+    }
+
+    private struct CodexMemCLIRawResult: Decodable {
+        let source: String?
+        let title: String?
+        let snippet: String?
     }
 
     private static func makeTask(
@@ -268,6 +380,276 @@ enum CodexMemorySchoolPack {
             repeatedTimePolicy: .first,
             direction: .forward
         ) ?? now
+    }
+
+    private static var defaultCodexConfigPath: String {
+        URL(fileURLWithPath: NSHomeDirectory())
+            .appendingPathComponent(".codex/config.toml")
+            .path
+    }
+
+    private static func deadlineSpecs(now: Date, calendar: Calendar) -> [DeadlineSpec] {
+        [
+            DeadlineSpec(
+                title: "Economics test",
+                subject: "Economics",
+                importance: 10,
+                estimateMinutes: 120,
+                energy: .high,
+                query: "economics test deadline due assessment friday",
+                fixedDueDate: nextWeekday(6, hour: 9, minute: 0, from: now, calendar: calendar),
+                keywords: ["economics", "test", "assessment"]
+            ),
+            DeadlineSpec(
+                title: "English assessment",
+                subject: "English",
+                importance: 8,
+                estimateMinutes: 90,
+                energy: .high,
+                query: "english assessment deadline due",
+                fixedDueDate: nil,
+                keywords: ["english", "assessment", "essay", "comparative"]
+            ),
+            DeadlineSpec(
+                title: "Maths investigation",
+                subject: "Maths",
+                importance: 7,
+                estimateMinutes: 150,
+                energy: .high,
+                query: "maths investigation deadline due assessment wednesday",
+                fixedDueDate: nextWeekday(4, hour: 9, minute: 0, from: now, calendar: calendar),
+                keywords: ["maths", "mathematics", "investigation"]
+            ),
+            DeadlineSpec(
+                title: "Society and Culture photo essay",
+                subject: "Society and Culture",
+                importance: 5,
+                estimateMinutes: 120,
+                energy: .medium,
+                query: "society and culture photo essay deadline due assessment",
+                fixedDueDate: nil,
+                keywords: ["society", "culture", "photo essay", "essay"]
+            )
+        ]
+    }
+
+    private static func discoveryNotes(for spec: DeadlineSpec, hits: [DiscoveredMemoryHit], dueDate: Date?) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .full
+        formatter.timeStyle = .none
+
+        let hitSummary = hits.isEmpty
+            ? "No direct codex-mem hit returned, so Timed seeded this deadline from the startup school pack."
+            : hits.prefix(3).map {
+                let snippet = $0.snippet.trimmingCharacters(in: .whitespacesAndNewlines)
+                if snippet.isEmpty {
+                    return $0.title
+                }
+                return "\($0.title): \(snippet)"
+            }.joined(separator: "\n- ")
+
+        let dueLine = dueDate.map { "Resolved deadline: \(formatter.string(from: $0))." } ?? "Resolved deadline: not fixed in memory."
+
+        return """
+        Auto-discovered from codex-mem startup search.
+        Query: \(spec.query)
+        \(dueLine)
+        Matches:
+        - \(hitSummary)
+        """
+    }
+
+    private static func relevantHits(from hits: [DiscoveredMemoryHit], keywords: [String]) -> [DiscoveredMemoryHit] {
+        guard !keywords.isEmpty else { return hits }
+
+        let loweredKeywords = keywords.map { $0.lowercased() }
+        return hits.filter { hit in
+            let haystack = "\(hit.title) \(hit.snippet)".lowercased()
+            return loweredKeywords.contains(where: haystack.contains)
+        }
+    }
+
+    private static func inferredDueDate(
+        from hits: [DiscoveredMemoryHit],
+        now: Date,
+        calendar: Calendar
+    ) -> Date? {
+        let formatter = ISO8601DateFormatter()
+        let weekdayMap: [(String, Int)] = [
+            ("monday", 2),
+            ("tuesday", 3),
+            ("wednesday", 4),
+            ("thursday", 5),
+            ("friday", 6),
+            ("saturday", 7),
+            ("sunday", 1)
+        ]
+
+        for text in hits.flatMap({ [$0.title, $0.snippet] }) {
+            let lowered = text.lowercased()
+
+            if let match = lowered.range(of: #"\b20\d{2}-\d{2}-\d{2}\b"#, options: .regularExpression),
+               let parsed = formatter.date(from: "\(lowered[match])T09:00:00Z")
+            {
+                return parsed
+            }
+
+            for (weekdayName, weekdayValue) in weekdayMap where lowered.contains(weekdayName) {
+                return nextWeekday(weekdayValue, hour: 9, minute: 0, from: now, calendar: calendar)
+            }
+        }
+
+        return nil
+    }
+
+    private static func searchCodexMem(
+        query: String,
+        limit: Int,
+        codexMemDBPath: String,
+        codexConfigPath: String
+    ) -> [DiscoveredMemoryHit] {
+        if let invocation = resolveCodexMemCLIInvocation(configPath: codexConfigPath),
+           let response = runCodexMemCLI(invocation: invocation, query: query, limit: limit)
+        {
+            let hits = cliHits(from: response)
+            if !hits.isEmpty {
+                return hits
+            }
+        }
+
+        return CodexMemorySearchProvider.search(question: query, limit: limit, dbPath: codexMemDBPath).map {
+            DiscoveredMemoryHit(source: $0.source, title: $0.title, snippet: $0.excerpt)
+        }
+    }
+
+    private static func resolveCodexMemCLIInvocation(
+        configPath: String
+    ) -> (executable: String, baseArguments: [String])? {
+        let fileManager = FileManager.default
+        let pathEntries = (ProcessInfo.processInfo.environment["PATH"] ?? "")
+            .split(separator: ":")
+            .map(String.init)
+
+        for entry in pathEntries {
+            let candidate = URL(fileURLWithPath: entry).appendingPathComponent("codex-mem").path
+            if fileManager.isExecutableFile(atPath: candidate) {
+                return (candidate, [])
+            }
+        }
+
+        let installedWrapper = URL(fileURLWithPath: NSHomeDirectory())
+            .appendingPathComponent(".codex-mem/bin/codex-mem")
+            .path
+        if fileManager.isExecutableFile(atPath: installedWrapper) {
+            return (installedWrapper, [])
+        }
+
+        guard let configText = try? String(contentsOfFile: configPath, encoding: .utf8) else {
+            return nil
+        }
+
+        let lines = configText.components(separatedBy: .newlines)
+        guard let blockStart = lines.firstIndex(where: { $0.trimmingCharacters(in: .whitespaces) == "[mcp_servers.codex_mem]" }) else {
+            return nil
+        }
+
+        let blockLines = lines[(blockStart + 1)...].prefix { line in
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            return !trimmed.hasPrefix("[")
+        }
+
+        guard
+            let commandLine = blockLines.first(where: { $0.contains("command =") }),
+            let executable = quotedValues(in: commandLine).first,
+            fileManager.isExecutableFile(atPath: executable)
+        else {
+            return nil
+        }
+
+        let argsLine = blockLines.first(where: { $0.contains("args =") })
+        let args = argsLine.map(quotedValues(in:)) ?? []
+        guard let cliPath = args.first, fileManager.fileExists(atPath: cliPath) else {
+            return nil
+        }
+
+        return (executable, [cliPath])
+    }
+
+    private static func runCodexMemCLI(
+        invocation: (executable: String, baseArguments: [String]),
+        query: String,
+        limit: Int
+    ) -> CodexMemCLIResponse? {
+        let process = Process()
+        let outputPipe = Pipe()
+
+        process.executableURL = URL(fileURLWithPath: invocation.executable)
+        process.arguments = invocation.baseArguments + ["search", query, "--limit", String(limit)]
+        process.standardOutput = outputPipe
+        process.standardError = Pipe()
+
+        do {
+            try process.run()
+            process.waitUntilExit()
+
+            guard process.terminationStatus == 0 else { return nil }
+            let data = outputPipe.fileHandleForReading.readDataToEndOfFile()
+            guard let output = String(data: data, encoding: .utf8),
+                  let jsonStart = output.firstIndex(of: "{")
+            else {
+                return nil
+            }
+
+            let json = String(output[jsonStart...])
+            return try JSONDecoder().decode(CodexMemCLIResponse.self, from: Data(json.utf8))
+        } catch {
+            return nil
+        }
+    }
+
+    private static func cliHits(from response: CodexMemCLIResponse) -> [DiscoveredMemoryHit] {
+        var hits: [DiscoveredMemoryHit] = []
+
+        if let workstreams = response.workstreams {
+            hits.append(contentsOf: workstreams.map { workstream in
+                DiscoveredMemoryHit(
+                    source: "workstream",
+                    title: workstream.representativeTitle ?? workstream.canonicalName ?? "codex-mem workstream",
+                    snippet: workstream.summary ?? ""
+                )
+            })
+        }
+
+        if let rawResults = response.rawResults {
+            hits.append(contentsOf: rawResults.map { result in
+                DiscoveredMemoryHit(
+                    source: result.source ?? "rawResult",
+                    title: result.title ?? "",
+                    snippet: result.snippet ?? ""
+                )
+            })
+        }
+
+        var deduped: [DiscoveredMemoryHit] = []
+        var seen: Set<String> = []
+        for hit in hits {
+            let key = "\(hit.source)|\(hit.title)|\(hit.snippet)"
+            guard !seen.contains(key) else { continue }
+            seen.insert(key)
+            deduped.append(hit)
+        }
+
+        return deduped
+    }
+
+    private static func quotedValues(in line: String) -> [String] {
+        let pattern = #""([^"]+)""#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return [] }
+        let range = NSRange(line.startIndex..., in: line)
+        return regex.matches(in: line, range: range).compactMap { match in
+            guard let captureRange = Range(match.range(at: 1), in: line) else { return nil }
+            return String(line[captureRange])
+        }
     }
 
     private static func queryFirstLine(sql: String, dbPath: String) -> String {

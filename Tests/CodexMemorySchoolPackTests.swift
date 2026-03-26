@@ -100,6 +100,130 @@ struct CodexMemorySchoolPackTests {
         #expect(pack.contexts.contains(where: { $0.subject == "English" && $0.kind == "Plan" }))
     }
 
+    @Test
+    func testDeadlineDiscoveryUsesRequiredQueriesAndBuildsExpectedDeadlines() async {
+        let now = ISO8601DateFormatter().date(from: "2026-03-26T01:38:00Z")!
+        let capture = QueryCapture()
+
+        let deadlines = await CodexMemorySchoolPack.discoverDeadlines(
+            now: now,
+            searchProvider: { query, _ in
+                capture.append(query)
+
+                switch query {
+                case "economics test deadline due assessment friday":
+                    return [
+                        DiscoveredMemoryHit(
+                            source: "codex-live",
+                            title: "Economics test structure and feedback constraints",
+                            snippet: "Economics test is on Friday and needs workbook-style revision."
+                        )
+                    ]
+                case "english assessment deadline due":
+                    return [
+                        DiscoveredMemoryHit(
+                            source: "school",
+                            title: "English assessment planning",
+                            snippet: "English comparative assessment prep is next in priority."
+                        )
+                    ]
+                case "maths investigation deadline due assessment wednesday":
+                    return [
+                        DiscoveredMemoryHit(
+                            source: "codex-live",
+                            title: "Maths investigation feedback cleanup",
+                            snippet: "Maths investigation is due Wednesday after teacher revisions."
+                        )
+                    ]
+                case "society and culture photo essay deadline due assessment":
+                    return [
+                        DiscoveredMemoryHit(
+                            source: "claude_import",
+                            title: "Society and Culture photo essay",
+                            snippet: "Photo essay source shortlist for society and culture."
+                        )
+                    ]
+                default:
+                    return []
+                }
+            }
+        )
+
+        let combinedQueries = capture.queries.joined(separator: " | ")
+        #expect(combinedQueries.contains("economics test"))
+        #expect(combinedQueries.contains("english"))
+        #expect(combinedQueries.contains("maths investigation"))
+        #expect(combinedQueries.contains("society and culture"))
+        #expect(combinedQueries.contains("deadline"))
+        #expect(combinedQueries.contains("due"))
+        #expect(combinedQueries.contains("assessment"))
+
+        #expect(deadlines.count == 4)
+        #expect(deadlines.first(where: { $0.subject == "Economics" })?.importance == 10)
+        #expect(deadlines.first(where: { $0.subject == "English" })?.importance == 8)
+        #expect(deadlines.first(where: { $0.subject == "Maths" })?.importance == 7)
+        #expect(deadlines.first(where: { $0.subject == "Society and Culture" })?.importance == 5)
+
+        let calendar = Calendar.current
+        let economicsDueDate = try? #require(deadlines.first(where: { $0.subject == "Economics" })?.dueDate)
+        let mathsDueDate = try? #require(deadlines.first(where: { $0.subject == "Maths" })?.dueDate)
+
+        #expect(calendar.component(.weekday, from: economicsDueDate ?? now) == 6)
+        #expect(calendar.component(.hour, from: economicsDueDate ?? now) == 9)
+        #expect(calendar.component(.minute, from: economicsDueDate ?? now) == 0)
+        #expect(calendar.component(.weekday, from: mathsDueDate ?? now) == 4)
+        #expect(calendar.component(.hour, from: mathsDueDate ?? now) == 9)
+        #expect(calendar.component(.minute, from: mathsDueDate ?? now) == 0)
+    }
+
+    @Test
+    @MainActor
+    func testPlannerStoreAppliesDiscoveredDeadlinesAsCodexMemTasks() {
+        let storageURL = FileManager.default.temporaryDirectory.appendingPathComponent("timed-deadlines-\(UUID().uuidString).json")
+        let store = PlannerStore(storageURL: storageURL)
+        store.tasks = []
+        store.contexts = []
+        store.chat = []
+        store.schedule = []
+
+        let deadlines = [
+            DiscoveredDeadline(
+                title: "Economics test",
+                subject: "Economics",
+                importance: 10,
+                dueDate: ISO8601DateFormatter().date(from: "2026-03-27T09:00:00Z"),
+                estimateMinutes: 120,
+                energy: .high,
+                query: "economics test deadline due assessment friday",
+                notes: "Auto-discovered from codex-mem.",
+                matchedMemoryTitles: ["Economics test structure and feedback constraints"]
+            ),
+            DiscoveredDeadline(
+                title: "Society and Culture photo essay",
+                subject: "Society and Culture",
+                importance: 5,
+                dueDate: nil,
+                estimateMinutes: 120,
+                energy: .medium,
+                query: "society and culture photo essay deadline due assessment",
+                notes: "Auto-discovered from codex-mem.",
+                matchedMemoryTitles: ["Society and Culture photo essay"]
+            )
+        ]
+
+        store.applyDiscoveredDeadlines(deadlines)
+
+        let economics = try? #require(store.tasks.first(where: { $0.title == "Economics test" }))
+        let society = try? #require(store.tasks.first(where: { $0.title == "Society and Culture photo essay" }))
+
+        #expect(economics?.source == .codexMem)
+        #expect(economics?.isAutoDiscovered == true)
+        #expect(economics?.importance == 10)
+        #expect(economics?.list == "codex-mem")
+        #expect(society?.source == .codexMem)
+        #expect(society?.isAutoDiscovered == true)
+    }
+
     private func runSQLite(sql: String, dbPath: String) throws {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/sqlite3")
@@ -107,5 +231,22 @@ struct CodexMemorySchoolPackTests {
         try process.run()
         process.waitUntilExit()
         #expect(process.terminationStatus == 0)
+    }
+}
+
+private final class QueryCapture: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storage: [String] = []
+
+    var queries: [String] {
+        lock.lock()
+        defer { lock.unlock() }
+        return storage
+    }
+
+    func append(_ query: String) {
+        lock.lock()
+        storage.append(query)
+        lock.unlock()
     }
 }
