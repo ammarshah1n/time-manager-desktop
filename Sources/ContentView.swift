@@ -11,6 +11,7 @@ struct ContentView: View {
     @State private var selectedContextFilter = "All"
     @State private var selectedStudySubject = ""
     @State private var expandedStudySubject = ""
+    @State private var isStudyMode = false
     @State private var contextTaskID: String?
     @State private var showAddTaskSheet = false
     @State private var addTaskDraft = AddTaskDraft()
@@ -61,27 +62,37 @@ struct ContentView: View {
             )
             .ignoresSafeArea()
 
-            VStack(spacing: 18) {
-                header
+            Group {
+                if isStudyMode {
+                    StudyModeView(
+                        store: store,
+                        selectedSubject: $selectedStudySubject,
+                        onStartQuiz: startStudyModeQuiz
+                    )
+                } else {
+                    VStack(spacing: 18) {
+                        header
 
-                HStack(alignment: .top, spacing: 16) {
-                    if showLeft {
-                        leftColumn
-                            .frame(minWidth: 180, idealWidth: 220, maxWidth: 260)
-                            .transition(.move(edge: .leading).combined(with: .opacity))
-                    }
+                        HStack(alignment: .top, spacing: 16) {
+                            if showLeft {
+                                leftColumn
+                                    .frame(minWidth: 180, idealWidth: 220, maxWidth: 260)
+                                    .transition(.move(edge: .leading).combined(with: .opacity))
+                            }
 
-                    centerColumn
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            centerColumn
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                    if isContextDrawerVisible {
-                        rightColumn
-                            .frame(minWidth: 260, idealWidth: 320, maxWidth: 360)
-                            .transition(.move(edge: .trailing).combined(with: .opacity))
+                            if isContextDrawerVisible {
+                                rightColumn
+                                    .frame(minWidth: 260, idealWidth: 320, maxWidth: 360)
+                                    .transition(.move(edge: .trailing).combined(with: .opacity))
+                            }
+                        }
+                        .animation(.easeInOut(duration: 0.24), value: showLeft)
+                        .animation(.easeInOut(duration: 0.24), value: isContextDrawerVisible)
                     }
                 }
-                .animation(.easeInOut(duration: 0.24), value: showLeft)
-                .animation(.easeInOut(duration: 0.24), value: isContextDrawerVisible)
             }
             .padding(20)
             .opacity(isGlobalOverlayVisible ? 0.08 : 1)
@@ -103,6 +114,13 @@ struct ContentView: View {
         }
         .frame(minWidth: 1360, minHeight: 900)
         .preferredColorScheme(.dark)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button(isStudyMode ? "Back to Planner" : "Study Mode", systemImage: isStudyMode ? "rectangle.3.offgrid" : "book.closed") {
+                    toggleStudyMode()
+                }
+            }
+        }
         .sheet(isPresented: $showAddTaskSheet) {
             AddTaskSheet(
                 draft: $addTaskDraft,
@@ -1157,14 +1175,44 @@ struct ContentView: View {
         store.selectTask(task)
     }
 
+    private func toggleStudyMode() {
+        isStudyMode.toggle()
+        if isStudyMode {
+            prepareStudyModeSelection()
+        }
+    }
+
+    private func prepareStudyModeSelection() {
+        if let selectedTask = store.selectedTask, !selectedTask.isCompleted {
+            selectedStudySubject = selectedTask.subject
+            expandedStudySubject = selectedTask.subject
+            return
+        }
+
+        if let firstSubject = store.studyModeSubjects().first {
+            selectedStudySubject = firstSubject
+            expandedStudySubject = firstSubject
+        }
+    }
+
+    private func startStudyModeQuiz(for subject: String) {
+        selectedStudySubject = subject
+        expandedStudySubject = subject
+
+        guard let task = preferredTask(for: subject) else { return }
+        openStudyOverlay(for: task)
+    }
+
     private func openStudyOverlay(for task: TaskItem) {
         if store.isQuizMode {
             store.endQuiz()
         }
 
         selectTaskForContext(task)
-        centerTabRawValue = CenterTab.study.rawValue
-        showRight = true
+        if !isStudyMode {
+            centerTabRawValue = CenterTab.study.rawValue
+            showRight = true
+        }
 
         activeQuizSession = QuizSessionModel(
             task: task,

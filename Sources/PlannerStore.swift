@@ -12,6 +12,7 @@ final class PlannerStore {
     var contexts: [ContextItem] = []
     var obsidianDocuments: [ContextDocument] = []
     var schedule: [ScheduleBlock] = []
+    var subjectConfidences: [String: Int] = [:]
     var rankedTasks: [RankedTask] = []
     var selectedTaskID: String?
     var selectedContextID: String?
@@ -81,6 +82,7 @@ final class PlannerStore {
             tasks: tasks,
             contexts: contexts,
             schedule: schedule,
+            subjectConfidences: subjectConfidences,
             selectedTaskID: selectedTaskID,
             selectedContextID: selectedContextID,
             promptText: promptText,
@@ -111,6 +113,7 @@ final class PlannerStore {
             tasks = snapshot.tasks
             contexts = snapshot.contexts
             schedule = snapshot.schedule
+            subjectConfidences = snapshot.subjectConfidences
             obsidianDocuments = snapshot.obsidianDocuments
             selectedTaskID = snapshot.selectedTaskID
             selectedContextID = snapshot.selectedContextID
@@ -124,6 +127,7 @@ final class PlannerStore {
             tasks = sample.tasks
             contexts = sample.contexts
             schedule = sample.schedule
+            subjectConfidences = [:]
             obsidianDocuments = []
             chat = sample.chat
             studyChat = sample.studyChat
@@ -148,6 +152,7 @@ final class PlannerStore {
     }
 
     func rebuildPlan(now: Date = .now) {
+        syncSubjectConfidenceState()
         let subjectImportance = rankingSubjectImportance()
         let confidenceOverrides = rankingConfidenceOverrides()
 
@@ -432,6 +437,7 @@ final class PlannerStore {
         contexts.insert(context, at: 0)
         contexts.sort { $0.createdAt > $1.createdAt }
         selectedContextID = context.id
+        subjectConfidences[canonicalSubjectName(task.subject)] = clampedConfidence(task.confidence)
         appendStudyMessage(
             PromptMessage(role: .assistant, text: "Debrief saved for \(task.title). Confidence is now \(task.confidence)/5."),
             subject: task.subject
@@ -564,7 +570,7 @@ final class PlannerStore {
     }
 
     func topDocuments(for subject: String, limit: Int = 3) -> [ContextDocument] {
-        let normalizedSubject = subject.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedSubject = canonicalSubjectName(subject)
         guard !normalizedSubject.isEmpty else { return [] }
 
         let keywords = SubjectCatalog.keywords(for: normalizedSubject)
@@ -586,6 +592,61 @@ final class PlannerStore {
             }
             .prefix(limit)
             .map { $0 }
+    }
+
+    func studyModeSubjects() -> [String] {
+        let taskSubjects = tasks.map(\.subject)
+        let contextSubjects = contexts.map(\.subject)
+        let documentSubjects = obsidianDocuments.map(\.subject)
+        let discoveredSubjects = taskSubjects + contextSubjects + documentSubjects + Array(subjectConfidences.keys)
+
+        return Array(
+            Set(
+                discoveredSubjects.map(canonicalSubjectName).filter { !$0.isEmpty }
+            )
+        )
+        .sorted { lhs, rhs in
+            let lhsConfidence = subjectConfidencePercent(for: lhs)
+            let rhsConfidence = subjectConfidencePercent(for: rhs)
+            if lhsConfidence == rhsConfidence {
+                return lhs.localizedCaseInsensitiveCompare(rhs) == .orderedAscending
+            }
+            return lhsConfidence < rhsConfidence
+        }
+    }
+
+    func subjectConfidenceValue(for subject: String) -> Int {
+        let canonicalSubject = canonicalSubjectName(subject)
+        guard !canonicalSubject.isEmpty else { return 3 }
+
+        if let storedValue = subjectConfidences[canonicalSubject] {
+            return clampedConfidence(storedValue)
+        }
+
+        return derivedConfidence(for: canonicalSubject)
+    }
+
+    func subjectConfidencePercent(for subject: String) -> Int {
+        subjectConfidenceValue(for: subject) * 20
+    }
+
+    func transcriptStudyContexts(for subject: String, searchText: String = "", limit: Int = 6) -> [ContextItem] {
+        let canonicalSubject = canonicalSubjectName(subject)
+        guard !canonicalSubject.isEmpty else { return [] }
+
+        let normalizedSearch = searchText
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+
+        let contexts = groundedStudyContexts(for: nil, subject: canonicalSubject)
+            .filter { $0.kind.caseInsensitiveCompare("Obsidian") != .orderedSame }
+            .filter { context in
+                guard !normalizedSearch.isEmpty else { return true }
+                let haystack = "\(context.title) \(context.summary) \(context.detail)".lowercased()
+                return haystack.contains(normalizedSearch)
+            }
+
+        return Array(contexts.prefix(limit))
     }
 
     func importCodexMemorySchoolPack(now: Date = .now, automatic: Bool = false) {
@@ -1019,8 +1080,7 @@ final class PlannerStore {
     }
 
     func groundedStudyContexts(for task: TaskItem?, subject: String? = nil) -> [ContextItem] {
-        let resolvedSubject = subject ?? task?.subject
-        guard let resolvedSubject else { return [] }
+        guard let resolvedSubject = canonicalSubject(subject ?? task?.subject ?? ""), !resolvedSubject.isEmpty else { return [] }
 
         let subjectContexts = sortedContexts.filter {
             $0.subject.caseInsensitiveCompare(resolvedSubject) == .orderedSame &&
@@ -1066,9 +1126,15 @@ final class PlannerStore {
 
     func applySubjectConfidences(_ values: [String: Int]) {
         guard !values.isEmpty else { return }
-        for index in tasks.indices {
-            if let confidence = values[tasks[index].subject] {
-                tasks[index].confidence = confidence
+        for (subject, confidence) in values {
+            let canonicalSubject = canonicalSubjectName(subject)
+            guard !canonicalSubject.isEmpty else { continue }
+
+            let clampedValue = clampedConfidence(confidence)
+            subjectConfidences[canonicalSubject] = clampedValue
+
+            for index in tasks.indices where tasks[index].subject.caseInsensitiveCompare(canonicalSubject) == .orderedSame {
+                tasks[index].confidence = clampedValue
             }
         }
     }
@@ -1197,7 +1263,8 @@ final class PlannerStore {
 
     private func calibratedTask(_ task: TaskItem) -> TaskItem {
         var mutable = task
-        mutable.confidence = inferredConfidence(for: task)
+        mutable.subject = canonicalSubjectName(task.subject)
+        mutable.confidence = inferredConfidence(for: mutable)
         return mutable
     }
 
@@ -1218,8 +1285,14 @@ final class PlannerStore {
     private func rankingConfidenceOverrides() -> [String: Double] {
         var values: [String: Double] = [:]
 
+        for (subject, confidence) in subjectConfidences {
+            let canonicalSubject = canonicalSubjectName(subject)
+            guard !canonicalSubject.isEmpty else { continue }
+            values[canonicalSubject] = Double(clampedConfidence(confidence))
+        }
+
         for task in tasks where task.source == .codexMem || task.isAutoDiscovered {
-            let subject = task.subject.trimmingCharacters(in: .whitespacesAndNewlines)
+            let subject = canonicalSubjectName(task.subject)
             guard !subject.isEmpty else { continue }
             values[subject] = min(values[subject] ?? 5.0, Double(task.confidence))
         }
@@ -1232,12 +1305,56 @@ final class PlannerStore {
     }
 
     private func inferredConfidence(for task: TaskItem) -> Int {
+        let canonicalSubject = canonicalSubjectName(task.subject)
+        if let storedValue = subjectConfidences[canonicalSubject] {
+            return clampedConfidence(storedValue)
+        }
         guard task.confidence == 3 else { return task.confidence }
         return CodexMemoryInsights.inferredConfidence(
-            subject: task.subject,
+            subject: canonicalSubject,
             title: task.title,
             fallback: task.confidence
         )
+    }
+
+    private func syncSubjectConfidenceState() {
+        var nextValues: [String: Int] = [:]
+        for subject in studyModeSubjects() {
+            nextValues[subject] = subjectConfidences[subject].map { clampedConfidence($0) } ?? derivedConfidence(for: subject)
+        }
+        subjectConfidences = nextValues
+    }
+
+    private func derivedConfidence(for subject: String) -> Int {
+        let matchingTasks = tasks.filter {
+            !$0.isCompleted && $0.subject.caseInsensitiveCompare(subject) == .orderedSame
+        }
+
+        if let lowestConfidence = matchingTasks.map(\.confidence).min() {
+            return clampedConfidence(lowestConfidence)
+        }
+
+        let archivedTasks = tasks.filter { $0.subject.caseInsensitiveCompare(subject) == .orderedSame }
+        if let fallbackConfidence = archivedTasks.map(\.confidence).min() {
+            return clampedConfidence(fallbackConfidence)
+        }
+
+        return 3
+    }
+
+    private func clampedConfidence(_ value: Int) -> Int {
+        max(1, min(5, value))
+    }
+
+    private func canonicalSubject(_ subject: String?) -> String? {
+        let canonical = canonicalSubjectName(subject ?? "")
+        return canonical.isEmpty ? nil : canonical
+    }
+
+    private func canonicalSubjectName(_ subject: String) -> String {
+        let trimmed = subject.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "" }
+        return SubjectCatalog.matchingSubject(in: trimmed) ?? trimmed
     }
 
     private func appendPlannerMessage(_ message: PromptMessage, subject: String? = nil) {
@@ -1443,6 +1560,7 @@ final class PlannerStore {
 
     private func syncChatsFromCodexMemoryIfAvailable() {
         guard TimedPreferences.codexMemoryEnabled else { return }
+        guard !Self.isRunningUnderTests else { return }
 
         let remotePlannerChat = CodexMemorySync.loadConversation(channel: .planner)
         let remoteStudyChat = CodexMemorySync.loadConversation(channel: .study)

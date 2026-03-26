@@ -247,6 +247,7 @@ struct PlanningEngineTests {
                     isApproved: true
                 )
             ],
+            subjectConfidences: [:],
             selectedTaskID: duplicate.id,
             selectedContextID: nil,
             promptText: "",
