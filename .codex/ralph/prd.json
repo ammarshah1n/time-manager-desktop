@@ -242,7 +242,7 @@
         "App builds without errors"
       ],
       "priority": 14,
-      "passes": false,
+      "passes": true,
       "notes": "In ContentView.swift, use .focusedValue and @FocusState for the ranked task list. For list navigation: maintain @State selectedTaskIndex: Int and use onKeyPress(.upArrow) / onKeyPress(.downArrow) (macOS 14+). For ⌘N, ⌘S etc: use .keyboardShortcut modifiers on hidden Buttons or use NSEvent.addLocalMonitorForEvents. Create KeyboardShortcutsHelpView.swift: a simple grid of shortcut + description pairs in a popover. The most important shortcut is ⌘K for search — make that the first thing that works."
     },
     {
