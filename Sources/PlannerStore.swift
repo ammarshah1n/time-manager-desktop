@@ -6,6 +6,7 @@ import Observation
 final class PlannerStore {
     private let storageURL: URL
     @ObservationIgnored private var seqtaWatcher: SeqtaFileWatcher?
+    @ObservationIgnored private var deadlineMonitorTask: Task<Void, Never>?
 
     var tasks: [TaskItem] = []
     var contexts: [ContextItem] = []
@@ -44,8 +45,14 @@ final class PlannerStore {
         bootstrapCodexMemoryPackIfNeeded()
         scheduleCodexMemoryDeadlineDiscovery()
         if !Self.isRunningUnderTests {
+            DeadlineAlertService.shared.requestAuthorizationIfNeeded()
+            startDeadlineMonitor()
             startSeqtaBackgroundSync()
         }
+    }
+
+    deinit {
+        deadlineMonitorTask?.cancel()
     }
 
     var selectedTask: TaskItem? {
@@ -178,6 +185,7 @@ final class PlannerStore {
             selectedContextID = sortedContexts.first?.id
         }
 
+        refreshDeadlineState(now: now, rescheduleNotifications: true)
         save()
     }
 
@@ -1402,6 +1410,25 @@ final class PlannerStore {
     private func bootstrapCodexMemoryPackIfNeeded() {
         guard tasks.isEmpty else { return }
         importCodexMemorySchoolPack(automatic: true)
+    }
+
+    private func startDeadlineMonitor() {
+        deadlineMonitorTask?.cancel()
+        deadlineMonitorTask = Task { [weak self] in
+            while let self, !Task.isCancelled {
+                self.refreshDeadlineState(now: .now, rescheduleNotifications: false)
+                try? await Task.sleep(nanoseconds: 60_000_000_000)
+            }
+        }
+    }
+
+    private func refreshDeadlineState(now: Date = .now, rescheduleNotifications: Bool) {
+        guard !Self.isRunningUnderTests else { return }
+        DeadlineAlertService.shared.refresh(
+            tasks: tasks,
+            now: now,
+            shouldRescheduleNotifications: rescheduleNotifications
+        )
     }
 
     private func scheduleCodexMemoryDeadlineDiscovery() {

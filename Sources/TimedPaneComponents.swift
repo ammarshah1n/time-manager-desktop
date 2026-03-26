@@ -19,6 +19,7 @@ struct TaskLibraryCompactRow: View {
     let title: String
     let iconName: String
     let dueText: String
+    let countdownText: String?
     let urgencyColor: Color
     let isSelected: Bool
     let isCompleted: Bool
@@ -42,6 +43,10 @@ struct TaskLibraryCompactRow: View {
                 Circle()
                     .fill(isCompleted ? Color.white.opacity(0.18) : urgencyColor)
                     .frame(width: 7, height: 7)
+
+                if let countdownText {
+                    DeadlineCountdownBadge(text: countdownText)
+                }
 
                 Text(dueText)
                     .font(.system(size: 11, weight: .medium))

@@ -30,7 +30,9 @@ struct ContentView: View {
     @State private var debriefCovered = ""
     @State private var debriefBlockers = ""
     @State private var didHandleInitialVaultSync = false
+    @State private var deadlineNow = Date.now
     private let focusTicker = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+    private let deadlineTicker = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
 
     @MainActor
     init() {
@@ -163,6 +165,9 @@ struct ContentView: View {
                 presentDebrief(for: activeFocusBlock)
             }
         }
+        .onReceive(deadlineTicker) { tick in
+            deadlineNow = tick
+        }
     }
 
     private var header: some View {
@@ -257,6 +262,7 @@ struct ContentView: View {
                                     title: task.title,
                                     iconName: icon(for: task.source),
                                     dueText: dueLabel(for: task.dueDate),
+                                    countdownText: deadlineCountdownText(for: task.dueDate),
                                     urgencyColor: urgencyColor(for: task),
                                     isSelected: contextTaskID == task.id,
                                     isCompleted: task.isCompleted,
@@ -1228,6 +1234,10 @@ struct ContentView: View {
         return dueDate.formatted(.dateTime.month(.abbreviated).day())
     }
 
+    private func deadlineCountdownText(for dueDate: Date?) -> String? {
+        DeadlineCountdownFormatter.badgeText(for: dueDate, now: deadlineNow)
+    }
+
     private func urgencyColor(for task: TaskItem) -> Color {
         guard !task.isCompleted else { return Color.white.opacity(0.18) }
         switch store.rankedTasks.first(where: { $0.task.id == task.id })?.band {
@@ -1336,9 +1346,15 @@ struct ContentView: View {
                             .foregroundStyle(.white.opacity(0.62))
 
                         if let dueDate = ranked.task.dueDate {
-                            Text("Due \(dueDate.formatted(date: .abbreviated, time: .omitted))")
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundStyle(.white.opacity(0.56))
+                            HStack(spacing: 8) {
+                                Text("Due \(dueDate.formatted(date: .abbreviated, time: .omitted))")
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundStyle(.white.opacity(0.56))
+
+                                if let countdownText = deadlineCountdownText(for: dueDate) {
+                                    DeadlineCountdownBadge(text: countdownText)
+                                }
+                            }
                         }
                     }
 
@@ -1437,9 +1453,15 @@ struct ContentView: View {
         TimedCard(title: task.title, icon: icon(for: task.source)) {
             VStack(alignment: .leading, spacing: 10) {
                 if let dueDate = task.dueDate {
-                    Text("Due \(dueDate.formatted(date: .abbreviated, time: .omitted))")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.56))
+                    HStack(spacing: 8) {
+                        Text("Due \(dueDate.formatted(date: .abbreviated, time: .omitted))")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.56))
+
+                        if let countdownText = deadlineCountdownText(for: dueDate) {
+                            DeadlineCountdownBadge(text: countdownText)
+                        }
+                    }
                 }
 
                 Text(task.notes.isEmpty ? "No notes yet." : task.notes)
