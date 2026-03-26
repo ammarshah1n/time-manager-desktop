@@ -7,7 +7,9 @@ enum TimedPreferences {
     static let codexMemoryEnabledKey = "timed.codexMemoryEnabled"
     static let workingRootKey = "timed.workingRoot"
     static let codexMemDBPathKey = "timed.codexMemDBPath"
-    static let obsidianVaultPathKey = "timed.obsidianVaultPath"
+    static let obsidianVaultPathKey = "obsidianVaultPath"
+    static let obsidianVaultPromptedKey = "timed.obsidianVaultPrompted"
+    private static let legacyObsidianVaultPathKey = "timed.obsidianVaultPath"
     static let defaultAIExecutablePath = "/Applications/Codex.app/Contents/Resources/codex"
     static let defaultWorkingRoot = NSHomeDirectory()
     static let defaultCodexMemDBPath = URL(fileURLWithPath: NSHomeDirectory())
@@ -15,6 +17,19 @@ enum TimedPreferences {
         .appendingPathComponent("codex-mem.db")
         .path
     static let defaultObsidianVaultPath = detectedObsidianVaultPath() ?? ""
+
+    static func migrateLegacyValuesIfNeeded() {
+        let defaults = UserDefaults.standard
+        let currentValue = defaults.string(forKey: obsidianVaultPathKey)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard currentValue?.isEmpty != false else { return }
+
+        let legacyValue = defaults.string(forKey: legacyObsidianVaultPathKey)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let legacyValue, !legacyValue.isEmpty else { return }
+
+        defaults.set(legacyValue, forKey: obsidianVaultPathKey)
+    }
 
     static var aiExecutablePath: String {
         let value = UserDefaults.standard.string(forKey: aiExecutablePathKey)?
@@ -51,9 +66,18 @@ enum TimedPreferences {
     }
 
     static var obsidianVaultPath: String {
-        let value = UserDefaults.standard.string(forKey: obsidianVaultPathKey)?
+        let defaults = UserDefaults.standard
+        let value = (defaults.string(forKey: obsidianVaultPathKey) ?? defaults.string(forKey: legacyObsidianVaultPathKey))?
             .trimmingCharacters(in: .whitespacesAndNewlines)
         return (value?.isEmpty == false) ? value! : defaultObsidianVaultPath
+    }
+
+    static var hasPromptedForObsidianVault: Bool {
+        UserDefaults.standard.object(forKey: obsidianVaultPromptedKey) as? Bool ?? false
+    }
+
+    static var shouldPromptForObsidianVault: Bool {
+        obsidianVaultPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !hasPromptedForObsidianVault
     }
 
     static func setWorkingRoot(_ path: String) {
@@ -65,7 +89,14 @@ enum TimedPreferences {
     }
 
     static func setObsidianVaultPath(_ path: String) {
-        UserDefaults.standard.set(path.trimmingCharacters(in: .whitespacesAndNewlines), forKey: obsidianVaultPathKey)
+        let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        let defaults = UserDefaults.standard
+        defaults.set(trimmed, forKey: obsidianVaultPathKey)
+        defaults.removeObject(forKey: legacyObsidianVaultPathKey)
+    }
+
+    static func markObsidianVaultPromptHandled() {
+        UserDefaults.standard.set(true, forKey: obsidianVaultPromptedKey)
     }
 
     static var oneDriveRoots: [String] {
@@ -105,8 +136,8 @@ enum TimedPreferences {
     private static func detectedObsidianVaultPath() -> String? {
         let home = URL(fileURLWithPath: NSHomeDirectory())
         let candidates = [
-            home.appendingPathComponent("Library/Mobile Documents/iCloud~md~obsidian/Documents").path,
             home.appendingPathComponent("Documents/Obsidian").path,
+            home.appendingPathComponent("Library/Mobile Documents/iCloud~md~obsidian/Documents").path,
             home.appendingPathComponent("Obsidian").path
         ]
 

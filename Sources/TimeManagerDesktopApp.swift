@@ -3,6 +3,10 @@ import SwiftUI
 #if !SCREENSHOT_RENDERER
 @main
 struct TimeManagerDesktopApp: App {
+    init() {
+        TimedPreferences.migrateLegacyValuesIfNeeded()
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView()

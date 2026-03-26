@@ -9,6 +9,7 @@ final class PlannerStore {
 
     var tasks: [TaskItem] = []
     var contexts: [ContextItem] = []
+    var obsidianDocuments: [ContextDocument] = []
     var schedule: [ScheduleBlock] = []
     var rankedTasks: [RankedTask] = []
     var selectedTaskID: String?
@@ -30,8 +31,10 @@ final class PlannerStore {
     var importTitle = "Imported context"
     var importSource: ImportSource = .transcript
     var importText = ""
+    var isSyncingObsidianVault = false
 
     init(storageURL: URL? = nil, fileManager: FileManager = .default) {
+        TimedPreferences.migrateLegacyValuesIfNeeded()
         let baseURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? fileManager.temporaryDirectory
         let folderURL = baseURL.appendingPathComponent("Timed", isDirectory: true)
@@ -77,7 +80,8 @@ final class PlannerStore {
             chat: chat,
             studyChat: studyChat,
             promptBoostSubject: promptBoostSubject,
-            dismissedScheduleTaskIDs: Array(dismissedScheduleTaskIDs)
+            dismissedScheduleTaskIDs: Array(dismissedScheduleTaskIDs),
+            obsidianDocuments: obsidianDocuments
         )
 
         do {
@@ -100,6 +104,7 @@ final class PlannerStore {
             tasks = snapshot.tasks
             contexts = snapshot.contexts
             schedule = snapshot.schedule
+            obsidianDocuments = snapshot.obsidianDocuments
             selectedTaskID = snapshot.selectedTaskID
             selectedContextID = snapshot.selectedContextID
             promptText = snapshot.promptText
@@ -112,6 +117,7 @@ final class PlannerStore {
             tasks = sample.tasks
             contexts = sample.contexts
             schedule = sample.schedule
+            obsidianDocuments = []
             chat = sample.chat
             studyChat = sample.studyChat
             selectedTaskID = sample.tasks.first?.id
@@ -520,17 +526,49 @@ final class PlannerStore {
         return nil
     }
 
-    func syncObsidianVault() {
-        let result = ObsidianVaultImporter.sync(vaultPath: TimedPreferences.obsidianVaultPath)
-        contexts.removeAll { $0.kind == "Obsidian" }
-        contexts.insert(contentsOf: result.contexts, at: 0)
-        contexts.sort { $0.createdAt > $1.createdAt }
-        lastImportMessages = [result.message]
-        appendPlannerMessage(PromptMessage(role: .assistant, text: result.message))
-        if selectedContext == nil {
-            selectedContextID = contexts.first?.id
+    func syncObsidianVault(announce: Bool = true) {
+        let vaultPath = TimedPreferences.obsidianVaultPath
+        guard !vaultPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            lastImportMessages = ["No Obsidian vault path is configured."]
+            if announce {
+                appendPlannerMessage(PromptMessage(role: .assistant, text: "No Obsidian vault path is configured."))
+                save()
+            }
+            return
         }
-        rebuildPlan()
+
+        isSyncingObsidianVault = true
+        Task.detached(priority: .utility) {
+            let result = ObsidianVaultImporter.sync(vaultPath: vaultPath)
+            await MainActor.run {
+                self.applyObsidianSyncResult(result, announce: announce)
+            }
+        }
+    }
+
+    func topDocuments(for subject: String, limit: Int = 3) -> [ContextDocument] {
+        let normalizedSubject = subject.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedSubject.isEmpty else { return [] }
+
+        let keywords = SubjectCatalog.keywords(for: normalizedSubject)
+            .map(SubjectCatalog.normalizedSubjectText)
+            .filter { !$0.isEmpty }
+
+        return obsidianDocuments
+            .filter { $0.subject.caseInsensitiveCompare(normalizedSubject) == .orderedSame }
+            .sorted { lhs, rhs in
+                let lhsScore = documentScore(lhs, keywords: keywords)
+                let rhsScore = documentScore(rhs, keywords: keywords)
+                if lhsScore != rhsScore {
+                    return lhsScore > rhsScore
+                }
+                if lhs.importedAt != rhs.importedAt {
+                    return lhs.importedAt > rhs.importedAt
+                }
+                return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
+            }
+            .prefix(limit)
+            .map { $0 }
     }
 
     func importCodexMemorySchoolPack(now: Date = .now, automatic: Bool = false) {
@@ -706,6 +744,22 @@ final class PlannerStore {
 
         appendStudyMessage(PromptMessage(role: .tutor, text: response, isQuiz: true), subject: activeQuizSubject)
         save()
+    }
+
+    private func applyObsidianSyncResult(_ result: ObsidianSyncResult, announce: Bool) {
+        isSyncingObsidianVault = false
+        obsidianDocuments = result.documents
+        contexts.removeAll { $0.kind == "Obsidian" }
+        contexts.insert(contentsOf: result.contexts, at: 0)
+        contexts.sort { $0.createdAt > $1.createdAt }
+        lastImportMessages = [result.message]
+        if announce {
+            appendPlannerMessage(PromptMessage(role: .assistant, text: result.message))
+        }
+        if selectedContext == nil {
+            selectedContextID = contexts.first?.id
+        }
+        rebuildPlan()
     }
 
     private func buildPlanningPrompt(
@@ -900,6 +954,35 @@ final class PlannerStore {
             score(context: lhs, focusSubject: focusSubject, keywords: keywords) >
                 score(context: rhs, focusSubject: focusSubject, keywords: keywords)
         }
+    }
+
+    private func documentScore(_ document: ContextDocument, keywords: [String]) -> Int {
+        let titleText = SubjectCatalog.normalizedSubjectText(document.title)
+        let pathText = SubjectCatalog.normalizedSubjectText(document.path)
+        let contentText = SubjectCatalog.normalizedSubjectText(document.content)
+
+        var total = 0
+        for keyword in keywords {
+            total += occurrenceCount(of: keyword, in: titleText) * 8
+            total += occurrenceCount(of: keyword, in: pathText) * 5
+            total += occurrenceCount(of: keyword, in: contentText)
+        }
+
+        total += max(0, 72 - Int(Date.now.timeIntervalSince(document.importedAt) / 3600))
+        return total
+    }
+
+    private func occurrenceCount(of pattern: String, in text: String) -> Int {
+        guard !pattern.isEmpty, !text.isEmpty else { return 0 }
+        var count = 0
+        var searchRange = text.startIndex..<text.endIndex
+
+        while let range = text.range(of: pattern, options: [], range: searchRange) {
+            count += 1
+            searchRange = range.upperBound..<text.endIndex
+        }
+
+        return count
     }
 
     private func score(context: ContextItem, focusSubject: String?, keywords: Set<String>) -> Int {

@@ -155,6 +155,15 @@ struct ContextItem: Identifiable, Hashable, Codable {
     var createdAt: Date
 }
 
+struct ContextDocument: Identifiable, Hashable, Codable {
+    let id: String
+    var subject: String
+    var title: String
+    var content: String
+    var path: String
+    var importedAt: Date
+}
+
 struct ScheduleBlock: Identifiable, Hashable, Codable {
     let id: String
     var taskID: String
@@ -209,6 +218,62 @@ struct PlannerSnapshot: Codable {
     let studyChat: [PromptMessage]
     let promptBoostSubject: String?
     let dismissedScheduleTaskIDs: [String]
+    let obsidianDocuments: [ContextDocument]
+
+    init(
+        tasks: [TaskItem],
+        contexts: [ContextItem],
+        schedule: [ScheduleBlock],
+        selectedTaskID: String?,
+        selectedContextID: String?,
+        promptText: String,
+        chat: [PromptMessage],
+        studyChat: [PromptMessage],
+        promptBoostSubject: String?,
+        dismissedScheduleTaskIDs: [String],
+        obsidianDocuments: [ContextDocument] = []
+    ) {
+        self.tasks = tasks
+        self.contexts = contexts
+        self.schedule = schedule
+        self.selectedTaskID = selectedTaskID
+        self.selectedContextID = selectedContextID
+        self.promptText = promptText
+        self.chat = chat
+        self.studyChat = studyChat
+        self.promptBoostSubject = promptBoostSubject
+        self.dismissedScheduleTaskIDs = dismissedScheduleTaskIDs
+        self.obsidianDocuments = obsidianDocuments
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case tasks
+        case contexts
+        case schedule
+        case selectedTaskID
+        case selectedContextID
+        case promptText
+        case chat
+        case studyChat
+        case promptBoostSubject
+        case dismissedScheduleTaskIDs
+        case obsidianDocuments
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        tasks = try container.decode([TaskItem].self, forKey: .tasks)
+        contexts = try container.decode([ContextItem].self, forKey: .contexts)
+        schedule = try container.decode([ScheduleBlock].self, forKey: .schedule)
+        selectedTaskID = try container.decodeIfPresent(String.self, forKey: .selectedTaskID)
+        selectedContextID = try container.decodeIfPresent(String.self, forKey: .selectedContextID)
+        promptText = try container.decode(String.self, forKey: .promptText)
+        chat = try container.decode([PromptMessage].self, forKey: .chat)
+        studyChat = try container.decode([PromptMessage].self, forKey: .studyChat)
+        promptBoostSubject = try container.decodeIfPresent(String.self, forKey: .promptBoostSubject)
+        dismissedScheduleTaskIDs = try container.decodeIfPresent([String].self, forKey: .dismissedScheduleTaskIDs) ?? []
+        obsidianDocuments = try container.decodeIfPresent([ContextDocument].self, forKey: .obsidianDocuments) ?? []
+    }
 }
 
 struct ImportTaskDraft: Identifiable, Hashable {
@@ -393,6 +458,14 @@ enum SubjectCatalog {
         }
 
         return nil
+    }
+
+    static func keywords(for subject: String) -> [String] {
+        if let rule = aliasRules.first(where: { $0.subject.caseInsensitiveCompare(subject) == .orderedSame }) {
+            return Array(Set(rule.patterns + [rule.subject])).sorted()
+        }
+
+        return [subject]
     }
 
     static func normalizedSubjectText(_ text: String) -> String {

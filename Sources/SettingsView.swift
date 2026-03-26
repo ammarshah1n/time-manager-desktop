@@ -67,12 +67,21 @@ struct SettingsView: View {
 
                 HStack(spacing: 10) {
                     Button("Choose vault") {
-                        chooseDirectory(title: "Choose Obsidian vault") { obsidianVaultPath = $0 }
+                        chooseDirectory(title: "Choose Obsidian vault") {
+                            obsidianVaultPath = $0
+                            TimedPreferences.markObsidianVaultPromptHandled()
+                        }
                     }
 
                     Button("Auto-detect") {
                         obsidianVaultPath = TimedPreferences.defaultObsidianVaultPath
+                        TimedPreferences.markObsidianVaultPromptHandled()
                     }
+
+                    Button("Sync Vault") {
+                        NotificationCenter.default.post(name: .timedSyncObsidianVaultRequested, object: nil)
+                    }
+                    .disabled(obsidianVaultPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
 
@@ -91,6 +100,11 @@ struct SettingsView: View {
         }
         .padding(20)
         .frame(width: 640)
+        .onChange(of: obsidianVaultPath) { _, newValue in
+            if !newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                TimedPreferences.markObsidianVaultPromptHandled()
+            }
+        }
     }
 
     private func chooseExecutable() {

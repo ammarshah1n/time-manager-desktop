@@ -27,6 +27,7 @@ struct ContentView: View {
     @State private var debriefConfidence = 3.0
     @State private var debriefCovered = ""
     @State private var debriefBlockers = ""
+    @State private var didHandleInitialVaultSync = false
     private let focusTicker = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     @MainActor
@@ -132,8 +133,11 @@ struct ContentView: View {
             )
         }
         .task {
-            store.syncObsidianVault()
+            await handleInitialVaultSyncIfNeeded()
             await refreshDayPlan()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .timedSyncObsidianVaultRequested)) { _ in
+            store.syncObsidianVault()
         }
         .onChange(of: selectedCenterTab) { _, newTab in
             if newTab == .day {
@@ -479,6 +483,20 @@ struct ContentView: View {
                                             markTaskCompleteAndRefreshDrawer(contextDrawerTask)
                                         }
                                         .buttonStyle(.bordered)
+                                    }
+                                }
+                            }
+                        }
+
+                        if let contextDrawerSubject, !contextDrawerDocuments.isEmpty {
+                            TimedCard(title: "Obsidian Notes", icon: "books.vertical") {
+                                VStack(alignment: .leading, spacing: 10) {
+                                    Text("Top notes for \(contextDrawerSubject)")
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .foregroundStyle(.white.opacity(0.62))
+
+                                    ForEach(contextDrawerDocuments) { document in
+                                        ObsidianNoteSnippetCard(document: document)
                                     }
                                 }
                             }
@@ -979,6 +997,21 @@ struct ContentView: View {
         return store.tasks.first(where: { $0.id == contextTaskID && !$0.isCompleted })
     }
 
+    private var contextDrawerSubject: String? {
+        if let contextDrawerTask {
+            return contextDrawerTask.subject
+        }
+        if store.isQuizMode {
+            return store.activeQuizSubject ?? activeStudySubject
+        }
+        return nil
+    }
+
+    private var contextDrawerDocuments: [ContextDocument] {
+        guard let contextDrawerSubject else { return [] }
+        return store.topDocuments(for: contextDrawerSubject, limit: 3)
+    }
+
     private var contextDrawerContexts: [ContextItem] {
         if let contextDrawerTask {
             return store.groundedStudyContexts(for: contextDrawerTask)
@@ -1035,6 +1068,38 @@ struct ContentView: View {
             if let quizTask = store.selectedTask {
                 selectTaskForContext(quizTask)
             }
+        }
+    }
+
+    private func handleInitialVaultSyncIfNeeded() async {
+        guard !didHandleInitialVaultSync else { return }
+        didHandleInitialVaultSync = true
+
+        if shouldPromptForVaultSelection {
+            promptForObsidianVault()
+        }
+
+        store.syncObsidianVault(announce: false)
+    }
+
+    private var shouldPromptForVaultSelection: Bool {
+        guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else { return false }
+        return TimedPreferences.shouldPromptForObsidianVault
+    }
+
+    private func promptForObsidianVault() {
+        TimedPreferences.markObsidianVaultPromptHandled()
+
+        let panel = NSOpenPanel()
+        panel.title = "Choose Obsidian vault"
+        panel.message = "Timed can import markdown notes by subject from your Obsidian vault."
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = false
+
+        if panel.runModal() == .OK, let url = panel.url {
+            TimedPreferences.setObsidianVaultPath(url.path)
         }
     }
 
