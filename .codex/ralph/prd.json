@@ -104,7 +104,7 @@
         "App builds without errors"
       ],
       "priority": 6,
-      "passes": false,
+      "passes": true,
       "notes": "ObsidianVaultImporter.swift needs: (1) recursive file enumeration using FileManager.default.enumerator(at:includingPropertiesForKeys:); (2) a ContextDocument struct with { id, subject, title, content, path, importedAt }; (3) store as [ContextDocument] in PlannerStore.obsidianDocuments; (4) a `topDocuments(for subject: String, limit: Int) -> [ContextDocument]` method using simple keyword frequency scoring; (5) in ContentView, in the right panel (task detail / context drawer), add an 'Obsidian Notes' section that calls topDocuments for the selected task's subject. Store vault path in Preferences with key 'obsidianVaultPath'."
     },
     {
