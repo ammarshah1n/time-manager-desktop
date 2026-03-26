@@ -206,7 +206,7 @@
         "App builds without errors"
       ],
       "priority": 12,
-      "passes": false,
+      "passes": true,
       "notes": "Create ConfidenceCalibrationView.swift as a popover or sheet. Trigger: in PlannerStore.importCurrentPayload() (or upsertTaskHints()), after inserting a task, check if subjectConfidences[task.subject] == nil. If so, set a @Published pendingCalibrationSubject: String? property. In ContentView, show a banner when pendingCalibrationSubject != nil. The popover has 5 simple form fields. On submit, call CodexBridge with prompt: 'Given these self-assessment answers about [subject]: [answers], return a JSON object with { confidence: Int (0-100), hints: [String] }. Be realistic and slightly pessimistic.' Parse response and apply."
     },
     {

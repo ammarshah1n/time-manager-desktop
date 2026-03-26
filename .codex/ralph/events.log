@@ -31,3 +31,6 @@
 [2026-03-26T20:59:39+1030] COMMIT story=STORY-010 sha=0a716ff
 [2026-03-26T20:59:41+1030] STORY START id=STORY-011 attempt=1 title=Full-text context search across all imported content 
 [2026-03-26T21:13:31+1030] STORY COMPLETE id=STORY-011 attempt=1
+[2026-03-26T21:13:32+1030] COMMIT story=STORY-011 sha=a63d1c2
+[2026-03-26T21:13:34+1030] STORY START id=STORY-012 attempt=1 title=Confidence calibration interview — onboarding quiz for new subjects 
+[2026-03-26T21:20:08+1030] STORY COMPLETE id=STORY-012 attempt=1
