@@ -40,7 +40,7 @@ final class PlannerStore {
         syncChatsFromCodexMemoryIfAvailable()
         bootstrapCodexMemoryPackIfNeeded()
         scheduleCodexMemoryDeadlineDiscovery()
-        if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil {
+        if !Self.isRunningUnderTests {
             startSeqtaBackgroundSync()
         }
     }
@@ -135,11 +135,16 @@ final class PlannerStore {
     }
 
     func rebuildPlan(now: Date = .now) {
+        let subjectImportance = rankingSubjectImportance()
+        let confidenceOverrides = rankingConfidenceOverrides()
+
         rankedTasks = PlanningEngine.rank(
             tasks: tasks,
             contexts: contexts,
             now: now,
-            promptBoostSubject: promptBoostSubject
+            promptBoostSubject: promptBoostSubject,
+            subjectImportance: subjectImportance,
+            confidenceOverride: confidenceOverrides
         ).map { ranked in
             RankedTask(
                 task: ranked.task,
@@ -1056,6 +1061,36 @@ final class PlannerStore {
         return mutable
     }
 
+    private func rankingSubjectImportance() -> [String: Double] {
+        // STORY-003 writes subject-level urgency into auto-discovered codex-mem tasks.
+        // Rebuild the map from those tasks so ranking stays deterministic across reloads.
+        var values: [String: Double] = [:]
+
+        for task in tasks where task.source == .codexMem || task.isAutoDiscovered {
+            let subject = task.subject.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !subject.isEmpty else { continue }
+            values[subject] = max(values[subject] ?? 1.0, subjectImportanceMultiplier(for: task.importance))
+        }
+
+        return values
+    }
+
+    private func rankingConfidenceOverrides() -> [String: Double] {
+        var values: [String: Double] = [:]
+
+        for task in tasks where task.source == .codexMem || task.isAutoDiscovered {
+            let subject = task.subject.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !subject.isEmpty else { continue }
+            values[subject] = min(values[subject] ?? 5.0, Double(task.confidence))
+        }
+
+        return values
+    }
+
+    private func subjectImportanceMultiplier(for importance: Int) -> Double {
+        max(1.0, Double(importance) / 5.0)
+    }
+
     private func inferredConfidence(for task: TaskItem) -> Int {
         guard task.confidence == 3 else { return task.confidence }
         return CodexMemoryInsights.inferredConfidence(
@@ -1090,6 +1125,22 @@ final class PlannerStore {
         merged.notes = incoming.notes
         merged.energy = incoming.energy
         return merged
+    }
+
+    private static var isRunningUnderTests: Bool {
+        let processInfo = ProcessInfo.processInfo
+
+        if processInfo.environment["XCTestConfigurationFilePath"] != nil {
+            return true
+        }
+
+        if processInfo.processName.contains("swiftpm-testing-helper") {
+            return true
+        }
+
+        return processInfo.arguments.contains { argument in
+            argument.contains(".xctest") || argument.contains("swiftpm-testing-helper")
+        }
     }
 
     private func migrateTaskIdentityIfNeeded() {

@@ -213,8 +213,8 @@ struct CodexMemorySchoolPackTests {
 
         store.applyDiscoveredDeadlines(deadlines)
 
-        let economics = try? #require(store.tasks.first(where: { $0.title == "Economics test" }))
-        let society = try? #require(store.tasks.first(where: { $0.title == "Society and Culture photo essay" }))
+        let economics = store.tasks.first(where: { $0.title == "Economics test" })
+        let society = store.tasks.first(where: { $0.title == "Society and Culture photo essay" })
 
         #expect(economics?.source == .codexMem)
         #expect(economics?.isAutoDiscovered == true)

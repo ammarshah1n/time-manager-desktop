@@ -78,7 +78,7 @@ struct PlanningEngineTests {
             runner: { _ in response }
         )
 
-        let task = try? #require(batch.taskDrafts.first)
+        let task = batch.taskDrafts.first
         #expect(batch.taskDrafts.count == 1)
         #expect(task?.title == "Maths investigation")
         #expect(task?.subject == "Maths")
@@ -285,6 +285,87 @@ struct PlanningEngineTests {
         )
 
         #expect(ranked.first?.task.subject == "English")
+    }
+
+    @Test("testSubjectImportanceMultiplierOrdersEconomicsEnglishThenSociety")
+    func testSubjectImportanceMultiplierOrdersEconomicsEnglishThenSociety() {
+        let economics = makeTask(id: "economics", title: "Economics test", subject: "Economics", dueOffsetDays: 5)
+        let english = makeTask(id: "english", title: "English assessment", subject: "English", dueOffsetDays: 5)
+        let society = makeTask(id: "society", title: "Society and Culture photo essay", subject: "Society and Culture", dueOffsetDays: 5)
+
+        let ranked = PlanningEngine.rank(
+            tasks: [society, english, economics],
+            contexts: [],
+            now: fixedNow,
+            promptBoostSubject: nil,
+            subjectImportance: [
+                "Economics": 2.0,
+                "English": 1.6,
+                "Society and Culture": 1.0
+            ]
+        )
+
+        #expect(ranked.map { $0.task.subject } == ["Economics", "English", "Society and Culture"])
+    }
+
+    @Test("testEconomicsRanksFirstAndMathsBeatsEnglishNearDeadline")
+    func testEconomicsRanksFirstAndMathsBeatsEnglishNearDeadline() {
+        let economics = makeTask(id: "economics", title: "Economics test", subject: "Economics", dueOffsetDays: 3)
+        let maths = makeTask(id: "maths", title: "Maths investigation", subject: "Maths", dueOffsetDays: 2)
+        let english = makeTask(id: "english", title: "English assessment", subject: "English", dueOffsetDays: 5)
+
+        let ranked = PlanningEngine.rank(
+            tasks: [english, maths, economics],
+            contexts: [],
+            now: fixedNow,
+            promptBoostSubject: nil,
+            subjectImportance: [
+                "Economics": 2.0,
+                "Maths": 1.4,
+                "English": 1.6
+            ]
+        )
+
+        #expect(ranked.first?.task.title == "Economics test")
+        #expect(ranked.dropFirst().first?.task.title == "Maths investigation")
+    }
+
+    @Test("testConfidenceOverrideRaisesUrgency")
+    func testConfidenceOverrideRaisesUrgency() {
+        var english = makeTask(id: "english", title: "English assessment", subject: "English", dueOffsetDays: 4)
+        let maths = makeTask(id: "maths", title: "Maths investigation", subject: "Maths", dueOffsetDays: 4)
+        english.confidence = 5
+
+        let ranked = PlanningEngine.rank(
+            tasks: [maths, english],
+            contexts: [],
+            now: fixedNow,
+            promptBoostSubject: nil,
+            subjectImportance: [:],
+            confidenceOverride: ["English": 1]
+        )
+
+        #expect(ranked.first?.task.subject == "English")
+    }
+
+    @Test("testExplainRankIncludesScoreBreakdown")
+    func testExplainRankIncludesScoreBreakdown() {
+        let economics = makeTask(id: "economics", title: "Economics test", subject: "Economics", dueOffsetDays: 3)
+
+        let explanation = PlanningEngine.explainRank(
+            task: economics,
+            contexts: [],
+            now: fixedNow,
+            promptBoostSubject: nil,
+            subjectImportance: ["Economics": 2.0],
+            confidenceOverride: ["Economics": 2]
+        )
+
+        #expect(explanation.contains("importance="))
+        #expect(explanation.contains("mult="))
+        #expect(explanation.contains("deadline="))
+        #expect(explanation.contains("confidenceGap="))
+        #expect(explanation.contains("total="))
     }
 
     @Test("testChatPersistence")
