@@ -35,7 +35,7 @@
         "App builds without errors"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "This is a major ContentView.swift restructure. Key changes: (1) Left panel becomes a flat list — remove the nested VStack card per task, use a plain List with compact row height. (2) Center panel uses a VStack with three named sections — pin 'Next Up' to top, 'Today's Plan' scrollable middle, 'Command' pinned to bottom. (3) Right panel uses a slide-in animation driven by @State selectedTask: PlannerTask?. When selectedTask != nil, show task detail + context. (4) Remove all the duplicate import/context panels that currently appear in both columns. (5) Section headers should be 11px uppercase tracking-wide labels. (6) Use a thin 1px Divider() between sections, not padding."
     },
     {
