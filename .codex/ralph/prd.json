@@ -222,7 +222,7 @@
         "App builds without errors"
       ],
       "priority": 13,
-      "passes": false,
+      "passes": true,
       "notes": "Create DailyOverviewCard.swift. Data it needs: store.tasks (for top 3 ranked), store.scheduleBlocks.filter { Calendar.current.isDateInToday($0.start) } for total hours, tasks with deadline in next 2 days. Place it in the center column VStack before the ranked list. 'Generate Day Plan' calls CodexBridge with a prompt built from today's top tasks + schedule. Subject color map: Economics = Color(hex: '#B8860B'), English = .blue, Maths = .purple, SoC = .green — use the top-ranked task's subject to tint the card. Persist isCollapsed in UserDefaults."
     },
     {

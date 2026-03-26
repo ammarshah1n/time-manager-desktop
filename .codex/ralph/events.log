@@ -34,3 +34,6 @@
 [2026-03-26T21:13:32+1030] COMMIT story=STORY-011 sha=a63d1c2
 [2026-03-26T21:13:34+1030] STORY START id=STORY-012 attempt=1 title=Confidence calibration interview — onboarding quiz for new subjects 
 [2026-03-26T21:20:08+1030] STORY COMPLETE id=STORY-012 attempt=1
+[2026-03-26T21:20:08+1030] COMMIT story=STORY-012 sha=3681a6e
+[2026-03-26T21:20:10+1030] STORY START id=STORY-013 attempt=1 title=Daily overview card — morning briefing and day plan summary 
+[2026-03-26T21:25:45+1030] STORY COMPLETE id=STORY-013 attempt=1
