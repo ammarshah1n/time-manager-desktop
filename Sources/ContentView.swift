@@ -20,6 +20,8 @@ struct ContentView: View {
     @State private var selectedWeekDeadline: Date?
     @State private var dayPlan = SchoolDayPlan(targetDate: .now, lessons: [], message: "Loading school calendar...")
     @State private var isLoadingDayPlan = false
+    @State private var showSearchPanel = false
+    @State private var searchQuery = ""
     @State private var showCommandPalette = false
     @State private var commandPaletteText = ""
     @State private var activeFocusBlock: ScheduleBlock?
@@ -32,6 +34,11 @@ struct ContentView: View {
     @State private var debriefBlockers = ""
     @State private var didHandleInitialVaultSync = false
     @State private var deadlineNow = Date.now
+    @State private var searchService = ContextSearchService()
+    @State private var selectedSearchDocumentID: String?
+    @State private var selectedSearchContextID: String?
+    @State private var highlightedPlannerChatMessageID: UUID?
+    @State private var highlightedStudyChatMessageID: UUID?
     private let focusTicker = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     private let deadlineTicker = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
 
@@ -46,6 +53,139 @@ struct ContentView: View {
     }
 
     var body: some View {
+        configuredRootView
+    }
+
+    private var layoutConfiguredView: AnyView {
+        AnyView(
+            rootView
+                .frame(minWidth: 1360, minHeight: 900)
+                .preferredColorScheme(.dark)
+        )
+    }
+
+    private var toolbarConfiguredView: AnyView {
+        AnyView(
+            layoutConfiguredView
+                .toolbar {
+                    ToolbarItem(placement: .primaryAction) {
+                        Button(isStudyMode ? "Back to Planner" : "Study Mode", systemImage: isStudyMode ? "rectangle.3.offgrid" : "book.closed") {
+                            toggleStudyMode()
+                        }
+                    }
+                }
+        )
+    }
+
+    private var sheetConfiguredView: AnyView {
+        AnyView(
+            toolbarConfiguredView
+                .sheet(isPresented: $showAddTaskSheet) {
+                    AddTaskSheet(
+                        draft: $addTaskDraft,
+                        errorMessage: $addTaskError,
+                        onSave: {
+                            if let error = store.addManualTask(addTaskDraft) {
+                                addTaskError = error
+                                return
+                            }
+                            addTaskDraft = AddTaskDraft()
+                            addTaskError = nil
+                            showAddTaskSheet = false
+                        }
+                    )
+                }
+                .sheet(isPresented: $showSearchPanel) {
+                    SearchPanelView(
+                        store: store,
+                        service: searchService,
+                        query: $searchQuery,
+                        onSelect: handleSearchSelection
+                    )
+                }
+                .sheet(
+                    isPresented: Binding(
+                        get: { store.pendingImportBatch != nil },
+                        set: { isPresented in
+                            if !isPresented {
+                                store.discardPendingImport()
+                            }
+                        }
+                    )
+                ) {
+                    ImportReviewSheet(store: store)
+                }
+                .sheet(isPresented: $showCommandPalette) {
+                    CommandPaletteSheet(
+                        query: $commandPaletteText,
+                        onRun: { query in
+                            Task { await runCommandPalette(query) }
+                        }
+                    )
+                }
+                .sheet(isPresented: $showDebriefSheet) {
+                    StudyDebriefSheet(
+                        confidence: $debriefConfidence,
+                        covered: $debriefCovered,
+                        blockers: $debriefBlockers,
+                        onSave: saveDebrief
+                    )
+                }
+        )
+    }
+
+    private var configuredRootView: some View {
+        AnyView(
+            sheetConfiguredView
+                .task {
+                    await handleInitialVaultSyncIfNeeded()
+                    await refreshDayPlan()
+                }
+                .onReceive(NotificationCenter.default.publisher(for: .timedSyncObsidianVaultRequested)) { _ in
+                    store.syncObsidianVault()
+                }
+                .onChange(of: store.tasks) { _, _ in
+                    searchService.invalidateIndex()
+                }
+                .onChange(of: store.contexts) { _, _ in
+                    searchService.invalidateIndex()
+                }
+                .onChange(of: store.obsidianDocuments) { _, _ in
+                    searchService.invalidateIndex()
+                }
+                .onChange(of: store.chat) { _, _ in
+                    searchService.invalidateIndex()
+                }
+                .onChange(of: store.studyChat) { _, _ in
+                    searchService.invalidateIndex()
+                }
+                .onChange(of: selectedCenterTab) { _, newTab in
+                    if newTab == .day {
+                        Task { await refreshDayPlan() }
+                    }
+                }
+                .onReceive(focusTicker) { tick in
+                    guard let activeFocusBlock, !showDebriefSheet else { return }
+                    focusNow = tick
+                    if tick >= activeFocusBlock.end {
+                        presentDebrief(for: activeFocusBlock)
+                    }
+                }
+                .onReceive(deadlineTicker) { tick in
+                    deadlineNow = tick
+                }
+        )
+    }
+
+    private var rootView: some View {
+        ZStack {
+            backgroundLayers
+            mainSurface
+            overlayLayers
+        }
+    }
+
+    private var backgroundLayers: some View {
         ZStack {
             WindowChromeConfigurator()
             TimedVisualEffectBackground(material: .underWindowBackground, blendingMode: .behindWindow)
@@ -61,130 +201,65 @@ struct ContentView: View {
                 endPoint: .bottomTrailing
             )
             .ignoresSafeArea()
+        }
+    }
 
-            Group {
-                if isStudyMode {
-                    StudyModeView(
-                        store: store,
-                        selectedSubject: $selectedStudySubject,
-                        onStartQuiz: startStudyModeQuiz
-                    )
-                } else {
-                    VStack(spacing: 18) {
-                        header
-
-                        HStack(alignment: .top, spacing: 16) {
-                            if showLeft {
-                                leftColumn
-                                    .frame(minWidth: 180, idealWidth: 220, maxWidth: 260)
-                                    .transition(.move(edge: .leading).combined(with: .opacity))
-                            }
-
-                            centerColumn
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-                            if isContextDrawerVisible {
-                                rightColumn
-                                    .frame(minWidth: 260, idealWidth: 320, maxWidth: 360)
-                                    .transition(.move(edge: .trailing).combined(with: .opacity))
-                            }
-                        }
-                        .animation(.easeInOut(duration: 0.24), value: showLeft)
-                        .animation(.easeInOut(duration: 0.24), value: isContextDrawerVisible)
-                    }
-                }
-            }
-            .padding(20)
-            .opacity(isGlobalOverlayVisible ? 0.08 : 1)
-            .allowsHitTesting(!isGlobalOverlayVisible)
-
-            if activeFocusBlock != nil {
-                focusOverlay
-            }
-
-            if let activeQuizSession {
-                QuizView(
-                    session: activeQuizSession,
-                    onClose: closeStudyOverlay,
-                    onEndSession: { summary in
-                        finishStudyOverlay(summary: summary)
-                    }
+    private var mainSurface: some View {
+        Group {
+            if isStudyMode {
+                StudyModeView(
+                    store: store,
+                    selectedSubject: $selectedStudySubject,
+                    onStartQuiz: startStudyModeQuiz
                 )
+            } else {
+                plannerSurface
             }
         }
-        .frame(minWidth: 1360, minHeight: 900)
-        .preferredColorScheme(.dark)
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button(isStudyMode ? "Back to Planner" : "Study Mode", systemImage: isStudyMode ? "rectangle.3.offgrid" : "book.closed") {
-                    toggleStudyMode()
+        .padding(20)
+        .opacity(isGlobalOverlayVisible ? 0.08 : 1)
+        .allowsHitTesting(!isGlobalOverlayVisible)
+    }
+
+    private var plannerSurface: some View {
+        VStack(spacing: 18) {
+            header
+
+            HStack(alignment: .top, spacing: 16) {
+                if showLeft {
+                    leftColumn
+                        .frame(minWidth: 180, idealWidth: 220, maxWidth: 260)
+                        .transition(.move(edge: .leading).combined(with: .opacity))
+                }
+
+                centerColumn
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                if isContextDrawerVisible {
+                    rightColumn
+                        .frame(minWidth: 260, idealWidth: 320, maxWidth: 360)
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
                 }
             }
+            .animation(.easeInOut(duration: 0.24), value: showLeft)
+            .animation(.easeInOut(duration: 0.24), value: isContextDrawerVisible)
         }
-        .sheet(isPresented: $showAddTaskSheet) {
-            AddTaskSheet(
-                draft: $addTaskDraft,
-                errorMessage: $addTaskError,
-                onSave: {
-                    if let error = store.addManualTask(addTaskDraft) {
-                        addTaskError = error
-                        return
-                    }
-                    addTaskDraft = AddTaskDraft()
-                    addTaskError = nil
-                    showAddTaskSheet = false
+    }
+
+    @ViewBuilder
+    private var overlayLayers: some View {
+        if activeFocusBlock != nil {
+            focusOverlay
+        }
+
+        if let activeQuizSession {
+            QuizView(
+                session: activeQuizSession,
+                onClose: closeStudyOverlay,
+                onEndSession: { summary in
+                    finishStudyOverlay(summary: summary)
                 }
             )
-        }
-        .sheet(
-            isPresented: Binding(
-                get: { store.pendingImportBatch != nil },
-                set: { isPresented in
-                    if !isPresented {
-                        store.discardPendingImport()
-                    }
-                }
-            )
-        ) {
-            ImportReviewSheet(store: store)
-        }
-        .sheet(isPresented: $showCommandPalette) {
-            CommandPaletteSheet(
-                query: $commandPaletteText,
-                onRun: { query in
-                    Task { await runCommandPalette(query) }
-                }
-            )
-        }
-        .sheet(isPresented: $showDebriefSheet) {
-            StudyDebriefSheet(
-                confidence: $debriefConfidence,
-                covered: $debriefCovered,
-                blockers: $debriefBlockers,
-                onSave: saveDebrief
-            )
-        }
-        .task {
-            await handleInitialVaultSyncIfNeeded()
-            await refreshDayPlan()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .timedSyncObsidianVaultRequested)) { _ in
-            store.syncObsidianVault()
-        }
-        .onChange(of: selectedCenterTab) { _, newTab in
-            if newTab == .day {
-                Task { await refreshDayPlan() }
-            }
-        }
-        .onReceive(focusTicker) { tick in
-            guard let activeFocusBlock, !showDebriefSheet else { return }
-            focusNow = tick
-            if tick >= activeFocusBlock.end {
-                presentDebrief(for: activeFocusBlock)
-            }
-        }
-        .onReceive(deadlineTicker) { tick in
-            deadlineNow = tick
         }
     }
 
@@ -228,10 +303,13 @@ struct ContentView: View {
                             selectTaskForContext(task)
                         }
                     }
+                    HeaderActionButton(title: "Search", systemImage: "magnifyingglass") {
+                        showSearchPanel = true
+                    }
+                    .keyboardShortcut("k", modifiers: [.command])
                     HeaderActionButton(title: "Command", systemImage: "command") {
                         showCommandPalette = true
                     }
-                    .keyboardShortcut("k", modifiers: [.command])
                     HeaderActionButton(title: isContextDrawerVisible ? "Hide Context" : "Context", systemImage: "sidebar.trailing") {
                         toggleContextDrawer()
                     }
@@ -403,7 +481,7 @@ struct ContentView: View {
                         ScrollView {
                             VStack(alignment: .leading, spacing: 10) {
                                 ForEach(commandMessages) { message in
-                                    PromptBubble(message: message)
+                                    PromptBubble(message: message, isHighlighted: false)
                                 }
                             }
                         }
@@ -481,9 +559,10 @@ struct ContentView: View {
 
                         Spacer()
 
-                        if contextTaskID != nil {
+                        if contextTaskID != nil || selectedSearchDocument != nil || selectedSearchContext != nil {
                             Button {
                                 contextTaskID = nil
+                                clearSearchPreview()
                             } label: {
                                 Image(systemName: "xmark")
                                     .font(.system(size: 12, weight: .bold))
@@ -496,6 +575,54 @@ struct ContentView: View {
                     .padding(.top, 12)
 
                     VStack(alignment: .leading, spacing: 14) {
+                        if let selectedSearchDocument {
+                            TimedCard(title: "Note Preview", icon: "note.text") {
+                                VStack(alignment: .leading, spacing: 10) {
+                                    HStack(spacing: 8) {
+                                        badge(text: selectedSearchDocument.subject, emphasis: .secondary)
+                                        Text("Obsidian")
+                                            .font(.system(size: 11, weight: .semibold))
+                                            .foregroundStyle(.white.opacity(0.5))
+                                    }
+
+                                    Text(selectedSearchDocument.path)
+                                        .font(.system(size: 11, weight: .medium))
+                                        .foregroundStyle(.white.opacity(0.48))
+                                        .textSelection(.enabled)
+
+                                    Text(selectedSearchDocument.content)
+                                        .font(.system(size: 13))
+                                        .foregroundStyle(.white.opacity(0.78))
+                                        .textSelection(.enabled)
+                                }
+                            }
+                        }
+
+                        if let selectedSearchContext {
+                            TimedCard(title: "Transcript Preview", icon: "text.book.closed") {
+                                VStack(alignment: .leading, spacing: 10) {
+                                    HStack(spacing: 8) {
+                                        if !selectedSearchContext.subject.isEmpty {
+                                            badge(text: selectedSearchContext.subject, emphasis: .secondary)
+                                        }
+
+                                        Text(selectedSearchContext.kind)
+                                            .font(.system(size: 11, weight: .semibold))
+                                            .foregroundStyle(.white.opacity(0.5))
+                                    }
+
+                                    Text(selectedSearchContext.summary)
+                                        .font(.system(size: 13, weight: .medium))
+                                        .foregroundStyle(.white.opacity(0.78))
+
+                                    Text(selectedSearchContext.detail)
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(.white.opacity(0.64))
+                                        .textSelection(.enabled)
+                                }
+                            }
+                        }
+
                         if store.isQuizMode {
                             TimedCard(title: "Quiz Mode", icon: "questionmark.circle") {
                                 VStack(alignment: .leading, spacing: 10) {
@@ -819,13 +946,12 @@ struct ContentView: View {
 
     private var planningChatTab: some View {
         ScrollView {
-            TimedCard(title: "Chat", icon: "message") {
-                VStack(alignment: .leading, spacing: 10) {
-                    ForEach(store.chat) { message in
-                        PromptBubble(message: message)
-                    }
-                }
-            }
+            PromptConversationCard(
+                title: "Chat",
+                icon: "message",
+                messages: store.chat,
+                highlightedMessageID: highlightedPlannerChatMessageID
+            )
         }
         .scrollIndicators(.hidden)
     }
@@ -888,11 +1014,10 @@ struct ContentView: View {
                 }
 
                 TimedCard(title: store.isQuizMode ? "Tutor chat" : "Study chat", icon: store.isQuizMode ? "questionmark.bubble" : "message") {
-                    VStack(alignment: .leading, spacing: 10) {
-                        ForEach(store.studyChat) { message in
-                            PromptBubble(message: message)
-                        }
-                    }
+                    PromptConversationList(
+                        messages: store.studyChat,
+                        highlightedMessageID: highlightedStudyChatMessageID
+                    )
                 }
             }
         }
@@ -1039,7 +1164,7 @@ struct ContentView: View {
     }
 
     private var isContextDrawerVisible: Bool {
-        contextDrawerTask != nil || store.isQuizMode
+        contextDrawerTask != nil || store.isQuizMode || selectedSearchDocument != nil || selectedSearchContext != nil
     }
 
     private var isGlobalOverlayVisible: Bool {
@@ -1052,6 +1177,12 @@ struct ContentView: View {
     }
 
     private var contextDrawerSubject: String? {
+        if let selectedSearchDocument {
+            return selectedSearchDocument.subject
+        }
+        if let selectedSearchContext, !selectedSearchContext.subject.isEmpty {
+            return selectedSearchContext.subject
+        }
         if let contextDrawerTask {
             return contextDrawerTask.subject
         }
@@ -1074,6 +1205,16 @@ struct ContentView: View {
             return store.groundedStudyContexts(for: nil, subject: store.activeQuizSubject ?? activeStudySubject)
         }
         return []
+    }
+
+    private var selectedSearchDocument: ContextDocument? {
+        guard let selectedSearchDocumentID else { return nil }
+        return store.obsidianDocuments.first(where: { $0.id == selectedSearchDocumentID })
+    }
+
+    private var selectedSearchContext: ContextItem? {
+        guard let selectedSearchContextID else { return nil }
+        return store.contexts.first(where: { $0.id == selectedSearchContextID })
     }
 
     private var commandMessages: [PromptMessage] {
@@ -1160,6 +1301,7 @@ struct ContentView: View {
     private func toggleContextDrawer() {
         if isContextDrawerVisible {
             contextTaskID = nil
+            clearSearchPreview()
             return
         }
 
@@ -1169,6 +1311,7 @@ struct ContentView: View {
     }
 
     private func selectTaskForContext(_ task: TaskItem) {
+        clearSearchPreview()
         selectedStudySubject = task.subject
         expandedStudySubject = task.subject
         contextTaskID = task.id
@@ -1273,6 +1416,9 @@ struct ContentView: View {
     private func completeTask(_ task: TaskItem) {
         if focusTimer.currentTask?.id == task.id {
             focusTimer.stop()
+        }
+        if selectedSearchDocument?.subject.caseInsensitiveCompare(task.subject) == .orderedSame {
+            selectedSearchDocumentID = nil
         }
         store.markTaskCompleted(task)
     }
@@ -1382,6 +1528,61 @@ struct ContentView: View {
         store.promptText = trimmed
         centerTabRawValue = CenterTab.chat.rawValue
         await store.submitPlanningPrompt()
+    }
+
+    private func handleSearchSelection(_ result: SearchResult) {
+        searchQuery = ""
+        highlightedPlannerChatMessageID = nil
+        highlightedStudyChatMessageID = nil
+
+        switch result.type {
+        case .task:
+            guard let taskID = result.taskID,
+                  let task = store.tasks.first(where: { $0.id == taskID && !$0.isCompleted }) else { return }
+            selectTaskForContext(task)
+
+        case .note:
+            guard let documentID = result.documentID else { return }
+            selectedSearchDocumentID = documentID
+            selectedSearchContextID = nil
+            contextTaskID = nil
+
+            if let document = selectedSearchDocument {
+                selectedStudySubject = document.subject
+                expandedStudySubject = document.subject
+            }
+
+        case .transcript:
+            guard let contextID = result.contextID else { return }
+            selectedSearchContextID = contextID
+            selectedSearchDocumentID = nil
+            contextTaskID = nil
+
+            if let context = selectedSearchContext {
+                if !context.subject.isEmpty {
+                    selectedStudySubject = context.subject
+                    expandedStudySubject = context.subject
+                }
+                store.selectContext(context)
+            }
+
+        case .chat:
+            guard let messageID = result.messageID else { return }
+            clearSearchPreview()
+
+            switch result.messageChannel ?? .planner {
+            case .planner:
+                centerTabRawValue = CenterTab.chat.rawValue
+                highlightedPlannerChatMessageID = messageID
+            case .study:
+                centerTabRawValue = CenterTab.study.rawValue
+                highlightedStudyChatMessageID = messageID
+                if !result.subject.isEmpty {
+                    selectedStudySubject = result.subject
+                    expandedStudySubject = result.subject
+                }
+            }
+        }
     }
 
     private func rankedTaskRow(_ ranked: RankedTask) -> some View {
@@ -1882,6 +2083,11 @@ struct ContentView: View {
             )
     }
 
+    private func clearSearchPreview() {
+        selectedSearchDocumentID = nil
+        selectedSearchContextID = nil
+    }
+
     private func badge(text: String, emphasis: BadgeEmphasis) -> some View {
         Text(text)
             .font(.system(size: 11, weight: .semibold))
@@ -1975,6 +2181,12 @@ private struct HeaderActionButton: View {
 
 private struct PromptBubble: View {
     let message: PromptMessage
+    let isHighlighted: Bool
+
+    init(message: PromptMessage, isHighlighted: Bool = false) {
+        self.message = message
+        self.isHighlighted = isHighlighted
+    }
 
     var body: some View {
         HStack {
@@ -2010,11 +2222,15 @@ private struct PromptBubble: View {
         .padding(12)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(message.isQuiz ? Color.white.opacity(0.1) : Color.white.opacity(0.06))
+                .fill(
+                    isHighlighted
+                        ? Color.white.opacity(0.16)
+                        : (message.isQuiz ? Color.white.opacity(0.1) : Color.white.opacity(0.06))
+                )
         )
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                .stroke(Color.white.opacity(isHighlighted ? 0.22 : 0.1), lineWidth: 1)
         )
     }
 
@@ -2028,6 +2244,60 @@ private struct PromptBubble: View {
             return "person.fill"
         case .user:
             return "person.crop.circle"
+        }
+    }
+}
+
+private struct PromptConversationCard: View {
+    let title: String
+    let icon: String
+    let messages: [PromptMessage]
+    let highlightedMessageID: UUID?
+
+    var body: some View {
+        TimedCard(title: title, icon: icon) {
+            PromptConversationList(
+                messages: messages,
+                highlightedMessageID: highlightedMessageID
+            )
+        }
+    }
+}
+
+private struct PromptConversationList: View {
+    let messages: [PromptMessage]
+    let highlightedMessageID: UUID?
+
+    var body: some View {
+        ScrollViewReader { proxy in
+            conversationContent(proxy: proxy)
+        }
+    }
+
+    private func conversationContent(proxy: ScrollViewProxy) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            ForEach(messages) { message in
+                PromptBubble(
+                    message: message,
+                    isHighlighted: highlightedMessageID == message.id
+                )
+                .id(message.id)
+            }
+        }
+        .onChange(of: highlightedMessageID) { _, messageID in
+            scrollToChatMessage(messageID, with: proxy)
+        }
+        .onAppear {
+            scrollToChatMessage(highlightedMessageID, with: proxy)
+        }
+    }
+
+    private func scrollToChatMessage(_ messageID: UUID?, with proxy: ScrollViewProxy) {
+        guard let messageID else { return }
+        DispatchQueue.main.async {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                proxy.scrollTo(messageID, anchor: .center)
+            }
         }
     }
 }
