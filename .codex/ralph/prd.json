@@ -71,7 +71,7 @@
         "App builds, PlanningEngine tests pass (or are added)"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": "Edit PlanningEngine.swift. Current signature: `func rank(_ tasks: [PlannerTask], promptBoost: String?) -> [RankedTask]`. Add `subjectImportance: [String: Double] = [:]` param. In the scoring loop, add: `let subjectMult = subjectImportance[task.subject ?? \"\"] ?? 1.0` and apply it as a multiplier to the importance component. Also add a `confidenceOverride: [String: Double] = [:]` param — if the task's subject has a codex-mem confidence override, use that instead of task.confidence. Write a simple `explainRank(task:context:) -> String` that returns 'importance=X*mult=Y deadline=Z total=N'. Add unit tests in Tests/ that verify Economics ranks above English ranks above SoC given identical deadline proximity."
     },
     {

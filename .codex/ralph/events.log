@@ -8,3 +8,6 @@
 [2026-03-26T12:08:33+1030] COMMIT story=STORY-002 sha=390af72
 [2026-03-26T12:08:35+1030] STORY START id=STORY-003 attempt=1 title=CodexMem deadline discovery — auto-load school subjects and deadlines 
 [2026-03-26T12:25:51+1030] STORY COMPLETE id=STORY-003 attempt=1
+[2026-03-26T12:25:51+1030] COMMIT story=STORY-003 sha=db4b49e
+[2026-03-26T12:25:53+1030] STORY START id=STORY-004 attempt=1 title=Planning engine — wire codex-mem scores into urgency ranking 
+[2026-03-26T12:34:44+1030] STORY COMPLETE id=STORY-004 attempt=1
