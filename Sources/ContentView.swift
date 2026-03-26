@@ -838,6 +838,16 @@ struct ContentView: View {
     private var planTab: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
+                DailyOverviewCard(
+                    date: .now,
+                    priorities: dailyOverviewPriorities,
+                    totalScheduledHours: totalScheduledHoursToday,
+                    deadlines: dailyOverviewDeadlines,
+                    tintColor: dailyOverviewTint
+                ) {
+                    await generateDayPlanFromOverview()
+                }
+
                 if let dangerWeekMessage {
                     TimedCard(title: "Danger week", icon: "exclamationmark.triangle.fill") {
                         Text(dangerWeekMessage)
@@ -986,7 +996,7 @@ struct ContentView: View {
             PromptConversationCard(
                 title: "Chat",
                 icon: "message",
-                messages: store.chat,
+                messages: orderedPlannerMessages,
                 highlightedMessageID: highlightedPlannerChatMessageID
             )
         }
@@ -1255,7 +1265,11 @@ struct ContentView: View {
     }
 
     private var commandMessages: [PromptMessage] {
-        Array((store.isQuizMode ? store.studyChat : store.chat).suffix(4))
+        let activeMessages = store.isQuizMode ? store.studyChat : orderedPlannerMessages
+        let pinnedMessages = activeMessages.filter(\.isPinned)
+        let recentMessages = activeMessages.filter { !$0.isPinned }
+        let trailingCount = max(0, 4 - pinnedMessages.count)
+        return Array((pinnedMessages + Array(recentMessages.suffix(trailingCount))).prefix(4))
     }
 
     private var activeCommandText: Binding<String> {
@@ -1482,6 +1496,118 @@ struct ContentView: View {
             return .green
         default:
             return .white.opacity(0.28)
+        }
+    }
+
+    private var orderedPlannerMessages: [PromptMessage] {
+        store.chat.sorted { lhs, rhs in
+            if lhs.isPinned != rhs.isPinned {
+                return lhs.isPinned && !rhs.isPinned
+            }
+            if lhs.createdAt == rhs.createdAt {
+                return lhs.id.uuidString < rhs.id.uuidString
+            }
+            return lhs.createdAt < rhs.createdAt
+        }
+    }
+
+    private var dailyOverviewPriorities: [DailyOverviewPriority] {
+        Array(store.rankedTasks.prefix(3)).map { ranked in
+            DailyOverviewPriority(
+                taskID: ranked.task.id,
+                title: ranked.task.title,
+                subject: ranked.task.subject,
+                urgencyColor: urgencyColor(for: ranked.task)
+            )
+        }
+    }
+
+    private var totalScheduledHoursToday: Double {
+        store.schedule
+            .filter { Calendar.current.isDateInToday($0.start) }
+            .reduce(0.0) { partialResult, block in
+                partialResult + block.end.timeIntervalSince(block.start) / 3600
+            }
+    }
+
+    private var dailyOverviewDeadlines: [DailyOverviewDeadline] {
+        let activeTasks = store.tasks.filter { !$0.isCompleted }
+        let dueToday = activeTasks
+            .filter { task in
+                guard let dueDate = task.dueDate else { return false }
+                return Calendar.current.isDateInToday(dueDate)
+            }
+            .sorted(by: deadlineSortOrder)
+
+        let dueTomorrow = activeTasks
+            .filter { task in
+                guard let dueDate = task.dueDate else { return false }
+                return Calendar.current.isDateInTomorrow(dueDate)
+            }
+            .sorted(by: deadlineSortOrder)
+
+        var badges: [DailyOverviewDeadline] = []
+        if !dueToday.isEmpty {
+            badges.append(
+                DailyOverviewDeadline(
+                    bucket: "today",
+                    label: "Due today",
+                    titles: dueToday.map(\.title),
+                    color: .red
+                )
+            )
+        }
+        if !dueTomorrow.isEmpty {
+            badges.append(
+                DailyOverviewDeadline(
+                    bucket: "tomorrow",
+                    label: "Due tomorrow",
+                    titles: dueTomorrow.map(\.title),
+                    color: .orange
+                )
+            )
+        }
+        return badges
+    }
+
+    private var dailyOverviewTint: Color {
+        subjectTintColor(for: store.rankedTasks.first?.task.subject)
+    }
+
+    private func deadlineSortOrder(_ lhs: TaskItem, _ rhs: TaskItem) -> Bool {
+        switch (lhs.dueDate, rhs.dueDate) {
+        case let (lhsDate?, rhsDate?):
+            return lhsDate < rhsDate
+        case (.some, .none):
+            return true
+        case (.none, .some):
+            return false
+        case (.none, .none):
+            return lhs.title < rhs.title
+        }
+    }
+
+    private func subjectTintColor(for subject: String?) -> Color {
+        let normalizedSubject = (subject ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        switch normalizedSubject {
+        case "economics":
+            return Color(red: 0.722, green: 0.525, blue: 0.043)
+        case "english":
+            return .blue
+        case "maths", "mathematics":
+            return .purple
+        case "society and culture", "society & culture", "soc", "society/culture":
+            return .green
+        default:
+            return Color.white.opacity(0.24)
+        }
+    }
+
+    private func generateDayPlanFromOverview() async {
+        highlightedPlannerChatMessageID = nil
+        if let messageID = await store.generateDayPlanSummary() {
+            highlightedPlannerChatMessageID = messageID
+            centerTabRawValue = CenterTab.chat.rawValue
         }
     }
 
@@ -2246,9 +2372,17 @@ private struct PromptBubble: View {
                 .background(Circle().fill(Color.white.opacity(0.08)))
 
             VStack(alignment: .leading, spacing: 6) {
-                Text(message.role.displayName)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.54))
+                HStack(spacing: 6) {
+                    Text(message.role.displayName)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.54))
+
+                    if message.isPinned {
+                        Label("Pinned", systemImage: "pin.fill")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.white.opacity(0.78))
+                    }
+                }
 
                 Text(message.text)
                     .font(.system(size: 13))

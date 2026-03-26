@@ -186,19 +186,41 @@ struct PromptMessage: Identifiable, Hashable, Codable {
     var text: String
     var createdAt: Date
     var isQuiz: Bool
+    var isPinned: Bool
 
     init(
         id: UUID = UUID(),
         role: PromptRole,
         text: String,
         createdAt: Date = .now,
-        isQuiz: Bool = false
+        isQuiz: Bool = false,
+        isPinned: Bool = false
     ) {
         self.id = id
         self.role = role
         self.text = text
         self.createdAt = createdAt
         self.isQuiz = isQuiz
+        self.isPinned = isPinned
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case role
+        case text
+        case createdAt
+        case isQuiz
+        case isPinned
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        role = try container.decode(PromptRole.self, forKey: .role)
+        text = try container.decode(String.self, forKey: .text)
+        createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? .now
+        isQuiz = try container.decodeIfPresent(Bool.self, forKey: .isQuiz) ?? false
+        isPinned = try container.decodeIfPresent(Bool.self, forKey: .isPinned) ?? false
     }
 }
 

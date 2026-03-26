@@ -4,11 +4,13 @@ import SwiftUI
 struct TimedCard<Content: View>: View {
     let title: String
     let icon: String?
+    let accent: Color?
     @ViewBuilder let content: Content
 
-    init(title: String, icon: String? = nil, @ViewBuilder content: () -> Content) {
+    init(title: String, icon: String? = nil, accent: Color? = nil, @ViewBuilder content: () -> Content) {
         self.title = title
         self.icon = icon
+        self.accent = accent
         self.content = content()
     }
 
@@ -41,7 +43,8 @@ struct TimedCard<Content: View>: View {
                     .fill(
                         LinearGradient(
                             colors: [
-                                Color.white.opacity(0.10),
+                                (accent ?? Color.white).opacity(accent == nil ? 0.10 : 0.22),
+                                accent?.opacity(0.08) ?? Color.white.opacity(0.04),
                                 Color.clear
                             ],
                             startPoint: .topLeading,

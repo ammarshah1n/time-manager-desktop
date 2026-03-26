@@ -22,6 +22,7 @@ private struct CodexMemoryChatMetadata: Codable {
     let id: String
     let role: String
     let isQuiz: Bool
+    let isPinned: Bool?
     let subject: String?
     let channel: String
 }
@@ -58,7 +59,8 @@ enum CodexMemorySync {
                 role: role,
                 text: text,
                 createdAt: Date(timeIntervalSince1970: createdAtEpoch / 1000),
-                isQuiz: metadata?.isQuiz ?? false
+                isQuiz: metadata?.isQuiz ?? false,
+                isPinned: metadata?.isPinned ?? false
             )
         }
     }
@@ -91,6 +93,7 @@ enum CodexMemorySync {
             id: message.id.uuidString,
             role: message.role.rawValue,
             isQuiz: message.isQuiz,
+            isPinned: message.isPinned,
             subject: subject,
             channel: channel.rawValue
         )

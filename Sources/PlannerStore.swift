@@ -257,6 +257,44 @@ final class PlannerStore {
         save()
     }
 
+    func generateDayPlanSummary(now: Date = .now) async -> UUID? {
+        let topTasks = Array(rankedTasks.prefix(3))
+        guard !topTasks.isEmpty else { return nil }
+
+        aiErrorText = nil
+        isRunningPrompt = true
+
+        let response = await CodexBridge().run(
+            request: CodexRunRequest(
+                prompt: buildDayPlanPrompt(now: now, topTasks: topTasks),
+                autonomousMode: TimedPreferences.autonomousModeEnabled,
+                workingRoot: TimedPreferences.workingRoot,
+                additionalRoots: TimedPreferences.codexAdditionalRoots
+            )
+        )
+
+        isRunningPrompt = false
+
+        guard let response else {
+            aiErrorText = "Could not reach Timed AI — check Codex is installed"
+            appendPlannerMessage(PromptMessage(role: .assistant, text: aiErrorText ?? "Timed AI error"))
+            save()
+            return nil
+        }
+
+        let summary = dayPlanSummary(from: response)
+        let message = PromptMessage(
+            role: .assistant,
+            text: summary,
+            createdAt: .now,
+            isPinned: true
+        )
+
+        pinPlannerMessage(message, subject: topTasks.first?.task.subject)
+        save()
+        return message.id
+    }
+
     func submitStudyPrompt() async {
         let rawPrompt = studyPromptText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !rawPrompt.isEmpty else { return }
@@ -1165,6 +1203,73 @@ final class PlannerStore {
         """
     }
 
+    private func buildDayPlanPrompt(now: Date, topTasks: [RankedTask]) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .full
+        formatter.timeStyle = .short
+
+        let todayBlocks = schedule
+            .filter { Calendar.current.isDateInToday($0.start) }
+            .sorted { $0.start < $1.start }
+
+        let dueSoonTasks = tasks
+            .filter { !$0.isCompleted }
+            .filter { task in
+                guard let dueDate = task.dueDate else { return false }
+                return Calendar.current.isDateInToday(dueDate) || Calendar.current.isDateInTomorrow(dueDate)
+            }
+            .sorted { lhs, rhs in
+                switch (lhs.dueDate, rhs.dueDate) {
+                case let (lhsDate?, rhsDate?):
+                    return lhsDate < rhsDate
+                case (.some, .none):
+                    return true
+                case (.none, .some):
+                    return false
+                case (.none, .none):
+                    return lhs.title < rhs.title
+                }
+            }
+
+        let taskLines = topTasks.map { ranked in
+            let dueDate = ranked.task.dueDate.map { formatter.string(from: $0) } ?? "No due date"
+            return "- \(ranked.task.title) | Subject: \(ranked.task.subject) | Band: \(ranked.band) | Due: \(dueDate) | Estimate: \(ranked.task.estimateMinutes)m | Suggested action: \(ranked.suggestedNextAction)"
+        }.joined(separator: "\n")
+
+        let blockLines = todayBlocks.map { block in
+            "- \(block.timeRange) | \(block.title) | \(block.isApproved ? "Approved" : "Pending")"
+        }.joined(separator: "\n")
+
+        let deadlineLines = dueSoonTasks.map { task in
+            let dueDate = task.dueDate.map { formatter.string(from: $0) } ?? "No due date"
+            return "- \(task.title) | Subject: \(task.subject) | Due: \(dueDate)"
+        }.joined(separator: "\n")
+
+        let totalHours = todayBlocks.reduce(0.0) { partialResult, block in
+            partialResult + block.end.timeIntervalSince(block.start) / 3600
+        }
+
+        return """
+        System instruction:
+        You are Timed, a study planning assistant for a school student. Write exactly 2 sentences in plain English. Mention at least one task by its exact title. Sentence 1 should say what to tackle first and why. Sentence 2 should explain how to use today's scheduled hours and mention any task due today or tomorrow. No bullet points, no headings, no preamble.
+
+        Current date and time:
+        \(formatter.string(from: now))
+
+        Top priorities:
+        \(taskLines)
+
+        Today's schedule blocks:
+        \(blockLines.isEmpty ? "- No blocks scheduled today." : blockLines)
+
+        Total scheduled hours today:
+        \(totalHours.formatted(.number.precision(.fractionLength(1))))
+
+        Tasks due today or tomorrow:
+        \(deadlineLines.isEmpty ? "- None." : deadlineLines)
+        """
+    }
+
     private func buildStudyPrompt(
         for question: String,
         task: TaskItem?,
@@ -1635,9 +1740,40 @@ final class PlannerStore {
         CodexMemorySync.recordMessage(message, channel: .planner, subject: subject)
     }
 
+    private func pinPlannerMessage(_ message: PromptMessage, subject: String? = nil) {
+        for index in chat.indices where chat[index].isPinned {
+            chat[index].isPinned = false
+        }
+        appendPlannerMessage(message, subject: subject)
+    }
+
     private func appendStudyMessage(_ message: PromptMessage, subject: String? = nil) {
         studyChat.append(message)
         CodexMemorySync.recordMessage(message, channel: .study, subject: subject)
+    }
+
+    private func dayPlanSummary(from response: String) -> String {
+        let trimmed = response
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "No day plan was generated." }
+
+        let sentences = trimmed
+            .split(whereSeparator: { ".!?".contains($0) })
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        guard !sentences.isEmpty else { return trimmed }
+        return sentences
+            .prefix(2)
+            .map { sentence in
+                if let last = sentence.last, ".!?".contains(last) {
+                    return sentence
+                }
+                return sentence + "."
+            }
+            .joined(separator: " ")
     }
 
     private func mergeSeqtaTask(existing: TaskItem, incoming: TaskItem) -> TaskItem {
