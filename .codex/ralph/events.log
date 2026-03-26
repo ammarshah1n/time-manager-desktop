@@ -11,3 +11,6 @@
 [2026-03-26T12:25:51+1030] COMMIT story=STORY-003 sha=db4b49e
 [2026-03-26T12:25:53+1030] STORY START id=STORY-004 attempt=1 title=Planning engine — wire codex-mem scores into urgency ranking 
 [2026-03-26T12:34:44+1030] STORY COMPLETE id=STORY-004 attempt=1
+[2026-03-26T12:34:44+1030] COMMIT story=STORY-004 sha=c0148ac
+[2026-03-26T12:34:46+1030] STORY START id=STORY-005 attempt=1 title=Seqta sync — real deadline extraction and subject matching 
+[2026-03-26T12:44:09+1030] STORY COMPLETE id=STORY-005 attempt=1

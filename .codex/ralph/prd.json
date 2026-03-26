@@ -87,7 +87,7 @@
         "App builds without errors"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": "Edit SeqtaBackgroundSync.swift and ImportPipeline.swift. For date parsing: try multiple formats using DateFormatter — 'd MMMM yyyy', 'd/MM/yyyy', 'EEE d MMM'. Also handle relative: 'today', 'tomorrow', 'Monday' (use Calendar.current.nextWeekday()). For subject matching: build a dictionary in SubjectCatalog.swift (or Models.swift) mapping keyword patterns to canonical subject names. Use case-insensitive prefix/contains matching. For deduplication: stable ID = seqta task ID or SHA256(title + subject + source). Check ImportPipeline for existing dedup logic and extend it."
     },
     {
