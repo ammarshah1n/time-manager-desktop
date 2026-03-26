@@ -1,6 +1,8 @@
 import Foundation
 
 enum ImportPipeline {
+    typealias AIRunner = (CodexRunRequest) async -> String?
+
     static func parseImport(
         title: String,
         source: ImportSource,
@@ -31,6 +33,88 @@ enum ImportPipeline {
         }
 
         return ImportBatch(context: context, taskDrafts: parseResult.0, messages: parseResult.1)
+    }
+
+    static func parseImportWithAI(
+        title: String,
+        source: ImportSource,
+        text: String,
+        now: Date,
+        existingTaskIDs: Set<String>,
+        workingRoot: String,
+        additionalRoots: [String],
+        autonomousMode: Bool,
+        runner: @escaping AIRunner = { request in
+            await CodexBridge().run(request: request)
+        }
+    ) async -> ImportBatch {
+        let fallback = parseImport(
+            title: title,
+            source: source,
+            text: text,
+            now: now,
+            existingTaskIDs: existingTaskIDs
+        )
+
+        guard source == .seqta || source == .tickTick else {
+            return fallback
+        }
+
+        guard let response = await runner(
+            CodexRunRequest(
+                prompt: aiImportPrompt(source: source, text: text, now: now),
+                autonomousMode: autonomousMode,
+                workingRoot: workingRoot,
+                additionalRoots: additionalRoots
+            )
+        ) else {
+            return fallback
+        }
+
+        guard let payload = decodeAIPayload(from: response) else {
+            return fallback
+        }
+
+        var knownIDs = existingTaskIDs
+        var drafts: [ImportTaskDraft] = []
+        var messages = payload.messages
+
+        for task in payload.tasks {
+            let cleanedTitle = task.title.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !cleanedTitle.isEmpty else { continue }
+
+            let stableID = StableID.makeTaskID(source: source.taskSource, title: cleanedTitle)
+            if knownIDs.contains(stableID) {
+                messages.append("duplicate skipped: \(cleanedTitle)")
+                continue
+            }
+
+            knownIDs.insert(stableID)
+            drafts.append(
+                ImportTaskDraft(
+                    originalID: stableID,
+                    title: cleanedTitle,
+                    list: source.rawValue,
+                    source: source.taskSource,
+                    subject: task.subject?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "",
+                    estimateMinutes: task.estimateMinutes ?? fallbackEstimateMinutes(for: source, title: cleanedTitle),
+                    confidence: 3,
+                    importance: max(1, min(5, task.importance ?? 3)),
+                    dueDate: task.resolvedDueDate(now: now) ?? Calendar.current.date(byAdding: .day, value: 7, to: now) ?? now,
+                    notes: task.notes?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Imported from \(source.rawValue).",
+                    energy: task.resolvedEnergy()
+                )
+            )
+        }
+
+        guard !drafts.isEmpty else {
+            return fallback
+        }
+
+        var batch = fallback
+        batch.taskDrafts = drafts
+        batch.messages = messages.isEmpty ? ["AI extraction parsed \(drafts.count) task(s)."] : messages
+        return batch
     }
 
     static func inferredSubject(from text: String) -> String? {
@@ -202,7 +286,7 @@ enum ImportPipeline {
         )
     }
 
-    private static func parseDuePhrase(_ phrase: String, now: Date) -> Date? {
+    fileprivate static func parseDuePhrase(_ phrase: String, now: Date) -> Date? {
         let cleaned = phrase.trimmingCharacters(in: .whitespacesAndNewlines)
         let calendar = Calendar.current
 
@@ -326,9 +410,133 @@ enum ImportPipeline {
         return rows
     }
 
+    private static func aiImportPrompt(source: ImportSource, text: String, now: Date) -> String {
+        let formatter = ISO8601DateFormatter()
+        let nowString = formatter.string(from: now)
+
+        return """
+        Extract school tasks from this \(source.rawValue) import.
+
+        Rules:
+        - Return JSON only. No markdown. No explanation.
+        - Use this exact schema:
+          {
+            "tasks": [
+              {
+                "title": "string",
+                "subject": "string",
+                "estimateMinutes": 45,
+                "importance": 3,
+                "dueDate": "ISO-8601 string or null",
+                "notes": "string",
+                "energy": "Low|Medium|High"
+              }
+            ],
+            "messages": ["string"]
+          }
+        - Clean task titles. Remove dates, bullets, teacher names, subject prefixes, and formatting noise.
+        - Infer realistic estimateMinutes from the wording.
+        - Keep importance between 1 and 5.
+        - Resolve relative due dates like Monday against \(nowString).
+        - Only extract actual actionable tasks.
+
+        Source text:
+        \(text.trimmingCharacters(in: .whitespacesAndNewlines))
+        """
+    }
+
+    private static func decodeAIPayload(from response: String) -> AIImportPayload? {
+        let decoder = JSONDecoder()
+
+        for candidate in jsonCandidates(from: response) {
+            guard let data = candidate.data(using: .utf8) else { continue }
+            if let payload = try? decoder.decode(AIImportPayload.self, from: data) {
+                return payload
+            }
+        }
+
+        return nil
+    }
+
+    private static func jsonCandidates(from response: String) -> [String] {
+        let trimmed = response.trimmingCharacters(in: .whitespacesAndNewlines)
+        var candidates = [trimmed]
+
+        if
+            let start = trimmed.firstIndex(of: "{"),
+            let end = trimmed.lastIndex(of: "}")
+        {
+            candidates.append(String(trimmed[start...end]))
+        }
+
+        let fencedPattern = #"```(?:json)?\s*(\{[\s\S]*\})\s*```"#
+        if
+            let regex = try? NSRegularExpression(pattern: fencedPattern),
+            let match = regex.firstMatch(in: trimmed, range: NSRange(trimmed.startIndex..., in: trimmed)),
+            let range = Range(match.range(at: 1), in: trimmed)
+        {
+            candidates.append(String(trimmed[range]))
+        }
+
+        return Array(Set(candidates)).filter { !$0.isEmpty }
+    }
+
+    private static func fallbackEstimateMinutes(for source: ImportSource, title: String) -> Int {
+        switch source {
+        case .seqta:
+            return title.lowercased().contains("math") ? 90 : 45
+        case .tickTick:
+            return 30
+        case .transcript, .chat:
+            return 30
+        }
+    }
+
     private static func summaryLine(from text: String) -> String {
         let sanitized = text.replacingOccurrences(of: "\n", with: " ")
         let firstSentence = sanitized.split(separator: ".").first.map(String.init) ?? sanitized
         return String(firstSentence.prefix(140))
+    }
+}
+
+private struct AIImportPayload: Decodable {
+    let tasks: [AIImportTask]
+    let messages: [String]
+
+    init(tasks: [AIImportTask] = [], messages: [String] = []) {
+        self.tasks = tasks
+        self.messages = messages
+    }
+}
+
+private struct AIImportTask: Decodable {
+    let title: String
+    let subject: String?
+    let estimateMinutes: Int?
+    let importance: Int?
+    let dueDate: String?
+    let notes: String?
+    let energy: String?
+
+    func resolvedDueDate(now: Date) -> Date? {
+        guard let dueDate else { return nil }
+
+        let isoFormatter = ISO8601DateFormatter()
+        if let date = isoFormatter.date(from: dueDate) {
+            return date
+        }
+
+        return ImportPipeline.parseDuePhrase(dueDate, now: now)
+    }
+
+    func resolvedEnergy() -> TaskEnergy {
+        switch energy?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "low":
+            return .low
+        case "high":
+            return .high
+        default:
+            return .medium
+        }
     }
 }

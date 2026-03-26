@@ -47,6 +47,47 @@ struct PlanningEngineTests {
         #expect(batch.taskDrafts.map(\.importance) == [5, 3, 1])
     }
 
+    @Test("testAIImportParsingUsesStructuredExtraction")
+    func testAIImportParsingUsesStructuredExtraction() async {
+        let response = """
+        {
+          "tasks": [
+            {
+              "title": "Maths investigation",
+              "subject": "Maths",
+              "estimateMinutes": 90,
+              "importance": 4,
+              "dueDate": "2026-03-23T09:00:00Z",
+              "notes": "Complete the write-up.",
+              "energy": "High"
+            }
+          ],
+          "messages": ["AI extraction parsed 1 task."]
+        }
+        """
+
+        let batch = await ImportPipeline.parseImportWithAI(
+            title: "Seqta import",
+            source: .seqta,
+            text: "10MAT due Monday: Mr Smith - Maths investigation",
+            now: fixedNow,
+            existingTaskIDs: [],
+            workingRoot: "/tmp",
+            additionalRoots: [],
+            autonomousMode: false,
+            runner: { _ in response }
+        )
+
+        let task = try? #require(batch.taskDrafts.first)
+        #expect(batch.taskDrafts.count == 1)
+        #expect(task?.title == "Maths investigation")
+        #expect(task?.subject == "Maths")
+        #expect(task?.estimateMinutes == 90)
+        #expect(task?.importance == 4)
+        #expect(task?.energy == .high)
+        #expect(batch.messages == ["AI extraction parsed 1 task."])
+    }
+
     @Test("testDeduplication")
     @MainActor
     func testDeduplication() {

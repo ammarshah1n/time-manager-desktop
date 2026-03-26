@@ -459,6 +459,32 @@ final class PlannerStore {
         lastImportMessages = batch.messages
     }
 
+    func importCurrentPayloadUsingAI(now: Date = .now) async {
+        let trimmed = importText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        let existingIDs = Set(tasks.map(\.id))
+        let batch = await ImportPipeline.parseImportWithAI(
+            title: importTitle,
+            source: importSource,
+            text: trimmed,
+            now: now,
+            existingTaskIDs: existingIDs,
+            workingRoot: TimedPreferences.workingRoot,
+            additionalRoots: TimedPreferences.codexAdditionalRoots,
+            autonomousMode: TimedPreferences.autonomousModeEnabled
+        )
+
+        if batch.taskDrafts.isEmpty {
+            applyImport(batch)
+            importText = ""
+            return
+        }
+
+        pendingImportBatch = batch
+        lastImportMessages = batch.messages
+    }
+
     func applyPendingImport() {
         guard let batch = pendingImportBatch else { return }
         applyImport(batch)

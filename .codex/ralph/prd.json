@@ -1,0 +1,266 @@
+{
+  "project": "Timed",
+  "description": "10/10 autonomous school time-planner: liquid-glass macOS app that discovers deadlines from codex-mem, ranks by urgency, quizzes on weak subjects, and syncs blocks to iPhone calendar.",
+  "verificationCommands": {
+    "build": "cd /Users/ammarshahin/time-manager-desktop && swift build 2>&1 | tail -20",
+    "lint": "cd /Users/ammarshahin/time-manager-desktop && swiftlint lint --quiet Sources/ 2>/dev/null || true",
+    "test": "cd /Users/ammarshahin/time-manager-desktop && swift test 2>&1 | tail -20 || true"
+  },
+  "userStories": [
+    {
+      "id": "STORY-001",
+      "title": "Fix glassmorphic transparency and visual foundation",
+      "description": "The current UI is opaque and does not use proper macOS vibrancy. Fix NSVisualEffectView configuration, set window background to clear, ensure all panels use `.hudWindow` or `.sidebar` material, and remove all hardcoded gray backgrounds that kill the glass effect.",
+      "acceptanceCriteria": [
+        "Main window background is transparent/vibrancy-backed — no solid gray or black fill visible behind panels",
+        "All three columns use NSVisualEffectView with appropriate material (sidebar left, fullScreenUI center, hudWindow right)",
+        "Window title bar is hidden or uses unified style — clean macOS 15 look",
+        "TimedCard uses translucent fill (Color(.windowBackgroundColor).opacity(0.45)) not a solid Color(.controlBackgroundColor)",
+        "App builds and launches without visual regressions"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "The key fix is in VisualEffectView.swift and ContentView.swift. The window must be set to .titled | .fullSizeContentView and backgroundColor = .clear. NSHostingView background should also be cleared. In ContentView, replace any Color(.controlBackground) fills with Color.clear or a very low-opacity white. The TimedCard component in TimedCard.swift should use `.ultraThinMaterial` background. Check that all ZStack/VStack backgrounds are not accidentally opaque. In TimeManagerDesktopApp.swift, configure the WindowGroup with .windowStyle(.hiddenTitleBar) or equivalent."
+    },
+    {
+      "id": "STORY-002",
+      "title": "Redesign 3-pane layout for intuitive flow",
+      "description": "The current layout is a shitshow with repetitive sections and unclear hierarchy. Redesign to: LEFT=Task Library (compact, icon+title only, expandable), CENTRE=Command Surface (ranked tasks + prompt composer + today's schedule stacked vertically, clear section headers), RIGHT=Context Drawer (collapsible, only shows when a task is selected or quiz is active). Reduce visual noise by 60%.",
+      "acceptanceCriteria": [
+        "Left column is max 220px, shows task list as compact rows (icon, title, urgency dot, due date) — no expanded detail cards in left panel",
+        "Center column has three clear sections: 'Next Up' (top 3 ranked tasks with action buttons), 'Today's Plan' (schedule blocks), 'Command' (prompt input at bottom) — each with a small section header",
+        "Right panel is hidden by default, slides in when user selects a task or clicks 'Context' — shows task detail + relevant context snippets",
+        "No repeated task information across columns — each piece of data appears exactly once",
+        "All column widths have sensible min/max constraints (left: 180–260, right: 260–360)",
+        "App builds without errors"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": "This is a major ContentView.swift restructure. Key changes: (1) Left panel becomes a flat list — remove the nested VStack card per task, use a plain List with compact row height. (2) Center panel uses a VStack with three named sections — pin 'Next Up' to top, 'Today's Plan' scrollable middle, 'Command' pinned to bottom. (3) Right panel uses a slide-in animation driven by @State selectedTask: PlannerTask?. When selectedTask != nil, show task detail + context. (4) Remove all the duplicate import/context panels that currently appear in both columns. (5) Section headers should be 11px uppercase tracking-wide labels. (6) Use a thin 1px Divider() between sections, not padding."
+    },
+    {
+      "id": "STORY-003",
+      "title": "CodexMem deadline discovery — auto-load school subjects and deadlines",
+      "description": "On launch, Timed must query codex-mem (via the MCP server at localhost or via shell `codex-mem search`) to discover Ammar's upcoming deadlines. It must find: Economics test (Friday, most important), English (second), Maths investigation (Wednesday, third), Society and Culture photo essay (last). Surface these as pre-seeded tasks with correct importance scores if they do not already exist.",
+      "acceptanceCriteria": [
+        "On app launch (or on first load of PlannerStore), CodexMemorySchoolPack.swift queries codex-mem for deadline-related memories",
+        "Search terms used include: 'economics test', 'english', 'maths investigation', 'society and culture', 'deadline', 'due', 'assessment'",
+        "If Economics test found in memory: task created/updated with importance=10, deadline=next Friday",
+        "If English found: importance=8",
+        "If Maths investigation found: importance=7, deadline=next Wednesday",
+        "If Society and Culture found: importance=5",
+        "Tasks created from codex-mem have source='codex-mem' and are flagged as auto-discovered",
+        "PlannerStore logs which memories were found at startup — visible in console",
+        "App builds and the discovery runs without crashing"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": "CodexMemorySchoolPack.swift already exists. Extend it with a `discoverDeadlines()` async method. The codex-mem MCP server exposes a search tool. Check if there is a CLI: `codex-mem search <query>` or if it's accessed via the MCP protocol. If CLI: use Process() to call it and parse JSON output. If MCP only: check if there is a REST shim at http://localhost:PORT. The method should run 4 searches (one per subject), parse results, and call back into PlannerStore to upsert tasks. Use `PlannerStore.upsertTaskHints()` or create a new `applyDiscoveredDeadlines([DiscoveredDeadline])` method. Importance mapping: Economics=10, English=8, Maths=7, SoC=5. Deadline mapping: Economics=next Friday (calculate from today), Maths=next Wednesday, English/SoC=no hard deadline unless found in memory. Call `discoverDeadlines()` from PlannerStore.init() via Task { await ... }."
+    },
+    {
+      "id": "STORY-004",
+      "title": "Planning engine — wire codex-mem scores into urgency ranking",
+      "description": "PlanningEngine.rank() currently uses static weights. Extend it to consume the codex-mem confidence scores and subject importance discovered in STORY-003, ensuring Economics always floats to #1, Maths before Wednesday floats to #2-3, English stays prominent, and SoC ranks last of the four.",
+      "acceptanceCriteria": [
+        "PlanningEngine accepts a `subjectImportanceMap: [String: Double]` parameter (or reads it from PlannerStore)",
+        "When ranking, a task's subject importance score multiplies the base importance weight (not just adds)",
+        "Economics test ranks #1 in all scenarios where it is incomplete and deadline is within 7 days",
+        "Maths investigation ranks above English when deadline is within 3 days",
+        "Subject confidence from codex-mem (if found) is used to set confidenceGap — lower confidence = higher urgency",
+        "A debug method `PlanningEngine.explainRank(task:)` returns a string showing score breakdown — useful for testing",
+        "App builds, PlanningEngine tests pass (or are added)"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": "Edit PlanningEngine.swift. Current signature: `func rank(_ tasks: [PlannerTask], promptBoost: String?) -> [RankedTask]`. Add `subjectImportance: [String: Double] = [:]` param. In the scoring loop, add: `let subjectMult = subjectImportance[task.subject ?? \"\"] ?? 1.0` and apply it as a multiplier to the importance component. Also add a `confidenceOverride: [String: Double] = [:]` param — if the task's subject has a codex-mem confidence override, use that instead of task.confidence. Write a simple `explainRank(task:context:) -> String` that returns 'importance=X*mult=Y deadline=Z total=N'. Add unit tests in Tests/ that verify Economics ranks above English ranks above SoC given identical deadline proximity."
+    },
+    {
+      "id": "STORY-005",
+      "title": "Seqta sync — real deadline extraction and subject matching",
+      "description": "SeqtaBackgroundSync.swift currently imports tasks but does not reliably extract due dates or match to the correct subject. Fix due date parsing, improve subject keyword matching, and ensure Seqta tasks appear with correct deadline and subject fields in the planner.",
+      "acceptanceCriteria": [
+        "Seqta tasks with a due date string (e.g. '26 March 2026', '26/03/2026', 'Due: Monday') are parsed into a Date and stored in task.deadline",
+        "Subject matching maps 'Economics', 'Eco', 'SACE Economics' → Economics; 'English', 'Eng Stds' → English; 'Mathematical Methods', 'Maths', 'Specialist' → Maths; 'Society and Culture', 'SoC', 'S&C' → Society and Culture",
+        "Tasks imported from Seqta show the correct subject label in the UI",
+        "Re-importing the same Seqta data does not create duplicate tasks (idempotent by stable ID)",
+        "A seqta import log entry is written to console showing: tasks found, tasks created, tasks updated, tasks skipped",
+        "App builds without errors"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": "Edit SeqtaBackgroundSync.swift and ImportPipeline.swift. For date parsing: try multiple formats using DateFormatter — 'd MMMM yyyy', 'd/MM/yyyy', 'EEE d MMM'. Also handle relative: 'today', 'tomorrow', 'Monday' (use Calendar.current.nextWeekday()). For subject matching: build a dictionary in SubjectCatalog.swift (or Models.swift) mapping keyword patterns to canonical subject names. Use case-insensitive prefix/contains matching. For deduplication: stable ID = seqta task ID or SHA256(title + subject + source). Check ImportPipeline for existing dedup logic and extend it."
+    },
+    {
+      "id": "STORY-006",
+      "title": "Obsidian vault context — deep import and subject-tagged retrieval",
+      "description": "ObsidianVaultImporter.swift exists but is shallow. Extend it to recursively scan the vault, extract note content per subject folder, and make that content available in the context panel when the matching subject is selected.",
+      "acceptanceCriteria": [
+        "Vault path is configurable in Preferences.swift (defaulting to ~/Documents/Obsidian or prompting user on first run)",
+        "Importer scans all .md files recursively and indexes them by subject based on folder name or #tag",
+        "Subject matching uses the same canonical map as STORY-005",
+        "When a subject is selected in the right panel (or quiz is active for a subject), the top 3 most relevant Obsidian notes for that subject are shown as expandable snippets",
+        "Note content is truncated to first 400 chars in the snippet, with a 'Show more' expansion",
+        "Import runs in background on app launch and on demand via a 'Sync Vault' button in Settings",
+        "App builds without errors"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": "ObsidianVaultImporter.swift needs: (1) recursive file enumeration using FileManager.default.enumerator(at:includingPropertiesForKeys:); (2) a ContextDocument struct with { id, subject, title, content, path, importedAt }; (3) store as [ContextDocument] in PlannerStore.obsidianDocuments; (4) a `topDocuments(for subject: String, limit: Int) -> [ContextDocument]` method using simple keyword frequency scoring; (5) in ContentView, in the right panel (task detail / context drawer), add an 'Obsidian Notes' section that calls topDocuments for the selected task's subject. Store vault path in Preferences with key 'obsidianVaultPath'."
+    },
+    {
+      "id": "STORY-007",
+      "title": "Quiz mode overhaul — intuitive study interface with real content",
+      "description": "Current quiz mode is a plain chat. Replace it with a dedicated full-screen study overlay: shows subject, shows a generated question (from actual Obsidian/transcript context), waits for answer, gives immediate feedback with correct answer and source note. Track session stats (questions attempted, correct, confidence delta).",
+      "acceptanceCriteria": [
+        "A 'Study' button per subject task opens a full-screen modal (not a sheet) with dark glassmorphic overlay",
+        "First screen: subject name, confidence score, 'Start Quiz' button",
+        "Questions are generated by sending context (top 3 Obsidian notes + any transcript content) to Codex with a quiz generation prompt — minimum 5 questions per session",
+        "Each question shows: question text, 4 multiple-choice options (A/B/C/D), a text field for free-form answer, and 'Submit' button",
+        "On submit: show correct answer highlighted green, incorrect answer highlighted red, 1-2 sentence explanation, source note title",
+        "After 5+ questions: show session summary — X/Y correct, confidence delta (+N%), 'End Session' or 'Keep Going' buttons",
+        "On 'End Session': update task.confidence in PlannerStore, trigger rebuildPlan()",
+        "App builds without errors"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": "Create a new QuizView.swift (or extend the existing quiz UI in ContentView). Key components: (1) QuizSessionModel: @Observable class holding currentQuestion, questionHistory, sessionScore, subject. (2) QuizQuestionView: shows question + 4 options as large tappable cards. (3) Question generation: call CodexBridge with a prompt like 'Generate 5 quiz questions from this content: [context]. Return JSON array of {question, options: [A,B,C,D], correct: A, explanation, source}. (4) Parse JSON response to [QuizQuestion] model. (5) Track correct answers, calculate confidence delta: delta = (correct/total - 0.5) * 20 clamped to -10..+10. (6) After session, call store.applySubjectConfidences([subject: newConfidence]). The modal should use .fullScreenCover or a ZStack overlay with blur background."
+    },
+    {
+      "id": "STORY-008",
+      "title": "Focus timer — inline Pomodoro with task binding",
+      "description": "Add a focus timer that binds to a specific task. When started, a small timer widget appears in the center column above the command composer. Timer counts down (25min default, configurable). On completion: plays a sound, marks a pomodoro on the task, prompts for a 5-min break. After 4 pomodoros: long break prompt.",
+      "acceptanceCriteria": [
+        "Each task row in the ranked list has a small ▶ play button — clicking it starts a focus session bound to that task",
+        "A timer widget appears at the top of the center column showing: task title (truncated), time remaining (MM:SS), a thin progress ring, pause/stop buttons",
+        "Timer duration is configurable in Settings (default 25min, options: 15, 25, 45, 60)",
+        "On timer completion: NSSound plays a soft chime (use NSSound.beep() or a bundled .mp3), a notification is posted via UNUserNotificationCenter",
+        "Completed pomodoro is recorded on the task (task.pomodoroCount += 1)",
+        "After 4 pomodoros on any task: show 'Take a long break (15 min)?' prompt as a banner",
+        "App builds without errors"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": "Create FocusTimerModel.swift: @Observable class with currentTask: PlannerTask?, secondsRemaining: Int, isRunning: Bool, pomodoroCount: Int. Use Timer.scheduledTimer or Swift Concurrency (Task { while isRunning { try await Task.sleep(nanoseconds: 1_000_000_000); secondsRemaining -= 1 } }). FocusTimerWidget.swift: a compact HStack showing task name, circular progress (drawn with a SwiftUI Circle stroke with trim()), and controls. Inject FocusTimerModel as @State in ContentView and pass it down. For notifications: request UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) on first launch and trigger a UNMutableNotificationContent when timer hits 0. Store pomodoroCount in PlannerTask model (add field to Models.swift and PlannerSnapshot)."
+    },
+    {
+      "id": "STORY-009",
+      "title": "Deadline alert system — menubar badge and notification center",
+      "description": "Add a background deadline monitor that posts notification center alerts when a deadline is within 24h, 4h, and 1h. Also show a red badge on the app's Dock icon when any task deadline is within 24h. Show an inline deadline countdown in the task row for tasks due within 48h.",
+      "acceptanceCriteria": [
+        "App requests notification permission on first launch",
+        "For each incomplete task with a deadline: schedule UNUserNotificationCenter notifications at deadline-24h, deadline-4h, deadline-1h",
+        "Notifications fire even when app is in background (use UNTimeIntervalNotificationTrigger or UNCalendarNotificationTrigger)",
+        "Dock icon badge shows count of tasks due within 24h using NSApp.dockTile.badgeLabel",
+        "Task rows with deadline within 48h show a compact countdown badge: '23h', '4h 30m', 'Overdue' in red",
+        "Notifications are re-scheduled on every app launch and when a task's deadline changes",
+        "App builds without errors"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": "Create DeadlineAlertService.swift with a `scheduleAlerts(for tasks: [PlannerTask])` method. Use UNUserNotificationCenter: for each task with deadline != nil && !task.completed, remove existing notifications (removeDeliveredNotifications + removePendingNotificationRequests with task-based IDs), then add three new requests at t-24h, t-4h, t-1h. In PlannerStore, call scheduleAlerts whenever tasks change (in save() or a didSet observer). For Dock badge: `NSApp.dockTile.badgeLabel = count > 0 ? \"\\(count)\" : nil`. For the countdown display in task rows: compute `timeUntilDeadline` as a formatted string using `RelativeDateTimeFormatter` or manual calculation. Countdown badge: use a Text with foreground color .red and a small capsule background."
+    },
+    {
+      "id": "STORY-010",
+      "title": "Subject study pane — dedicated study mode with progress tracking",
+      "description": "Add a 'Study Mode' toggle in the app toolbar that replaces the three-column layout with a focused two-column study view: LEFT=subject list with confidence bars, RIGHT=study surface (quiz + notes + context for selected subject). This is a completely separate screen optimised for active revision sessions.",
+      "acceptanceCriteria": [
+        "A 'Study Mode' toolbar button (book icon) in the main toolbar switches the entire window to study mode",
+        "Study mode left panel: list of all subjects with a confidence bar (0-100%) beneath each, sorted by lowest confidence first",
+        "Clicking a subject in study mode loads the right panel with: subject name + confidence %, top 3 Obsidian notes, any relevant transcript excerpts, and a 'Start Quiz' button",
+        "Notes and excerpts are searchable within study mode using a search field at the top of the right panel",
+        "Confidence bars update in real time after a quiz session completes",
+        "A 'Back to Planner' button in the toolbar returns to the normal 3-pane layout",
+        "App builds without errors"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": "Create StudyModeView.swift as a top-level View. Add @State isStudyMode: Bool to ContentView (or to PlannerStore). When isStudyMode is true, the main body shows StudyModeView instead of the normal HSplitView. StudyModeView: left panel is a List of SubjectStudyRow (subject name + ProgressView(value: confidence/100)); right panel is SubjectStudyDetail (notes, excerpts, quiz button). Use the Obsidian docs from STORY-006 and ContextDocument list. Subject list is derived from: Set of all task subjects + all ContextDocument subjects. Confidence values come from task.confidence or a dedicated subjectConfidences: [String: Double] dictionary in PlannerStore (add this field). Sync subjectConfidences after quiz sessions."
+    },
+    {
+      "id": "STORY-011",
+      "title": "Full-text context search across all imported content",
+      "description": "Add a search bar in the right panel (or as a command palette) that searches across all imported content: Seqta tasks, Obsidian notes, transcript excerpts, codex-mem hits, and chat history. Returns ranked results with source labels.",
+      "acceptanceCriteria": [
+        "A search field (⌘K keyboard shortcut to focus) is accessible from the main layout — either in the toolbar or at the top of the right panel",
+        "Typing triggers real-time search across: PlannerTask titles/descriptions, ContextDocument content, transcript excerpts, and chat messages",
+        "Results are grouped by source type (Tasks, Notes, Transcripts, Chat)",
+        "Each result shows: title, source type icon, subject badge, first matching sentence highlighted",
+        "Clicking a result: if task → select task and show in right panel; if note → open note preview in right panel; if chat message → scroll chat to that message",
+        "Search is client-side (no network) and handles up to 10,000 documents without lag",
+        "App builds without errors"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": "Create a ContextSearchService.swift with: `func search(_ query: String, in store: PlannerStore) -> [SearchResult]`. SearchResult: { id, type: .task/.note/.transcript/.chat, title, subject, snippet, relevanceScore }. Scoring: exact title match = 100, substring match in title = 80, content match = 50, weighted by recency. For performance: build an in-memory index at startup — Dict<String, [SearchResult]> keyed by first 3 chars of each word. For the UI: create SearchPanelView.swift with a focused TextField, results List grouped by type. Wire ⌘K using .keyboardShortcut('k', modifiers: .command) on a hidden Button."
+    },
+    {
+      "id": "STORY-012",
+      "title": "Confidence calibration interview — onboarding quiz for new subjects",
+      "description": "When a new subject appears (via Seqta import or manual add) with no confidence data, automatically trigger a 5-question calibration quiz. This asks Ammar how well he knows the subject, what topics he's covered, and what he's unsure about. Uses his answers to set initial confidence and generate study hints.",
+      "acceptanceCriteria": [
+        "When a task is added with a subject that has no existing confidence score, a banner appears: 'New subject: Economics. Run a quick confidence check?' with 'Yes, 2 min' and 'Skip' buttons",
+        "On 'Yes': opens a compact popover (not full screen) with 5 quick self-assessment questions: 'How confident are you in this topic? (1-5)', 'What's the most recent thing you covered?', 'What are you least sure about?', 'When is the assessment?', 'What resources do you have?'",
+        "Answers are sent to Codex: it responds with an initial confidence score (0-100) and 3 specific study hints for that subject",
+        "Study hints are stored as task.notes and surfaced in the context panel",
+        "Initial confidence score is applied to the subject in subjectConfidences",
+        "App builds without errors"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": "Create ConfidenceCalibrationView.swift as a popover or sheet. Trigger: in PlannerStore.importCurrentPayload() (or upsertTaskHints()), after inserting a task, check if subjectConfidences[task.subject] == nil. If so, set a @Published pendingCalibrationSubject: String? property. In ContentView, show a banner when pendingCalibrationSubject != nil. The popover has 5 simple form fields. On submit, call CodexBridge with prompt: 'Given these self-assessment answers about [subject]: [answers], return a JSON object with { confidence: Int (0-100), hints: [String] }. Be realistic and slightly pessimistic.' Parse response and apply."
+    },
+    {
+      "id": "STORY-013",
+      "title": "Daily overview card — morning briefing and day plan summary",
+      "description": "Add a 'Today' card at the top of the center column (above the ranked task list) that shows: date, top 3 priorities for today, total scheduled hours, any deadlines today/tomorrow, and a one-line motivational planning prompt. Generated fresh each app launch.",
+      "acceptanceCriteria": [
+        "A compact card appears at the very top of the center column, above the ranked task list",
+        "Card shows: today's date (styled as 'Thursday, 26 March'), top 3 task titles with urgency color dots, total hours planned today (sum of schedule blocks), any tasks due today or tomorrow in a red/amber badge",
+        "A 'Generate Day Plan' button triggers a Codex call that returns a 2-sentence day plan summary and injects it as a pinned message in the main chat",
+        "The card is collapsible (chevron toggle) and remembers its collapsed state",
+        "Card background uses a subtle gradient from the primary subject color (Economics = warm gold, English = blue, Maths = purple, SoC = green)",
+        "App builds without errors"
+      ],
+      "priority": 13,
+      "passes": false,
+      "notes": "Create DailyOverviewCard.swift. Data it needs: store.tasks (for top 3 ranked), store.scheduleBlocks.filter { Calendar.current.isDateInToday($0.start) } for total hours, tasks with deadline in next 2 days. Place it in the center column VStack before the ranked list. 'Generate Day Plan' calls CodexBridge with a prompt built from today's top tasks + schedule. Subject color map: Economics = Color(hex: '#B8860B'), English = .blue, Maths = .purple, SoC = .green — use the top-ranked task's subject to tint the card. Persist isCollapsed in UserDefaults."
+    },
+    {
+      "id": "STORY-014",
+      "title": "Keyboard-first navigation and command palette",
+      "description": "Add full keyboard navigation: ↑/↓ to select tasks in the ranked list, Enter to open detail, ⌘N to add task, ⌘S to start study mode, ⌘T to start focus timer on selected task, ⌘E to export calendar, ⌘/ to show keyboard shortcut reference. Make the app usable without touching the mouse.",
+      "acceptanceCriteria": [
+        "Arrow keys navigate the ranked task list (focused task is highlighted with a selection ring, not just a hover)",
+        "Enter on a focused task opens the right panel with task detail",
+        "⌘N opens the AddTaskSheet",
+        "⌘S toggles study mode (STORY-010)",
+        "⌘T starts focus timer on the currently selected task",
+        "⌘E triggers calendar export",
+        "⌘/ or ? opens a KeyboardShortcutsHelpView popover listing all shortcuts",
+        "⌘K focuses the search field (STORY-011)",
+        "Tab cycles between left/center/right panels",
+        "App builds without errors"
+      ],
+      "priority": 14,
+      "passes": false,
+      "notes": "In ContentView.swift, use .focusedValue and @FocusState for the ranked task list. For list navigation: maintain @State selectedTaskIndex: Int and use onKeyPress(.upArrow) / onKeyPress(.downArrow) (macOS 14+). For ⌘N, ⌘S etc: use .keyboardShortcut modifiers on hidden Buttons or use NSEvent.addLocalMonitorForEvents. Create KeyboardShortcutsHelpView.swift: a simple grid of shortcut + description pairs in a popover. The most important shortcut is ⌘K for search — make that the first thing that works."
+    },
+    {
+      "id": "STORY-015",
+      "title": "Polish pass — animations, empty states, error handling, and app icon",
+      "description": "Final polish: add meaningful animations to state transitions, handle all empty states gracefully, show proper error messages when Codex/import fails, and set a proper app icon. The app must feel finished, not prototypal.",
+      "acceptanceCriteria": [
+        "All list insertions/removals use .animation(.spring(response: 0.3)) transitions",
+        "Empty states: when task list is empty show an illustration + 'Add your first task with ⌘N'; when no schedule blocks show 'Ask Timed to plan your day'; when context panel is empty show 'Select a task to see context'",
+        "When CodexBridge fails (non-zero exit, empty response), show an inline error banner in the chat area with the error message and a 'Retry' button — do not silently fail",
+        "When Seqta sync fails, show a Settings badge and a toast notification",
+        "App icon is set to the TimedLogoMark rendered at all required sizes (16, 32, 64, 128, 256, 512, 1024) and added to Assets.xcassets/AppIcon.appiconset",
+        "swift build completes with zero errors and zero warnings (fix all existing warnings)",
+        "App launches in under 2 seconds on first cold start"
+      ],
+      "priority": 15,
+      "passes": false,
+      "notes": "For animations: add .transition(.asymmetric(insertion: .scale.combined(with: .opacity), removal: .opacity)) to task rows and schedule blocks. For empty states: create EmptyStateView.swift with icon + title + subtitle + optional action button. For error handling in CodexBridge: capture stderr separately, surface it to PlannerStore as a @Published lastError: String?, show as a dismissable banner. For app icon: in TimedLogoMark.swift there is already a logo render — export it using ImageRenderer at all required sizes and write PNG files to Assets.xcassets/AppIcon.appiconset/ along with a Contents.json. Fix all Swift warnings (unused vars, deprecated APIs). Run swift build and resolve every diagnostic."
+    }
+  ]
+}
