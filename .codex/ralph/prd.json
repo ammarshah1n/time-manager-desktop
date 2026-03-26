@@ -139,7 +139,7 @@
         "App builds without errors"
       ],
       "priority": 8,
-      "passes": false,
+      "passes": true,
       "notes": "Create FocusTimerModel.swift: @Observable class with currentTask: PlannerTask?, secondsRemaining: Int, isRunning: Bool, pomodoroCount: Int. Use Timer.scheduledTimer or Swift Concurrency (Task { while isRunning { try await Task.sleep(nanoseconds: 1_000_000_000); secondsRemaining -= 1 } }). FocusTimerWidget.swift: a compact HStack showing task name, circular progress (drawn with a SwiftUI Circle stroke with trim()), and controls. Inject FocusTimerModel as @State in ContentView and pass it down. For notifications: request UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) on first launch and trigger a UNMutableNotificationContent when timer hits 0. Store pomodoroCount in PlannerTask model (add field to Models.swift and PlannerSnapshot)."
     },
     {
