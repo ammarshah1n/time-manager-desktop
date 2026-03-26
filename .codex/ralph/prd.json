@@ -122,7 +122,7 @@
         "App builds without errors"
       ],
       "priority": 7,
-      "passes": false,
+      "passes": true,
       "notes": "Create a new QuizView.swift (or extend the existing quiz UI in ContentView). Key components: (1) QuizSessionModel: @Observable class holding currentQuestion, questionHistory, sessionScore, subject. (2) QuizQuestionView: shows question + 4 options as large tappable cards. (3) Question generation: call CodexBridge with a prompt like 'Generate 5 quiz questions from this content: [context]. Return JSON array of {question, options: [A,B,C,D], correct: A, explanation, source}. (4) Parse JSON response to [QuizQuestion] model. (5) Track correct answers, calculate confidence delta: delta = (correct/total - 0.5) * 20 clamped to -10..+10. (6) After session, call store.applySubjectConfidences([subject: newConfidence]). The modal should use .fullScreenCover or a ZStack overlay with blur background."
     },
     {
