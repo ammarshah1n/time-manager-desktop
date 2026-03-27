@@ -85,8 +85,8 @@ struct ContentView: View {
                     AddTaskSheet(
                         draft: $addTaskDraft,
                         errorMessage: $addTaskError,
-                        onSave: {
-                            if let error = store.addManualTask(addTaskDraft) {
+                        onSave: { resolvedDraft in
+                            if let error = store.addManualTask(resolvedDraft, parseNaturalLanguage: false) {
                                 addTaskError = error
                                 return
                             }
@@ -2924,14 +2924,32 @@ private struct CommandPaletteSheet: View {
 private struct AddTaskSheet: View {
     @Binding var draft: AddTaskDraft
     @Binding var errorMessage: String?
-    let onSave: () -> Void
+    let onSave: (AddTaskDraft) -> Void
     @Environment(\.dismiss) private var dismiss
+    @State private var subjectWasEditedManually = false
+    @State private var importanceWasEditedManually = false
+    @State private var dueDateWasEditedManually = false
+    private let parser = NLTaskParser()
 
     var body: some View {
         NavigationStack {
             Form {
-                TextField("Title", text: $draft.title)
-                Picker("Subject", selection: $draft.subject) {
+                VStack(alignment: .leading, spacing: 10) {
+                    TextField("Task or natural language", text: $draft.title)
+
+                    if !previewChips.isEmpty {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                ForEach(previewChips, id: \.label) { chip in
+                                    previewChip(icon: chip.icon, label: chip.label)
+                                }
+                            }
+                            .padding(.vertical, 2)
+                        }
+                    }
+                }
+
+                Picker("Subject", selection: subjectBinding) {
                     Text("Select subject").tag("")
                     ForEach(SubjectCatalog.supported, id: \.self) { subject in
                         Text(subject).tag(subject)
@@ -2940,13 +2958,16 @@ private struct AddTaskSheet: View {
                 Stepper("Estimate \(draft.estimateMinutes) min", value: $draft.estimateMinutes, in: 5...300, step: 5)
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Importance \(Int(draft.importance.rounded()))")
-                    Slider(value: $draft.importance, in: 1...5, step: 1)
+                    Slider(value: importanceBinding, in: 1...10, step: 1)
                 }
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Confidence \(Int(draft.confidence.rounded()))")
                     Slider(value: $draft.confidence, in: 1...5, step: 1)
                 }
-                DatePicker("Due date", selection: $draft.dueDate, displayedComponents: [.date, .hourAndMinute])
+                Toggle("Set due date", isOn: hasDueDateBinding)
+                if draft.dueDate != nil {
+                    DatePicker("Due date", selection: dueDateBinding, displayedComponents: [.date, .hourAndMinute])
+                }
                 Picker("Energy", selection: $draft.energy) {
                     ForEach(TaskEnergy.allCases) { energy in
                         Text(energy.rawValue).tag(energy)
@@ -2975,12 +2996,160 @@ private struct AddTaskSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        onSave()
+                        onSave(resolvedDraftForSave)
                     }
                 }
             }
         }
         .frame(minWidth: 480, minHeight: 560)
+        .onAppear {
+            applyNaturalLanguageAutofill(for: draft.title)
+        }
+        .onChange(of: draft.title) { _, newValue in
+            applyNaturalLanguageAutofill(for: newValue)
+        }
+    }
+
+    private var subjectBinding: Binding<String> {
+        Binding(
+            get: { draft.subject },
+            set: { newValue in
+                subjectWasEditedManually = true
+                draft.subject = newValue
+            }
+        )
+    }
+
+    private var importanceBinding: Binding<Double> {
+        Binding(
+            get: { draft.importance },
+            set: { newValue in
+                importanceWasEditedManually = true
+                draft.importance = newValue
+            }
+        )
+    }
+
+    private var hasDueDateBinding: Binding<Bool> {
+        Binding(
+            get: { draft.dueDate != nil },
+            set: { enabled in
+                dueDateWasEditedManually = true
+                draft.dueDate = enabled ? (draft.dueDate ?? defaultDueDate()) : nil
+            }
+        )
+    }
+
+    private var dueDateBinding: Binding<Date> {
+        Binding(
+            get: { draft.dueDate ?? defaultDueDate() },
+            set: { newValue in
+                dueDateWasEditedManually = true
+                draft.dueDate = newValue
+            }
+        )
+    }
+
+    private var resolvedDraftForSave: AddTaskDraft {
+        let parsed = parser.parse(draft.title)
+        var resolved = draft
+        let parsedTitle = parsed.title.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        resolved.title = parsedTitle.isEmpty ? draft.title.trimmingCharacters(in: .whitespacesAndNewlines) : parsedTitle
+
+        if !subjectWasEditedManually, let parsedSubject = parsed.subject {
+            resolved.subject = parsedSubject
+        }
+
+        if !importanceWasEditedManually, let parsedImportance = parsed.importance {
+            resolved.importance = Double(parsedImportance)
+        }
+
+        if !dueDateWasEditedManually, let parsedDueDate = parsed.dueDate {
+            resolved.dueDate = parsedDueDate
+        }
+
+        return resolved
+    }
+
+    private var previewChips: [(icon: String, label: String)] {
+        let resolved = resolvedDraftForSave
+        var chips: [(icon: String, label: String)] = [
+            ("star.fill", "\(Int(resolved.importance.rounded()))")
+        ]
+
+        if let dueDate = resolved.dueDate {
+            chips.append(("calendar", dueDateChipLabel(for: dueDate)))
+        }
+
+        if !resolved.subject.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            chips.append(("book.closed", resolved.subject))
+        }
+
+        return chips
+    }
+
+    private func applyNaturalLanguageAutofill(for input: String) {
+        let parsed = parser.parse(input)
+
+        if !subjectWasEditedManually, let parsedSubject = parsed.subject {
+            draft.subject = parsedSubject
+        } else if !subjectWasEditedManually, parsed.subject == nil {
+            draft.subject = ""
+        }
+
+        if !importanceWasEditedManually, let parsedImportance = parsed.importance {
+            draft.importance = Double(parsedImportance)
+        } else if !importanceWasEditedManually, parsed.importance == nil {
+            draft.importance = 5
+        }
+
+        if !dueDateWasEditedManually {
+            draft.dueDate = parsed.dueDate
+        }
+    }
+
+    private func previewChip(icon: String, label: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.system(size: 10, weight: .semibold))
+            Text(label)
+                .font(.system(size: 11, weight: .semibold))
+        }
+        .foregroundStyle(.white.opacity(0.92))
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(.ultraThinMaterial, in: Capsule(style: .continuous))
+        .overlay(
+            Capsule(style: .continuous)
+                .stroke(Color.white.opacity(0.12), lineWidth: 1)
+        )
+    }
+
+    private func dueDateChipLabel(for date: Date) -> String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(date) {
+            return "Today"
+        }
+        if calendar.isDateInTomorrow(date) {
+            return "Tomorrow"
+        }
+
+        let formatter = DateFormatter()
+        formatter.locale = .current
+        formatter.setLocalizedDateFormatFromTemplate("EEE")
+        return formatter.string(from: date)
+    }
+
+    private func defaultDueDate() -> Date {
+        let calendar = Calendar.current
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: .now) ?? .now
+        return calendar.date(
+            bySettingHour: 17,
+            minute: 0,
+            second: 0,
+            of: tomorrow
+        ) ?? tomorrow
     }
 }
 

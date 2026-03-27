@@ -695,15 +695,23 @@ final class PlannerStore {
         pendingImportBatch = nil
     }
 
-    func addManualTask(_ draft: AddTaskDraft) -> String? {
-        guard !draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+    func addManualTask(
+        _ draft: AddTaskDraft,
+        parseNaturalLanguage: Bool = true,
+        now: Date = .now
+    ) -> String? {
+        let resolvedDraft = parseNaturalLanguage
+            ? draft.resolvingNaturalLanguage(now: now)
+            : draft
+
+        guard !resolvedDraft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return "Task title is required."
         }
-        guard draft.estimateMinutes > 0 else {
+        guard resolvedDraft.estimateMinutes > 0 else {
             return "Estimate must be greater than zero."
         }
 
-        let task = calibratedTask(draft.makeTask())
+        let task = calibratedTask(resolvedDraft.makeTask())
         if tasks.contains(where: { $0.id == task.id }) {
             return "That task already exists."
         }

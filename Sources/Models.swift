@@ -440,11 +440,11 @@ struct ImportBatch {
 
 struct AddTaskDraft {
     var title = ""
-    var subject = SubjectCatalog.supported.first ?? "English"
+    var subject = ""
     var estimateMinutes = 30
-    var importance = 3.0
+    var importance = 5.0
     var confidence = 3.0
-    var dueDate = Calendar.current.date(byAdding: .day, value: 1, to: .now) ?? .now
+    var dueDate: Date?
     var energy: TaskEnergy = .medium
     var source: TaskSource = .chat
     var notes = ""
@@ -465,6 +465,35 @@ struct AddTaskDraft {
             isCompleted: false,
             completedAt: nil
         )
+    }
+
+    func resolvingNaturalLanguage(
+        with parser: NLTaskParser = NLTaskParser(),
+        now: Date = .now
+    ) -> AddTaskDraft {
+        let parsed = parser.parse(title, now: now)
+        var resolved = self
+        let parsedTitle = parsed.title.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if !parsedTitle.isEmpty {
+            resolved.title = parsedTitle
+        } else {
+            resolved.title = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        if let parsedSubject = parsed.subject {
+            resolved.subject = parsedSubject
+        }
+
+        if let parsedImportance = parsed.importance {
+            resolved.importance = Double(parsedImportance)
+        }
+
+        if let parsedDueDate = parsed.dueDate {
+            resolved.dueDate = parsedDueDate
+        }
+
+        return resolved
     }
 }
 
