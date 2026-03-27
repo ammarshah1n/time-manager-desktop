@@ -5,6 +5,9 @@ enum TimedPreferences {
     static let autonomousModeEnabledKey = "timed.autonomousModeEnabled"
     static let fileSearchEnabledKey = "timed.fileSearchEnabled"
     static let codexMemoryEnabledKey = "timed.codexMemoryEnabled"
+    static let appearanceModeKey = "timed.appearanceMode"
+    static let accentColorKey = "timed.accentColor"
+    static let fontSizeCategoryKey = "timed.fontSizeCategory"
     static let workingRootKey = "timed.workingRoot"
     static let codexMemDBPathKey = "timed.codexMemDBPath"
     static let obsidianVaultPathKey = "obsidianVaultPath"
@@ -13,6 +16,9 @@ enum TimedPreferences {
     private static let legacyObsidianVaultPathKey = "timed.obsidianVaultPath"
     static let defaultAIExecutablePath = "/Applications/Codex.app/Contents/Resources/codex"
     static let defaultWorkingRoot = NSHomeDirectory()
+    static let defaultAppearanceMode = TimedAppearanceMode.system.rawValue
+    static let defaultAccentColor = TimedAccentColor.default.rawValue
+    static let defaultFontSizeCategory = TimedFontSizeCategory.medium.rawValue
     static let supportedFocusSessionMinutes = [15, 25, 45, 60]
     static let defaultFocusSessionMinutes = 25
     static let defaultCodexMemDBPath = URL(fileURLWithPath: NSHomeDirectory())
@@ -54,6 +60,18 @@ enum TimedPreferences {
 
     static var codexMemoryEnabled: Bool {
         UserDefaults.standard.object(forKey: codexMemoryEnabledKey) as? Bool ?? true
+    }
+
+    static var appearanceMode: TimedAppearanceMode {
+        TimedAppearanceMode(rawValue: UserDefaults.standard.string(forKey: appearanceModeKey) ?? defaultAppearanceMode) ?? .system
+    }
+
+    static var accentColor: TimedAccentColor {
+        TimedAccentColor.resolve(UserDefaults.standard.string(forKey: accentColorKey) ?? defaultAccentColor)
+    }
+
+    static var fontSizeCategory: TimedFontSizeCategory {
+        TimedFontSizeCategory(rawValue: UserDefaults.standard.string(forKey: fontSizeCategoryKey) ?? defaultFontSizeCategory) ?? .medium
     }
 
     static var workingRoot: String {

@@ -2,6 +2,9 @@ import AppKit
 import SwiftUI
 
 struct SettingsView: View {
+    @AppStorage(TimedPreferences.appearanceModeKey) private var appearanceMode = TimedPreferences.defaultAppearanceMode
+    @AppStorage(TimedPreferences.accentColorKey) private var accentColor = TimedPreferences.defaultAccentColor
+    @AppStorage(TimedPreferences.fontSizeCategoryKey) private var fontSizeCategory = TimedPreferences.defaultFontSizeCategory
     @AppStorage(TimedPreferences.aiExecutablePathKey) private var aiExecutablePath = TimedPreferences.defaultAIExecutablePath
     @AppStorage(TimedPreferences.autonomousModeEnabledKey) private var autonomousModeEnabled = true
     @AppStorage(TimedPreferences.fileSearchEnabledKey) private var fileSearchEnabled = true
@@ -13,9 +16,93 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
+            Section("Appearance") {
+                Picker("Mode", selection: $appearanceMode) {
+                    ForEach(TimedAppearanceMode.allCases) { mode in
+                        Text(mode.title).tag(mode.rawValue)
+                    }
+                }
+                .pickerStyle(.segmented)
+
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        Text("Accent colour")
+                            .timedScaledFont(13, weight: .semibold)
+
+                        Spacer()
+
+                        Text(selectedAccentColor.title)
+                            .timedScaledFont(12, weight: .medium)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    LazyHGrid(rows: [GridItem(.fixed(34))], spacing: 12) {
+                        ForEach(TimedAccentColor.allCases) { option in
+                            Button {
+                                accentColor = option.rawValue
+                            } label: {
+                                ZStack {
+                                    Circle()
+                                        .fill(option.color.gradient)
+                                        .frame(width: 26, height: 26)
+
+                                    if option == selectedAccentColor {
+                                        Image(systemName: "checkmark")
+                                            .font(.system(size: 10, weight: .bold))
+                                            .foregroundStyle(.white)
+                                    }
+                                }
+                                .frame(width: 34, height: 34)
+                                .background(
+                                    Circle()
+                                        .fill(Color.white.opacity(option == selectedAccentColor ? 0.12 : 0.04))
+                                )
+                                .overlay(
+                                    Circle()
+                                        .stroke(option == selectedAccentColor ? option.color.opacity(0.9) : Color.white.opacity(0.08), lineWidth: option == selectedAccentColor ? 2 : 1)
+                                )
+                            }
+                            .buttonStyle(.plain)
+                            .help(option.title)
+                        }
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        Text("Font size")
+                            .timedScaledFont(13, weight: .semibold)
+
+                        Spacer()
+
+                        Text(fontSizeSummary)
+                            .timedScaledFont(12, weight: .medium)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Slider(
+                        value: Binding(
+                            get: { selectedFontSizeCategory.sliderValue },
+                            set: { fontSizeCategory = TimedFontSizeCategory.nearest(to: $0).rawValue }
+                        ),
+                        in: 0...2,
+                        step: 1
+                    )
+
+                    HStack {
+                        ForEach(TimedFontSizeCategory.allCases) { option in
+                            Text(option.title)
+                                .timedScaledFont(12, weight: option == selectedFontSizeCategory ? .semibold : .medium)
+                                .foregroundStyle(option == selectedFontSizeCategory ? Color.primary : Color.secondary)
+                                .frame(maxWidth: .infinity, alignment: alignment(for: option))
+                        }
+                    }
+                }
+            }
+
             Section("Timed AI") {
                 Text("Timed uses the local Codex CLI in autonomous mode for planning and study.")
-                    .font(.system(size: 13))
+                    .timedScaledFont(13)
                     .foregroundStyle(.secondary)
 
                 Toggle("Enable autonomous Codex mode", isOn: $autonomousModeEnabled)
@@ -95,7 +182,7 @@ struct SettingsView: View {
                 .pickerStyle(.segmented)
 
                 Text("The inline focus timer uses this duration for task-bound Pomodoro sessions.")
-                    .font(.system(size: 12))
+                    .timedScaledFont(12)
                     .foregroundStyle(.secondary)
             }
 
@@ -106,7 +193,7 @@ struct SettingsView: View {
                 } else {
                     ForEach(TimedPreferences.oneDriveRoots, id: \.self) { root in
                         Text(root)
-                            .font(.system(size: 12))
+                            .timedScaledFont(12)
                             .textSelection(.enabled)
                     }
                 }
@@ -118,6 +205,26 @@ struct SettingsView: View {
             if !newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 TimedPreferences.markObsidianVaultPromptHandled()
             }
+        }
+    }
+
+    private var selectedAccentColor: TimedAccentColor {
+        TimedAccentColor.resolve(accentColor)
+    }
+
+    private var selectedFontSizeCategory: TimedFontSizeCategory {
+        TimedFontSizeCategory(rawValue: fontSizeCategory) ?? .medium
+    }
+
+    private var fontSizeSummary: String {
+        "\(selectedFontSizeCategory.title) (\(Int(selectedFontSizeCategory.bodyPointSize))pt body)"
+    }
+
+    private func alignment(for option: TimedFontSizeCategory) -> Alignment {
+        switch option {
+        case .small: .leading
+        case .medium: .center
+        case .large: .trailing
         }
     }
 

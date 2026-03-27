@@ -19,12 +19,12 @@ struct TimedCard<Content: View>: View {
             HStack(spacing: 8) {
                 if let icon {
                     Image(systemName: icon)
-                        .font(.system(size: 13, weight: .semibold))
+                        .timedScaledFont(13, weight: .semibold)
                         .foregroundStyle(.white.opacity(0.82))
                 }
 
                 Text(title)
-                    .font(.system(size: 15, weight: .semibold))
+                    .timedScaledFont(15, weight: .semibold)
                     .foregroundStyle(.white)
             }
 

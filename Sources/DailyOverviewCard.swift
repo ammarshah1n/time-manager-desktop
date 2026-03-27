@@ -95,7 +95,7 @@ struct DailyOverviewCard: View {
                     .foregroundStyle(.white)
 
                 Text("Top priorities, deadlines, and your planning brief.")
-                    .font(.system(size: 12, weight: .medium))
+                    .timedScaledFont(12, weight: .medium)
                     .foregroundStyle(.white.opacity(0.62))
             }
 
@@ -121,13 +121,13 @@ struct DailyOverviewCard: View {
     private var prioritiesSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Top 3 priorities")
-                .font(.system(size: 12, weight: .semibold))
+                .timedScaledFont(12, weight: .semibold)
                 .foregroundStyle(.white.opacity(0.62))
                 .textCase(.uppercase)
 
             if priorities.isEmpty {
                 Text("No active priorities yet. Import work to generate a day plan.")
-                    .font(.system(size: 13))
+                    .timedScaledFont(13)
                     .foregroundStyle(.white.opacity(0.64))
             } else {
                 ForEach(priorities) { priority in
@@ -138,11 +138,11 @@ struct DailyOverviewCard: View {
 
                         VStack(alignment: .leading, spacing: 2) {
                             Text(priority.title)
-                                .font(.system(size: 14, weight: .semibold))
+                                .timedScaledFont(14, weight: .semibold)
                                 .foregroundStyle(.white)
 
                             Text(priority.subject)
-                                .font(.system(size: 11, weight: .medium))
+                                .timedScaledFont(11, weight: .medium)
                                 .foregroundStyle(.white.opacity(0.56))
                         }
                     }
@@ -155,11 +155,11 @@ struct DailyOverviewCard: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 12) {
                 Text("🍅 \(todayPomodoroCount) today")
-                    .font(.system(size: 13, weight: .semibold))
+                    .timedScaledFont(13, weight: .semibold)
                     .foregroundStyle(.white)
 
                 Text("🔥 \(currentStudyStreak) day streak")
-                    .font(.system(size: 13, weight: .semibold))
+                    .timedScaledFont(13, weight: .semibold)
                     .foregroundStyle(.white.opacity(0.82))
             }
 
@@ -204,12 +204,12 @@ struct DailyOverviewCard: View {
         VStack(alignment: .leading, spacing: 8) {
             if deadlines.isEmpty {
                 Text("No deadlines due today or tomorrow.")
-                    .font(.system(size: 13))
+                    .timedScaledFont(13)
                     .foregroundStyle(.white.opacity(0.64))
             } else {
                 ForEach(deadlines) { deadline in
                     Text(deadlineText(deadline))
-                        .font(.system(size: 12, weight: .semibold))
+                        .timedScaledFont(12, weight: .semibold)
                         .foregroundStyle(.white.opacity(0.92))
                         .padding(.horizontal, 10)
                         .padding(.vertical, 7)

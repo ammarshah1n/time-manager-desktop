@@ -71,7 +71,6 @@ struct ContentView: View {
         AnyView(
             rootView
                 .frame(minWidth: 1360, minHeight: 900)
-                .preferredColorScheme(.dark)
         )
     }
 
@@ -370,7 +369,7 @@ struct ContentView: View {
                             .foregroundStyle(.white)
 
                         Text(headerDateString)
-                            .font(.system(size: 15, weight: .semibold))
+                            .timedScaledFont(15, weight: .semibold)
                             .foregroundStyle(.white.opacity(0.72))
                     }
                 }
@@ -414,7 +413,6 @@ struct ContentView: View {
                         settingsLinkLabel
                     }
                     .buttonStyle(.bordered)
-                    .tint(.white.opacity(0.22))
                 }
             }
         }
@@ -1217,7 +1215,6 @@ struct ContentView: View {
                                     Task { await store.submitStudyPrompt() }
                                 }
                                 .buttonStyle(.bordered)
-                                .tint(.white.opacity(0.18))
                             }
                         }
                     }
@@ -2869,7 +2866,6 @@ private struct HeaderActionButton: View {
             Label(title, systemImage: systemImage)
         }
         .buttonStyle(.bordered)
-        .tint(.white.opacity(0.22))
     }
 }
 
@@ -2905,18 +2901,18 @@ private struct PromptBubble: View {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 6) {
                     Text(message.role.displayName)
-                        .font(.system(size: 11, weight: .semibold))
+                        .timedScaledFont(11, weight: .semibold)
                         .foregroundStyle(.white.opacity(0.54))
 
                     if message.isPinned {
                         Label("Pinned", systemImage: "pin.fill")
-                            .font(.system(size: 10, weight: .bold))
+                            .timedScaledFont(10, weight: .bold)
                             .foregroundStyle(.white.opacity(0.78))
                     }
                 }
 
                 Text(message.text)
-                    .font(.system(size: 13))
+                    .timedScaledFont(13)
                     .foregroundStyle(.white.opacity(0.9))
                     .textSelection(.enabled)
             }

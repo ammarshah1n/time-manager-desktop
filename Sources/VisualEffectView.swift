@@ -13,7 +13,7 @@ struct TimedVisualEffectBackground: NSViewRepresentable {
         blendingMode: NSVisualEffectView.BlendingMode = .behindWindow,
         state: NSVisualEffectView.State = .active,
         emphasized: Bool = false,
-        appearanceName: NSAppearance.Name? = .darkAqua
+        appearanceName: NSAppearance.Name? = nil
     ) {
         self.material = material
         self.blendingMode = blendingMode

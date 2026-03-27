@@ -5,7 +5,7 @@ struct TimedSectionHeader: View {
 
     var body: some View {
         Text(title)
-            .font(.system(size: 11, weight: .semibold))
+            .timedScaledFont(11, weight: .semibold)
             .foregroundStyle(.white.opacity(0.56))
             .tracking(1.2)
             .textCase(.uppercase)
@@ -37,18 +37,18 @@ struct TaskLibraryCompactRow: View {
                         }
 
                         Image(systemName: "arrow.turn.down.right")
-                            .font(.system(size: 10, weight: .bold))
+                            .timedScaledFont(10, weight: .bold)
                             .foregroundStyle(.white.opacity(isCompleted ? 0.25 : 0.42))
                     }
                 }
 
                 Image(systemName: iconName)
-                    .font(.system(size: 13, weight: .semibold))
+                    .timedScaledFont(13, weight: .semibold)
                     .foregroundStyle(.white.opacity(isCompleted ? 0.35 : 0.76))
                     .frame(width: 16)
 
                 Text(title)
-                    .font(.system(size: 13, weight: .medium))
+                    .timedScaledFont(13, weight: .medium)
                     .foregroundStyle(.white.opacity(isCompleted ? 0.42 : 0.88))
                     .lineLimit(1)
 
@@ -63,7 +63,7 @@ struct TaskLibraryCompactRow: View {
                 }
 
                 Text(dueText)
-                    .font(.system(size: 11, weight: .medium))
+                    .timedScaledFont(11, weight: .medium)
                     .foregroundStyle(.white.opacity(0.5))
                     .lineLimit(1)
             }
@@ -101,7 +101,7 @@ struct NextUpTaskCard: View {
                 }
 
                 Text(ranked.suggestedNextAction)
-                    .font(.system(size: 13, weight: .medium))
+                    .timedScaledFont(13, weight: .medium)
                     .foregroundStyle(.white.opacity(0.82))
                     .lineLimit(2)
 
@@ -126,7 +126,7 @@ struct NextUpTaskCard: View {
 
     private func pill(text: String, highlighted: Bool = false) -> some View {
         Text(text)
-            .font(.system(size: 11, weight: .semibold))
+            .timedScaledFont(11, weight: .semibold)
             .foregroundStyle(.white.opacity(highlighted ? 0.94 : 0.78))
             .padding(.horizontal, 9)
             .padding(.vertical, 5)
@@ -149,16 +149,16 @@ struct ContextSnippetCard: View {
         TimedCard(title: context.title, icon: "text.book.closed") {
             VStack(alignment: .leading, spacing: 10) {
                 Text(context.kind)
-                    .font(.system(size: 11, weight: .semibold))
+                    .timedScaledFont(11, weight: .semibold)
                     .foregroundStyle(.white.opacity(0.5))
 
                 Text(context.summary)
-                    .font(.system(size: 13))
+                    .timedScaledFont(13)
                     .foregroundStyle(.white.opacity(0.8))
                     .lineLimit(3)
 
                 Text(context.detail)
-                    .font(.system(size: 12))
+                    .timedScaledFont(12)
                     .foregroundStyle(.white.opacity(0.56))
                     .lineLimit(6)
 
