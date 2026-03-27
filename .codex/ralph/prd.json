@@ -324,7 +324,7 @@
         "swift build passes"
       ],
       "priority": 19,
-      "passes": false,
+      "passes": true,
       "notes": "Create NLTaskParser.swift with a `parse(_ input: String) -> ParsedTask` struct. Use NSDataDetector for date extraction OR a manual regex: `(due|by|on)\\s+(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|next week)`. For importance: `(importance|priority|imp)\\s*(\\d+)`. For subject: check input.lowercased() against known subjects ['economics','english','maths','biology','society','history','physics','chemistry']. Return a ParsedTask with optional fields. In ContentView, show chip previews in the add-task sheet using HStack of small rounded Text badges."
     },
     {

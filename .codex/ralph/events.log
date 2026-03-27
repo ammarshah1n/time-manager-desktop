@@ -260,3 +260,6 @@
 [2026-03-27T15:21:28+1030] COMMIT story=STORY-017 sha=739f39d
 [2026-03-27T15:21:30+1030] STORY START id=STORY-018 attempt=1 title=Pomodoro statistics — daily counts, streaks, and 7-day sparkline 
 [2026-03-27T15:25:14+1030] STORY COMPLETE id=STORY-018 attempt=1
+[2026-03-27T15:25:14+1030] COMMIT story=STORY-018 sha=379335d
+[2026-03-27T15:25:16+1030] STORY START id=STORY-019 attempt=1 title=Natural language task input parser 
+[2026-03-27T15:33:13+1030] STORY COMPLETE id=STORY-019 attempt=1
