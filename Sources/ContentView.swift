@@ -139,6 +139,23 @@ struct ContentView: View {
                         onSave: saveDebrief
                     )
                 }
+                .sheet(
+                    isPresented: Binding(
+                        get: { store.showWeeklyReview },
+                        set: { isPresented in
+                            if !isPresented, store.showWeeklyReview {
+                                store.dismissWeeklyReview()
+                            }
+                        }
+                    )
+                ) {
+                    WeeklyReviewView(
+                        summary: store.weeklyReviewSummary(),
+                        onDismiss: {
+                            store.dismissWeeklyReview()
+                        }
+                    )
+                }
         )
     }
 

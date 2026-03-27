@@ -54,6 +54,8 @@ final class PlannerStore {
     var pomodoroLog: [String: Int] = [:]
     var decomposingTaskIDs: Set<String> = []
     var canUndoDecomposition = false
+    var lastWeeklyReview: Date?
+    var showWeeklyReview = false
 
     init(storageURL: URL? = nil, fileManager: FileManager = .default) {
         TimedPreferences.migrateLegacyValuesIfNeeded()
@@ -101,6 +103,34 @@ final class PlannerStore {
         contexts.sorted { $0.createdAt > $1.createdAt }
     }
 
+    func refreshWeeklyReviewState(now: Date = .now) {
+        showWeeklyReview = shouldShowWeeklyReview(now: now)
+    }
+
+    func dismissWeeklyReview(now: Date = .now) {
+        lastWeeklyReview = now
+        showWeeklyReview = false
+        save()
+    }
+
+    func weeklyReviewSummary(now: Date = .now) -> WeeklyReviewSummary {
+        let calendar = Calendar.current
+        let windowStart = weeklyReviewWindowStart(now: now, calendar: calendar)
+        let completedTaskCount = tasks.filter { task in
+            guard task.isCompleted, let completedAt = task.completedAt else { return false }
+            return completedAt >= windowStart && completedAt <= now
+        }.count
+        let totalPomodoros = pomodoroTrend(referenceDate: now, days: 7).reduce(0) { $0 + $1.count }
+        let confidenceDeltas = weeklyConfidenceDeltas(now: now, windowStart: windowStart)
+
+        return WeeklyReviewSummary(
+            completedTaskCount: completedTaskCount,
+            totalPomodoros: totalPomodoros,
+            confidenceDeltas: confidenceDeltas,
+            topPriorities: Array(rankedTasksSnapshot(now: now).prefix(3))
+        )
+    }
+
     func save() {
         let snapshot = PlannerSnapshot(
             tasks: tasks,
@@ -117,7 +147,8 @@ final class PlannerStore {
             promptBoostSubject: promptBoostSubject,
             dismissedScheduleTaskIDs: Array(dismissedScheduleTaskIDs),
             obsidianDocuments: obsidianDocuments,
-            pomodoroLog: pomodoroLog
+            pomodoroLog: pomodoroLog,
+            lastWeeklyReview: lastWeeklyReview
         )
 
         do {
@@ -152,6 +183,7 @@ final class PlannerStore {
             promptBoostSubject = snapshot.promptBoostSubject
             dismissedScheduleTaskIDs = Set(snapshot.dismissedScheduleTaskIDs)
             pomodoroLog = snapshot.pomodoroLog
+            lastWeeklyReview = snapshot.lastWeeklyReview
         } else {
             let sample = ShellData.empty
             tasks = sample.tasks
@@ -168,12 +200,14 @@ final class PlannerStore {
             promptText = ""
             studyPromptText = ""
             pomodoroLog = [:]
+            lastWeeklyReview = nil
         }
 
         migrateTaskIdentityIfNeeded()
         normalizeQuizQuestionState()
         syncConfidenceHistoryState()
         rebuildPlan()
+        refreshWeeklyReviewState()
     }
 
     func selectTask(_ task: TaskItem) {
@@ -188,25 +222,7 @@ final class PlannerStore {
 
     func rebuildPlan(now: Date = .now) {
         syncSubjectConfidenceState()
-        let subjectImportance = rankingSubjectImportance()
-        let confidenceOverrides = rankingConfidenceOverrides()
-
-        rankedTasks = PlanningEngine.rank(
-            tasks: tasks,
-            contexts: contexts,
-            now: now,
-            promptBoostSubject: promptBoostSubject,
-            subjectImportance: subjectImportance,
-            confidenceOverride: confidenceOverrides
-        ).map { ranked in
-            RankedTask(
-                task: ranked.task,
-                score: ranked.score,
-                band: ranked.band,
-                reasons: ranked.reasons,
-                suggestedNextAction: suggestedNextActionsByTaskID[ranked.task.id] ?? ranked.suggestedNextAction
-            )
-        }
+        rankedTasks = rankedTasksSnapshot(now: now)
 
         let currentApprovals = Dictionary(uniqueKeysWithValues: schedule.map { ($0.taskID, $0.isApproved) })
         let schedulable = rankedTasks.filter { !dismissedScheduleTaskIDs.contains($0.task.id) }
@@ -2062,6 +2078,65 @@ final class PlannerStore {
         mutable.subject = canonicalSubjectName(task.subject)
         mutable.confidence = inferredConfidence(for: mutable)
         return mutable
+    }
+
+    private func rankedTasksSnapshot(now: Date) -> [RankedTask] {
+        let subjectImportance = rankingSubjectImportance()
+        let confidenceOverrides = rankingConfidenceOverrides()
+
+        return PlanningEngine.rank(
+            tasks: tasks,
+            contexts: contexts,
+            now: now,
+            promptBoostSubject: promptBoostSubject,
+            subjectImportance: subjectImportance,
+            confidenceOverride: confidenceOverrides
+        ).map { ranked in
+            RankedTask(
+                task: ranked.task,
+                score: ranked.score,
+                band: ranked.band,
+                reasons: ranked.reasons,
+                suggestedNextAction: suggestedNextActionsByTaskID[ranked.task.id] ?? ranked.suggestedNextAction
+            )
+        }
+    }
+
+    private func shouldShowWeeklyReview(now: Date) -> Bool {
+        let reviewWeekStart = startOfReviewWeek(containing: now)
+        guard let lastWeeklyReview else { return true }
+        return lastWeeklyReview < reviewWeekStart
+    }
+
+    private func weeklyReviewWindowStart(now: Date, calendar: Calendar) -> Date {
+        let startOfToday = calendar.startOfDay(for: now)
+        return calendar.date(byAdding: .day, value: -6, to: startOfToday) ?? startOfToday
+    }
+
+    private func startOfReviewWeek(containing date: Date, calendar: Calendar = .current) -> Date {
+        let startOfDay = calendar.startOfDay(for: date)
+        let weekday = calendar.component(.weekday, from: startOfDay)
+        let daysSinceSunday = max(0, weekday - 1)
+        // Treat the review as due from the most recent Sunday onward, so a missed Sunday launch still surfaces it on Monday.
+        return calendar.date(byAdding: .day, value: -daysSinceSunday, to: startOfDay) ?? startOfDay
+    }
+
+    private func weeklyConfidenceDeltas(now: Date, windowStart: Date) -> [WeeklyReviewConfidenceDelta] {
+        confidenceHistory.keys
+            .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+            .compactMap { subject in
+                let readings = (confidenceHistory[subject] ?? [])
+                    .sorted { $0.date < $1.date }
+                guard let latest = readings.last(where: { $0.date <= now }) else { return nil }
+                // If there isn't a reading before the weekly window starts, fall back to the oldest in-window reading.
+                let baseline = readings.last(where: { $0.date <= windowStart }) ?? readings.first
+                guard let baseline else { return nil }
+                return WeeklyReviewConfidenceDelta(
+                    subject: subject,
+                    startingValue: baseline.value,
+                    latestValue: latest.value
+                )
+            }
     }
 
     private func rankingSubjectImportance() -> [String: Double] {

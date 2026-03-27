@@ -288,6 +288,22 @@ struct PomodoroDayStat: Identifiable, Equatable {
     var id: Date { date }
 }
 
+struct WeeklyReviewConfidenceDelta: Identifiable, Hashable {
+    let subject: String
+    let startingValue: Double
+    let latestValue: Double
+
+    var id: String { subject }
+    var delta: Double { latestValue - startingValue }
+}
+
+struct WeeklyReviewSummary: Hashable {
+    let completedTaskCount: Int
+    let totalPomodoros: Int
+    let confidenceDeltas: [WeeklyReviewConfidenceDelta]
+    let topPriorities: [RankedTask]
+}
+
 struct ConfidenceReading: Identifiable, Hashable, Codable {
     let date: Date
     let value: Double
@@ -318,6 +334,7 @@ struct PlannerSnapshot: Codable {
     let dismissedScheduleTaskIDs: [String]
     let obsidianDocuments: [ContextDocument]
     let pomodoroLog: [String: Int]
+    let lastWeeklyReview: Date?
 
     init(
         tasks: [TaskItem],
@@ -334,7 +351,8 @@ struct PlannerSnapshot: Codable {
         promptBoostSubject: String?,
         dismissedScheduleTaskIDs: [String],
         obsidianDocuments: [ContextDocument] = [],
-        pomodoroLog: [String: Int] = [:]
+        pomodoroLog: [String: Int] = [:],
+        lastWeeklyReview: Date? = nil
     ) {
         self.tasks = tasks
         self.contexts = contexts
@@ -351,6 +369,7 @@ struct PlannerSnapshot: Codable {
         self.dismissedScheduleTaskIDs = dismissedScheduleTaskIDs
         self.obsidianDocuments = obsidianDocuments
         self.pomodoroLog = pomodoroLog
+        self.lastWeeklyReview = lastWeeklyReview
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -369,6 +388,7 @@ struct PlannerSnapshot: Codable {
         case dismissedScheduleTaskIDs
         case obsidianDocuments
         case pomodoroLog
+        case lastWeeklyReview
     }
 
     init(from decoder: Decoder) throws {
@@ -388,6 +408,7 @@ struct PlannerSnapshot: Codable {
         dismissedScheduleTaskIDs = try container.decodeIfPresent([String].self, forKey: .dismissedScheduleTaskIDs) ?? []
         obsidianDocuments = try container.decodeIfPresent([ContextDocument].self, forKey: .obsidianDocuments) ?? []
         pomodoroLog = try container.decodeIfPresent([String: Int].self, forKey: .pomodoroLog) ?? [:]
+        lastWeeklyReview = try container.decodeIfPresent(Date.self, forKey: .lastWeeklyReview)
     }
 }
 
