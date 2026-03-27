@@ -7,6 +7,8 @@ struct TimedKeyboardActions {
     let exportCalendar: () -> Void
     let focusSearch: () -> Void
     let showKeyboardShortcuts: () -> Void
+    let canUndoDecomposition: Bool
+    let undoLastDecomposition: () -> Void
 }
 
 struct TimedRankedTaskSelection {
@@ -78,6 +80,14 @@ struct TimedKeyboardCommands: Commands {
             }
             .keyboardShortcut("/", modifiers: [.command])
             .disabled(keyboardActions == nil)
+
+            Divider()
+
+            Button("Undo Subtask Breakdown") {
+                keyboardActions?.undoLastDecomposition()
+            }
+            .keyboardShortcut("z", modifiers: [.command])
+            .disabled(!(keyboardActions?.canUndoDecomposition ?? false))
         }
     }
 }

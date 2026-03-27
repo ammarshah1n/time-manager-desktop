@@ -23,11 +23,25 @@ struct TaskLibraryCompactRow: View {
     let urgencyColor: Color
     let isSelected: Bool
     let isCompleted: Bool
+    let depth: Int
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             HStack(spacing: 10) {
+                if depth > 0 {
+                    HStack(spacing: 6) {
+                        ForEach(0..<depth, id: \.self) { _ in
+                            Color.clear
+                                .frame(width: 8, height: 1)
+                        }
+
+                        Image(systemName: "arrow.turn.down.right")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.white.opacity(isCompleted ? 0.25 : 0.42))
+                    }
+                }
+
                 Image(systemName: iconName)
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(.white.opacity(isCompleted ? 0.35 : 0.76))

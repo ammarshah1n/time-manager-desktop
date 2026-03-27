@@ -2,6 +2,9 @@ import SwiftUI
 
 struct TaskDetailView: View {
     let task: TaskItem
+    let canBreakDown: Bool
+    let isBreakingDown: Bool
+    let onBreakDown: () -> Void
     let onStudy: () -> Void
     let onComplete: () -> Void
     let onSaveNotes: (String) -> Void
@@ -48,6 +51,21 @@ struct TaskDetailView: View {
             }
 
             HStack(spacing: 10) {
+                if canBreakDown || isBreakingDown {
+                    Button {
+                        flushPendingSave()
+                        onBreakDown()
+                    } label: {
+                        if isBreakingDown {
+                            Label("Breaking down…", systemImage: "bolt.fill")
+                        } else {
+                            Label("Break it down ⚡", systemImage: "bolt.fill")
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(isBreakingDown)
+                }
+
                 Button("Study") {
                     onStudy()
                 }

@@ -17,6 +17,7 @@ final class PlannerStore {
     @ObservationIgnored private var pendingCalibrationQueue: [String] = []
     @ObservationIgnored private var lastFailedAIAction: FailedAIAction?
     @ObservationIgnored private var toastDismissTask: Task<Void, Never>?
+    @ObservationIgnored private var decompositionUndoStack: [[TaskItem]] = []
 
     var tasks: [TaskItem] = []
     var contexts: [ContextItem] = []
@@ -51,6 +52,8 @@ final class PlannerStore {
     var importText = ""
     var isSyncingObsidianVault = false
     var pomodoroLog: [String: Int] = [:]
+    var decomposingTaskIDs: Set<String> = []
+    var canUndoDecomposition = false
 
     init(storageURL: URL? = nil, fileManager: FileManager = .default) {
         TimedPreferences.migrateLegacyValuesIfNeeded()
@@ -474,6 +477,126 @@ final class PlannerStore {
         tasks[index].completedAt = now
         dismissedScheduleTaskIDs.insert(task.id)
         rebuildPlan(now: now)
+    }
+
+    func children(of taskID: String) -> [TaskItem] {
+        tasks.filter { $0.parentId == taskID }
+    }
+
+    func canBreakDown(task: TaskItem) -> Bool {
+        task.parentId == nil &&
+            children(of: task.id).isEmpty &&
+            !decomposingTaskIDs.contains(task.id)
+    }
+
+    func decompose(task: TaskItem) async {
+        await decompose(task: task) { prompt in
+            await CodexBridge().send(prompt: prompt)
+        }
+    }
+
+    func decompose(
+        task: TaskItem,
+        runner: @escaping (String) async -> CodexRunResult
+    ) async {
+        guard canBreakDown(task: task) else { return }
+
+        decomposingTaskIDs.insert(task.id)
+        defer {
+            decomposingTaskIDs.remove(task.id)
+        }
+
+        let result = await runner(Self.decompositionPrompt(for: task))
+        guard let response = CodexBridge.response(from: result) else {
+            let message = CodexBridge.handleFailureMessage(result) ?? "Timed AI failed before returning subtasks."
+            presentToast(
+                title: "Breakdown failed",
+                message: message,
+                systemImage: "exclamationmark.triangle.fill",
+                tone: .error
+            )
+            return
+        }
+
+        let parsedTitles = Self.parseSubtaskLines(from: response)
+        guard !parsedTitles.isEmpty else {
+            presentToast(
+                title: "No subtasks found",
+                message: "Timed couldn't parse a numbered subtask list for \(task.title).",
+                systemImage: "list.number",
+                tone: .error
+            )
+            return
+        }
+
+        let existingIDs = Set(tasks.map(\.id))
+        let estimateMinutes = max(5, task.estimateMinutes / max(parsedTitles.count, 1))
+        var seenTitles: Set<String> = []
+        var newTasks: [TaskItem] = []
+
+        for title in parsedTitles {
+            let normalizedTitle = StableID.normalizedTaskIdentityTitle(from: title)
+            guard !normalizedTitle.isEmpty else { continue }
+            guard !seenTitles.contains(normalizedTitle) else { continue }
+            seenTitles.insert(normalizedTitle)
+
+            let subtaskID = StableID.makeSubtaskID(parentID: task.id, title: title)
+            guard !existingIDs.contains(subtaskID) else { continue }
+
+            newTasks.append(
+                TaskItem(
+                    id: subtaskID,
+                    title: title,
+                    list: task.list,
+                    source: task.source,
+                    subject: task.subject,
+                    estimateMinutes: estimateMinutes,
+                    confidence: task.confidence,
+                    importance: task.importance,
+                    dueDate: task.dueDate,
+                    notes: "",
+                    energy: task.energy,
+                    parentId: task.id,
+                    isCompleted: false,
+                    completedAt: nil
+                )
+            )
+        }
+
+        guard !newTasks.isEmpty else {
+            presentToast(
+                title: "Already broken down",
+                message: "Timed didn't find any new subtasks to add for \(task.title).",
+                systemImage: "list.bullet.indent",
+                tone: .info
+            )
+            return
+        }
+
+        decompositionUndoStack.append(tasks)
+        canUndoDecomposition = true
+        tasks.append(contentsOf: newTasks)
+        rebuildPlan()
+
+        presentToast(
+            title: "Added subtasks",
+            message: "\(newTasks.count) subtasks were added under \(task.title).",
+            systemImage: "bolt.fill",
+            tone: .info
+        )
+    }
+
+    func undoLastDecomposition(now: Date = .now) {
+        guard let snapshot = decompositionUndoStack.popLast() else { return }
+        tasks = snapshot
+        canUndoDecomposition = !decompositionUndoStack.isEmpty
+        rebuildPlan(now: now)
+        presentToast(
+            title: "Subtasks removed",
+            message: "The last breakdown batch was undone.",
+            systemImage: "arrow.uturn.backward",
+            tone: .info
+        )
     }
 
     func updateTaskNotes(taskID: String, notes: String) {
@@ -1911,6 +2034,29 @@ final class PlannerStore {
         return parts.last?.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    private static func decompositionPrompt(for task: TaskItem) -> String {
+        "Break this task into 3-5 concrete subtasks. Task: \(task.title). Subject: \(task.subject). Return as a numbered list, one per line, no preamble."
+    }
+
+    static func parseSubtaskLines(from response: String) -> [String] {
+        response
+            .split(whereSeparator: \.isNewline)
+            .compactMap { line in
+                let rawLine = String(line).trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !rawLine.isEmpty else { return nil }
+                guard rawLine.range(of: #"^\s*\d+[\.\)]\s*"#, options: .regularExpression) != nil else {
+                    return nil
+                }
+                let stripped = rawLine.replacingOccurrences(
+                    of: #"^\s*\d+[\.\)]\s*"#,
+                    with: "",
+                    options: .regularExpression
+                )
+                let trimmed = stripped.trimmingCharacters(in: .whitespacesAndNewlines)
+                return trimmed.isEmpty ? nil : trimmed
+            }
+    }
+
     private func calibratedTask(_ task: TaskItem) -> TaskItem {
         var mutable = task
         mutable.subject = canonicalSubjectName(task.subject)
@@ -2122,6 +2268,7 @@ final class PlannerStore {
         merged.source = incoming.source
         merged.subject = incoming.subject
         merged.estimateMinutes = incoming.estimateMinutes
+        merged.parentId = existing.parentId ?? incoming.parentId
         if !existing.isCompleted {
             merged.confidence = incoming.confidence
         }
@@ -2140,8 +2287,10 @@ final class PlannerStore {
 
         let incomingTitle = StableID.normalizedTaskIdentityTitle(from: incoming.title)
         let incomingSubject = incoming.subject.trimmingCharacters(in: .whitespacesAndNewlines)
+        let incomingParentID = incoming.parentId
 
         return tasks.firstIndex { existing in
+            guard existing.parentId == incomingParentID else { return false }
             let existingTitle = StableID.normalizedTaskIdentityTitle(from: existing.title)
             let existingSubject = existing.subject.trimmingCharacters(in: .whitespacesAndNewlines)
             let sameSubject: Bool
@@ -2181,12 +2330,26 @@ final class PlannerStore {
         var selectedTaskReplacement = selectedTaskID
         var taskIDMap: [String: String] = [:]
 
+        for task in tasks where task.parentId == nil {
+            taskIDMap[task.id] = StableID.makeTaskID(source: task.source, title: task.title)
+        }
+
         for task in tasks {
-            let canonicalID = StableID.makeTaskID(source: task.source, title: task.title)
+            let canonicalParentID = task.parentId.flatMap { taskIDMap[$0] ?? $0 }
+            let canonicalID: String
+            if let canonicalParentID {
+                canonicalID = StableID.makeSubtaskID(parentID: canonicalParentID, title: task.title)
+            } else {
+                canonicalID = taskIDMap[task.id] ?? StableID.makeTaskID(source: task.source, title: task.title)
+            }
             taskIDMap[task.id] = canonicalID
 
             var canonicalTask = task
-            canonicalTask = withTaskID(task: canonicalTask, id: canonicalID)
+            canonicalTask = withTaskIdentity(
+                task: canonicalTask,
+                id: canonicalID,
+                parentId: canonicalParentID
+            )
 
             if let existingIndex = migratedTasks.firstIndex(where: { $0.id == canonicalID }) {
                 migratedTasks[existingIndex] = mergeDuplicateTasks(existing: migratedTasks[existingIndex], incoming: canonicalTask)
@@ -2218,6 +2381,9 @@ final class PlannerStore {
         if merged.subject.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             merged.subject = incoming.subject
         }
+        if merged.parentId == nil {
+            merged.parentId = incoming.parentId
+        }
         merged.estimateMinutes = max(existing.estimateMinutes, incoming.estimateMinutes)
         merged.importance = max(existing.importance, incoming.importance)
         merged.dueDate = [existing.dueDate, incoming.dueDate].compactMap { $0 }.min()
@@ -2239,7 +2405,7 @@ final class PlannerStore {
         return merged
     }
 
-    private func withTaskID(task: TaskItem, id: String) -> TaskItem {
+    private func withTaskIdentity(task: TaskItem, id: String, parentId: String?) -> TaskItem {
         TaskItem(
             id: id,
             title: task.title,
@@ -2252,6 +2418,7 @@ final class PlannerStore {
             dueDate: task.dueDate,
             notes: task.notes,
             energy: task.energy,
+            parentId: parentId,
             isCompleted: task.isCompleted,
             completedAt: task.completedAt,
             isAutoDiscovered: task.isAutoDiscovered,

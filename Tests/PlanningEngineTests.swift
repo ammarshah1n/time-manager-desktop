@@ -228,6 +228,119 @@ struct PlanningEngineTests {
         #expect(store.subjectConfidences["Economics"] == nil)
     }
 
+    @Test("testTaskDecompositionCreatesChildTasks")
+    @MainActor
+    func testTaskDecompositionCreatesChildTasks() async {
+        let storageURL = FileManager.default.temporaryDirectory.appendingPathComponent("timed-decompose-\(UUID().uuidString).json")
+        let store = PlannerStore(storageURL: storageURL)
+        let parentTask = TaskItem(
+            id: StableID.makeTaskID(source: .seqta, title: "Economics test"),
+            title: "Economics test",
+            list: "Seqta",
+            source: .seqta,
+            subject: "Economics",
+            estimateMinutes: 60,
+            confidence: 3,
+            importance: 5,
+            dueDate: fixedNow,
+            notes: "",
+            energy: .medium,
+            isCompleted: false,
+            completedAt: nil
+        )
+
+        store.tasks = [parentTask]
+        store.contexts = []
+        store.chat = []
+        store.schedule = []
+
+        await store.decompose(task: parentTask) { prompt in
+            #expect(
+                prompt ==
+                    "Break this task into 3-5 concrete subtasks. Task: Economics test. Subject: Economics. Return as a numbered list, one per line, no preamble."
+            )
+            return .success(
+                """
+                1. Review class notes
+                2. Make a one-page summary
+                3. Answer two practice questions
+                """
+            )
+        }
+
+        let children = store.children(of: parentTask.id)
+        #expect(children.count == 3)
+        #expect(children.map(\.title) == [
+            "Review class notes",
+            "Make a one-page summary",
+            "Answer two practice questions"
+        ])
+        #expect(children.allSatisfy { $0.parentId == parentTask.id })
+        #expect(store.canUndoDecomposition)
+    }
+
+    @Test("testUndoLastDecompositionRemovesChildBatch")
+    @MainActor
+    func testUndoLastDecompositionRemovesChildBatch() async {
+        let storageURL = FileManager.default.temporaryDirectory.appendingPathComponent("timed-decompose-undo-\(UUID().uuidString).json")
+        let store = PlannerStore(storageURL: storageURL)
+        let parentTask = TaskItem(
+            id: StableID.makeTaskID(source: .chat, title: "English assessment"),
+            title: "English assessment",
+            list: "Chat",
+            source: .chat,
+            subject: "English",
+            estimateMinutes: 45,
+            confidence: 3,
+            importance: 4,
+            dueDate: fixedNow,
+            notes: "",
+            energy: .medium,
+            isCompleted: false,
+            completedAt: nil
+        )
+
+        store.tasks = [parentTask]
+        store.contexts = []
+        store.chat = []
+        store.schedule = []
+
+        await store.decompose(task: parentTask) { _ in
+            .success(
+                """
+                1. Pick quotes
+                2. Draft a paragraph
+                3. Proofread the response
+                """
+            )
+        }
+
+        #expect(store.tasks.count == 4)
+        store.undoLastDecomposition()
+        #expect(store.tasks.count == 1)
+        #expect(store.children(of: parentTask.id).isEmpty)
+        #expect(!store.canUndoDecomposition)
+    }
+
+    @Test("testParseSubtaskLinesIgnoresNonNumberedPreamble")
+    @MainActor
+    func testParseSubtaskLinesIgnoresNonNumberedPreamble() {
+        let parsed = PlannerStore.parseSubtaskLines(
+            from: """
+            Here you go:
+            1. Read the brief
+            2. Draft the response
+            3. Check the rubric
+            """
+        )
+
+        #expect(parsed == [
+            "Read the brief",
+            "Draft the response",
+            "Check the rubric"
+        ])
+    }
+
     @Test("testConfidenceCalibrationAppliesPercentAndHints")
     @MainActor
     func testConfidenceCalibrationAppliesPercentAndHints() {

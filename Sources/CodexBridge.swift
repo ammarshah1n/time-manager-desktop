@@ -18,6 +18,17 @@ enum CodexRunResult: Equatable {
 }
 
 struct CodexBridge {
+    func send(prompt: String) async -> CodexRunResult {
+        await run(
+            request: CodexRunRequest(
+                prompt: prompt,
+                autonomousMode: TimedPreferences.autonomousModeEnabled,
+                workingRoot: TimedPreferences.workingRoot,
+                additionalRoots: TimedPreferences.codexAdditionalRoots
+            )
+        )
+    }
+
     func run(request: CodexRunRequest) async -> CodexRunResult {
         let executablePath = TimedPreferences.aiExecutablePath
         guard FileManager.default.isExecutableFile(atPath: executablePath) else {

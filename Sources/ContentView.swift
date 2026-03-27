@@ -2,6 +2,13 @@ import AppKit
 import Observation
 import SwiftUI
 
+private struct TaskLibraryEntry: Identifiable {
+    let task: TaskItem
+    let depth: Int
+
+    var id: String { task.id }
+}
+
 struct ContentView: View {
     @State private var store = PlannerStore()
     @State private var focusTimer = FocusTimerModel()
@@ -399,7 +406,7 @@ struct ContentView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     TimedSectionHeader(title: "Task Library")
 
-                    if taskLibraryItems.isEmpty {
+                    if taskLibraryEntries.isEmpty {
                         EmptyStateView(
                             systemImage: "checklist",
                             title: "Add your first task with ⌘N",
@@ -412,22 +419,23 @@ struct ContentView: View {
                         .padding(.bottom, 18)
                     } else {
                         LazyVStack(spacing: 6) {
-                            ForEach(taskLibraryItems) { task in
+                            ForEach(taskLibraryEntries) { entry in
                                 TaskLibraryCompactRow(
-                                    title: task.title,
-                                    iconName: icon(for: task.source),
-                                    dueText: dueLabel(for: task.dueDate),
-                                    countdownText: deadlineCountdownText(for: task.dueDate),
-                                    urgencyColor: urgencyColor(for: task),
-                                    isSelected: contextTaskID == task.id,
-                                    isCompleted: task.isCompleted,
+                                    title: entry.task.title,
+                                    iconName: icon(for: entry.task.source),
+                                    dueText: dueLabel(for: entry.task.dueDate),
+                                    countdownText: deadlineCountdownText(for: entry.task.dueDate),
+                                    urgencyColor: urgencyColor(for: entry.task),
+                                    isSelected: contextTaskID == entry.task.id,
+                                    isCompleted: entry.task.isCompleted,
+                                    depth: entry.depth,
                                     action: {
-                                        selectTaskForContext(task)
+                                        selectTaskForContext(entry.task)
                                     }
                                 )
                             }
                         }
-                        .animation(.spring(response: 0.3), value: taskLibraryItems.map(\.id))
+                        .animation(.spring(response: 0.3), value: taskLibraryEntries.map(\.id))
                         .padding(.horizontal, 12)
                         .padding(.bottom, 12)
                     }
@@ -773,6 +781,11 @@ struct ContentView: View {
                             TimedCard(title: "Task Detail", icon: icon(for: contextDrawerTask.source)) {
                                 TaskDetailView(
                                     task: contextDrawerTask,
+                                    canBreakDown: store.canBreakDown(task: contextDrawerTask),
+                                    isBreakingDown: store.decomposingTaskIDs.contains(contextDrawerTask.id),
+                                    onBreakDown: {
+                                        Task { await store.decompose(task: contextDrawerTask) }
+                                    },
                                     onStudy: {
                                         openStudyOverlay(for: contextDrawerTask)
                                     },
@@ -1432,13 +1445,33 @@ struct ContentView: View {
             },
             showKeyboardShortcuts: {
                 showKeyboardShortcutsHelp = true
+            },
+            canUndoDecomposition: store.canUndoDecomposition,
+            undoLastDecomposition: {
+                store.undoLastDecomposition()
             }
         )
     }
 
-    private var taskLibraryItems: [TaskItem] {
+    private var taskLibraryEntries: [TaskLibraryEntry] {
+        taskLibraryOutlineEntries(from: taskLibrarySortedTasks(store.tasks.filter { $0.parentId == nil }))
+    }
+
+    private func taskLibraryOutlineEntries(from tasks: [TaskItem], depth: Int = 0) -> [TaskLibraryEntry] {
+        var entries: [TaskLibraryEntry] = []
+
+        for task in tasks {
+            entries.append(TaskLibraryEntry(task: task, depth: depth))
+            let children = taskLibrarySortedTasks(store.children(of: task.id))
+            entries.append(contentsOf: taskLibraryOutlineEntries(from: children, depth: depth + 1))
+        }
+
+        return entries
+    }
+
+    private func taskLibrarySortedTasks(_ tasks: [TaskItem]) -> [TaskItem] {
         let rankedOrder = Dictionary(uniqueKeysWithValues: store.rankedTasks.enumerated().map { ($0.element.task.id, $0.offset) })
-        return store.tasks.sorted { lhs, rhs in
+        return tasks.sorted { lhs, rhs in
             if lhs.isCompleted != rhs.isCompleted {
                 return !lhs.isCompleted
             }

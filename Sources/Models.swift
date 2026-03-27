@@ -73,6 +73,8 @@ struct TaskItem: Identifiable, Hashable, Codable {
     var dueDate: Date?
     var notes: String
     var energy: TaskEnergy
+    // Task identity is string-based across the app, so parent linkage stays string-based too.
+    var parentId: String?
     var isCompleted: Bool
     var completedAt: Date?
     var isAutoDiscovered: Bool
@@ -90,6 +92,7 @@ struct TaskItem: Identifiable, Hashable, Codable {
         dueDate: Date?,
         notes: String = "",
         energy: TaskEnergy,
+        parentId: String? = nil,
         isCompleted: Bool,
         completedAt: Date?,
         isAutoDiscovered: Bool = false,
@@ -106,6 +109,7 @@ struct TaskItem: Identifiable, Hashable, Codable {
         self.dueDate = dueDate
         self.notes = notes
         self.energy = energy
+        self.parentId = parentId
         self.isCompleted = isCompleted
         self.completedAt = completedAt
         self.isAutoDiscovered = isAutoDiscovered
@@ -124,6 +128,7 @@ struct TaskItem: Identifiable, Hashable, Codable {
         case dueDate
         case notes
         case energy
+        case parentId
         case isCompleted
         case completedAt
         case isAutoDiscovered
@@ -143,6 +148,7 @@ struct TaskItem: Identifiable, Hashable, Codable {
         dueDate = try container.decodeIfPresent(Date.self, forKey: .dueDate)
         notes = try container.decodeIfPresent(String.self, forKey: .notes) ?? ""
         energy = try container.decode(TaskEnergy.self, forKey: .energy)
+        parentId = try container.decodeIfPresent(String.self, forKey: .parentId)
         isCompleted = try container.decode(Bool.self, forKey: .isCompleted)
         completedAt = try container.decodeIfPresent(Date.self, forKey: .completedAt)
         isAutoDiscovered = try container.decodeIfPresent(Bool.self, forKey: .isAutoDiscovered) ?? false
@@ -644,6 +650,15 @@ enum StableID {
     static func makeTaskID(source: TaskSource, title: String) -> String {
         let seed = normalizedTaskIdentityTitle(from: title)
         return hashedID(prefix: "task", seed: seed)
+    }
+
+    static func makeSubtaskID(parentID: String, title: String) -> String {
+        let seed = [
+            "subtask",
+            parentID,
+            normalizedTaskIdentityTitle(from: title)
+        ].joined(separator: "|")
+        return hashedID(prefix: "subtask", seed: seed)
     }
 
     static func makeSeqtaTaskID(remoteID: String?, title: String, subject: String) -> String {
