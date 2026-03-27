@@ -783,6 +783,7 @@ struct ContentView: View {
                                         store.updateTaskNotes(taskID: contextDrawerTask.id, notes: notes)
                                     }
                                 )
+                                .id(contextDrawerTask.id)
                             }
                         }
 
