@@ -23,6 +23,7 @@ final class PlannerStore {
     var obsidianDocuments: [ContextDocument] = []
     var schedule: [ScheduleBlock] = []
     var subjectConfidences: [String: Int] = [:]
+    var confidenceHistory: [String: [ConfidenceReading]] = [:]
     var quizQuestionsBySubject: [String: [QuizQuestion]] = [:]
     var pendingCalibrationSubject: String?
     var rankedTasks: [RankedTask] = []
@@ -103,6 +104,7 @@ final class PlannerStore {
             contexts: contexts,
             schedule: schedule,
             subjectConfidences: subjectConfidences,
+            confidenceHistory: confidenceHistory,
             quizQuestionsBySubject: quizQuestionsBySubject,
             selectedTaskID: selectedTaskID,
             selectedContextID: selectedContextID,
@@ -136,6 +138,7 @@ final class PlannerStore {
             contexts = snapshot.contexts
             schedule = snapshot.schedule
             subjectConfidences = snapshot.subjectConfidences
+            confidenceHistory = snapshot.confidenceHistory
             quizQuestionsBySubject = snapshot.quizQuestionsBySubject
             obsidianDocuments = snapshot.obsidianDocuments
             selectedTaskID = snapshot.selectedTaskID
@@ -152,6 +155,7 @@ final class PlannerStore {
             contexts = sample.contexts
             schedule = sample.schedule
             subjectConfidences = [:]
+            confidenceHistory = [:]
             quizQuestionsBySubject = [:]
             obsidianDocuments = []
             chat = sample.chat
@@ -165,6 +169,7 @@ final class PlannerStore {
 
         migrateTaskIdentityIfNeeded()
         normalizeQuizQuestionState()
+        syncConfidenceHistoryState()
         rebuildPlan()
     }
 
@@ -785,6 +790,7 @@ final class PlannerStore {
             .map { $0 }
 
         subjectConfidences[canonicalSubject] = normalizedPercent
+        recordConfidence(subject: canonicalSubject, value: Double(normalizedPercent) / 100.0, date: now)
 
         let calibratedConfidence = confidenceStars(fromPercent: normalizedPercent)
         // Calibration hints are subject-level, so apply them to every task in that subject.
@@ -907,6 +913,24 @@ final class PlannerStore {
         }
 
         return derivedConfidence(for: canonicalSubject) * 20
+    }
+
+    func recordConfidence(subject: String, value: Double, date: Date = .now) {
+        let canonicalSubject = canonicalSubjectName(subject)
+        guard !canonicalSubject.isEmpty else { return }
+
+        let reading = ConfidenceReading(date: date, value: normalizedConfidenceValue(value))
+        let capped = cappedConfidenceReadings((confidenceHistory[canonicalSubject] ?? []) + [reading])
+        confidenceHistory[canonicalSubject] = capped
+        save()
+    }
+
+    func lastConfidenceReadings(for subject: String, limit: Int = 7) -> [ConfidenceReading] {
+        let canonicalSubject = canonicalSubjectName(subject)
+        guard !canonicalSubject.isEmpty else { return [] }
+
+        let readings = confidenceHistory[canonicalSubject] ?? []
+        return Array(readings.sorted { $0.date < $1.date }.suffix(max(0, limit)))
     }
 
     func quizCards(for subject: String) -> [QuizQuestion] {
@@ -1953,6 +1977,24 @@ final class PlannerStore {
         subjectConfidences = nextValues
     }
 
+    private func syncConfidenceHistoryState() {
+        var nextValues: [String: [ConfidenceReading]] = [:]
+
+        for (subject, readings) in confidenceHistory {
+            let canonicalSubject = canonicalSubjectName(subject)
+            guard !canonicalSubject.isEmpty else { continue }
+
+            let normalizedReadings = readings.map { reading in
+                ConfidenceReading(date: reading.date, value: normalizedConfidenceValue(reading.value))
+            }
+            nextValues[canonicalSubject, default: []].append(contentsOf: normalizedReadings)
+        }
+
+        confidenceHistory = nextValues.mapValues { readings in
+            cappedConfidenceReadings(readings)
+        }
+    }
+
     private func normalizeQuizQuestionState() {
         var normalizedDecks: [String: [QuizQuestion]] = [:]
 
@@ -1998,6 +2040,21 @@ final class PlannerStore {
             return max(0, min(100, value * 20))
         }
         return max(0, min(100, value))
+    }
+
+    private func normalizedConfidenceValue(_ value: Double) -> Double {
+        if value > 1 {
+            return max(0, min(1, value / 100.0))
+        }
+        return max(0, min(1, value))
+    }
+
+    private func cappedConfidenceReadings(_ readings: [ConfidenceReading], limit: Int = 30) -> [ConfidenceReading] {
+        Array(
+            readings
+                .sorted { $0.date < $1.date }
+                .suffix(max(0, limit))
+        )
     }
 
     private func confidenceStars(fromPercent percent: Int) -> Int {

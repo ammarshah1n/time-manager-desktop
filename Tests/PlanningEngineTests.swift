@@ -363,6 +363,32 @@ struct PlanningEngineTests {
         #expect(ranked.contains(where: { $0.task.id == "one" }) == false)
     }
 
+    @Test("testConfidenceHistoryPersistsAndCapsAtThirtyEntries")
+    @MainActor
+    func testConfidenceHistoryPersistsAndCapsAtThirtyEntries() {
+        let storageURL = FileManager.default.temporaryDirectory.appendingPathComponent("timed-confidence-history-\(UUID().uuidString).json")
+        let store = PlannerStore(storageURL: storageURL)
+
+        for dayOffset in 0..<35 {
+            let recordedAt = Calendar.current.date(byAdding: .day, value: dayOffset, to: fixedNow) ?? fixedNow
+            store.recordConfidence(
+                subject: dayOffset.isMultiple(of: 2) ? "Economics" : "economics",
+                value: Double(dayOffset) / 100.0,
+                date: recordedAt
+            )
+        }
+
+        let reloaded = PlannerStore(storageURL: storageURL)
+        let allReadings = reloaded.lastConfidenceReadings(for: "Economics", limit: 30)
+        let latestSeven = reloaded.lastConfidenceReadings(for: "Economics", limit: 7)
+
+        #expect(allReadings.count == 30)
+        #expect(latestSeven.count == 7)
+        #expect(allReadings.first?.date == Calendar.current.date(byAdding: .day, value: 5, to: fixedNow))
+        #expect(latestSeven.first?.date == Calendar.current.date(byAdding: .day, value: 28, to: fixedNow))
+        #expect(latestSeven.last?.value == 0.34)
+    }
+
     @Test("testScheduleCapAtWindow")
     func testScheduleCapAtWindow() {
         let ranked = (1...5).map { index in

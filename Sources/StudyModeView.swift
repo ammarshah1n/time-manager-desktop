@@ -1,4 +1,5 @@
 import AppKit
+import Charts
 import SwiftUI
 
 struct StudyModeView: View {
@@ -26,6 +27,11 @@ struct StudyModeView: View {
     private var dueQuizCount: Int {
         guard !activeSubject.isEmpty else { return 0 }
         return store.dueQuizCardCount(for: activeSubject)
+    }
+
+    private var confidenceTrendReadings: [ConfidenceReading] {
+        guard !activeSubject.isEmpty else { return [] }
+        return store.lastConfidenceReadings(for: activeSubject, limit: 7)
     }
 
     private var topNotes: [ContextDocument] {
@@ -180,6 +186,8 @@ struct StudyModeView: View {
                                         .font(.system(size: 12, weight: .medium))
                                         .foregroundStyle(.white.opacity(0.54))
                                 }
+
+                                confidenceTrendPanel
                             }
                         }
                     }
@@ -239,6 +247,80 @@ struct StudyModeView: View {
         Text(text)
             .font(.system(size: 13))
             .foregroundStyle(.white.opacity(0.58))
+    }
+
+    @ViewBuilder
+    private var confidenceTrendPanel: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Confidence trend")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.88))
+
+                Spacer()
+
+                Text("Last 7 readings")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.52))
+            }
+
+            if confidenceTrendReadings.count < 2 {
+                Text("Complete calibration to see trend")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.white.opacity(0.58))
+                    .frame(maxWidth: .infinity, minHeight: 170, alignment: .leading)
+            } else {
+                Chart(confidenceTrendReadings) { reading in
+                    LineMark(
+                        x: .value("Date", reading.date),
+                        y: .value("Score", reading.value * 100)
+                    )
+                    .interpolationMethod(.catmullRom)
+                    .foregroundStyle(Color(red: 0.82, green: 0.94, blue: 1.0))
+
+                    PointMark(
+                        x: .value("Date", reading.date),
+                        y: .value("Score", reading.value * 100)
+                    )
+                    .foregroundStyle(Color.white)
+                }
+                .chartXAxis {
+                    AxisMarks(values: confidenceTrendReadings.map(\.date)) { value in
+                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
+                            .foregroundStyle(Color.white.opacity(0.10))
+                        AxisTick()
+                            .foregroundStyle(Color.white.opacity(0.24))
+                        AxisValueLabel(format: .dateTime.weekday(.abbreviated))
+                            .foregroundStyle(Color.white.opacity(0.58))
+                    }
+                }
+                .chartYAxis {
+                    AxisMarks(position: .leading, values: [0, 25, 50, 75, 100]) { value in
+                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
+                            .foregroundStyle(Color.white.opacity(0.10))
+                        AxisTick()
+                            .foregroundStyle(Color.white.opacity(0.24))
+                        AxisValueLabel {
+                            if let score = value.as(Double.self) {
+                                Text("\(Int(score))")
+                            }
+                        }
+                        .foregroundStyle(Color.white.opacity(0.58))
+                    }
+                }
+                .chartYScale(domain: 0...100)
+                .frame(height: 170)
+            }
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color.white.opacity(0.04))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+        )
     }
 
     private func ensureSelectedSubject() {

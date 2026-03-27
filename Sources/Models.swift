@@ -282,11 +282,26 @@ struct PomodoroDayStat: Identifiable, Equatable {
     var id: Date { date }
 }
 
+struct ConfidenceReading: Identifiable, Hashable, Codable {
+    let date: Date
+    let value: Double
+
+    var id: String {
+        "\(date.timeIntervalSince1970)-\(value)"
+    }
+
+    init(date: Date, value: Double) {
+        self.date = date
+        self.value = max(0, min(1, value))
+    }
+}
+
 struct PlannerSnapshot: Codable {
     let tasks: [TaskItem]
     let contexts: [ContextItem]
     let schedule: [ScheduleBlock]
     let subjectConfidences: [String: Int]
+    let confidenceHistory: [String: [ConfidenceReading]]
     let quizQuestionsBySubject: [String: [QuizQuestion]]
     let selectedTaskID: String?
     let selectedContextID: String?
@@ -303,6 +318,7 @@ struct PlannerSnapshot: Codable {
         contexts: [ContextItem],
         schedule: [ScheduleBlock],
         subjectConfidences: [String: Int],
+        confidenceHistory: [String: [ConfidenceReading]] = [:],
         quizQuestionsBySubject: [String: [QuizQuestion]],
         selectedTaskID: String?,
         selectedContextID: String?,
@@ -318,6 +334,7 @@ struct PlannerSnapshot: Codable {
         self.contexts = contexts
         self.schedule = schedule
         self.subjectConfidences = subjectConfidences
+        self.confidenceHistory = confidenceHistory
         self.quizQuestionsBySubject = quizQuestionsBySubject
         self.selectedTaskID = selectedTaskID
         self.selectedContextID = selectedContextID
@@ -335,6 +352,7 @@ struct PlannerSnapshot: Codable {
         case contexts
         case schedule
         case subjectConfidences
+        case confidenceHistory
         case quizQuestionsBySubject
         case selectedTaskID
         case selectedContextID
@@ -353,6 +371,7 @@ struct PlannerSnapshot: Codable {
         contexts = try container.decode([ContextItem].self, forKey: .contexts)
         schedule = try container.decode([ScheduleBlock].self, forKey: .schedule)
         subjectConfidences = try container.decodeIfPresent([String: Int].self, forKey: .subjectConfidences) ?? [:]
+        confidenceHistory = try container.decodeIfPresent([String: [ConfidenceReading]].self, forKey: .confidenceHistory) ?? [:]
         quizQuestionsBySubject = try container.decodeIfPresent([String: [QuizQuestion]].self, forKey: .quizQuestionsBySubject) ?? [:]
         selectedTaskID = try container.decodeIfPresent(String.self, forKey: .selectedTaskID)
         selectedContextID = try container.decodeIfPresent(String.self, forKey: .selectedContextID)
