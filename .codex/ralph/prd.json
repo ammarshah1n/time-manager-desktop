@@ -423,7 +423,7 @@
         "swift build passes"
       ],
       "priority": 25,
-      "passes": false,
+      "passes": true,
       "notes": "Create PDFExporter.swift. Use PDFKit: create PDFDocument, add a PDFPage subclass that overrides draw(with:to:). In the draw method, use NSString.draw(at:withAttributes:) and NSBezierPath for timeline bars. Page size: CGSize(width: 595, height: 842) (A4 points). Pass in today's ranked tasks + schedule blocks. Save with pdfDocument.write(to: url). Call from ContentView on ⌘P KeyboardShortcut."
     },
     {
