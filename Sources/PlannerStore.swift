@@ -49,6 +49,7 @@ final class PlannerStore {
     var importSource: ImportSource = .transcript
     var importText = ""
     var isSyncingObsidianVault = false
+    var pomodoroLog: [String: Int] = [:]
 
     init(storageURL: URL? = nil, fileManager: FileManager = .default) {
         TimedPreferences.migrateLegacyValuesIfNeeded()
@@ -110,7 +111,8 @@ final class PlannerStore {
             studyChat: studyChat,
             promptBoostSubject: promptBoostSubject,
             dismissedScheduleTaskIDs: Array(dismissedScheduleTaskIDs),
-            obsidianDocuments: obsidianDocuments
+            obsidianDocuments: obsidianDocuments,
+            pomodoroLog: pomodoroLog
         )
 
         do {
@@ -143,6 +145,7 @@ final class PlannerStore {
             studyChat = snapshot.studyChat
             promptBoostSubject = snapshot.promptBoostSubject
             dismissedScheduleTaskIDs = Set(snapshot.dismissedScheduleTaskIDs)
+            pomodoroLog = snapshot.pomodoroLog
         } else {
             let sample = ShellData.empty
             tasks = sample.tasks
@@ -157,6 +160,7 @@ final class PlannerStore {
             selectedContextID = sample.contexts.first?.id
             promptText = ""
             studyPromptText = ""
+            pomodoroLog = [:]
         }
 
         migrateTaskIdentityIfNeeded()
@@ -474,13 +478,60 @@ final class PlannerStore {
         save()
     }
 
+    func recordPomodoro(at now: Date = .now) {
+        let key = Self.pomodoroLogKey(for: now)
+        pomodoroLog[key, default: 0] += 1
+    }
+
     @discardableResult
     func recordPomodoro(for taskID: String, at now: Date = .now) -> Int {
         guard let index = tasks.firstIndex(where: { $0.id == taskID }) else { return 0 }
         tasks[index].pomodoroCount += 1
+        recordPomodoro(at: now)
         let updatedCount = tasks[index].pomodoroCount
         save()
         return updatedCount
+    }
+
+    func pomodoroCount(on date: Date = .now) -> Int {
+        pomodoroLog[Self.pomodoroLogKey(for: date), default: 0]
+    }
+
+    func currentPomodoroStreak(referenceDate: Date = .now) -> Int {
+        let calendar = Calendar.current
+        var day = calendar.startOfDay(for: referenceDate)
+        var streak = 0
+
+        while pomodoroCount(on: day) > 0 {
+            streak += 1
+            guard let previousDay = calendar.date(byAdding: .day, value: -1, to: day) else { break }
+            day = previousDay
+        }
+
+        return streak
+    }
+
+    func pomodoroTrend(referenceDate: Date = .now, days: Int = 7) -> [PomodoroDayStat] {
+        let safeDays = max(1, days)
+        let calendar = Calendar.current
+        let referenceDay = calendar.startOfDay(for: referenceDate)
+
+        return (0..<safeDays).compactMap { offset in
+            let delta = offset - (safeDays - 1)
+            guard let day = calendar.date(byAdding: .day, value: delta, to: referenceDay) else {
+                return nil
+            }
+            return PomodoroDayStat(date: day, count: pomodoroCount(on: day))
+        }
+    }
+
+    private static func pomodoroLogKey(for date: Date) -> String {
+        let components = Calendar.current.dateComponents([.year, .month, .day], from: date)
+        let year = components.year ?? 0
+        let month = components.month ?? 0
+        let day = components.day ?? 0
+        // Persist using the local school-day boundary instead of UTC.
+        return String(format: "%04d-%02d-%02d", year, month, day)
     }
 
     func recordStudyDebrief(taskID: String, confidence: Int, covered: String, blockers: String, at: Date = .now) {

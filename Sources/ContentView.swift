@@ -938,6 +938,9 @@ struct ContentView: View {
                     priorities: dailyOverviewPriorities,
                     totalScheduledHours: totalScheduledHoursToday,
                     deadlines: dailyOverviewDeadlines,
+                    todayPomodoroCount: store.pomodoroCount(),
+                    currentStudyStreak: store.currentPomodoroStreak(),
+                    pomodoroTrend: store.pomodoroTrend(),
                     tintColor: dailyOverviewTint
                 ) {
                     await generateDayPlanFromOverview()

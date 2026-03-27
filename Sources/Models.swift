@@ -275,6 +275,13 @@ struct RankedTask: Identifiable, Hashable {
     var id: String { task.id }
 }
 
+struct PomodoroDayStat: Identifiable, Equatable {
+    let date: Date
+    let count: Int
+
+    var id: Date { date }
+}
+
 struct PlannerSnapshot: Codable {
     let tasks: [TaskItem]
     let contexts: [ContextItem]
@@ -289,6 +296,7 @@ struct PlannerSnapshot: Codable {
     let promptBoostSubject: String?
     let dismissedScheduleTaskIDs: [String]
     let obsidianDocuments: [ContextDocument]
+    let pomodoroLog: [String: Int]
 
     init(
         tasks: [TaskItem],
@@ -303,7 +311,8 @@ struct PlannerSnapshot: Codable {
         studyChat: [PromptMessage],
         promptBoostSubject: String?,
         dismissedScheduleTaskIDs: [String],
-        obsidianDocuments: [ContextDocument] = []
+        obsidianDocuments: [ContextDocument] = [],
+        pomodoroLog: [String: Int] = [:]
     ) {
         self.tasks = tasks
         self.contexts = contexts
@@ -318,6 +327,7 @@ struct PlannerSnapshot: Codable {
         self.promptBoostSubject = promptBoostSubject
         self.dismissedScheduleTaskIDs = dismissedScheduleTaskIDs
         self.obsidianDocuments = obsidianDocuments
+        self.pomodoroLog = pomodoroLog
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -334,6 +344,7 @@ struct PlannerSnapshot: Codable {
         case promptBoostSubject
         case dismissedScheduleTaskIDs
         case obsidianDocuments
+        case pomodoroLog
     }
 
     init(from decoder: Decoder) throws {
@@ -351,6 +362,7 @@ struct PlannerSnapshot: Codable {
         promptBoostSubject = try container.decodeIfPresent(String.self, forKey: .promptBoostSubject)
         dismissedScheduleTaskIDs = try container.decodeIfPresent([String].self, forKey: .dismissedScheduleTaskIDs) ?? []
         obsidianDocuments = try container.decodeIfPresent([ContextDocument].self, forKey: .obsidianDocuments) ?? []
+        pomodoroLog = try container.decodeIfPresent([String: Int].self, forKey: .pomodoroLog) ?? [:]
     }
 }
 

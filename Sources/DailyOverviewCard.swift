@@ -1,3 +1,4 @@
+import Charts
 import SwiftUI
 
 struct DailyOverviewPriority: Identifiable {
@@ -23,6 +24,9 @@ struct DailyOverviewCard: View {
     let priorities: [DailyOverviewPriority]
     let totalScheduledHours: Double
     let deadlines: [DailyOverviewDeadline]
+    let todayPomodoroCount: Int
+    let currentStudyStreak: Int
+    let pomodoroTrend: [PomodoroDayStat]
     let tintColor: Color
     let onGenerateDayPlan: () async -> Void
 
@@ -35,6 +39,9 @@ struct DailyOverviewCard: View {
         priorities: [DailyOverviewPriority],
         totalScheduledHours: Double,
         deadlines: [DailyOverviewDeadline],
+        todayPomodoroCount: Int,
+        currentStudyStreak: Int,
+        pomodoroTrend: [PomodoroDayStat],
         tintColor: Color,
         onGenerateDayPlan: @escaping () async -> Void
     ) {
@@ -42,6 +49,9 @@ struct DailyOverviewCard: View {
         self.priorities = priorities
         self.totalScheduledHours = totalScheduledHours
         self.deadlines = deadlines
+        self.todayPomodoroCount = todayPomodoroCount
+        self.currentStudyStreak = currentStudyStreak
+        self.pomodoroTrend = pomodoroTrend
         self.tintColor = tintColor
         self.onGenerateDayPlan = onGenerateDayPlan
         _launchPrompt = State(
@@ -59,6 +69,7 @@ struct DailyOverviewCard: View {
 
                 if !isCollapsed {
                     VStack(alignment: .leading, spacing: 14) {
+                        pomodoroSection
                         prioritiesSection
                         statsRow
                         deadlineSection
@@ -133,6 +144,39 @@ struct DailyOverviewCard: View {
                     }
                 }
             }
+        }
+    }
+
+    private var pomodoroSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 12) {
+                Text("🍅 \(todayPomodoroCount) today")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.white)
+
+                Text("🔥 \(currentStudyStreak) day streak")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.82))
+            }
+
+            Chart {
+                ForEach(pomodoroTrend) { point in
+                    BarMark(
+                        x: .value("Day", point.date, unit: .day),
+                        y: .value("Pomodoros", point.count)
+                    )
+                    .foregroundStyle(tintColor.gradient)
+                    .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+                }
+            }
+            .chartXAxis(.hidden)
+            .chartYAxis(.hidden)
+            .chartLegend(.hidden)
+            .chartPlotStyle { plotArea in
+                plotArea
+                    .background(.clear)
+            }
+            .frame(height: 84)
         }
     }
 
