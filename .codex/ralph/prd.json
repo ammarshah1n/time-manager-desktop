@@ -292,7 +292,7 @@
         "swift build passes"
       ],
       "priority": 17,
-      "passes": false,
+      "passes": true,
       "notes": "Add SM2 logic in a new SpacedRepetitionEngine.swift. SM-2 formula: if quality >= 3: interval = (interval==1 ? 6 : round(interval * easeFactor)); easeFactor = max(1.3, easeFactor + 0.1 - (5-q)*(0.08+(5-q)*0.02)); else: interval=1. Store nextDue as ISO8601 string. PlannerStore.dueQuizCards filters by nextDue date. QuizView needs a 'rate your recall' step after showing answer (buttons: Again / Hard / Good / Easy mapping to q=1/2/4/5)."
     },
     {

@@ -254,3 +254,6 @@
 [2026-03-27T15:07:28+1030] RUN START project=Timed total=30 done=15 max=300 sandbox=danger-full-access search=true
 [2026-03-27T15:07:28+1030] STORY START id=STORY-016 attempt=1 title=Menu bar live Pomodoro countdown 
 [2026-03-27T15:11:58+1030] STORY COMPLETE id=STORY-016 attempt=1
+[2026-03-27T15:11:59+1030] COMMIT story=STORY-016 sha=37d9740
+[2026-03-27T15:12:01+1030] STORY START id=STORY-017 attempt=1 title=Spaced repetition engine for quiz cards (SM-2) 
+[2026-03-27T15:21:27+1030] STORY COMPLETE id=STORY-017 attempt=1
