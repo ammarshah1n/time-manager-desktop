@@ -390,7 +390,7 @@
         "swift build passes"
       ],
       "priority": 23,
-      "passes": false,
+      "passes": true,
       "notes": "Add `lastWeeklyReview: Date?` to PlannerStore persisted state. On init, if today is Sunday and (lastWeeklyReview == nil or lastWeeklyReview < last Sunday): set showWeeklyReview = true. Create WeeklyReviewView.swift as a SwiftUI sheet. Completed tasks: filter tasks where completedDate is within last 7 days. Confidence delta: for each subject, compare confidenceHistory last entry vs entry 7 days ago. Top 3 priorities: call PlanningEngine.rank() and take first 3."
     },
     {

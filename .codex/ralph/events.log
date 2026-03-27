@@ -272,3 +272,6 @@
 [2026-03-27T15:42:46+1030] COMMIT story=STORY-021 sha=64d748d
 [2026-03-27T15:42:48+1030] STORY START id=STORY-022 attempt=1 title=AI task decomposition — break hard tasks into subtasks via Codex 
 [2026-03-27T15:51:18+1030] STORY COMPLETE id=STORY-022 attempt=1
+[2026-03-27T15:51:19+1030] COMMIT story=STORY-022 sha=5c5936c
+[2026-03-27T15:51:21+1030] STORY START id=STORY-023 attempt=1 title=Weekly review sheet — every Sunday, summarise the week 
+[2026-03-27T15:57:55+1030] STORY COMPLETE id=STORY-023 attempt=1
