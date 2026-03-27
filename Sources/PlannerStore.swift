@@ -8,6 +8,23 @@ private enum FailedAIAction {
     case quizReply(String)
 }
 
+private enum ObsidianSummaryGenerationError: LocalizedError {
+    case noNotes(String)
+    case aiFailure(String)
+    case invalidResponse
+
+    var errorDescription: String? {
+        switch self {
+        case let .noNotes(taskTitle):
+            return "No Obsidian notes are available for \(taskTitle)."
+        case let .aiFailure(message):
+            return message
+        case .invalidResponse:
+            return "Timed AI returned a summary that couldn't be parsed into 3 bullets."
+        }
+    }
+}
+
 @MainActor
 @Observable
 final class PlannerStore {
@@ -57,6 +74,8 @@ final class PlannerStore {
     var canUndoDecomposition = false
     var lastWeeklyReview: Date?
     var showWeeklyReview = false
+    // TaskItem.id is string-based across Timed, so this transient cache is string-keyed.
+    var obsidianSummaryCache: [String: String] = [:]
 
     init(storageURL: URL? = nil, fileManager: FileManager = .default) {
         TimedPreferences.migrateLegacyValuesIfNeeded()
@@ -1104,6 +1123,50 @@ final class PlannerStore {
             .map { $0 }
     }
 
+    func generateObsidianSummary(for task: TaskItem) async throws -> String {
+        try await generateObsidianSummary(for: task) { prompt in
+            await CodexBridge().send(prompt: prompt)
+        }
+    }
+
+    func generateObsidianSummary(
+        for task: TaskItem,
+        runner: @escaping (String) async -> CodexRunResult
+    ) async throws -> String {
+        if let cachedSummary = obsidianSummaryCache[task.id] {
+            return cachedSummary
+        }
+
+        let snippets = topDocuments(for: task.subject, limit: 3)
+            .map(Self.obsidianSummarySnippet(from:))
+            .filter { !$0.isEmpty }
+
+        guard !snippets.isEmpty else {
+            throw ObsidianSummaryGenerationError.noNotes(task.title)
+        }
+
+        let result = await runner(
+            Self.obsidianSummaryPrompt(taskTitle: task.title, snippets: snippets)
+        )
+
+        guard let response = CodexBridge.response(from: result) else {
+            let message = CodexBridge.handleFailureMessage(result) ?? "Timed AI failed before returning a summary."
+            throw ObsidianSummaryGenerationError.aiFailure(message)
+        }
+
+        let bullets = Self.parseObsidianSummaryBullets(from: response)
+        guard !bullets.isEmpty else {
+            throw ObsidianSummaryGenerationError.invalidResponse
+        }
+
+        let summary = bullets
+            .prefix(3)
+            .map { "• \($0)" }
+            .joined(separator: "\n")
+        obsidianSummaryCache[task.id] = summary
+        return summary
+    }
+
     func studyModeSubjects() -> [String] {
         let taskSubjects = tasks.map(\.subject)
         let gradeSubjects = grades.map(\.subject)
@@ -1677,6 +1740,7 @@ final class PlannerStore {
     private func applyObsidianSyncResult(_ result: ObsidianSyncResult, announce: Bool) {
         isSyncingObsidianVault = false
         obsidianDocuments = result.documents
+        obsidianSummaryCache.removeAll()
         contexts.removeAll { $0.kind == "Obsidian" }
         contexts.insert(contentsOf: result.contexts, at: 0)
         contexts.sort { $0.createdAt > $1.createdAt }
@@ -1965,6 +2029,69 @@ final class PlannerStore {
 
         total += max(0, 72 - Int(Date.now.timeIntervalSince(document.importedAt) / 3600))
         return total
+    }
+
+    nonisolated private static func obsidianSummaryPrompt(taskTitle: String, snippets: [String]) -> String {
+        """
+        Summarise these notes in exactly 3 bullet points relevant to the task: \(taskTitle)
+
+        \(snippets.joined(separator: "\n---\n"))
+        """
+    }
+
+    nonisolated private static func obsidianSummarySnippet(from document: ContextDocument) -> String {
+        let normalizedContent = document.content
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !normalizedContent.isEmpty else { return "" }
+
+        let snippet: String
+        if normalizedContent.count > 420 {
+            snippet = String(normalizedContent.prefix(420)).trimmingCharacters(in: .whitespacesAndNewlines) + "…"
+        } else {
+            snippet = normalizedContent
+        }
+
+        return """
+        [\(document.title)]
+        \(snippet)
+        """
+    }
+
+    nonisolated static func parseObsidianSummaryBullets(from response: String) -> [String] {
+        let lines = response
+            .split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        var bullets: [String] = []
+        let numberedPrefixPattern = #"^\d+\.\s+"#
+
+        for line in lines {
+            var cleaned = line
+
+            if cleaned.hasPrefix("- ") || cleaned.hasPrefix("• ") || cleaned.hasPrefix("* ") {
+                cleaned.removeFirst(2)
+            } else if let range = cleaned.range(of: numberedPrefixPattern, options: .regularExpression) {
+                cleaned.removeSubrange(range)
+            } else {
+                continue
+            }
+
+            let trimmed = cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+            bullets.append(trimmed)
+        }
+
+        if bullets.isEmpty {
+            bullets = lines.prefix(3).map {
+                $0.trimmingCharacters(in: CharacterSet(charactersIn: "-•* ").union(.whitespacesAndNewlines))
+            }
+        }
+
+        return Array(bullets.prefix(3))
     }
 
     private func occurrenceCount(of pattern: String, in text: String) -> Int {

@@ -819,6 +819,14 @@ struct ContentView: View {
                                     ForEach(contextDrawerDocuments) { document in
                                         ObsidianNoteSnippetCard(document: document)
                                     }
+
+                                    if let contextDrawerTask {
+                                        AISummarySection(
+                                            task: contextDrawerTask,
+                                            documents: contextDrawerDocuments,
+                                            store: store
+                                        )
+                                    }
                                 }
                             }
                         }
