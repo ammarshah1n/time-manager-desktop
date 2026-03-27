@@ -440,7 +440,7 @@
         "swift build passes"
       ],
       "priority": 26,
-      "passes": false,
+      "passes": true,
       "notes": "Add GradeEntry: Codable to Models.swift. Add `grades: [GradeEntry]` to PlannerStore. In SeqtaBackgroundSync, after parsing tasks, also look for grade table rows in the HTML (tr elements with mark/outOf pattern like '14 / 20' or percentage). Add `latestGrade(for subject:) -> GradeEntry?` helper. In StudyModeView subject row, show Text('\\(grade.mark)/\\(grade.outOf)').font(.caption).foregroundColor(.secondary) next to the confidence ProgressView."
     },
     {
