@@ -74,12 +74,16 @@ final class MenuBarController: NSObject {
     }
 
     private func startStatusTimer() {
-        statusTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+        statusTimer?.invalidate()
+
+        let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 self?.updateStatusItem()
             }
         }
-        statusTimer?.tolerance = 0.15
+        timer.tolerance = 0.15
+        RunLoop.main.add(timer, forMode: .common)
+        statusTimer = timer
     }
 
     private func updateStatusItem() {
