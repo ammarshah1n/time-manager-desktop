@@ -276,9 +276,7 @@
       ],
       "priority": 16,
       "passes": false,
-      "notes": "Create MenuBarController.swift. Use NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength). Observe FocusTimerModel via @MainActor. Use a Timer.scheduledTimer on main runloop to update the button title every second. Popover: NSPopover containing a small SwiftUI view wrapping FocusTimerWidget. Instantiate MenuBarController in TimeManagerDesktopApp and keep a strong reference.",
-      "skipped": true,
-      "skipReason": "exceeded 4 attempts"
+      "notes": "Create MenuBarController.swift. Use NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength). Observe FocusTimerModel via @MainActor. Use a Timer.scheduledTimer on main runloop to update the button title every second. Popover: NSPopover containing a small SwiftUI view wrapping FocusTimerWidget. Instantiate MenuBarController in TimeManagerDesktopApp and keep a strong reference."
     },
     {
       "id": "STORY-017",
@@ -295,9 +293,7 @@
       ],
       "priority": 17,
       "passes": false,
-      "notes": "Add SM2 logic in a new SpacedRepetitionEngine.swift. SM-2 formula: if quality >= 3: interval = (interval==1 ? 6 : round(interval * easeFactor)); easeFactor = max(1.3, easeFactor + 0.1 - (5-q)*(0.08+(5-q)*0.02)); else: interval=1. Store nextDue as ISO8601 string. PlannerStore.dueQuizCards filters by nextDue date. QuizView needs a 'rate your recall' step after showing answer (buttons: Again / Hard / Good / Easy mapping to q=1/2/4/5).",
-      "skipped": true,
-      "skipReason": "exceeded 4 attempts"
+      "notes": "Add SM2 logic in a new SpacedRepetitionEngine.swift. SM-2 formula: if quality >= 3: interval = (interval==1 ? 6 : round(interval * easeFactor)); easeFactor = max(1.3, easeFactor + 0.1 - (5-q)*(0.08+(5-q)*0.02)); else: interval=1. Store nextDue as ISO8601 string. PlannerStore.dueQuizCards filters by nextDue date. QuizView needs a 'rate your recall' step after showing answer (buttons: Again / Hard / Good / Easy mapping to q=1/2/4/5)."
     },
     {
       "id": "STORY-018",
@@ -313,9 +309,7 @@
       ],
       "priority": 18,
       "passes": false,
-      "notes": "Import Charts framework (available in macOS 13+). Add `pomodoroLog: [String: Int]` to PlannerStore, include in Codable save. Add `recordPomodoro()` func that bumps today's key. Wire it into the onTaskCompletion callback in ContentView where FocusTimerModel.start() is called. Streak = count backwards from today while log[date] > 0. In DailyOverviewCard.swift, add a Chart { ForEach(last7Days) { BarMark(...) } } block under the existing content.",
-      "skipped": true,
-      "skipReason": "exceeded 4 attempts"
+      "notes": "Import Charts framework (available in macOS 13+). Add `pomodoroLog: [String: Int]` to PlannerStore, include in Codable save. Add `recordPomodoro()` func that bumps today's key. Wire it into the onTaskCompletion callback in ContentView where FocusTimerModel.start() is called. Streak = count backwards from today while log[date] > 0. In DailyOverviewCard.swift, add a Chart { ForEach(last7Days) { BarMark(...) } } block under the existing content."
     },
     {
       "id": "STORY-019",
@@ -331,9 +325,7 @@
       ],
       "priority": 19,
       "passes": false,
-      "notes": "Create NLTaskParser.swift with a `parse(_ input: String) -> ParsedTask` struct. Use NSDataDetector for date extraction OR a manual regex: `(due|by|on)\\s+(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|next week)`. For importance: `(importance|priority|imp)\\s*(\\d+)`. For subject: check input.lowercased() against known subjects ['economics','english','maths','biology','society','history','physics','chemistry']. Return a ParsedTask with optional fields. In ContentView, show chip previews in the add-task sheet using HStack of small rounded Text badges.",
-      "skipped": true,
-      "skipReason": "exceeded 4 attempts"
+      "notes": "Create NLTaskParser.swift with a `parse(_ input: String) -> ParsedTask` struct. Use NSDataDetector for date extraction OR a manual regex: `(due|by|on)\\s+(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|next week)`. For importance: `(importance|priority|imp)\\s*(\\d+)`. For subject: check input.lowercased() against known subjects ['economics','english','maths','biology','society','history','physics','chemistry']. Return a ParsedTask with optional fields. In ContentView, show chip previews in the add-task sheet using HStack of small rounded Text badges."
     },
     {
       "id": "STORY-020",
@@ -350,9 +342,7 @@
       ],
       "priority": 20,
       "passes": false,
-      "notes": "Add `notes: String = ''` to TaskItem. In the right context drawer section of ContentView.swift (or a new TaskDetailView.swift), add a two-mode notes component. Use @State isEditingNotes: Bool. Preview: `Text(try! AttributedString(markdown: notes))`. Edit: `TextEditor(text: $task.notes)` with .font(.body). \u2318E KeyboardShortcut to toggle. Debounce save with a .onChange modifier + DispatchQueue.main.asyncAfter(0.5) pattern.",
-      "skipped": true,
-      "skipReason": "exceeded 4 attempts"
+      "notes": "Add `notes: String = ''` to TaskItem. In the right context drawer section of ContentView.swift (or a new TaskDetailView.swift), add a two-mode notes component. Use @State isEditingNotes: Bool. Preview: `Text(try! AttributedString(markdown: notes))`. Edit: `TextEditor(text: $task.notes)` with .font(.body). \u2318E KeyboardShortcut to toggle. Debounce save with a .onChange modifier + DispatchQueue.main.asyncAfter(0.5) pattern."
     },
     {
       "id": "STORY-021",
@@ -368,9 +358,7 @@
       ],
       "priority": 21,
       "passes": false,
-      "notes": "Add ConfidenceReading: Codable { let date: Date; let value: Double } to Models.swift. Add `confidenceHistory: [String: [ConfidenceReading]]` to PlannerStore, persisted. In ConfidenceCalibrationView submit handler, call `store.recordConfidence(subject:, value:)`. In StudyModeView subject detail, add Chart { ForEach(readings) { LineMark(x: .value('Date', r.date), y: .value('Score', r.value * 100)) } }.",
-      "skipped": true,
-      "skipReason": "exceeded 4 attempts"
+      "notes": "Add ConfidenceReading: Codable { let date: Date; let value: Double } to Models.swift. Add `confidenceHistory: [String: [ConfidenceReading]]` to PlannerStore, persisted. In ConfidenceCalibrationView submit handler, call `store.recordConfidence(subject:, value:)`. In StudyModeView subject detail, add Chart { ForEach(readings) { LineMark(x: .value('Date', r.date), y: .value('Score', r.value * 100)) } }."
     },
     {
       "id": "STORY-022",
@@ -387,9 +375,7 @@
       ],
       "priority": 22,
       "passes": false,
-      "notes": "Add `parentId: UUID?` to TaskItem. PlannerStore.children(of taskId:) filters tasks by parentId. In ContentView left panel, group subtasks under parent using outline-style indented rows. The 'Break it down' button in right drawer calls an async func decompose(task:) in PlannerStore that uses CodexBridge.send(prompt:) and parses numbered lines 1. ... 2. ... stripping leading number+dot. Undo: store a snapshot before adding and pop on \u2318Z.",
-      "skipped": true,
-      "skipReason": "exceeded 4 attempts"
+      "notes": "Add `parentId: UUID?` to TaskItem. PlannerStore.children(of taskId:) filters tasks by parentId. In ContentView left panel, group subtasks under parent using outline-style indented rows. The 'Break it down' button in right drawer calls an async func decompose(task:) in PlannerStore that uses CodexBridge.send(prompt:) and parses numbered lines 1. ... 2. ... stripping leading number+dot. Undo: store a snapshot before adding and pop on \u2318Z."
     },
     {
       "id": "STORY-023",
@@ -405,9 +391,7 @@
       ],
       "priority": 23,
       "passes": false,
-      "notes": "Add `lastWeeklyReview: Date?` to PlannerStore persisted state. On init, if today is Sunday and (lastWeeklyReview == nil or lastWeeklyReview < last Sunday): set showWeeklyReview = true. Create WeeklyReviewView.swift as a SwiftUI sheet. Completed tasks: filter tasks where completedDate is within last 7 days. Confidence delta: for each subject, compare confidenceHistory last entry vs entry 7 days ago. Top 3 priorities: call PlanningEngine.rank() and take first 3.",
-      "skipped": true,
-      "skipReason": "exceeded 4 attempts"
+      "notes": "Add `lastWeeklyReview: Date?` to PlannerStore persisted state. On init, if today is Sunday and (lastWeeklyReview == nil or lastWeeklyReview < last Sunday): set showWeeklyReview = true. Create WeeklyReviewView.swift as a SwiftUI sheet. Completed tasks: filter tasks where completedDate is within last 7 days. Confidence delta: for each subject, compare confidenceHistory last entry vs entry 7 days ago. Top 3 priorities: call PlanningEngine.rank() and take first 3."
     },
     {
       "id": "STORY-024",
@@ -423,9 +407,7 @@
       ],
       "priority": 24,
       "passes": false,
-      "notes": "Add `manualRank: Int?` to TaskItem. In ContentView left panel List, add .onMove { from, to in store.moveTask(from: from, to: to) }. In PlannerStore.moveTask, assign manualRank = to * 100 to moved item. In PlanningEngine.rank(), pre-sort by manualRank before the urgency sort for tasks that have it set. Context menu: Button('Reset AI ranking') { task.manualRank = nil; store.save() }.",
-      "skipped": true,
-      "skipReason": "exceeded 4 attempts"
+      "notes": "Add `manualRank: Int?` to TaskItem. In ContentView left panel List, add .onMove { from, to in store.moveTask(from: from, to: to) }. In PlannerStore.moveTask, assign manualRank = to * 100 to moved item. In PlanningEngine.rank(), pre-sort by manualRank before the urgency sort for tasks that have it set. Context menu: Button('Reset AI ranking') { task.manualRank = nil; store.save() }."
     },
     {
       "id": "STORY-025",
@@ -442,9 +424,7 @@
       ],
       "priority": 25,
       "passes": false,
-      "notes": "Create PDFExporter.swift. Use PDFKit: create PDFDocument, add a PDFPage subclass that overrides draw(with:to:). In the draw method, use NSString.draw(at:withAttributes:) and NSBezierPath for timeline bars. Page size: CGSize(width: 595, height: 842) (A4 points). Pass in today's ranked tasks + schedule blocks. Save with pdfDocument.write(to: url). Call from ContentView on \u2318P KeyboardShortcut.",
-      "skipped": true,
-      "skipReason": "exceeded 4 attempts"
+      "notes": "Create PDFExporter.swift. Use PDFKit: create PDFDocument, add a PDFPage subclass that overrides draw(with:to:). In the draw method, use NSString.draw(at:withAttributes:) and NSBezierPath for timeline bars. Page size: CGSize(width: 595, height: 842) (A4 points). Pass in today's ranked tasks + schedule blocks. Save with pdfDocument.write(to: url). Call from ContentView on \u2318P KeyboardShortcut."
     },
     {
       "id": "STORY-026",
@@ -461,9 +441,7 @@
       ],
       "priority": 26,
       "passes": false,
-      "notes": "Add GradeEntry: Codable to Models.swift. Add `grades: [GradeEntry]` to PlannerStore. In SeqtaBackgroundSync, after parsing tasks, also look for grade table rows in the HTML (tr elements with mark/outOf pattern like '14 / 20' or percentage). Add `latestGrade(for subject:) -> GradeEntry?` helper. In StudyModeView subject row, show Text('\\(grade.mark)/\\(grade.outOf)').font(.caption).foregroundColor(.secondary) next to the confidence ProgressView.",
-      "skipped": true,
-      "skipReason": "exceeded 4 attempts"
+      "notes": "Add GradeEntry: Codable to Models.swift. Add `grades: [GradeEntry]` to PlannerStore. In SeqtaBackgroundSync, after parsing tasks, also look for grade table rows in the HTML (tr elements with mark/outOf pattern like '14 / 20' or percentage). Add `latestGrade(for subject:) -> GradeEntry?` helper. In StudyModeView subject row, show Text('\\(grade.mark)/\\(grade.outOf)').font(.caption).foregroundColor(.secondary) next to the confidence ProgressView."
     },
     {
       "id": "STORY-027",
@@ -479,9 +457,7 @@
       ],
       "priority": 27,
       "passes": false,
-      "notes": "Use NSEvent.addGlobalMonitorForEvents(matching: .keyDown) to detect \u2318\u2325T (keyCode 17 = T, modifiers .command | .option). Store the monitor token and remove in applicationWillTerminate. On trigger: DispatchQueue.main.async { NSApp.activate(); store.focusTimer.start(for: store.rankedTasks.first?.task, ...) }. HUD: create a small NSPanel (non-activating, HUD level) with a SwiftUI view that auto-dismisses after 2s using DispatchQueue.main.asyncAfter.",
-      "skipped": true,
-      "skipReason": "exceeded 4 attempts"
+      "notes": "Use NSEvent.addGlobalMonitorForEvents(matching: .keyDown) to detect \u2318\u2325T (keyCode 17 = T, modifiers .command | .option). Store the monitor token and remove in applicationWillTerminate. On trigger: DispatchQueue.main.async { NSApp.activate(); store.focusTimer.start(for: store.rankedTasks.first?.task, ...) }. HUD: create a small NSPanel (non-activating, HUD level) with a SwiftUI view that auto-dismisses after 2s using DispatchQueue.main.asyncAfter."
     },
     {
       "id": "STORY-028",
@@ -498,9 +474,7 @@
       ],
       "priority": 28,
       "passes": false,
-      "notes": "Add `obsidianSummaryCache: [UUID: String]` to PlannerStore (not persisted, in-memory only). In the right context drawer, below ObsidianNoteSnippetCard, add an AISummarySection view. State: .idle / .loading / .done(String) / .error(String). Generate button calls an async func generateObsidianSummary(for task:) on PlannerStore. Prompt: 'Summarise these notes in exactly 3 bullet points relevant to the task: [title]\\n\\n[snippets joined by \\n---\\n]'. Parse response lines starting with '-' or '\u2022' or '1.'.",
-      "skipped": true,
-      "skipReason": "exceeded 4 attempts"
+      "notes": "Add `obsidianSummaryCache: [UUID: String]` to PlannerStore (not persisted, in-memory only). In the right context drawer, below ObsidianNoteSnippetCard, add an AISummarySection view. State: .idle / .loading / .done(String) / .error(String). Generate button calls an async func generateObsidianSummary(for task:) on PlannerStore. Prompt: 'Summarise these notes in exactly 3 bullet points relevant to the task: [title]\\n\\n[snippets joined by \\n---\\n]'. Parse response lines starting with '-' or '\u2022' or '1.'."
     },
     {
       "id": "STORY-029",
@@ -517,9 +491,7 @@
       ],
       "priority": 29,
       "passes": false,
-      "notes": "Create ConfettiView.swift as a SwiftUI overlay. Use a TimelineView or Canvas-based particle system: spawn 40 particles at random angles from the origin, each with random dx/dy velocity, fading opacity over 1.2s. Use @State particles: [Particle] with a Timer. Colours: [.white, Color(hex:'#FFD700'), Color(hex:'#87CEEB'), Color(hex:'#90EE90')]. Trigger from PlannerStore.completeTask() callback. For sound: NSSound(named: 'Glass')?.play() or use a bundled .aiff. Guard parentId == nil for confetti gate.",
-      "skipped": true,
-      "skipReason": "exceeded 4 attempts"
+      "notes": "Create ConfettiView.swift as a SwiftUI overlay. Use a TimelineView or Canvas-based particle system: spawn 40 particles at random angles from the origin, each with random dx/dy velocity, fading opacity over 1.2s. Use @State particles: [Particle] with a Timer. Colours: [.white, Color(hex:'#FFD700'), Color(hex:'#87CEEB'), Color(hex:'#90EE90')]. Trigger from PlannerStore.completeTask() callback. For sound: NSSound(named: 'Glass')?.play() or use a bundled .aiff. Guard parentId == nil for confetti gate."
     },
     {
       "id": "STORY-030",
@@ -535,9 +507,7 @@
       ],
       "priority": 30,
       "passes": false,
-      "notes": "Add to Preferences.swift (or TimedPreferences): `appearanceMode: String` (system/light/dark), `accentColor: String` (hex), `fontSizeCategory: String` (small/medium/large). In TimeManagerDesktopApp, observe appearanceMode and apply NSApp.appearance. Pass accentColor as Color through environmentObject. Pass a custom sizeCategory via Environment(\\.sizeCategory) override or a custom EnvironmentKey for bodyFontSize. In SettingsView, add Picker for appearance, a LazyHGrid of 5 colour circles, and a Slider with 3 detents.",
-      "skipped": true,
-      "skipReason": "exceeded 4 attempts"
+      "notes": "Add to Preferences.swift (or TimedPreferences): `appearanceMode: String` (system/light/dark), `accentColor: String` (hex), `fontSizeCategory: String` (small/medium/large). In TimeManagerDesktopApp, observe appearanceMode and apply NSApp.appearance. Pass accentColor as Color through environmentObject. Pass a custom sizeCategory via Environment(\\.sizeCategory) override or a custom EnvironmentKey for bodyFontSize. In SettingsView, add Picker for appearance, a LazyHGrid of 5 colour circles, and a Slider with 3 detents."
     }
   ]
 }
