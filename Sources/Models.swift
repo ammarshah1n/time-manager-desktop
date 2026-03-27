@@ -88,7 +88,7 @@ struct TaskItem: Identifiable, Hashable, Codable {
         confidence: Int,
         importance: Int,
         dueDate: Date?,
-        notes: String,
+        notes: String = "",
         energy: TaskEnergy,
         isCompleted: Bool,
         completedAt: Date?,
@@ -141,7 +141,7 @@ struct TaskItem: Identifiable, Hashable, Codable {
         confidence = try container.decode(Int.self, forKey: .confidence)
         importance = try container.decode(Int.self, forKey: .importance)
         dueDate = try container.decodeIfPresent(Date.self, forKey: .dueDate)
-        notes = try container.decode(String.self, forKey: .notes)
+        notes = try container.decodeIfPresent(String.self, forKey: .notes) ?? ""
         energy = try container.decode(TaskEnergy.self, forKey: .energy)
         isCompleted = try container.decode(Bool.self, forKey: .isCompleted)
         completedAt = try container.decodeIfPresent(Date.self, forKey: .completedAt)

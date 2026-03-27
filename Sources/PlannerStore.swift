@@ -462,6 +462,13 @@ final class PlannerStore {
         rebuildPlan(now: now)
     }
 
+    func updateTaskNotes(taskID: String, notes: String) {
+        guard let index = tasks.firstIndex(where: { $0.id == taskID }) else { return }
+        guard tasks[index].notes != notes else { return }
+        tasks[index].notes = notes
+        save()
+    }
+
     @discardableResult
     func recordPomodoro(for taskID: String, at now: Date = .now) -> Int {
         guard let index = tasks.firstIndex(where: { $0.id == taskID }) else { return 0 }
@@ -1687,12 +1694,7 @@ final class PlannerStore {
     }
 
     private func startSeqtaBackgroundSync() {
-        let bootstrapResult: SeqtaBootstrapResult
-        do {
-            bootstrapResult = SeqtaBackgroundSync.ensureLaunchAgentInstalled()
-        } catch {
-            return
-        }
+        let bootstrapResult = SeqtaBackgroundSync.ensureLaunchAgentInstalled()
         switch bootstrapResult {
         case .success:
             settingsIssue = nil

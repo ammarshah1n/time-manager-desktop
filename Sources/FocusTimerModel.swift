@@ -64,6 +64,28 @@ final class FocusTimerModel {
         sessionKind?.title ?? currentTask?.title ?? "Focus session"
     }
 
+    var sessionSymbol: String {
+        switch sessionKind {
+        case .task:
+            return "🍅"
+        case .shortBreak, .longBreak:
+            return "☕"
+        case nil:
+            return "⏳"
+        }
+    }
+
+    var countdownText: String {
+        let minutes = secondsRemaining / 60
+        let seconds = secondsRemaining % 60
+        return String(format: "%02d:%02d", minutes, seconds)
+    }
+
+    var menuBarLabel: String {
+        guard sessionKind != nil else { return sessionSymbol }
+        return "\(sessionSymbol) \(countdownText)"
+    }
+
     var progress: Double {
         guard totalSeconds > 0 else { return 0 }
         let completed = totalSeconds - secondsRemaining

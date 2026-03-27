@@ -48,13 +48,9 @@ struct ContentView: View {
     private let deadlineTicker = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
 
     @MainActor
-    init() {
-        _store = State(initialValue: PlannerStore())
-    }
-
-    @MainActor
-    init(store: PlannerStore) {
+    init(store: PlannerStore = PlannerStore(), focusTimer: FocusTimerModel = FocusTimerModel()) {
         _store = State(initialValue: store)
+        _focusTimer = State(initialValue: focusTimer)
     }
 
     var body: some View {
@@ -775,31 +771,18 @@ struct ContentView: View {
 
                         if let contextDrawerTask {
                             TimedCard(title: "Task Detail", icon: icon(for: contextDrawerTask.source)) {
-                                VStack(alignment: .leading, spacing: 10) {
-                                    Text(contextDrawerTask.title)
-                                        .font(.system(size: 22, weight: .bold))
-                                        .foregroundStyle(.white)
-
-                                    Text("\(contextDrawerTask.subject) · \(contextDrawerTask.estimateMinutes) min · confidence \(contextDrawerTask.confidence)/5 · importance \(contextDrawerTask.importance)/5")
-                                        .font(.system(size: 12, weight: .semibold))
-                                        .foregroundStyle(.white.opacity(0.62))
-
-                                    Text(contextDrawerTask.notes.isEmpty ? "No task notes yet." : contextDrawerTask.notes)
-                                        .font(.system(size: 13))
-                                        .foregroundStyle(.white.opacity(0.78))
-
-                                    HStack(spacing: 10) {
-                                        Button("Study") {
-                                            openStudyOverlay(for: contextDrawerTask)
-                                        }
-                                        .buttonStyle(.borderedProminent)
-
-                                        Button("Complete") {
-                                            markTaskCompleteAndRefreshDrawer(contextDrawerTask)
-                                        }
-                                        .buttonStyle(.bordered)
+                                TaskDetailView(
+                                    task: contextDrawerTask,
+                                    onStudy: {
+                                        openStudyOverlay(for: contextDrawerTask)
+                                    },
+                                    onComplete: {
+                                        markTaskCompleteAndRefreshDrawer(contextDrawerTask)
+                                    },
+                                    onSaveNotes: { notes in
+                                        store.updateTaskNotes(taskID: contextDrawerTask.id, notes: notes)
                                     }
-                                }
+                                )
                             }
                         }
 

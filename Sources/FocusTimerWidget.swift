@@ -16,7 +16,7 @@ struct FocusTimerWidget: View {
                     .foregroundStyle(.white)
                     .lineLimit(1)
 
-                Text(timeRemainingText)
+                Text(timer.countdownText)
                     .font(.system(size: 24, weight: .bold, design: .rounded))
                     .foregroundStyle(.white.opacity(0.92))
             }
@@ -46,13 +46,7 @@ struct FocusTimerWidget: View {
                 )
         )
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(timer.sessionTitle), \(timeRemainingText) remaining")
-    }
-
-    private var timeRemainingText: String {
-        let minutes = timer.secondsRemaining / 60
-        let seconds = timer.secondsRemaining % 60
-        return String(format: "%02d:%02d", minutes, seconds)
+        .accessibilityLabel("\(timer.sessionTitle), \(timer.countdownText) remaining")
     }
 }
 

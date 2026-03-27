@@ -62,7 +62,7 @@ struct TimedKeyboardCommands: Commands {
             Button("Export Calendar") {
                 keyboardActions?.exportCalendar()
             }
-            .keyboardShortcut("e", modifiers: [.command])
+            .keyboardShortcut("e", modifiers: [.command, .shift])
             .disabled(keyboardActions == nil)
 
             Divider()
