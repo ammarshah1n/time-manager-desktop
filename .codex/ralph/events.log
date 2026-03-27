@@ -287,3 +287,6 @@
 [2026-03-27T16:24:19+1030] COMMIT story=STORY-026 sha=70de8d3
 [2026-03-27T16:24:21+1030] STORY START id=STORY-027 attempt=1 title=Global hotkey (⌘⌥T) to start focus timer from anywhere 
 [2026-03-27T16:29:10+1030] STORY COMPLETE id=STORY-027 attempt=1
+[2026-03-27T16:29:11+1030] COMMIT story=STORY-027 sha=61a368c
+[2026-03-27T16:29:13+1030] STORY START id=STORY-028 attempt=1 title=Obsidian AI summary — 3-bullet context digest for selected task 
+[2026-03-27T16:35:25+1030] STORY COMPLETE id=STORY-028 attempt=1

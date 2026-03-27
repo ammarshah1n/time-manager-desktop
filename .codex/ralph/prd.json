@@ -473,7 +473,7 @@
         "swift build passes"
       ],
       "priority": 28,
-      "passes": false,
+      "passes": true,
       "notes": "Add `obsidianSummaryCache: [UUID: String]` to PlannerStore (not persisted, in-memory only). In the right context drawer, below ObsidianNoteSnippetCard, add an AISummarySection view. State: .idle / .loading / .done(String) / .error(String). Generate button calls an async func generateObsidianSummary(for task:) on PlannerStore. Prompt: 'Summarise these notes in exactly 3 bullet points relevant to the task: [title]\\n\\n[snippets joined by \\n---\\n]'. Parse response lines starting with '-' or '•' or '1.'."
     },
     {
