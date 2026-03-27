@@ -967,6 +967,12 @@ struct ContentView: View {
                     tintColor: dailyOverviewTint
                 ) {
                     await generateDayPlanFromOverview()
+                } onExportPDF: {
+                    await store.exportDailyPlanPDF(
+                        referenceDate: .now,
+                        rankedTasks: rankedTasksForPlan,
+                        activePomodoroNote: activePomodoroNote
+                    )
                 }
 
                 if let dangerWeekMessage {
@@ -1445,6 +1451,15 @@ struct ContentView: View {
             },
             startFocusTimer: {
                 startFocusTimerForSelectedTask()
+            },
+            exportPDF: {
+                Task {
+                    await store.exportDailyPlanPDF(
+                        referenceDate: .now,
+                        rankedTasks: rankedTasksForPlan,
+                        activePomodoroNote: activePomodoroNote
+                    )
+                }
             },
             exportCalendar: {
                 Task { await store.exportCalendar() }
@@ -2439,6 +2454,13 @@ struct ContentView: View {
     private var activeFocusContext: ContextItem? {
         guard let activeFocusTask else { return nil }
         return store.groundedStudyContexts(for: activeFocusTask).first
+    }
+
+    private var activePomodoroNote: String? {
+        guard focusTimer.isVisible else { return nil }
+        let sessionTitle = focusTimer.sessionTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !sessionTitle.isEmpty else { return nil }
+        return "\(sessionTitle) • \(focusTimer.countdownText) remaining"
     }
 
     private var focusRemainingText: String {

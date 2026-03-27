@@ -29,9 +29,11 @@ struct DailyOverviewCard: View {
     let pomodoroTrend: [PomodoroDayStat]
     let tintColor: Color
     let onGenerateDayPlan: () async -> Void
+    let onExportPDF: () async -> Void
 
     @AppStorage("timed.dailyOverviewCollapsed") private var isCollapsed = false
     @State private var isGenerating = false
+    @State private var isExportingPDF = false
     @State private var launchPrompt: String
 
     init(
@@ -43,7 +45,8 @@ struct DailyOverviewCard: View {
         currentStudyStreak: Int,
         pomodoroTrend: [PomodoroDayStat],
         tintColor: Color,
-        onGenerateDayPlan: @escaping () async -> Void
+        onGenerateDayPlan: @escaping () async -> Void,
+        onExportPDF: @escaping () async -> Void
     ) {
         self.date = date
         self.priorities = priorities
@@ -54,6 +57,7 @@ struct DailyOverviewCard: View {
         self.pomodoroTrend = pomodoroTrend
         self.tintColor = tintColor
         self.onGenerateDayPlan = onGenerateDayPlan
+        self.onExportPDF = onExportPDF
         _launchPrompt = State(
             initialValue: Self.launchPrompt(
                 topPriorityTitle: priorities.first?.title,
@@ -257,6 +261,27 @@ struct DailyOverviewCard: View {
             }
             .buttonStyle(.borderedProminent)
             .disabled(isGenerating || priorities.isEmpty)
+
+            Button {
+                Task {
+                    isExportingPDF = true
+                    await onExportPDF()
+                    isExportingPDF = false
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    if isExportingPDF {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Image(systemName: "doc.richtext")
+                    }
+
+                    Text(isExportingPDF ? "Exporting..." : "Export PDF")
+                }
+            }
+            .buttonStyle(.bordered)
+            .disabled(isExportingPDF)
 
             Spacer()
         }

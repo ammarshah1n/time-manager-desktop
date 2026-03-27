@@ -12,6 +12,7 @@ struct KeyboardShortcutsHelpView: View {
         ("⌘N", "Open Add Task"),
         ("⌘S", "Toggle study mode"),
         ("⌘T", "Start the focus timer for the selected task"),
+        ("⌘P", "Export today’s plan to PDF"),
         ("⌘E", "Toggle task notes edit and preview in the right drawer"),
         ("⇧⌘E", "Export approved blocks to Apple Calendar"),
         ("⌘/ or ?", "Show this keyboard shortcuts help")

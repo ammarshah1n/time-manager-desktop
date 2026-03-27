@@ -795,6 +795,55 @@ final class PlannerStore {
         save()
     }
 
+    func exportDailyPlanPDF(
+        referenceDate: Date = .now,
+        rankedTasks: [RankedTask],
+        activePomodoroNote: String?
+    ) async {
+        let todaysSchedule = schedule
+            .filter { Calendar.current.isDate($0.start, inSameDayAs: referenceDate) }
+            .sorted { $0.start < $1.start }
+        let topTasks = Array(rankedTasks.prefix(3)).map(\.task)
+
+        do {
+            let result = try PDFExporter.exportDailyPlan(
+                date: referenceDate,
+                tasks: topTasks,
+                schedule: todaysSchedule,
+                activePomodoroNote: activePomodoroNote
+            )
+
+            appendPlannerMessage(
+                PromptMessage(
+                    role: .assistant,
+                    text: "Exported today’s PDF plan to \(result.fileURL.lastPathComponent)."
+                )
+            )
+            presentToast(
+                title: "PDF exported",
+                message: result.fileURL.lastPathComponent,
+                systemImage: "doc.richtext",
+                tone: .info
+            )
+            save()
+        } catch {
+            let message = error.localizedDescription
+            appendPlannerMessage(
+                PromptMessage(
+                    role: .assistant,
+                    text: "PDF export failed: \(message)"
+                )
+            )
+            presentToast(
+                title: "PDF export failed",
+                message: message,
+                systemImage: "exclamationmark.triangle.fill",
+                tone: .error
+            )
+            save()
+        }
+    }
+
     func dismissPromptError() {
         clearPromptError()
     }

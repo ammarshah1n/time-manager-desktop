@@ -4,6 +4,7 @@ struct TimedKeyboardActions {
     let addTask: () -> Void
     let toggleStudyMode: () -> Void
     let startFocusTimer: () -> Void
+    let exportPDF: () -> Void
     let exportCalendar: () -> Void
     let focusSearch: () -> Void
     let showKeyboardShortcuts: () -> Void
@@ -60,6 +61,12 @@ struct TimedKeyboardCommands: Commands {
             }
             .keyboardShortcut("t", modifiers: [.command])
             .disabled(keyboardActions == nil || rankedTaskSelection?.task == nil)
+
+            Button("Export PDF") {
+                keyboardActions?.exportPDF()
+            }
+            .keyboardShortcut("p", modifiers: [.command])
+            .disabled(keyboardActions == nil)
 
             Button("Export Calendar") {
                 keyboardActions?.exportCalendar()
