@@ -176,11 +176,13 @@ final class FocusTimerModel {
         }
     }
 
-    private func requestNotificationAuthorization() {
+    private nonisolated func requestNotificationAuthorization() {
+        guard Bundle.main.bundleIdentifier != nil else { return }
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
     }
 
     private func postNotification(title: String, body: String) {
+        guard Bundle.main.bundleIdentifier != nil else { return }
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body

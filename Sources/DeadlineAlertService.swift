@@ -14,7 +14,8 @@ final class DeadlineAlertService {
         var titleText: String { "due in \(hoursBeforeDeadline)h" }
     }
 
-    private let notificationCenter = UNUserNotificationCenter.current()
+    private let hasBundle = Bundle.main.bundleIdentifier != nil
+    private var notificationCenter: UNUserNotificationCenter { UNUserNotificationCenter.current() }
     private let notificationPrefix = "timed.deadline"
     private let checkpoints = [
         AlertCheckpoint(hoursBeforeDeadline: 24),
@@ -24,8 +25,9 @@ final class DeadlineAlertService {
 
     private var rescheduleTask: Task<Void, Never>?
 
-    func requestAuthorizationIfNeeded() {
-        notificationCenter.requestAuthorization(options: [.alert, .sound]) { _, _ in }
+    nonisolated func requestAuthorizationIfNeeded() {
+        guard Bundle.main.bundleIdentifier != nil else { return }
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
     }
 
     func scheduleAlerts(for tasks: [TaskItem], now: Date = .now) {
@@ -35,7 +37,7 @@ final class DeadlineAlertService {
     func refresh(tasks: [TaskItem], now: Date = .now, shouldRescheduleNotifications: Bool) {
         updateDockBadge(for: tasks, now: now)
 
-        guard shouldRescheduleNotifications else { return }
+        guard hasBundle, shouldRescheduleNotifications else { return }
 
         let snapshot = tasks
         rescheduleTask?.cancel()
@@ -112,9 +114,9 @@ final class DeadlineAlertService {
         return await pendingIDs.union(deliveredIDs)
     }
 
-    private func pendingNotificationIdentifiers() async -> Set<String> {
+    private nonisolated func pendingNotificationIdentifiers() async -> Set<String> {
         await withCheckedContinuation { continuation in
-            notificationCenter.getPendingNotificationRequests { requests in
+            UNUserNotificationCenter.current().getPendingNotificationRequests { requests in
                 let identifiers = requests
                     .map(\.identifier)
                     .filter { $0.hasPrefix(self.notificationPrefix) }
@@ -123,9 +125,9 @@ final class DeadlineAlertService {
         }
     }
 
-    private func deliveredNotificationIdentifiers() async -> Set<String> {
+    private nonisolated func deliveredNotificationIdentifiers() async -> Set<String> {
         await withCheckedContinuation { continuation in
-            notificationCenter.getDeliveredNotifications { notifications in
+            UNUserNotificationCenter.current().getDeliveredNotifications { notifications in
                 let identifiers = notifications
                     .map(\.request.identifier)
                     .filter { $0.hasPrefix(self.notificationPrefix) }

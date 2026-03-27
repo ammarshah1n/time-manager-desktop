@@ -56,13 +56,16 @@ final class PlannerStore {
         let folderURL = baseURL.appendingPathComponent("Timed", isDirectory: true)
         self.storageURL = storageURL ?? folderURL.appendingPathComponent("planner-state.json")
         load()
-        syncChatsFromCodexMemoryIfAvailable()
-        bootstrapCodexMemoryPackIfNeeded()
-        scheduleCodexMemoryDeadlineDiscovery()
-        if !Self.isRunningUnderTests {
-            DeadlineAlertService.shared.requestAuthorizationIfNeeded()
-            startDeadlineMonitor()
-            startSeqtaBackgroundSync()
+        // Defer heavy init off the main thread to avoid blocking SwiftUI startup
+        Task { @MainActor in
+            self.syncChatsFromCodexMemoryIfAvailable()
+            self.bootstrapCodexMemoryPackIfNeeded()
+            self.scheduleCodexMemoryDeadlineDiscovery()
+            if !Self.isRunningUnderTests {
+                DeadlineAlertService.shared.requestAuthorizationIfNeeded()
+                self.startDeadlineMonitor()
+                self.startSeqtaBackgroundSync()
+            }
         }
     }
 
@@ -1684,7 +1687,13 @@ final class PlannerStore {
     }
 
     private func startSeqtaBackgroundSync() {
-        switch SeqtaBackgroundSync.ensureLaunchAgentInstalled() {
+        let bootstrapResult: SeqtaBootstrapResult
+        do {
+            bootstrapResult = SeqtaBackgroundSync.ensureLaunchAgentInstalled()
+        } catch {
+            return
+        }
+        switch bootstrapResult {
         case .success:
             settingsIssue = nil
         case let .failure(message):
@@ -2091,16 +2100,21 @@ final class PlannerStore {
         guard TimedPreferences.codexMemoryEnabled else { return }
         guard !Self.isRunningUnderTests else { return }
 
-        let remotePlannerChat = CodexMemorySync.loadConversation(channel: .planner)
-        let remoteStudyChat = CodexMemorySync.loadConversation(channel: .study)
+        Task.detached(priority: .background) { [weak self] in
+            guard let self else { return }
+            let remotePlannerChat = CodexMemorySync.loadConversation(channel: .planner)
+            let remoteStudyChat = CodexMemorySync.loadConversation(channel: .study)
 
-        let mergedPlannerChat = CodexMemorySync.merge(local: chat, remote: remotePlannerChat)
-        let mergedStudyChat = CodexMemorySync.merge(local: studyChat, remote: remoteStudyChat)
+            await MainActor.run {
+                let mergedPlannerChat = CodexMemorySync.merge(local: self.chat, remote: remotePlannerChat)
+                let mergedStudyChat = CodexMemorySync.merge(local: self.studyChat, remote: remoteStudyChat)
 
-        if mergedPlannerChat != chat || mergedStudyChat != studyChat {
-            chat = mergedPlannerChat
-            studyChat = mergedStudyChat
-            save()
+                if mergedPlannerChat != self.chat || mergedStudyChat != self.studyChat {
+                    self.chat = mergedPlannerChat
+                    self.studyChat = mergedStudyChat
+                    self.save()
+                }
+            }
         }
     }
 }
