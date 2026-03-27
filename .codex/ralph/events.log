@@ -269,3 +269,6 @@
 [2026-03-27T15:36:22+1030] COMMIT story=STORY-020 sha=287adf2
 [2026-03-27T15:36:24+1030] STORY START id=STORY-021 attempt=1 title=Subject confidence trend chart (7-day history) 
 [2026-03-27T15:42:45+1030] STORY COMPLETE id=STORY-021 attempt=1
+[2026-03-27T15:42:46+1030] COMMIT story=STORY-021 sha=64d748d
+[2026-03-27T15:42:48+1030] STORY START id=STORY-022 attempt=1 title=AI task decomposition — break hard tasks into subtasks via Codex 
+[2026-03-27T15:51:18+1030] STORY COMPLETE id=STORY-022 attempt=1

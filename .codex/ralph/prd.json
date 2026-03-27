@@ -374,7 +374,7 @@
         "swift build passes"
       ],
       "priority": 22,
-      "passes": false,
+      "passes": true,
       "notes": "Add `parentId: UUID?` to TaskItem. PlannerStore.children(of taskId:) filters tasks by parentId. In ContentView left panel, group subtasks under parent using outline-style indented rows. The 'Break it down' button in right drawer calls an async func decompose(task:) in PlannerStore that uses CodexBridge.send(prompt:) and parses numbered lines 1. ... 2. ... stripping leading number+dot. Undo: store a snapshot before adding and pop on ⌘Z."
     },
     {
