@@ -4,6 +4,7 @@ struct KeyboardShortcutsHelpView: View {
     @Environment(\.dismiss) private var dismiss
 
     private let shortcuts: [(keys: String, description: String)] = [
+        ("⌘⌥T", "Bring Timed forward and start the focus timer for the top-ranked task"),
         ("⌘K", "Open search and focus the search field"),
         ("↑ / ↓", "Move through the ranked task list"),
         ("Return", "Open task detail for the focused ranked task"),
