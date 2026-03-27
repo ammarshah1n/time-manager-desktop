@@ -45,7 +45,7 @@ enum PlanningEngine {
         let activeTasks = tasks.filter { !$0.isCompleted }
         let subjectCounts = Dictionary(grouping: activeTasks, by: \.subject).mapValues(\.count)
 
-        return activeTasks
+        let scoredTasks = activeTasks
             .map { task in
                 let breakdown = scoreBreakdown(
                     for: task,
@@ -66,12 +66,35 @@ enum PlanningEngine {
                     suggestedNextAction: suggestedNextAction(for: task, scoreBand: scoreBand)
                 )
             }
+        let manualOverrides = scoredTasks
+            .filter { $0.task.manualRank != nil }
+            .sorted { lhs, rhs in
+                let lhsRank = lhs.task.manualRank ?? .max
+                let rhsRank = rhs.task.manualRank ?? .max
+                if lhsRank != rhsRank {
+                    return lhsRank < rhsRank
+                }
+                if lhs.score != rhs.score {
+                    return lhs.score > rhs.score
+                }
+                return lhs.task.title.localizedCaseInsensitiveCompare(rhs.task.title) == .orderedAscending
+            }
+        var rankedTasks = scoredTasks
+            .filter { $0.task.manualRank == nil }
             .sorted { lhs, rhs in
                 if lhs.score == rhs.score {
-                    return lhs.task.title < rhs.task.title
+                    return lhs.task.title.localizedCaseInsensitiveCompare(rhs.task.title) == .orderedAscending
                 }
                 return lhs.score > rhs.score
             }
+
+        for override in manualOverrides {
+            let rawIndex = max(0, (override.task.manualRank ?? 0) / 100)
+            let targetIndex = min(rawIndex, rankedTasks.count)
+            rankedTasks.insert(override, at: targetIndex)
+        }
+
+        return rankedTasks
     }
 
     static func explainRank(

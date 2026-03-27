@@ -419,47 +419,39 @@ struct ContentView: View {
                 endPoint: .bottomTrailing
             )
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    TimedSectionHeader(title: "Task Library")
+            VStack(alignment: .leading, spacing: 0) {
+                TimedSectionHeader(title: "Task Library")
 
-                    if taskLibraryEntries.isEmpty {
-                        EmptyStateView(
-                            systemImage: "checklist",
-                            title: "Add your first task with ⌘N",
-                            subtitle: "Timed will rank it, schedule it, and pull the right study context after that.",
-                            actionTitle: "Add Task"
-                        ) {
-                            showAddTaskSheet = true
-                        }
-                        .padding(.horizontal, 18)
-                        .padding(.bottom, 18)
-                    } else {
-                        LazyVStack(spacing: 6) {
-                            ForEach(taskLibraryEntries) { entry in
-                                TaskLibraryCompactRow(
-                                    title: entry.task.title,
-                                    iconName: icon(for: entry.task.source),
-                                    dueText: dueLabel(for: entry.task.dueDate),
-                                    countdownText: deadlineCountdownText(for: entry.task.dueDate),
-                                    urgencyColor: urgencyColor(for: entry.task),
-                                    isSelected: contextTaskID == entry.task.id,
-                                    isCompleted: entry.task.isCompleted,
-                                    depth: entry.depth,
-                                    action: {
-                                        selectTaskForContext(entry.task)
-                                    }
-                                )
-                            }
-                        }
-                        .animation(.spring(response: 0.3), value: taskLibraryEntries.map(\.id))
-                        .padding(.horizontal, 12)
-                        .padding(.bottom, 12)
+                if taskLibraryRootTasks.isEmpty {
+                    EmptyStateView(
+                        systemImage: "checklist",
+                        title: "Add your first task with ⌘N",
+                        subtitle: "Timed will rank it, schedule it, and pull the right study context after that.",
+                        actionTitle: "Add Task"
+                    ) {
+                        showAddTaskSheet = true
                     }
+                    .padding(.horizontal, 18)
+                    .padding(.bottom, 18)
+                } else {
+                    List {
+                        ForEach(taskLibraryRootTasks) { task in
+                            taskLibraryCell(for: task)
+                                .listRowInsets(EdgeInsets(top: 3, leading: 12, bottom: 3, trailing: 12))
+                                .listRowSeparator(.hidden)
+                                .listRowBackground(Color.clear)
+                        }
+                        .onMove { from, to in
+                            store.moveTask(from: from, to: to, orderedRootTaskIDs: taskLibraryRootTasks.map(\.id))
+                        }
+                    }
+                    .listStyle(.plain)
+                    .scrollContentBackground(.hidden)
+                    .background(Color.clear)
+                    .animation(.spring(response: 0.3), value: taskLibraryRootTasks.map(\.id))
                 }
-                .padding(.vertical, 8)
             }
-            .scrollIndicators(.hidden)
+            .padding(.vertical, 8)
         }
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .overlay(
@@ -1470,8 +1462,8 @@ struct ContentView: View {
         )
     }
 
-    private var taskLibraryEntries: [TaskLibraryEntry] {
-        taskLibraryOutlineEntries(from: taskLibrarySortedTasks(store.tasks.filter { $0.parentId == nil }))
+    private var taskLibraryRootTasks: [TaskItem] {
+        taskLibrarySortedTasks(store.tasks.filter { $0.parentId == nil })
     }
 
     private func taskLibraryOutlineEntries(from tasks: [TaskItem], depth: Int = 0) -> [TaskLibraryEntry] {
@@ -1484,6 +1476,42 @@ struct ContentView: View {
         }
 
         return entries
+    }
+
+    private func taskLibraryCell(for task: TaskItem) -> some View {
+        let entries = [TaskLibraryEntry(task: task, depth: 0)] + taskLibraryOutlineEntries(
+            from: taskLibrarySortedTasks(store.children(of: task.id)),
+            depth: 1
+        )
+
+        return VStack(alignment: .leading, spacing: 6) {
+            ForEach(entries) { entry in
+                taskLibraryRow(entry)
+            }
+        }
+    }
+
+    private func taskLibraryRow(_ entry: TaskLibraryEntry) -> some View {
+        TaskLibraryCompactRow(
+            title: entry.task.title,
+            iconName: icon(for: entry.task.source),
+            dueText: dueLabel(for: entry.task.dueDate),
+            countdownText: deadlineCountdownText(for: entry.task.dueDate),
+            urgencyColor: urgencyColor(for: entry.task),
+            isSelected: contextTaskID == entry.task.id,
+            isCompleted: entry.task.isCompleted,
+            depth: entry.depth,
+            action: {
+                selectTaskForContext(entry.task)
+            }
+        )
+        .contextMenu {
+            if entry.task.manualRank != nil {
+                Button("Reset AI ranking") {
+                    store.resetManualRank(for: entry.task.id)
+                }
+            }
+        }
     }
 
     private func taskLibrarySortedTasks(_ tasks: [TaskItem]) -> [TaskItem] {
@@ -2048,6 +2076,13 @@ struct ContentView: View {
         .onTapGesture {
             focusedPanel = .center
             selectRankedTask(ranked.task)
+        }
+        .contextMenu {
+            if ranked.task.manualRank != nil {
+                Button("Reset AI ranking") {
+                    store.resetManualRank(for: ranked.task.id)
+                }
+            }
         }
         .transition(.asymmetric(insertion: .scale.combined(with: .opacity), removal: .opacity))
     }

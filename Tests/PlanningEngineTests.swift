@@ -647,6 +647,70 @@ struct PlanningEngineTests {
         #expect(explanation.contains("total="))
     }
 
+    @Test("testManualRankPinsTaskIntoRequestedSlot")
+    func testManualRankPinsTaskIntoRequestedSlot() {
+        let economics = makeTask(id: "economics", title: "Economics test", subject: "Economics", dueOffsetDays: 2)
+        let english = makeTask(id: "english", title: "English assessment", subject: "English", dueOffsetDays: 4)
+        var society = makeTask(id: "society", title: "Society and Culture photo essay", subject: "Society and Culture", dueOffsetDays: 7)
+        society.importance = 1
+        society.manualRank = 100
+
+        let ranked = PlanningEngine.rank(
+            tasks: [economics, english, society],
+            contexts: [],
+            now: fixedNow,
+            promptBoostSubject: nil,
+            subjectImportance: [
+                "Economics": 2.0,
+                "English": 1.6,
+                "Society and Culture": 1.0
+            ]
+        )
+
+        #expect(ranked.map(\.task.title) == [
+            "Economics test",
+            "Society and Culture photo essay",
+            "English assessment"
+        ])
+    }
+
+    @Test("testManualRankClearsWhenDeadlineChanges")
+    @MainActor
+    func testManualRankClearsWhenDeadlineChanges() {
+        let storageURL = FileManager.default.temporaryDirectory.appendingPathComponent("timed-manual-rank-\(UUID().uuidString).json")
+        let store = PlannerStore(storageURL: storageURL)
+        let economics = makeTask(id: "economics", title: "Economics test", subject: "Economics", dueOffsetDays: 2)
+        let english = makeTask(id: "english", title: "English assessment", subject: "English", dueOffsetDays: 4)
+
+        store.tasks = [economics, english]
+        store.contexts = []
+        store.chat = []
+        store.schedule = []
+        store.rebuildPlan(now: fixedNow)
+
+        store.moveTask(from: IndexSet(integer: 1), to: 0, orderedRootTaskIDs: ["economics", "english"])
+        #expect(store.tasks.first(where: { $0.id == "english" })?.manualRank == 0)
+
+        let revisedDeadline = fixedNow.addingTimeInterval(8 * 24 * 60 * 60)
+        store.applyDiscoveredDeadlines([
+            DiscoveredDeadline(
+                title: "English assessment",
+                subject: "English",
+                importance: 8,
+                dueDate: revisedDeadline,
+                estimateMinutes: 45,
+                energy: .medium,
+                query: "english assessment deadline",
+                notes: "Updated from codex-mem.",
+                matchedMemoryTitles: []
+            )
+        ], now: fixedNow)
+
+        let updatedEnglish = store.tasks.first(where: { $0.id == "english" })
+        #expect(updatedEnglish?.dueDate == revisedDeadline)
+        #expect(updatedEnglish?.manualRank == nil)
+    }
+
     @Test("testChatPersistence")
     @MainActor
     func testChatPersistence() {

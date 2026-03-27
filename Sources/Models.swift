@@ -71,6 +71,7 @@ struct TaskItem: Identifiable, Hashable, Codable {
     var confidence: Int
     var importance: Int
     var dueDate: Date?
+    var manualRank: Int?
     var notes: String
     var energy: TaskEnergy
     // Task identity is string-based across the app, so parent linkage stays string-based too.
@@ -90,6 +91,7 @@ struct TaskItem: Identifiable, Hashable, Codable {
         confidence: Int,
         importance: Int,
         dueDate: Date?,
+        manualRank: Int? = nil,
         notes: String = "",
         energy: TaskEnergy,
         parentId: String? = nil,
@@ -107,6 +109,7 @@ struct TaskItem: Identifiable, Hashable, Codable {
         self.confidence = confidence
         self.importance = importance
         self.dueDate = dueDate
+        self.manualRank = manualRank
         self.notes = notes
         self.energy = energy
         self.parentId = parentId
@@ -126,6 +129,7 @@ struct TaskItem: Identifiable, Hashable, Codable {
         case confidence
         case importance
         case dueDate
+        case manualRank
         case notes
         case energy
         case parentId
@@ -146,6 +150,7 @@ struct TaskItem: Identifiable, Hashable, Codable {
         confidence = try container.decode(Int.self, forKey: .confidence)
         importance = try container.decode(Int.self, forKey: .importance)
         dueDate = try container.decodeIfPresent(Date.self, forKey: .dueDate)
+        manualRank = try container.decodeIfPresent(Int.self, forKey: .manualRank)
         notes = try container.decodeIfPresent(String.self, forKey: .notes) ?? ""
         energy = try container.decode(TaskEnergy.self, forKey: .energy)
         parentId = try container.decodeIfPresent(String.self, forKey: .parentId)

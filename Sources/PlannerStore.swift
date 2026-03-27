@@ -495,6 +495,47 @@ final class PlannerStore {
         rebuildPlan(now: now)
     }
 
+    func moveTask(from source: IndexSet, to destination: Int, orderedRootTaskIDs: [String]) {
+        let orderedRoots = orderedRootTaskIDs.compactMap { rootTaskID in
+            tasks.first(where: { $0.id == rootTaskID && $0.parentId == nil })
+        }
+        let sourceIndexes = source.sorted()
+        guard !orderedRoots.isEmpty, !sourceIndexes.isEmpty else { return }
+
+        var reorderedRoots = orderedRoots
+        let movedRoots = sourceIndexes.map { reorderedRoots[$0] }
+        for index in sourceIndexes.reversed() {
+            reorderedRoots.remove(at: index)
+        }
+
+        let adjustedDestination = max(0, min(
+            destination - sourceIndexes.filter { $0 < destination }.count,
+            reorderedRoots.count
+        ))
+        reorderedRoots.insert(contentsOf: movedRoots, at: adjustedDestination)
+
+        let movedRootIDs = Set(movedRoots.map(\.id))
+        var rankOverrides: [String: Int] = [:]
+        for (index, task) in reorderedRoots.enumerated() where task.manualRank != nil || movedRootIDs.contains(task.id) {
+            rankOverrides[task.id] = index * 100
+        }
+
+        guard !rankOverrides.isEmpty else { return }
+        for index in tasks.indices {
+            guard let manualRank = rankOverrides[tasks[index].id] else { continue }
+            tasks[index].manualRank = manualRank
+        }
+
+        rebuildPlan()
+    }
+
+    func resetManualRank(for taskID: String, now: Date = .now) {
+        guard let index = tasks.firstIndex(where: { $0.id == taskID }) else { return }
+        guard tasks[index].manualRank != nil else { return }
+        tasks[index].manualRank = nil
+        rebuildPlan(now: now)
+    }
+
     func children(of taskID: String) -> [TaskItem] {
         tasks.filter { $0.parentId == taskID }
     }
@@ -1164,7 +1205,7 @@ final class PlannerStore {
 
         for task in pack.tasks.map(calibratedTask) {
             if let index = tasks.firstIndex(where: { $0.id == task.id }) {
-                tasks[index] = task
+                tasks[index] = preservingManualRank(from: tasks[index], to: task)
             } else {
                 tasks.insert(task, at: 0)
                 importedTasks += 1
@@ -1223,7 +1264,10 @@ final class PlannerStore {
                     updatedTask.notes = "\(existingTask.notes)\n\n\(deadline.notes)"
                 }
                 updatedTask.isAutoDiscovered = existingTask.isAutoDiscovered || discoveredTask.isAutoDiscovered
-                tasks[existingIndex] = calibratedTask(updatedTask)
+                tasks[existingIndex] = preservingManualRank(
+                    from: existingTask,
+                    to: calibratedTask(updatedTask)
+                )
                 updatedCount += 1
             } else {
                 tasks.insert(discoveredTask, at: 0)
@@ -1939,13 +1983,16 @@ final class PlannerStore {
                 $0.title.caseInsensitiveCompare(hint.title) == .orderedSame ||
                 ($0.subject.caseInsensitiveCompare(hint.subject) == .orderedSame && $0.title.lowercased().contains(hint.subject.lowercased()))
             }) {
-                tasks[index].dueDate = hint.dueDate ?? tasks[index].dueDate
-                if tasks[index].notes.isEmpty {
-                    tasks[index].notes = hint.notes
+                let existingTask = tasks[index]
+                var updatedTask = existingTask
+                updatedTask.dueDate = hint.dueDate ?? existingTask.dueDate
+                if updatedTask.notes.isEmpty {
+                    updatedTask.notes = hint.notes
                 }
-                if tasks[index].confidence == 3 {
-                    tasks[index].confidence = inferredConfidence(for: tasks[index])
+                if updatedTask.confidence == 3 {
+                    updatedTask.confidence = inferredConfidence(for: updatedTask)
                 }
+                tasks[index] = preservingManualRank(from: existingTask, to: updatedTask)
                 continue
             }
 
@@ -2352,7 +2399,7 @@ final class PlannerStore {
         merged.notes = incoming.notes
         merged.energy = incoming.energy
         merged.pomodoroCount = max(existing.pomodoroCount, incoming.pomodoroCount)
-        return merged
+        return preservingManualRank(from: existing, to: merged)
     }
 
     private func matchingImportedTaskIndex(for incoming: TaskItem) -> Int? {
@@ -2477,7 +2524,7 @@ final class PlannerStore {
         merged.isAutoDiscovered = existing.isAutoDiscovered || incoming.isAutoDiscovered
         merged.pomodoroCount = max(existing.pomodoroCount, incoming.pomodoroCount)
 
-        return merged
+        return preservingManualRank(from: existing, to: merged)
     }
 
     private func withTaskIdentity(task: TaskItem, id: String, parentId: String?) -> TaskItem {
@@ -2491,6 +2538,7 @@ final class PlannerStore {
             confidence: task.confidence,
             importance: task.importance,
             dueDate: task.dueDate,
+            manualRank: task.manualRank,
             notes: task.notes,
             energy: task.energy,
             parentId: parentId,
@@ -2499,6 +2547,28 @@ final class PlannerStore {
             isAutoDiscovered: task.isAutoDiscovered,
             pomodoroCount: task.pomodoroCount
         )
+    }
+
+    // A manual drag order only survives while the task keeps the same deadline.
+    private func preservingManualRank(from existing: TaskItem, to updated: TaskItem) -> TaskItem {
+        var task = updated
+        if deadlineChanged(from: existing.dueDate, to: updated.dueDate) {
+            task.manualRank = nil
+        } else if task.manualRank == nil {
+            task.manualRank = existing.manualRank
+        }
+        return task
+    }
+
+    private func deadlineChanged(from existing: Date?, to updated: Date?) -> Bool {
+        switch (existing, updated) {
+        case (nil, nil):
+            return false
+        case let (lhs?, rhs?):
+            return lhs != rhs
+        default:
+            return true
+        }
     }
 
     private func deduplicatedScheduleBlocks(_ blocks: [ScheduleBlock]) -> [ScheduleBlock] {
