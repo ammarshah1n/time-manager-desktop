@@ -490,7 +490,7 @@
         "swift build passes"
       ],
       "priority": 29,
-      "passes": false,
+      "passes": true,
       "notes": "Create ConfettiView.swift as a SwiftUI overlay. Use a TimelineView or Canvas-based particle system: spawn 40 particles at random angles from the origin, each with random dx/dy velocity, fading opacity over 1.2s. Use @State particles: [Particle] with a Timer. Colours: [.white, Color(hex:'#FFD700'), Color(hex:'#87CEEB'), Color(hex:'#90EE90')]. Trigger from PlannerStore.completeTask() callback. For sound: NSSound(named: 'Glass')?.play() or use a bundled .aiff. Guard parentId == nil for confetti gate."
     },
     {

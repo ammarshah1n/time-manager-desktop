@@ -290,3 +290,6 @@
 [2026-03-27T16:29:11+1030] COMMIT story=STORY-027 sha=61a368c
 [2026-03-27T16:29:13+1030] STORY START id=STORY-028 attempt=1 title=Obsidian AI summary — 3-bullet context digest for selected task 
 [2026-03-27T16:35:25+1030] STORY COMPLETE id=STORY-028 attempt=1
+[2026-03-27T16:35:25+1030] COMMIT story=STORY-028 sha=64522d5
+[2026-03-27T16:35:27+1030] STORY START id=STORY-029 attempt=1 title=Task completion celebration — confetti + sound on finish 
+[2026-03-27T16:49:18+1030] STORY COMPLETE id=STORY-029 attempt=1
