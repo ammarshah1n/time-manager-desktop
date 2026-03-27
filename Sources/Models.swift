@@ -276,6 +276,16 @@ struct ToastState: Identifiable, Equatable {
     }
 }
 
+struct TaskCompletionCelebration: Identifiable, Equatable {
+    let id: UUID
+    let taskID: String
+
+    init(id: UUID = UUID(), taskID: String) {
+        self.id = id
+        self.taskID = taskID
+    }
+}
+
 struct RankedTask: Identifiable, Hashable {
     let task: TaskItem
     let score: Int

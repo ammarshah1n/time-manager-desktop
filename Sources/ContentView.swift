@@ -51,6 +51,9 @@ struct ContentView: View {
     @State private var selectedSearchContextID: String?
     @State private var highlightedPlannerChatMessageID: UUID?
     @State private var highlightedStudyChatMessageID: UUID?
+    @State private var trackedTaskFrames: [String: CGRect] = [:]
+    @State private var activeTaskCelebration: TaskCompletionOverlayState?
+    @State private var celebrationDismissTask: Task<Void, Never>?
     private let focusTicker = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     private let deadlineTicker = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
 
@@ -180,6 +183,7 @@ struct ContentView: View {
                 }
                 .onDisappear {
                     removeLocalKeyMonitor()
+                    celebrationDismissTask?.cancel()
                 }
                 .onReceive(NotificationCenter.default.publisher(for: .timedSyncObsidianVaultRequested)) { _ in
                     store.syncObsidianVault()
@@ -207,6 +211,9 @@ struct ContentView: View {
                     if newValue == nil {
                         showCalibrationPopover = false
                     }
+                }
+                .onChange(of: store.taskCompletionCelebration?.id) { _, _ in
+                    presentTaskCompletionCelebrationIfNeeded()
                 }
                 .onChange(of: selectedCenterTab) { _, newTab in
                     if newTab == .day {
@@ -243,6 +250,10 @@ struct ContentView: View {
             backgroundLayers
             mainSurface
             overlayLayers
+        }
+        .coordinateSpace(name: TaskCompletionPresentation.coordinateSpaceName)
+        .onPreferenceChange(TaskCompletionFramePreferenceKey.self) { frames in
+            trackedTaskFrames = frames
         }
         .animation(.spring(response: 0.3), value: store.toastState?.id)
         .animation(.spring(response: 0.3), value: store.promptErrorState?.id)
@@ -311,6 +322,10 @@ struct ContentView: View {
 
     @ViewBuilder
     private var overlayLayers: some View {
+        if let activeTaskCelebration {
+            TaskCompletionOverlay(celebration: activeTaskCelebration)
+        }
+
         if activeFocusBlock != nil {
             focusOverlay
         }
@@ -538,6 +553,7 @@ struct ContentView: View {
                                     markTaskCompleteAndRefreshDrawer(ranked.task)
                                 }
                             )
+                            .trackTaskCompletionFrame(taskID: ranked.task.id)
                         }
                         .animation(.spring(response: 0.3), value: store.rankedTasks.map(\.id))
                     }
@@ -1058,6 +1074,7 @@ struct ContentView: View {
                             }
                         }
                     }
+                    .trackTaskCompletionFrame(taskID: topRankedTask.task.id)
                 }
 
                 TimedCard(title: "Ranked tasks", icon: "list.number") {
@@ -1741,6 +1758,27 @@ struct ContentView: View {
         store.markTaskCompleted(task)
     }
 
+    @MainActor
+    private func presentTaskCompletionCelebrationIfNeeded() {
+        guard let celebration = store.taskCompletionCelebration else { return }
+        defer { store.dismissTaskCompletionCelebration() }
+        // Capture the last visible row frame so the burst stays anchored after the completed task is removed.
+        guard let frame = trackedTaskFrames[celebration.taskID], !frame.isEmpty, !frame.isNull else { return }
+
+        celebrationDismissTask?.cancel()
+        activeTaskCelebration = TaskCompletionOverlayState(event: celebration, frame: frame)
+        celebrationDismissTask = Task {
+            let nanoseconds = UInt64(TaskCompletionPresentation.celebrationDuration * 1_000_000_000)
+            try? await Task.sleep(nanoseconds: nanoseconds)
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                if activeTaskCelebration?.id == celebration.id {
+                    activeTaskCelebration = nil
+                }
+            }
+        }
+    }
+
     private func dueLabel(for dueDate: Date?) -> String {
         guard let dueDate else { return "No date" }
         return dueDate.formatted(.dateTime.month(.abbreviated).day())
@@ -2095,6 +2133,7 @@ struct ContentView: View {
                 isFocused: focusedPanel == .center && selectedCenterTab == .plan && currentKeyboardSelectedTask?.id == ranked.task.id
             )
         )
+        .trackTaskCompletionFrame(taskID: ranked.task.id)
         .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .onTapGesture {
             focusedPanel = .center

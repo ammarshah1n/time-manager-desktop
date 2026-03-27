@@ -57,6 +57,7 @@ final class PlannerStore {
     var promptErrorState: PromptErrorState?
     var settingsIssue: SettingsIssueState?
     var toastState: ToastState?
+    var taskCompletionCelebration: TaskCompletionCelebration?
     var promptBoostSubject: String?
     var suggestedNextActionsByTaskID: [String: String] = [:]
     var scheduleOverflowCount = 0
@@ -512,10 +513,29 @@ final class PlannerStore {
 
     func markTaskCompleted(_ task: TaskItem, now: Date = .now) {
         guard let index = tasks.firstIndex(where: { $0.id == task.id }) else { return }
+        guard tasks[index].isCompleted == false else { return }
+
+        let shouldCelebrate = tasks[index].parentId == nil
+        let wasTopRankedTask = rankedTasks.first?.task.id == task.id
+
         tasks[index].isCompleted = true
         tasks[index].completedAt = now
         dismissedScheduleTaskIDs.insert(task.id)
         rebuildPlan(now: now)
+
+        if shouldCelebrate {
+            taskCompletionCelebration = TaskCompletionCelebration(taskID: task.id)
+        }
+
+        if shouldCelebrate && wasTopRankedTask {
+            presentToast(
+                title: "Top task done! 🏆",
+                message: "\(task.title) is off your list.",
+                systemImage: "trophy.fill",
+                tone: .info,
+                autoDismissAfter: 2
+            )
+        }
     }
 
     func moveTask(from source: IndexSet, to destination: Int, orderedRootTaskIDs: [String]) {
@@ -874,6 +894,10 @@ final class PlannerStore {
     func dismissToast() {
         toastDismissTask?.cancel()
         toastState = nil
+    }
+
+    func dismissTaskCompletionCelebration() {
+        taskCompletionCelebration = nil
     }
 
     func retryLastFailedAIAction() async {

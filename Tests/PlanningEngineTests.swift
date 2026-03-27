@@ -518,6 +518,49 @@ struct PlanningEngineTests {
         #expect(schedule.count <= 3)
     }
 
+    @Test("testTopLevelCompletionTriggersCelebrationAndTopTaskToast")
+    @MainActor
+    func testTopLevelCompletionTriggersCelebrationAndTopTaskToast() throws {
+        let storageURL = FileManager.default.temporaryDirectory.appendingPathComponent("timed-complete-top-\(UUID().uuidString).json")
+        let store = PlannerStore(storageURL: storageURL)
+        var economics = makeTask(id: "eco", title: "Economics test", subject: "Economics", dueOffsetDays: 0)
+        var english = makeTask(id: "eng", title: "English essay", subject: "English", dueOffsetDays: 2)
+        economics.importance = 5
+        economics.confidence = 2
+        english.importance = 3
+
+        store.tasks = [english, economics]
+        store.rebuildPlan(now: fixedNow)
+
+        let topTask = try #require(store.rankedTasks.first?.task)
+        #expect(topTask.id == economics.id)
+
+        store.markTaskCompleted(topTask, now: fixedNow)
+
+        #expect(store.taskCompletionCelebration?.taskID == topTask.id)
+        #expect(store.toastState?.title == "Top task done! 🏆")
+        #expect(store.tasks.first(where: { $0.id == topTask.id })?.isCompleted == true)
+        #expect(store.rankedTasks.contains(where: { $0.task.id == topTask.id }) == false)
+    }
+
+    @Test("testSubtaskCompletionDoesNotTriggerCelebration")
+    @MainActor
+    func testSubtaskCompletionDoesNotTriggerCelebration() {
+        let storageURL = FileManager.default.temporaryDirectory.appendingPathComponent("timed-complete-subtask-\(UUID().uuidString).json")
+        let store = PlannerStore(storageURL: storageURL)
+        let parent = makeTask(id: "parent", title: "English assessment", subject: "English", dueOffsetDays: 1)
+        var child = makeTask(id: "child", title: "Quote bank", subject: "English", dueOffsetDays: 0)
+        child.parentId = parent.id
+
+        store.tasks = [parent, child]
+        store.rebuildPlan(now: fixedNow)
+        store.markTaskCompleted(child, now: fixedNow)
+
+        #expect(store.taskCompletionCelebration == nil)
+        #expect(store.toastState == nil)
+        #expect(store.tasks.first(where: { $0.id == child.id })?.isCompleted == true)
+    }
+
     @Test("testICSGeneration")
     func testICSGeneration() {
         let blocks = [
