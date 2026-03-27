@@ -323,8 +323,22 @@ struct ConfidenceReading: Identifiable, Hashable, Codable {
     }
 }
 
+struct GradeEntry: Identifiable, Hashable, Codable {
+    var subject: String
+    var assessmentTitle: String
+    var mark: Int
+    var outOf: Int
+    var date: Date
+
+    var id: String {
+        let dateStamp = ISO8601DateFormatter().string(from: date)
+        return "\(SubjectCatalog.normalizedSubjectText(subject))|\(assessmentTitle.lowercased())|\(mark)|\(outOf)|\(dateStamp)"
+    }
+}
+
 struct PlannerSnapshot: Codable {
     let tasks: [TaskItem]
+    let grades: [GradeEntry]
     let contexts: [ContextItem]
     let schedule: [ScheduleBlock]
     let subjectConfidences: [String: Int]
@@ -343,6 +357,7 @@ struct PlannerSnapshot: Codable {
 
     init(
         tasks: [TaskItem],
+        grades: [GradeEntry] = [],
         contexts: [ContextItem],
         schedule: [ScheduleBlock],
         subjectConfidences: [String: Int],
@@ -360,6 +375,7 @@ struct PlannerSnapshot: Codable {
         lastWeeklyReview: Date? = nil
     ) {
         self.tasks = tasks
+        self.grades = grades
         self.contexts = contexts
         self.schedule = schedule
         self.subjectConfidences = subjectConfidences
@@ -379,6 +395,7 @@ struct PlannerSnapshot: Codable {
 
     private enum CodingKeys: String, CodingKey {
         case tasks
+        case grades
         case contexts
         case schedule
         case subjectConfidences
@@ -399,6 +416,7 @@ struct PlannerSnapshot: Codable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         tasks = try container.decode([TaskItem].self, forKey: .tasks)
+        grades = try container.decodeIfPresent([GradeEntry].self, forKey: .grades) ?? []
         contexts = try container.decode([ContextItem].self, forKey: .contexts)
         schedule = try container.decode([ScheduleBlock].self, forKey: .schedule)
         subjectConfidences = try container.decodeIfPresent([String: Int].self, forKey: .subjectConfidences) ?? [:]

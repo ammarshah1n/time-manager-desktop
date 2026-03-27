@@ -101,6 +101,8 @@ struct StudyModeView: View {
                             SubjectStudyRow(
                                 subject: subject,
                                 confidencePercent: store.subjectConfidencePercent(for: subject),
+                                latestGrade: store.latestGrade(for: subject),
+                                recentGrades: store.recentGrades(for: subject, limit: 3),
                                 dueQuizCount: store.dueQuizCardCount(for: subject),
                                 isSelected: subject.caseInsensitiveCompare(activeSubject) == .orderedSame,
                                 action: {
@@ -360,9 +362,13 @@ struct StudyModeView: View {
 private struct SubjectStudyRow: View {
     let subject: String
     let confidencePercent: Int
+    let latestGrade: GradeEntry?
+    let recentGrades: [GradeEntry]
     let dueQuizCount: Int
     let isSelected: Bool
     let action: () -> Void
+
+    @State private var isShowingGradePopover = false
 
     var body: some View {
         Button(action: action) {
@@ -386,9 +392,19 @@ private struct SubjectStudyRow: View {
                         .foregroundStyle(.white.opacity(0.58))
                 }
 
-                ProgressView(value: Double(confidencePercent), total: 100)
-                    .progressViewStyle(.linear)
-                    .tint(progressTint)
+                HStack(spacing: 10) {
+                    ProgressView(value: Double(confidencePercent), total: 100)
+                        .progressViewStyle(.linear)
+                        .tint(progressTint)
+
+                    if let latestGrade {
+                        GradeBadge(
+                            latestGrade: latestGrade,
+                            recentGrades: recentGrades,
+                            isShowingPopover: $isShowingGradePopover
+                        )
+                    }
+                }
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
@@ -413,6 +429,88 @@ private struct SubjectStudyRow: View {
         default:
             return .green
         }
+    }
+}
+
+private struct GradeBadge: View {
+    let latestGrade: GradeEntry
+    let recentGrades: [GradeEntry]
+    @Binding var isShowingPopover: Bool
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Text("\(latestGrade.mark)/\(latestGrade.outOf)")
+                .font(.system(size: 11, weight: .semibold))
+
+            if let trendSymbol {
+                Image(systemName: trendSymbol)
+                    .font(.system(size: 9, weight: .bold))
+            }
+        }
+        .foregroundStyle(.white.opacity(0.82))
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(
+            Capsule()
+                .fill(Color.white.opacity(0.10))
+        )
+        .overlay(
+            Capsule()
+                .stroke(Color.white.opacity(0.12), lineWidth: 1)
+        )
+        .onHover { isHovering in
+            guard !recentGrades.isEmpty else { return }
+            isShowingPopover = isHovering
+        }
+        .popover(isPresented: $isShowingPopover, arrowEdge: .top) {
+            GradePopoverContent(recentGrades: recentGrades)
+        }
+    }
+
+    private var trendSymbol: String? {
+        guard recentGrades.count >= 2 else { return nil }
+        let latestScore = Double(recentGrades[0].mark) / Double(max(1, recentGrades[0].outOf))
+        let previousScore = Double(recentGrades[1].mark) / Double(max(1, recentGrades[1].outOf))
+
+        if latestScore > previousScore {
+            return "arrow.up.right"
+        }
+        if latestScore < previousScore {
+            return "arrow.down.right"
+        }
+        return "minus"
+    }
+}
+
+private struct GradePopoverContent: View {
+    let recentGrades: [GradeEntry]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Recent assessments")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.primary)
+
+            ForEach(recentGrades) { grade in
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(grade.assessmentTitle)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(2)
+
+                    HStack(spacing: 8) {
+                        Text("\(grade.mark)/\(grade.outOf)")
+                            .font(.system(size: 12, weight: .medium))
+                        Text(grade.date.formatted(date: .abbreviated, time: .omitted))
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .padding(14)
+        .frame(width: 260, alignment: .leading)
     }
 }
 

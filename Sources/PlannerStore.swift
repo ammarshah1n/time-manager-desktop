@@ -20,6 +20,7 @@ final class PlannerStore {
     @ObservationIgnored private var decompositionUndoStack: [[TaskItem]] = []
 
     var tasks: [TaskItem] = []
+    var grades: [GradeEntry] = []
     var contexts: [ContextItem] = []
     var obsidianDocuments: [ContextDocument] = []
     var schedule: [ScheduleBlock] = []
@@ -134,6 +135,7 @@ final class PlannerStore {
     func save() {
         let snapshot = PlannerSnapshot(
             tasks: tasks,
+            grades: grades,
             contexts: contexts,
             schedule: schedule,
             subjectConfidences: subjectConfidences,
@@ -169,6 +171,7 @@ final class PlannerStore {
             let snapshot = try? JSONDecoder(iso8601: true).decode(PlannerSnapshot.self, from: data)
         {
             tasks = snapshot.tasks
+            grades = snapshot.grades
             contexts = snapshot.contexts
             schedule = snapshot.schedule
             subjectConfidences = snapshot.subjectConfidences
@@ -187,6 +190,7 @@ final class PlannerStore {
         } else {
             let sample = ShellData.empty
             tasks = sample.tasks
+            grades = []
             contexts = sample.contexts
             schedule = sample.schedule
             subjectConfidences = [:]
@@ -1102,10 +1106,11 @@ final class PlannerStore {
 
     func studyModeSubjects() -> [String] {
         let taskSubjects = tasks.map(\.subject)
+        let gradeSubjects = grades.map(\.subject)
         let contextSubjects = contexts.map(\.subject)
         let documentSubjects = obsidianDocuments.map(\.subject)
         let quizSubjects = Array(quizQuestionsBySubject.keys)
-        let discoveredSubjects = taskSubjects + contextSubjects + documentSubjects + quizSubjects + Array(subjectConfidences.keys)
+        let discoveredSubjects = taskSubjects + gradeSubjects + contextSubjects + documentSubjects + quizSubjects + Array(subjectConfidences.keys)
 
         return Array(
             Set(
@@ -1181,6 +1186,57 @@ final class PlannerStore {
 
     func dueQuizCardCount(for subject: String, now: Date = .now) -> Int {
         dueQuizCards(for: subject, now: now).count
+    }
+
+    func latestGrade(for subject: String) -> GradeEntry? {
+        recentGrades(for: subject, limit: 1).first
+    }
+
+    func recentGrades(for subject: String, limit: Int = 3) -> [GradeEntry] {
+        let canonicalSubject = canonicalSubjectName(subject)
+        guard !canonicalSubject.isEmpty else { return [] }
+
+        return Array(
+            grades
+                .filter { canonicalSubjectName($0.subject).caseInsensitiveCompare(canonicalSubject) == .orderedSame }
+                .sorted { lhs, rhs in
+                    if lhs.date != rhs.date {
+                        return lhs.date > rhs.date
+                    }
+                    return lhs.assessmentTitle.localizedCaseInsensitiveCompare(rhs.assessmentTitle) == .orderedAscending
+                }
+                .prefix(max(0, limit))
+        )
+    }
+
+    func updateGrades(_ incomingGrades: [GradeEntry]) {
+        guard !incomingGrades.isEmpty else { return }
+
+        var deduplicatedByID: [String: GradeEntry] = Dictionary(
+            uniqueKeysWithValues: grades.map {
+                let canonical = canonicalGradeEntry($0)
+                return (canonical.id, canonical)
+            }
+        )
+
+        for grade in incomingGrades {
+            let canonical = canonicalGradeEntry(grade)
+            deduplicatedByID[canonical.id] = canonical
+        }
+
+        let updatedGrades = deduplicatedByID.values.sorted { lhs, rhs in
+            if lhs.date != rhs.date {
+                return lhs.date > rhs.date
+            }
+            if lhs.subject.caseInsensitiveCompare(rhs.subject) != .orderedSame {
+                return lhs.subject.localizedCaseInsensitiveCompare(rhs.subject) == .orderedAscending
+            }
+            return lhs.assessmentTitle.localizedCaseInsensitiveCompare(rhs.assessmentTitle) == .orderedAscending
+        }
+
+        guard updatedGrades != grades else { return }
+        grades = updatedGrades
+        save()
     }
 
     func nextQuizReviewDays(for subject: String, now: Date = .now) -> Int? {
@@ -2102,7 +2158,8 @@ final class PlannerStore {
 
     private func refreshSeqtaSnapshotIfAvailable(now: Date = .now) {
         let seqtaTasks = SeqtaBackgroundSync.loadTasks(now: now)
-        guard !seqtaTasks.isEmpty else { return }
+        let seqtaGrades = SeqtaBackgroundSync.loadGrades(now: now)
+        guard !seqtaTasks.isEmpty || !seqtaGrades.isEmpty else { return }
 
         let totalFound = seqtaTasks.count
         var insertedCount = 0
@@ -2126,10 +2183,14 @@ final class PlannerStore {
             queueCalibrationIfNeeded(for: task)
         }
 
-        print("[SeqtaBackgroundSync] tasks found=\(totalFound) tasks created=\(insertedCount) tasks updated=\(updatedCount) tasks skipped=\(skippedCount)")
+        let gradeCountBeforeUpdate = grades.count
+        updateGrades(seqtaGrades)
+        let insertedGradeCount = max(0, grades.count - gradeCountBeforeUpdate)
 
-        guard insertedCount > 0 || updatedCount > 0 else { return }
-        let message = "Seqta background sync updated \(insertedCount) new task(s) and \(updatedCount) existing task(s)."
+        print("[SeqtaBackgroundSync] tasks found=\(totalFound) tasks created=\(insertedCount) tasks updated=\(updatedCount) tasks skipped=\(skippedCount) grades imported=\(seqtaGrades.count)")
+
+        guard insertedCount > 0 || updatedCount > 0 || insertedGradeCount > 0 else { return }
+        let message = "Seqta background sync updated \(insertedCount) new task(s), \(updatedCount) existing task(s), and \(insertedGradeCount) grade entr\(insertedGradeCount == 1 ? "y" : "ies")."
         lastImportMessages = [message]
         appendPlannerMessage(PromptMessage(role: .assistant, text: message))
         rebuildPlan(now: now)
@@ -2449,6 +2510,16 @@ final class PlannerStore {
         merged.energy = incoming.energy
         merged.pomodoroCount = max(existing.pomodoroCount, incoming.pomodoroCount)
         return preservingManualRank(from: existing, to: merged)
+    }
+
+    private func canonicalGradeEntry(_ grade: GradeEntry) -> GradeEntry {
+        GradeEntry(
+            subject: canonicalSubjectName(grade.subject),
+            assessmentTitle: grade.assessmentTitle.trimmingCharacters(in: .whitespacesAndNewlines),
+            mark: max(0, grade.mark),
+            outOf: max(1, grade.outOf),
+            date: grade.date
+        )
     }
 
     private func matchingImportedTaskIndex(for incoming: TaskItem) -> Int? {

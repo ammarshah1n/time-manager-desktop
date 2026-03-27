@@ -113,8 +113,7 @@ enum SeqtaBackgroundSync {
 
     static func loadTasks(now: Date = .now, snapshotURL: URL = snapshotURL) -> [TaskItem] {
         guard
-            let data = try? Data(contentsOf: snapshotURL),
-            let raw = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let raw = loadSnapshot(snapshotURL: snapshotURL),
             let assessments = raw["assessments"] as? [[String: Any]]
         else {
             return []
@@ -145,6 +144,31 @@ enum SeqtaBackgroundSync {
                 isCompleted: false,
                 completedAt: nil
             )
+        }
+    }
+
+    static func loadGrades(now: Date = .now, snapshotURL: URL = snapshotURL) -> [GradeEntry] {
+        guard let raw = loadSnapshot(snapshotURL: snapshotURL) else { return [] }
+
+        let crawledAt = parseSnapshotTimestamp(raw["crawled_at"]) ?? now
+        var gradeEntries: [GradeEntry] = []
+        var seenEntryIDs: Set<String> = []
+        collectGradeEntries(
+            from: raw,
+            currentSubject: nil,
+            currentDate: crawledAt,
+            fallbackNow: now,
+            collected: &gradeEntries,
+            seenEntryIDs: &seenEntryIDs
+        )
+        return gradeEntries.sorted { lhs, rhs in
+            if lhs.date != rhs.date {
+                return lhs.date > rhs.date
+            }
+            if lhs.subject.caseInsensitiveCompare(rhs.subject) != .orderedSame {
+                return lhs.subject.localizedCaseInsensitiveCompare(rhs.subject) == .orderedAscending
+            }
+            return lhs.assessmentTitle.localizedCaseInsensitiveCompare(rhs.assessmentTitle) == .orderedAscending
         }
     }
 
@@ -271,11 +295,311 @@ enum SeqtaBackgroundSync {
         return nil
     }
 
+    private static func loadSnapshot(snapshotURL: URL) -> [String: Any]? {
+        guard
+            let data = try? Data(contentsOf: snapshotURL),
+            let raw = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else {
+            return nil
+        }
+        return raw
+    }
+
     private static func boolValue(_ value: Any?) -> Bool {
         if let bool = value as? Bool { return bool }
         if let number = value as? NSNumber { return number.boolValue }
         if let string = value as? String { return (string as NSString).boolValue }
         return false
+    }
+
+    private static func collectGradeEntries(
+        from value: Any,
+        currentSubject: String?,
+        currentDate: Date,
+        fallbackNow: Date,
+        collected: inout [GradeEntry],
+        seenEntryIDs: inout Set<String>
+    ) {
+        if let dictionary = value as? [String: Any] {
+            let nextSubject = explicitSubject(from: dictionary) ?? currentSubject
+            let nextDate = explicitDate(from: dictionary) ?? currentDate
+            for child in dictionary.values {
+                collectGradeEntries(
+                    from: child,
+                    currentSubject: nextSubject,
+                    currentDate: nextDate,
+                    fallbackNow: fallbackNow,
+                    collected: &collected,
+                    seenEntryIDs: &seenEntryIDs
+                )
+            }
+            return
+        }
+
+        if let array = value as? [Any] {
+            for child in array {
+                collectGradeEntries(
+                    from: child,
+                    currentSubject: currentSubject,
+                    currentDate: currentDate,
+                    fallbackNow: fallbackNow,
+                    collected: &collected,
+                    seenEntryIDs: &seenEntryIDs
+                )
+            }
+            return
+        }
+
+        guard let string = value as? String else { return }
+        let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        if let nestedJSON = nestedJSONObject(from: trimmed) {
+            collectGradeEntries(
+                from: nestedJSON,
+                currentSubject: currentSubject,
+                currentDate: currentDate,
+                fallbackNow: fallbackNow,
+                collected: &collected,
+                seenEntryIDs: &seenEntryIDs
+            )
+        }
+
+        guard trimmed.range(of: "<tr", options: [.caseInsensitive, .regularExpression]) != nil else { return }
+        let parsedEntries = parseGradeRows(
+            fromHTML: trimmed,
+            currentSubject: currentSubject,
+            currentDate: currentDate,
+            fallbackNow: fallbackNow
+        )
+        for entry in parsedEntries where seenEntryIDs.insert(entry.id).inserted {
+            collected.append(entry)
+        }
+    }
+
+    private static func explicitSubject(from dictionary: [String: Any]) -> String? {
+        if let directSubject = stringValue(dictionary["subject"]) {
+            return canonicalSubject(from: directSubject)
+        }
+
+        if let nestedSubject = dictionary["subject"] as? [String: Any] {
+            for key in ["description", "title", "code"] {
+                if let value = stringValue(nestedSubject[key]), let matched = SubjectCatalog.matchingSubject(in: value) {
+                    return matched
+                }
+            }
+        }
+
+        return nil
+    }
+
+    private static func explicitDate(from dictionary: [String: Any]) -> Date? {
+        for key in ["date", "createdAt", "created_date", "updatedAt", "updated", "crawled_at"] {
+            if let parsed = parseSnapshotTimestamp(dictionary[key]) {
+                return parsed
+            }
+        }
+        return nil
+    }
+
+    private static func nestedJSONObject(from string: String) -> Any? {
+        guard string.first == "{" || string.first == "[" else { return nil }
+        guard let data = string.data(using: .utf8) else { return nil }
+        return try? JSONSerialization.jsonObject(with: data)
+    }
+
+    private static func parseGradeRows(
+        fromHTML html: String,
+        currentSubject: String?,
+        currentDate: Date,
+        fallbackNow: Date
+    ) -> [GradeEntry] {
+        guard let rowRegex = try? NSRegularExpression(pattern: #"(?is)<tr\b[^>]*>(.*?)</tr>"#) else {
+            return []
+        }
+        let htmlRange = NSRange(html.startIndex..<html.endIndex, in: html)
+        let rows = rowRegex.matches(in: html, options: [], range: htmlRange)
+
+        return rows.compactMap { rowMatch in
+            guard let rowRange = Range(rowMatch.range(at: 1), in: html) else { return nil }
+            let rowHTML = String(html[rowRange])
+            let cells = htmlTableCells(from: rowHTML)
+            guard !cells.isEmpty else { return nil }
+
+            let joinedCells = cells.joined(separator: " | ")
+            guard let score = parseScore(from: joinedCells) else { return nil }
+            guard let assessmentTitle = assessmentTitle(from: cells, excludingScoreText: score.rawText) else { return nil }
+
+            let subject = inferredSubject(from: cells, fallback: currentSubject)
+            guard let subject else { return nil }
+
+            let gradeDate = parseGradeDate(from: cells, fallback: currentDate) ?? fallbackNow
+
+            return GradeEntry(
+                subject: subject,
+                assessmentTitle: assessmentTitle,
+                mark: score.mark,
+                outOf: score.outOf,
+                date: gradeDate
+            )
+        }
+    }
+
+    private static func htmlTableCells(from rowHTML: String) -> [String] {
+        guard let cellRegex = try? NSRegularExpression(pattern: #"(?is)<t[dh]\b[^>]*>(.*?)</t[dh]>"#) else {
+            return []
+        }
+        let rowRange = NSRange(rowHTML.startIndex..<rowHTML.endIndex, in: rowHTML)
+        return cellRegex.matches(in: rowHTML, options: [], range: rowRange).compactMap { match in
+            guard let cellRange = Range(match.range(at: 1), in: rowHTML) else { return nil }
+            let fragment = String(rowHTML[cellRange])
+            let plainText = plainText(fromHTML: fragment)
+            return plainText.isEmpty ? nil : plainText
+        }
+    }
+
+    private static func plainText(fromHTML html: String) -> String {
+        let breakNormalized = html.replacingOccurrences(
+            of: #"(?i)<br\s*/?>"#,
+            with: "\n",
+            options: .regularExpression
+        )
+        let stripped = breakNormalized.replacingOccurrences(
+            of: #"<[^>]+>"#,
+            with: " ",
+            options: .regularExpression
+        )
+        let decoded = stripped
+            .replacingOccurrences(of: "&nbsp;", with: " ")
+            .replacingOccurrences(of: "&amp;", with: "&")
+            .replacingOccurrences(of: "&quot;", with: "\"")
+            .replacingOccurrences(of: "&#39;", with: "'")
+            .replacingOccurrences(of: "&lt;", with: "<")
+            .replacingOccurrences(of: "&gt;", with: ">")
+        return decoded
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private struct ParsedScore {
+        let mark: Int
+        let outOf: Int
+        let rawText: String
+    }
+
+    private static func parseScore(from text: String) -> ParsedScore? {
+        if
+            let ratioRegex = try? NSRegularExpression(pattern: #"\b(\d{1,3}(?:\.\d+)?)\s*/\s*(\d{1,3}(?:\.\d+)?)\b"#),
+            let ratioMatch = ratioRegex.firstMatch(in: text, range: NSRange(text.startIndex..<text.endIndex, in: text)),
+            let markString = substring(in: text, nsRange: ratioMatch.range(at: 1)),
+            let outOfString = substring(in: text, nsRange: ratioMatch.range(at: 2)),
+            let rawText = substring(in: text, nsRange: ratioMatch.range(at: 0)),
+            let mark = roundedInteger(from: markString),
+            let outOf = roundedInteger(from: outOfString)
+        {
+            return ParsedScore(mark: mark, outOf: max(1, outOf), rawText: rawText)
+        }
+
+        if
+            let percentageRegex = try? NSRegularExpression(pattern: #"\b(\d{1,3}(?:\.\d+)?)\s*%"#),
+            let percentageMatch = percentageRegex.firstMatch(in: text, range: NSRange(text.startIndex..<text.endIndex, in: text)),
+            let markString = substring(in: text, nsRange: percentageMatch.range(at: 1)),
+            let rawText = substring(in: text, nsRange: percentageMatch.range(at: 0)),
+            let mark = roundedInteger(from: markString)
+        {
+            return ParsedScore(mark: mark, outOf: 100, rawText: rawText)
+        }
+
+        return nil
+    }
+
+    private static func roundedInteger(from string: String) -> Int? {
+        guard let value = Double(string) else { return nil }
+        return Int(value.rounded())
+    }
+
+    private static func substring(in text: String, nsRange: NSRange) -> String? {
+        guard let range = Range(nsRange, in: text) else { return nil }
+        return String(text[range])
+    }
+
+    private static func assessmentTitle(from cells: [String], excludingScoreText scoreText: String) -> String? {
+        let filtered = cells.filter { cell in
+            let trimmed = cell.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return false }
+            guard parseScore(from: trimmed) == nil else { return false }
+            guard parseGradeDate(from: [trimmed], fallback: nil) == nil else { return false }
+
+            let lowered = trimmed.lowercased()
+            let headerWords = ["mark", "marks", "grade", "result", "score", "date", "weight", "subject"]
+            return !headerWords.contains(lowered) && trimmed != scoreText
+        }
+        return filtered.first
+    }
+
+    private static func inferredSubject(from cells: [String], fallback: String?) -> String? {
+        for cell in cells {
+            if let matched = SubjectCatalog.matchingSubject(in: cell) {
+                return matched
+            }
+        }
+        if let fallback {
+            let canonical = canonicalSubject(from: fallback)
+            return canonical.isEmpty ? nil : canonical
+        }
+        return nil
+    }
+
+    private static func parseGradeDate(from cells: [String], fallback: Date?) -> Date? {
+        for cell in cells {
+            if let parsed = parseSnapshotTimestamp(cell) ?? parseHumanDate(cell) {
+                return parsed
+            }
+        }
+        return fallback
+    }
+
+    private static func parseSnapshotTimestamp(_ value: Any?) -> Date? {
+        guard let string = stringValue(value)?.trimmingCharacters(in: .whitespacesAndNewlines), !string.isEmpty else {
+            if let number = value as? NSNumber {
+                let seconds = number.doubleValue > 1_000_000_000_000 ? number.doubleValue / 1000.0 : number.doubleValue
+                return Date(timeIntervalSince1970: seconds)
+            }
+            return nil
+        }
+
+        if let timestamp = Double(string), timestamp > 0 {
+            let seconds = timestamp > 1_000_000_000_000 ? timestamp / 1000.0 : timestamp
+            return Date(timeIntervalSince1970: seconds)
+        }
+
+        let isoFormatter = ISO8601DateFormatter()
+        isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let parsed = isoFormatter.date(from: string) {
+            return parsed
+        }
+
+        let fallbackISOFormatter = ISO8601DateFormatter()
+        if let parsed = fallbackISOFormatter.date(from: string) {
+            return parsed
+        }
+
+        return parseHumanDate(string)
+    }
+
+    private static func parseHumanDate(_ value: String) -> Date? {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_AU_POSIX")
+        formatter.timeZone = Calendar.current.timeZone
+
+        for format in ["d MMM yyyy", "dd MMM yyyy", "d MMMM yyyy", "dd MMMM yyyy", "d/M/yyyy", "dd/MM/yyyy", "yyyy-MM-dd"] {
+            formatter.dateFormat = format
+            if let parsed = formatter.date(from: value) {
+                return parsed
+            }
+        }
+
+        return nil
     }
 
     private static func runLaunchctl(arguments: [String]) -> Int32 {
