@@ -406,7 +406,7 @@
         "swift build passes"
       ],
       "priority": 24,
-      "passes": false,
+      "passes": true,
       "notes": "Add `manualRank: Int?` to TaskItem. In ContentView left panel List, add .onMove { from, to in store.moveTask(from: from, to: to) }. In PlannerStore.moveTask, assign manualRank = to * 100 to moved item. In PlanningEngine.rank(), pre-sort by manualRank before the urgency sort for tasks that have it set. Context menu: Button('Reset AI ranking') { task.manualRank = nil; store.save() }."
     },
     {

@@ -275,3 +275,6 @@
 [2026-03-27T15:51:19+1030] COMMIT story=STORY-022 sha=5c5936c
 [2026-03-27T15:51:21+1030] STORY START id=STORY-023 attempt=1 title=Weekly review sheet — every Sunday, summarise the week 
 [2026-03-27T15:57:55+1030] STORY COMPLETE id=STORY-023 attempt=1
+[2026-03-27T15:57:55+1030] COMMIT story=STORY-023 sha=5a1f136
+[2026-03-27T15:57:57+1030] STORY START id=STORY-024 attempt=1 title=Drag-and-drop task reordering with manual rank override 
+[2026-03-27T16:07:02+1030] STORY COMPLETE id=STORY-024 attempt=1
