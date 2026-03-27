@@ -506,7 +506,7 @@
         "swift build passes"
       ],
       "priority": 30,
-      "passes": false,
+      "passes": true,
       "notes": "Add to Preferences.swift (or TimedPreferences): `appearanceMode: String` (system/light/dark), `accentColor: String` (hex), `fontSizeCategory: String` (small/medium/large). In TimeManagerDesktopApp, observe appearanceMode and apply NSApp.appearance. Pass accentColor as Color through environmentObject. Pass a custom sizeCategory via Environment(\\.sizeCategory) override or a custom EnvironmentKey for bodyFontSize. In SettingsView, add Picker for appearance, a LazyHGrid of 5 colour circles, and a Slider with 3 detents."
     }
   ]
