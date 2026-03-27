@@ -456,7 +456,7 @@
         "swift build passes"
       ],
       "priority": 27,
-      "passes": false,
+      "passes": true,
       "notes": "Use NSEvent.addGlobalMonitorForEvents(matching: .keyDown) to detect ⌘⌥T (keyCode 17 = T, modifiers .command | .option). Store the monitor token and remove in applicationWillTerminate. On trigger: DispatchQueue.main.async { NSApp.activate(); store.focusTimer.start(for: store.rankedTasks.first?.task, ...) }. HUD: create a small NSPanel (non-activating, HUD level) with a SwiftUI view that auto-dismisses after 2s using DispatchQueue.main.asyncAfter."
     },
     {

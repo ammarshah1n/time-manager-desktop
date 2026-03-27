@@ -284,3 +284,6 @@
 [2026-03-27T16:16:06+1030] COMMIT story=STORY-025 sha=ae0165f
 [2026-03-27T16:16:08+1030] STORY START id=STORY-026 attempt=1 title=Inline Seqta grade display in StudyModeView 
 [2026-03-27T16:24:19+1030] STORY COMPLETE id=STORY-026 attempt=1
+[2026-03-27T16:24:19+1030] COMMIT story=STORY-026 sha=70de8d3
+[2026-03-27T16:24:21+1030] STORY START id=STORY-027 attempt=1 title=Global hotkey (⌘⌥T) to start focus timer from anywhere 
+[2026-03-27T16:29:10+1030] STORY COMPLETE id=STORY-027 attempt=1
