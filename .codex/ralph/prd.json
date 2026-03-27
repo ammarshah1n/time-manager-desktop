@@ -308,7 +308,7 @@
         "swift build passes, Charts framework imported correctly"
       ],
       "priority": 18,
-      "passes": false,
+      "passes": true,
       "notes": "Import Charts framework (available in macOS 13+). Add `pomodoroLog: [String: Int]` to PlannerStore, include in Codable save. Add `recordPomodoro()` func that bumps today's key. Wire it into the onTaskCompletion callback in ContentView where FocusTimerModel.start() is called. Streak = count backwards from today while log[date] > 0. In DailyOverviewCard.swift, add a Chart { ForEach(last7Days) { BarMark(...) } } block under the existing content."
     },
     {

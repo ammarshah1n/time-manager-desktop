@@ -257,3 +257,6 @@
 [2026-03-27T15:11:59+1030] COMMIT story=STORY-016 sha=37d9740
 [2026-03-27T15:12:01+1030] STORY START id=STORY-017 attempt=1 title=Spaced repetition engine for quiz cards (SM-2) 
 [2026-03-27T15:21:27+1030] STORY COMPLETE id=STORY-017 attempt=1
+[2026-03-27T15:21:28+1030] COMMIT story=STORY-017 sha=739f39d
+[2026-03-27T15:21:30+1030] STORY START id=STORY-018 attempt=1 title=Pomodoro statistics — daily counts, streaks, and 7-day sparkline 
+[2026-03-27T15:25:14+1030] STORY COMPLETE id=STORY-018 attempt=1
