@@ -43,3 +43,214 @@
 [2026-03-26T21:32:30+1030] COMMIT story=STORY-014 sha=9548211
 [2026-03-26T21:32:32+1030] STORY START id=STORY-015 attempt=1 title=Polish pass — animations, empty states, error handling, and app icon 
 [2026-03-26T21:46:46+1030] STORY COMPLETE id=STORY-015 attempt=1
+[2026-03-26T21:46:46+1030] COMMIT story=STORY-015 sha=54f8621
+[2026-03-26T21:46:48+1030] RUN COMPLETE all stories done
+[2026-03-27T14:40:02+1030] RUN START project=Timed total=30 done=15 max=300 sandbox=danger-full-access search=true
+[2026-03-27T14:40:02+1030] STORY START id=STORY-016 attempt=1 title=Menu bar live Pomodoro countdown 
+[2026-03-27T14:40:02+1030] ERROR story=STORY-016 codex-empty-output
+[2026-03-27T14:40:05+1030] STORY START id=STORY-016 attempt=2 title=Menu bar live Pomodoro countdown 
+[2026-03-27T14:40:05+1030] ERROR story=STORY-016 codex-empty-output
+[2026-03-27T14:40:08+1030] STORY START id=STORY-016 attempt=3 title=Menu bar live Pomodoro countdown 
+[2026-03-27T14:40:08+1030] ERROR story=STORY-016 codex-empty-output
+[2026-03-27T14:40:12+1030] STORY START id=STORY-016 attempt=4 title=Menu bar live Pomodoro countdown 
+[2026-03-27T14:40:12+1030] ERROR story=STORY-016 codex-empty-output
+[2026-03-27T14:40:15+1030] CIRCUIT BREAK story=STORY-016 reason=exceeded 4 attempts
+[2026-03-27T14:40:15+1030] STORY START id=STORY-017 attempt=1 title=Spaced repetition engine for quiz cards (SM-2) 
+[2026-03-27T14:40:15+1030] ERROR story=STORY-017 codex-empty-output
+[2026-03-27T14:40:18+1030] STORY START id=STORY-017 attempt=2 title=Spaced repetition engine for quiz cards (SM-2) 
+[2026-03-27T14:40:18+1030] ERROR story=STORY-017 codex-empty-output
+[2026-03-27T14:40:21+1030] STORY START id=STORY-017 attempt=3 title=Spaced repetition engine for quiz cards (SM-2) 
+[2026-03-27T14:40:21+1030] ERROR story=STORY-017 codex-empty-output
+[2026-03-27T14:40:24+1030] STORY START id=STORY-017 attempt=4 title=Spaced repetition engine for quiz cards (SM-2) 
+[2026-03-27T14:40:24+1030] ERROR story=STORY-017 codex-empty-output
+[2026-03-27T14:40:27+1030] CIRCUIT BREAK story=STORY-017 reason=exceeded 4 attempts
+[2026-03-27T14:40:28+1030] STORY START id=STORY-018 attempt=1 title=Pomodoro statistics — daily counts, streaks, and 7-day sparkline 
+[2026-03-27T14:40:28+1030] ERROR story=STORY-018 codex-empty-output
+[2026-03-27T14:40:31+1030] STORY START id=STORY-018 attempt=2 title=Pomodoro statistics — daily counts, streaks, and 7-day sparkline 
+[2026-03-27T14:40:31+1030] ERROR story=STORY-018 codex-empty-output
+[2026-03-27T14:40:34+1030] STORY START id=STORY-018 attempt=3 title=Pomodoro statistics — daily counts, streaks, and 7-day sparkline 
+[2026-03-27T14:40:34+1030] ERROR story=STORY-018 codex-empty-output
+[2026-03-27T14:40:37+1030] STORY START id=STORY-018 attempt=4 title=Pomodoro statistics — daily counts, streaks, and 7-day sparkline 
+[2026-03-27T14:40:37+1030] ERROR story=STORY-018 codex-empty-output
+[2026-03-27T14:40:40+1030] CIRCUIT BREAK story=STORY-018 reason=exceeded 4 attempts
+[2026-03-27T14:40:40+1030] STORY START id=STORY-019 attempt=1 title=Natural language task input parser 
+[2026-03-27T14:40:40+1030] ERROR story=STORY-019 codex-empty-output
+[2026-03-27T14:40:43+1030] STORY START id=STORY-019 attempt=2 title=Natural language task input parser 
+[2026-03-27T14:40:44+1030] ERROR story=STORY-019 codex-empty-output
+[2026-03-27T14:40:47+1030] STORY START id=STORY-019 attempt=3 title=Natural language task input parser 
+[2026-03-27T14:40:47+1030] ERROR story=STORY-019 codex-empty-output
+[2026-03-27T14:40:50+1030] STORY START id=STORY-019 attempt=4 title=Natural language task input parser 
+[2026-03-27T14:40:50+1030] ERROR story=STORY-019 codex-empty-output
+[2026-03-27T14:40:53+1030] CIRCUIT BREAK story=STORY-019 reason=exceeded 4 attempts
+[2026-03-27T14:40:53+1030] STORY START id=STORY-020 attempt=1 title=Task notes with inline Markdown rendering 
+[2026-03-27T14:40:53+1030] ERROR story=STORY-020 codex-empty-output
+[2026-03-27T14:40:56+1030] STORY START id=STORY-020 attempt=2 title=Task notes with inline Markdown rendering 
+[2026-03-27T14:40:56+1030] ERROR story=STORY-020 codex-empty-output
+[2026-03-27T14:40:59+1030] STORY START id=STORY-020 attempt=3 title=Task notes with inline Markdown rendering 
+[2026-03-27T14:40:59+1030] ERROR story=STORY-020 codex-empty-output
+[2026-03-27T14:41:03+1030] STORY START id=STORY-020 attempt=4 title=Task notes with inline Markdown rendering 
+[2026-03-27T14:41:03+1030] ERROR story=STORY-020 codex-empty-output
+[2026-03-27T14:41:06+1030] CIRCUIT BREAK story=STORY-020 reason=exceeded 4 attempts
+[2026-03-27T14:41:06+1030] STORY START id=STORY-021 attempt=1 title=Subject confidence trend chart (7-day history) 
+[2026-03-27T14:41:06+1030] ERROR story=STORY-021 codex-empty-output
+[2026-03-27T14:41:09+1030] STORY START id=STORY-021 attempt=2 title=Subject confidence trend chart (7-day history) 
+[2026-03-27T14:41:09+1030] ERROR story=STORY-021 codex-empty-output
+[2026-03-27T14:41:12+1030] STORY START id=STORY-021 attempt=3 title=Subject confidence trend chart (7-day history) 
+[2026-03-27T14:41:12+1030] ERROR story=STORY-021 codex-empty-output
+[2026-03-27T14:41:15+1030] STORY START id=STORY-021 attempt=4 title=Subject confidence trend chart (7-day history) 
+[2026-03-27T14:41:15+1030] ERROR story=STORY-021 codex-empty-output
+[2026-03-27T14:41:18+1030] CIRCUIT BREAK story=STORY-021 reason=exceeded 4 attempts
+[2026-03-27T14:41:18+1030] STORY START id=STORY-022 attempt=1 title=AI task decomposition — break hard tasks into subtasks via Codex 
+[2026-03-27T14:41:19+1030] ERROR story=STORY-022 codex-empty-output
+[2026-03-27T14:41:22+1030] STORY START id=STORY-022 attempt=2 title=AI task decomposition — break hard tasks into subtasks via Codex 
+[2026-03-27T14:41:22+1030] ERROR story=STORY-022 codex-empty-output
+[2026-03-27T14:41:25+1030] STORY START id=STORY-022 attempt=3 title=AI task decomposition — break hard tasks into subtasks via Codex 
+[2026-03-27T14:41:25+1030] ERROR story=STORY-022 codex-empty-output
+[2026-03-27T14:41:28+1030] STORY START id=STORY-022 attempt=4 title=AI task decomposition — break hard tasks into subtasks via Codex 
+[2026-03-27T14:41:28+1030] ERROR story=STORY-022 codex-empty-output
+[2026-03-27T14:41:31+1030] CIRCUIT BREAK story=STORY-022 reason=exceeded 4 attempts
+[2026-03-27T14:41:31+1030] STORY START id=STORY-023 attempt=1 title=Weekly review sheet — every Sunday, summarise the week 
+[2026-03-27T14:41:31+1030] ERROR story=STORY-023 codex-empty-output
+[2026-03-27T14:41:34+1030] STORY START id=STORY-023 attempt=2 title=Weekly review sheet — every Sunday, summarise the week 
+[2026-03-27T14:41:34+1030] ERROR story=STORY-023 codex-empty-output
+[2026-03-27T14:41:37+1030] STORY START id=STORY-023 attempt=3 title=Weekly review sheet — every Sunday, summarise the week 
+[2026-03-27T14:41:38+1030] ERROR story=STORY-023 codex-empty-output
+[2026-03-27T14:41:41+1030] STORY START id=STORY-023 attempt=4 title=Weekly review sheet — every Sunday, summarise the week 
+[2026-03-27T14:41:41+1030] ERROR story=STORY-023 codex-empty-output
+[2026-03-27T14:41:44+1030] CIRCUIT BREAK story=STORY-023 reason=exceeded 4 attempts
+[2026-03-27T14:41:44+1030] STORY START id=STORY-024 attempt=1 title=Drag-and-drop task reordering with manual rank override 
+[2026-03-27T14:41:44+1030] ERROR story=STORY-024 codex-empty-output
+[2026-03-27T14:41:47+1030] STORY START id=STORY-024 attempt=2 title=Drag-and-drop task reordering with manual rank override 
+[2026-03-27T14:41:47+1030] ERROR story=STORY-024 codex-empty-output
+[2026-03-27T14:41:50+1030] STORY START id=STORY-024 attempt=3 title=Drag-and-drop task reordering with manual rank override 
+[2026-03-27T14:41:50+1030] ERROR story=STORY-024 codex-empty-output
+[2026-03-27T14:41:53+1030] STORY START id=STORY-024 attempt=4 title=Drag-and-drop task reordering with manual rank override 
+[2026-03-27T14:41:53+1030] ERROR story=STORY-024 codex-empty-output
+[2026-03-27T14:41:57+1030] CIRCUIT BREAK story=STORY-024 reason=exceeded 4 attempts
+[2026-03-27T14:41:57+1030] STORY START id=STORY-025 attempt=1 title=Export daily plan to PDF via PDFKit 
+[2026-03-27T14:41:57+1030] ERROR story=STORY-025 codex-empty-output
+[2026-03-27T14:42:00+1030] STORY START id=STORY-025 attempt=2 title=Export daily plan to PDF via PDFKit 
+[2026-03-27T14:42:00+1030] ERROR story=STORY-025 codex-empty-output
+[2026-03-27T14:42:03+1030] STORY START id=STORY-025 attempt=3 title=Export daily plan to PDF via PDFKit 
+[2026-03-27T14:42:03+1030] ERROR story=STORY-025 codex-empty-output
+[2026-03-27T14:42:06+1030] STORY START id=STORY-025 attempt=4 title=Export daily plan to PDF via PDFKit 
+[2026-03-27T14:42:06+1030] ERROR story=STORY-025 codex-empty-output
+[2026-03-27T14:42:09+1030] CIRCUIT BREAK story=STORY-025 reason=exceeded 4 attempts
+[2026-03-27T14:42:09+1030] STORY START id=STORY-026 attempt=1 title=Inline Seqta grade display in StudyModeView 
+[2026-03-27T14:42:09+1030] ERROR story=STORY-026 codex-empty-output
+[2026-03-27T14:42:12+1030] STORY START id=STORY-026 attempt=2 title=Inline Seqta grade display in StudyModeView 
+[2026-03-27T14:42:13+1030] ERROR story=STORY-026 codex-empty-output
+[2026-03-27T14:42:16+1030] STORY START id=STORY-026 attempt=3 title=Inline Seqta grade display in StudyModeView 
+[2026-03-27T14:42:16+1030] ERROR story=STORY-026 codex-empty-output
+[2026-03-27T14:42:19+1030] STORY START id=STORY-026 attempt=4 title=Inline Seqta grade display in StudyModeView 
+[2026-03-27T14:42:19+1030] ERROR story=STORY-026 codex-empty-output
+[2026-03-27T14:42:22+1030] CIRCUIT BREAK story=STORY-026 reason=exceeded 4 attempts
+[2026-03-27T14:42:22+1030] STORY START id=STORY-027 attempt=1 title=Global hotkey (⌘⌥T) to start focus timer from anywhere 
+[2026-03-27T14:42:22+1030] ERROR story=STORY-027 codex-empty-output
+[2026-03-27T14:42:25+1030] STORY START id=STORY-027 attempt=2 title=Global hotkey (⌘⌥T) to start focus timer from anywhere 
+[2026-03-27T14:42:25+1030] ERROR story=STORY-027 codex-empty-output
+[2026-03-27T14:42:28+1030] STORY START id=STORY-027 attempt=3 title=Global hotkey (⌘⌥T) to start focus timer from anywhere 
+[2026-03-27T14:42:28+1030] ERROR story=STORY-027 codex-empty-output
+[2026-03-27T14:42:32+1030] STORY START id=STORY-027 attempt=4 title=Global hotkey (⌘⌥T) to start focus timer from anywhere 
+[2026-03-27T14:42:32+1030] ERROR story=STORY-027 codex-empty-output
+[2026-03-27T14:42:35+1030] CIRCUIT BREAK story=STORY-027 reason=exceeded 4 attempts
+[2026-03-27T14:42:35+1030] STORY START id=STORY-028 attempt=1 title=Obsidian AI summary — 3-bullet context digest for selected task 
+[2026-03-27T14:42:35+1030] ERROR story=STORY-028 codex-empty-output
+[2026-03-27T14:42:38+1030] STORY START id=STORY-028 attempt=2 title=Obsidian AI summary — 3-bullet context digest for selected task 
+[2026-03-27T14:42:38+1030] ERROR story=STORY-028 codex-empty-output
+[2026-03-27T14:42:41+1030] STORY START id=STORY-028 attempt=3 title=Obsidian AI summary — 3-bullet context digest for selected task 
+[2026-03-27T14:42:41+1030] ERROR story=STORY-028 codex-empty-output
+[2026-03-27T14:42:44+1030] STORY START id=STORY-028 attempt=4 title=Obsidian AI summary — 3-bullet context digest for selected task 
+[2026-03-27T14:42:44+1030] ERROR story=STORY-028 codex-empty-output
+[2026-03-27T14:42:48+1030] CIRCUIT BREAK story=STORY-028 reason=exceeded 4 attempts
+[2026-03-27T14:42:48+1030] STORY START id=STORY-029 attempt=1 title=Task completion celebration — confetti + sound on finish 
+[2026-03-27T14:42:48+1030] ERROR story=STORY-029 codex-empty-output
+[2026-03-27T14:42:51+1030] STORY START id=STORY-029 attempt=2 title=Task completion celebration — confetti + sound on finish 
+[2026-03-27T14:42:51+1030] ERROR story=STORY-029 codex-empty-output
+[2026-03-27T14:42:54+1030] STORY START id=STORY-029 attempt=3 title=Task completion celebration — confetti + sound on finish 
+[2026-03-27T14:42:54+1030] ERROR story=STORY-029 codex-empty-output
+[2026-03-27T14:42:57+1030] STORY START id=STORY-029 attempt=4 title=Task completion celebration — confetti + sound on finish 
+[2026-03-27T14:42:57+1030] ERROR story=STORY-029 codex-empty-output
+[2026-03-27T14:43:00+1030] CIRCUIT BREAK story=STORY-029 reason=exceeded 4 attempts
+[2026-03-27T14:43:01+1030] STORY START id=STORY-030 attempt=1 title=Settings: appearance mode, accent colour, and font size 
+[2026-03-27T14:43:01+1030] ERROR story=STORY-030 codex-empty-output
+[2026-03-27T14:43:04+1030] STORY START id=STORY-030 attempt=2 title=Settings: appearance mode, accent colour, and font size 
+[2026-03-27T14:43:04+1030] ERROR story=STORY-030 codex-empty-output
+[2026-03-27T14:43:07+1030] STORY START id=STORY-030 attempt=3 title=Settings: appearance mode, accent colour, and font size 
+[2026-03-27T14:43:07+1030] ERROR story=STORY-030 codex-empty-output
+[2026-03-27T14:43:10+1030] STORY START id=STORY-030 attempt=4 title=Settings: appearance mode, accent colour, and font size 
+[2026-03-27T14:43:10+1030] ERROR story=STORY-030 codex-empty-output
+[2026-03-27T14:43:13+1030] CIRCUIT BREAK story=STORY-030 reason=exceeded 4 attempts
+[2026-03-27T14:43:13+1030] RUN COMPLETE all stories done
+[2026-03-27T14:52:53+1030] RUN START project=Timed total=30 done=15 max=300 sandbox=danger-full-access search=true
+[2026-03-27T14:52:53+1030] RUN COMPLETE all stories done
+[2026-03-27T14:53:52+1030] RUN START project=Timed total=30 done=15 max=300 sandbox=danger-full-access search=true
+[2026-03-27T14:53:52+1030] RUN COMPLETE all stories done
+[2026-03-27T14:56:26+1030] RUN START project=Timed total=30 done=15 max=300 sandbox=danger-full-access search=true
+[2026-03-27T14:56:26+1030] CIRCUIT BREAK story=STORY-016 reason=exceeded 4 attempts
+[2026-03-27T14:56:26+1030] CIRCUIT BREAK story=STORY-017 reason=exceeded 4 attempts
+[2026-03-27T14:56:26+1030] CIRCUIT BREAK story=STORY-018 reason=exceeded 4 attempts
+[2026-03-27T14:56:26+1030] CIRCUIT BREAK story=STORY-019 reason=exceeded 4 attempts
+[2026-03-27T14:56:26+1030] CIRCUIT BREAK story=STORY-020 reason=exceeded 4 attempts
+[2026-03-27T14:56:26+1030] CIRCUIT BREAK story=STORY-021 reason=exceeded 4 attempts
+[2026-03-27T14:56:26+1030] CIRCUIT BREAK story=STORY-022 reason=exceeded 4 attempts
+[2026-03-27T14:56:26+1030] CIRCUIT BREAK story=STORY-023 reason=exceeded 4 attempts
+[2026-03-27T14:56:27+1030] CIRCUIT BREAK story=STORY-024 reason=exceeded 4 attempts
+[2026-03-27T14:56:27+1030] CIRCUIT BREAK story=STORY-025 reason=exceeded 4 attempts
+[2026-03-27T14:56:27+1030] CIRCUIT BREAK story=STORY-026 reason=exceeded 4 attempts
+[2026-03-27T14:56:27+1030] CIRCUIT BREAK story=STORY-027 reason=exceeded 4 attempts
+[2026-03-27T14:56:27+1030] CIRCUIT BREAK story=STORY-028 reason=exceeded 4 attempts
+[2026-03-27T14:56:27+1030] CIRCUIT BREAK story=STORY-029 reason=exceeded 4 attempts
+[2026-03-27T14:56:27+1030] CIRCUIT BREAK story=STORY-030 reason=exceeded 4 attempts
+[2026-03-27T14:56:27+1030] RUN COMPLETE all stories done
+[2026-03-27T14:57:59+1030] RUN START project=Timed total=30 done=30 max=300 sandbox=danger-full-access search=true
+[2026-03-27T14:57:59+1030] RUN COMPLETE all stories done
+[2026-03-27T14:58:27+1030] RUN START project=Timed total=30 done=30 max=300 sandbox=danger-full-access search=true
+[2026-03-27T14:58:27+1030] RUN COMPLETE all stories done
+[2026-03-27T15:00:37+1030] RUN START project=Timed total=30 done=15 max=300 sandbox=danger-full-access search=true
+[2026-03-27T15:00:37+1030] STORY START id=STORY-016 attempt=1 title=Menu bar live Pomodoro countdown 
+[2026-03-27T15:00:38+1030] ERROR story=STORY-016 codex-empty-output
+[2026-03-27T15:00:41+1030] STORY START id=STORY-016 attempt=2 title=Menu bar live Pomodoro countdown 
+[2026-03-27T15:00:41+1030] ERROR story=STORY-016 codex-empty-output
+[2026-03-27T15:00:44+1030] STORY START id=STORY-016 attempt=3 title=Menu bar live Pomodoro countdown 
+[2026-03-27T15:00:44+1030] ERROR story=STORY-016 codex-empty-output
+[2026-03-27T15:00:47+1030] STORY START id=STORY-016 attempt=4 title=Menu bar live Pomodoro countdown 
+[2026-03-27T15:00:47+1030] ERROR story=STORY-016 codex-empty-output
+[2026-03-27T15:00:50+1030] CIRCUIT BREAK story=STORY-016 reason=exceeded 4 attempts
+[2026-03-27T15:00:50+1030] STORY START id=STORY-017 attempt=1 title=Spaced repetition engine for quiz cards (SM-2) 
+[2026-03-27T15:00:50+1030] ERROR story=STORY-017 codex-empty-output
+[2026-03-27T15:00:53+1030] STORY START id=STORY-017 attempt=2 title=Spaced repetition engine for quiz cards (SM-2) 
+[2026-03-27T15:00:53+1030] ERROR story=STORY-017 codex-empty-output
+[2026-03-27T15:00:56+1030] STORY START id=STORY-017 attempt=3 title=Spaced repetition engine for quiz cards (SM-2) 
+[2026-03-27T15:00:57+1030] ERROR story=STORY-017 codex-empty-output
+[2026-03-27T15:01:00+1030] STORY START id=STORY-017 attempt=4 title=Spaced repetition engine for quiz cards (SM-2) 
+[2026-03-27T15:01:00+1030] ERROR story=STORY-017 codex-empty-output
+[2026-03-27T15:01:03+1030] CIRCUIT BREAK story=STORY-017 reason=exceeded 4 attempts
+[2026-03-27T15:01:03+1030] STORY START id=STORY-018 attempt=1 title=Pomodoro statistics — daily counts, streaks, and 7-day sparkline 
+[2026-03-27T15:01:03+1030] ERROR story=STORY-018 codex-empty-output
+[2026-03-27T15:01:06+1030] STORY START id=STORY-018 attempt=2 title=Pomodoro statistics — daily counts, streaks, and 7-day sparkline 
+[2026-03-27T15:01:06+1030] ERROR story=STORY-018 codex-empty-output
+[2026-03-27T15:01:09+1030] STORY START id=STORY-018 attempt=3 title=Pomodoro statistics — daily counts, streaks, and 7-day sparkline 
+[2026-03-27T15:01:09+1030] ERROR story=STORY-018 codex-empty-output
+[2026-03-27T15:01:12+1030] STORY START id=STORY-018 attempt=4 title=Pomodoro statistics — daily counts, streaks, and 7-day sparkline 
+[2026-03-27T15:01:12+1030] ERROR story=STORY-018 codex-empty-output
+[2026-03-27T15:01:16+1030] CIRCUIT BREAK story=STORY-018 reason=exceeded 4 attempts
+[2026-03-27T15:01:16+1030] STORY START id=STORY-019 attempt=1 title=Natural language task input parser 
+[2026-03-27T15:01:16+1030] ERROR story=STORY-019 codex-empty-output
+[2026-03-27T15:01:19+1030] STORY START id=STORY-019 attempt=2 title=Natural language task input parser 
+[2026-03-27T15:01:19+1030] ERROR story=STORY-019 codex-empty-output
+[2026-03-27T15:01:22+1030] STORY START id=STORY-019 attempt=3 title=Natural language task input parser 
+[2026-03-27T15:01:22+1030] ERROR story=STORY-019 codex-empty-output
+[2026-03-27T15:01:25+1030] STORY START id=STORY-019 attempt=4 title=Natural language task input parser 
+[2026-03-27T15:01:25+1030] ERROR story=STORY-019 codex-empty-output
+[2026-03-27T15:01:28+1030] CIRCUIT BREAK story=STORY-019 reason=exceeded 4 attempts
+[2026-03-27T15:01:28+1030] STORY START id=STORY-020 attempt=1 title=Task notes with inline Markdown rendering 
+[2026-03-27T15:01:28+1030] ERROR story=STORY-020 codex-empty-output
+[2026-03-27T15:01:32+1030] STORY START id=STORY-020 attempt=2 title=Task notes with inline Markdown rendering 
+[2026-03-27T15:01:32+1030] ERROR story=STORY-020 codex-empty-output
+[2026-03-27T15:01:35+1030] STORY START id=STORY-020 attempt=3 title=Task notes with inline Markdown rendering 
+[2026-03-27T15:03:26+1030] RUN START project=Timed total=30 done=15 max=300 sandbox=danger-full-access search=true
+[2026-03-27T15:03:26+1030] STORY START id=STORY-016 attempt=1 title=Menu bar live Pomodoro countdown 
+[2026-03-27T15:07:28+1030] RUN START project=Timed total=30 done=15 max=300 sandbox=danger-full-access search=true
+[2026-03-27T15:07:28+1030] STORY START id=STORY-016 attempt=1 title=Menu bar live Pomodoro countdown 
+[2026-03-27T15:11:58+1030] STORY COMPLETE id=STORY-016 attempt=1

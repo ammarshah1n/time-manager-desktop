@@ -1,6 +1,6 @@
 # Timed — Ralph Loop Run Commands
 
-## Terminal 1 — Main Loop (open this first)
+## Terminal 1 — Main Loop + Watchdog (run both)
 
 ```bash
 cd /Users/ammarshahin/time-manager-desktop
@@ -14,7 +14,21 @@ cd /Users/ammarshahin/time-manager-desktop
   2>&1 | tee .codex/ralph/run.log
 ```
 
-## Terminal 2 — Monitor (open alongside Terminal 1)
+## Terminal 2 — Watchdog (keeps loop alive automatically)
+
+```bash
+~/.codex/skills/codex-ralph/scripts/ralph-watchdog.sh \
+  --repo /Users/ammarshahin/time-manager-desktop \
+  --stale-mins 25 \
+  --ralph-cmd "~/.codex/skills/codex-ralph/scripts/ralph.sh \
+    --skill-file .codex/ralph/TIMED_SKILL.md \
+    --branch ralph/timed-v2 \
+    --max-iterations 300 \
+    --max-attempts 4 \
+    --skip-security"
+```
+
+## Terminal 3 — Monitor (optional)
 
 ```bash
 # Watch live events

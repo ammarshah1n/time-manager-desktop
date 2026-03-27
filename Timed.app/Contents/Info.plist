@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleExecutable</key><string>Timed</string>
+    <key>CFBundleIdentifier</key><string>com.facilitated.timed</string>
+    <key>CFBundleName</key><string>Timed</string>
+    <key>CFBundleDisplayName</key><string>Timed</string>
+    <key>CFBundleVersion</key><string>1.0</string>
+    <key>CFBundleShortVersionString</key><string>1.0</string>
+    <key>CFBundlePackageType</key><string>APPL</string>
+    <key>CFBundleIconFile</key><string>AppIcon</string>
+    <key>NSHighResolutionCapable</key><true/>
+    <key>NSPrincipalClass</key><string>NSApplication</string>
+    <key>LSMinimumSystemVersion</key><string>14.0</string>
+    <key>NSCalendarsUsageDescription</key><string>Timed uses Calendar to export your study schedule.</string>
+    <key>NSRemindersUsageDescription</key><string>Timed uses Reminders to set deadline alerts.</string>
+</dict>
+</plist>
