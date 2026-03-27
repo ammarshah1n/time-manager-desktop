@@ -280,6 +280,7 @@ struct PlannerSnapshot: Codable {
     let contexts: [ContextItem]
     let schedule: [ScheduleBlock]
     let subjectConfidences: [String: Int]
+    let quizQuestionsBySubject: [String: [QuizQuestion]]
     let selectedTaskID: String?
     let selectedContextID: String?
     let promptText: String
@@ -294,6 +295,7 @@ struct PlannerSnapshot: Codable {
         contexts: [ContextItem],
         schedule: [ScheduleBlock],
         subjectConfidences: [String: Int],
+        quizQuestionsBySubject: [String: [QuizQuestion]],
         selectedTaskID: String?,
         selectedContextID: String?,
         promptText: String,
@@ -307,6 +309,7 @@ struct PlannerSnapshot: Codable {
         self.contexts = contexts
         self.schedule = schedule
         self.subjectConfidences = subjectConfidences
+        self.quizQuestionsBySubject = quizQuestionsBySubject
         self.selectedTaskID = selectedTaskID
         self.selectedContextID = selectedContextID
         self.promptText = promptText
@@ -322,6 +325,7 @@ struct PlannerSnapshot: Codable {
         case contexts
         case schedule
         case subjectConfidences
+        case quizQuestionsBySubject
         case selectedTaskID
         case selectedContextID
         case promptText
@@ -338,6 +342,7 @@ struct PlannerSnapshot: Codable {
         contexts = try container.decode([ContextItem].self, forKey: .contexts)
         schedule = try container.decode([ScheduleBlock].self, forKey: .schedule)
         subjectConfidences = try container.decodeIfPresent([String: Int].self, forKey: .subjectConfidences) ?? [:]
+        quizQuestionsBySubject = try container.decodeIfPresent([String: [QuizQuestion]].self, forKey: .quizQuestionsBySubject) ?? [:]
         selectedTaskID = try container.decodeIfPresent(String.self, forKey: .selectedTaskID)
         selectedContextID = try container.decodeIfPresent(String.self, forKey: .selectedContextID)
         promptText = try container.decode(String.self, forKey: .promptText)

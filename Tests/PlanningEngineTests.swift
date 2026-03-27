@@ -329,6 +329,7 @@ struct PlanningEngineTests {
                 )
             ],
             subjectConfidences: [:],
+            quizQuestionsBySubject: [:],
             selectedTaskID: duplicate.id,
             selectedContextID: nil,
             promptText: "",

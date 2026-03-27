@@ -23,6 +23,7 @@ final class PlannerStore {
     var obsidianDocuments: [ContextDocument] = []
     var schedule: [ScheduleBlock] = []
     var subjectConfidences: [String: Int] = [:]
+    var quizQuestionsBySubject: [String: [QuizQuestion]] = [:]
     var pendingCalibrationSubject: String?
     var rankedTasks: [RankedTask] = []
     var selectedTaskID: String?
@@ -101,6 +102,7 @@ final class PlannerStore {
             contexts: contexts,
             schedule: schedule,
             subjectConfidences: subjectConfidences,
+            quizQuestionsBySubject: quizQuestionsBySubject,
             selectedTaskID: selectedTaskID,
             selectedContextID: selectedContextID,
             promptText: promptText,
@@ -132,6 +134,7 @@ final class PlannerStore {
             contexts = snapshot.contexts
             schedule = snapshot.schedule
             subjectConfidences = snapshot.subjectConfidences
+            quizQuestionsBySubject = snapshot.quizQuestionsBySubject
             obsidianDocuments = snapshot.obsidianDocuments
             selectedTaskID = snapshot.selectedTaskID
             selectedContextID = snapshot.selectedContextID
@@ -146,6 +149,7 @@ final class PlannerStore {
             contexts = sample.contexts
             schedule = sample.schedule
             subjectConfidences = [:]
+            quizQuestionsBySubject = [:]
             obsidianDocuments = []
             chat = sample.chat
             studyChat = sample.studyChat
@@ -156,6 +160,7 @@ final class PlannerStore {
         }
 
         migrateTaskIdentityIfNeeded()
+        normalizeQuizQuestionState()
         rebuildPlan()
     }
 
@@ -805,7 +810,8 @@ final class PlannerStore {
         let taskSubjects = tasks.map(\.subject)
         let contextSubjects = contexts.map(\.subject)
         let documentSubjects = obsidianDocuments.map(\.subject)
-        let discoveredSubjects = taskSubjects + contextSubjects + documentSubjects + Array(subjectConfidences.keys)
+        let quizSubjects = Array(quizQuestionsBySubject.keys)
+        let discoveredSubjects = taskSubjects + contextSubjects + documentSubjects + quizSubjects + Array(subjectConfidences.keys)
 
         return Array(
             Set(
@@ -842,6 +848,62 @@ final class PlannerStore {
         }
 
         return derivedConfidence(for: canonicalSubject) * 20
+    }
+
+    func quizCards(for subject: String) -> [QuizQuestion] {
+        let canonicalSubject = canonicalSubjectName(subject)
+        guard !canonicalSubject.isEmpty else { return [] }
+        return quizQuestionsBySubject[canonicalSubject] ?? []
+    }
+
+    func dueQuizCards(for subject: String, now: Date = .now) -> [QuizQuestion] {
+        quizCards(for: subject)
+            .filter { SpacedRepetitionEngine.isDue($0, now: now) }
+            .sorted { lhs, rhs in
+                if lhs.nextDue != rhs.nextDue {
+                    return lhs.nextDue < rhs.nextDue
+                }
+                return lhs.question.localizedCaseInsensitiveCompare(rhs.question) == .orderedAscending
+            }
+    }
+
+    func dueQuizCardCount(for subject: String, now: Date = .now) -> Int {
+        dueQuizCards(for: subject, now: now).count
+    }
+
+    func nextQuizReviewDays(for subject: String, now: Date = .now) -> Int? {
+        let upcoming = quizCards(for: subject)
+            .filter { !SpacedRepetitionEngine.isDue($0, now: now) }
+            .min { $0.nextDue < $1.nextDue }
+
+        guard let upcoming else { return nil }
+        return SpacedRepetitionEngine.daysUntilDue(upcoming, now: now)
+    }
+
+    func replaceQuizCards(for subject: String, with cards: [QuizQuestion]) {
+        let canonicalSubject = canonicalSubjectName(subject)
+        guard !canonicalSubject.isEmpty else { return }
+        quizQuestionsBySubject[canonicalSubject] = cards
+        save()
+    }
+
+    @discardableResult
+    func reviewQuizCard(for subject: String, question: QuizQuestion, quality: Int, now: Date = .now) -> QuizQuestion {
+        let canonicalSubject = canonicalSubjectName(subject)
+        guard !canonicalSubject.isEmpty else { return question }
+
+        let updatedQuestion = SpacedRepetitionEngine.review(question, quality: quality, now: now)
+        var cards = quizQuestionsBySubject[canonicalSubject] ?? []
+
+        if let index = cards.firstIndex(where: { $0.id == question.id }) {
+            cards[index] = updatedQuestion
+        } else {
+            cards.append(updatedQuestion)
+        }
+
+        quizQuestionsBySubject[canonicalSubject] = cards
+        save()
+        return updatedQuestion
     }
 
     func transcriptStudyContexts(for subject: String, searchText: String = "", limit: Int = 6) -> [ContextItem] {
@@ -1625,15 +1687,26 @@ final class PlannerStore {
     }
 
     func recordQuizSession(subject: String, summary: QuizSessionSummary) {
+        let canonicalSubject = canonicalSubjectName(subject)
+        guard !canonicalSubject.isEmpty else { return }
+        let normalizedPercent = normalizedConfidencePercent(summary.updatedConfidencePercent)
+        subjectConfidences[canonicalSubject] = normalizedPercent
+
+        let calibratedConfidence = confidenceStars(fromPercent: normalizedPercent)
+        for index in tasks.indices where tasks[index].subject.caseInsensitiveCompare(canonicalSubject) == .orderedSame {
+            tasks[index].confidence = calibratedConfidence
+        }
+
         let deltaPrefix = summary.confidenceDeltaPercent >= 0 ? "+" : ""
+        let averageQualityText = String(format: "%.1f", summary.averageQuality)
         appendStudyMessage(
             PromptMessage(
                 role: .assistant,
-                text: "Study session finished for \(subject): \(summary.correctCount)/\(summary.attemptedCount) correct. Confidence delta \(deltaPrefix)\(summary.confidenceDeltaPercent)%."
+                text: "Study session finished for \(canonicalSubject): \(summary.correctCount)/\(summary.attemptedCount) correct. Average recall \(averageQualityText)/5. Confidence delta \(deltaPrefix)\(summary.confidenceDeltaPercent)%."
             ),
-            subject: subject
+            subject: canonicalSubject
         )
-        save()
+        rebuildPlan()
     }
 
     private func upsertTaskHints(_ hints: [TaskHint]) {
@@ -1819,6 +1892,25 @@ final class PlannerStore {
             nextValues[canonicalSubject] = normalizedConfidencePercent(confidence)
         }
         subjectConfidences = nextValues
+    }
+
+    private func normalizeQuizQuestionState() {
+        var normalizedDecks: [String: [QuizQuestion]] = [:]
+
+        for (subject, questions) in quizQuestionsBySubject {
+            let canonicalSubject = canonicalSubjectName(subject)
+            guard !canonicalSubject.isEmpty else { continue }
+
+            normalizedDecks[canonicalSubject] = questions.map { question in
+                question.updated(
+                    easeFactor: max(1.3, question.easeFactor),
+                    interval: max(1, question.interval),
+                    nextDue: question.nextDue
+                )
+            }
+        }
+
+        quizQuestionsBySubject = normalizedDecks
     }
 
     private func derivedConfidence(for subject: String) -> Int {

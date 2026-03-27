@@ -1566,6 +1566,21 @@ struct ContentView: View {
             runner: { request in
                 let result = await CodexBridge().run(request: request)
                 return CodexBridge.response(from: result)
+            },
+            loadStoredQuestions: { subject in
+                store.quizCards(for: subject)
+            },
+            loadDueQuestions: { subject, now in
+                store.dueQuizCards(for: subject, now: now)
+            },
+            replaceStoredQuestions: { subject, questions in
+                store.replaceQuizCards(for: subject, with: questions)
+            },
+            reviewStoredQuestion: { subject, question, quality, now in
+                store.reviewQuizCard(for: subject, question: question, quality: quality, now: now)
+            },
+            nextReviewDays: { subject, now in
+                store.nextQuizReviewDays(for: subject, now: now)
             }
         )
     }
@@ -1593,8 +1608,6 @@ struct ContentView: View {
 
     private func finishStudyOverlay(summary: QuizSessionSummary) {
         guard let activeQuizSession else { return }
-        store.applySubjectConfidences([activeQuizSession.subject: summary.updatedConfidence])
-        store.rebuildPlan()
         store.recordQuizSession(subject: activeQuizSession.subject, summary: summary)
         self.activeQuizSession = nil
     }

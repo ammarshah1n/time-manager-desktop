@@ -23,6 +23,11 @@ struct StudyModeView: View {
         store.subjectConfidencePercent(for: activeSubject)
     }
 
+    private var dueQuizCount: Int {
+        guard !activeSubject.isEmpty else { return 0 }
+        return store.dueQuizCardCount(for: activeSubject)
+    }
+
     private var topNotes: [ContextDocument] {
         guard !activeSubject.isEmpty else { return [] }
         let documents = store.topDocuments(for: activeSubject, limit: 3)
@@ -90,6 +95,7 @@ struct StudyModeView: View {
                             SubjectStudyRow(
                                 subject: subject,
                                 confidencePercent: store.subjectConfidencePercent(for: subject),
+                                dueQuizCount: store.dueQuizCardCount(for: subject),
                                 isSelected: subject.caseInsensitiveCompare(activeSubject) == .orderedSame,
                                 action: {
                                     selectedSubject = subject
@@ -154,6 +160,8 @@ struct StudyModeView: View {
                                     }
                                     .buttonStyle(.borderedProminent)
                                     .disabled(!preferredTaskAvailable)
+
+                                    dueQuizBadge(count: dueQuizCount)
                                 }
 
                                 ProgressView(value: Double(confidencePercent), total: 100)
@@ -249,11 +257,28 @@ struct StudyModeView: View {
             return .green
         }
     }
+
+    private func dueQuizBadge(count: Int) -> some View {
+        Text("\(count) due")
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(.white.opacity(0.82))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(
+                Capsule()
+                    .fill(Color.white.opacity(0.08))
+            )
+            .overlay(
+                Capsule()
+                    .stroke(Color.white.opacity(0.10), lineWidth: 1)
+            )
+    }
 }
 
 private struct SubjectStudyRow: View {
     let subject: String
     let confidencePercent: Int
+    let dueQuizCount: Int
     let isSelected: Bool
     let action: () -> Void
 
@@ -265,6 +290,15 @@ private struct SubjectStudyRow: View {
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(.white.opacity(0.88))
                     Spacer()
+                    Text("\(dueQuizCount) due")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.72))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 5)
+                        .background(
+                            Capsule()
+                                .fill(Color.white.opacity(0.08))
+                        )
                     Text("\(confidencePercent)%")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(.white.opacity(0.58))

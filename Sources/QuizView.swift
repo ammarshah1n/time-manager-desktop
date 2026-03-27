@@ -5,8 +5,10 @@ import SwiftUI
 struct QuizSessionSummary: Hashable {
     let attemptedCount: Int
     let correctCount: Int
+    let averageQuality: Double
     let confidenceDeltaPercent: Int
     let updatedConfidence: Int
+    let updatedConfidencePercent: Int
 }
 
 struct QuizQuestion: Identifiable, Hashable, Codable {
@@ -16,6 +18,9 @@ struct QuizQuestion: Identifiable, Hashable, Codable {
     let correctIndex: Int
     let explanation: String
     let sourceTitle: String
+    let easeFactor: Double
+    let interval: Int
+    let nextDue: Date
 
     init(
         id: UUID = UUID(),
@@ -23,7 +28,10 @@ struct QuizQuestion: Identifiable, Hashable, Codable {
         options: [String],
         correctIndex: Int,
         explanation: String,
-        sourceTitle: String
+        sourceTitle: String,
+        easeFactor: Double = SpacedRepetitionEngine.defaultEaseFactor,
+        interval: Int = SpacedRepetitionEngine.defaultInterval,
+        nextDue: Date = .now
     ) {
         self.id = id
         self.question = question
@@ -31,6 +39,54 @@ struct QuizQuestion: Identifiable, Hashable, Codable {
         self.correctIndex = correctIndex
         self.explanation = explanation
         self.sourceTitle = sourceTitle
+        self.easeFactor = max(1.3, easeFactor)
+        self.interval = max(1, interval)
+        self.nextDue = nextDue
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case question
+        case options
+        case correctIndex
+        case explanation
+        case sourceTitle
+        case easeFactor
+        case interval
+        case nextDue
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        question = try container.decode(String.self, forKey: .question)
+        options = try container.decode([String].self, forKey: .options)
+        correctIndex = try container.decode(Int.self, forKey: .correctIndex)
+        explanation = try container.decode(String.self, forKey: .explanation)
+        sourceTitle = try container.decode(String.self, forKey: .sourceTitle)
+        easeFactor = max(
+            1.3,
+            try container.decodeIfPresent(Double.self, forKey: .easeFactor) ?? SpacedRepetitionEngine.defaultEaseFactor
+        )
+        interval = max(
+            1,
+            try container.decodeIfPresent(Int.self, forKey: .interval) ?? SpacedRepetitionEngine.defaultInterval
+        )
+        nextDue = try container.decodeIfPresent(Date.self, forKey: .nextDue) ?? .now
+    }
+
+    func updated(easeFactor: Double, interval: Int, nextDue: Date) -> QuizQuestion {
+        QuizQuestion(
+            id: id,
+            question: question,
+            options: options,
+            correctIndex: correctIndex,
+            explanation: explanation,
+            sourceTitle: sourceTitle,
+            easeFactor: easeFactor,
+            interval: interval,
+            nextDue: nextDue
+        )
     }
 }
 
@@ -40,19 +96,22 @@ struct QuizAnswerRecord: Identifiable, Hashable {
     let selectedOptionIndex: Int?
     let freeformAnswer: String
     let isCorrect: Bool
+    var qualityScore: Int?
 
     init(
         id: UUID = UUID(),
         question: QuizQuestion,
         selectedOptionIndex: Int?,
         freeformAnswer: String,
-        isCorrect: Bool
+        isCorrect: Bool,
+        qualityScore: Int? = nil
     ) {
         self.id = id
         self.question = question
         self.selectedOptionIndex = selectedOptionIndex
         self.freeformAnswer = freeformAnswer
         self.isCorrect = isCorrect
+        self.qualityScore = qualityScore
     }
 }
 
@@ -62,6 +121,7 @@ enum QuizSessionPhase {
     case question
     case feedback
     case summary
+    case caughtUp
 }
 
 @MainActor
@@ -79,11 +139,18 @@ final class QuizSessionModel {
     var freeformAnswer = ""
     var errorText: String?
     var isGenerating = false
+    var storedCardCount: Int
+    var nextReviewInDays: Int?
 
     @ObservationIgnored private let runner: @Sendable (CodexRunRequest) async -> String?
     @ObservationIgnored private let workingRoot: String
     @ObservationIgnored private let additionalRoots: [String]
     @ObservationIgnored private let autonomousMode: Bool
+    @ObservationIgnored private let loadStoredQuestions: (String) -> [QuizQuestion]
+    @ObservationIgnored private let loadDueQuestions: (String, Date) -> [QuizQuestion]
+    @ObservationIgnored private let replaceStoredQuestions: (String, [QuizQuestion]) -> Void
+    @ObservationIgnored private let reviewStoredQuestion: (String, QuizQuestion, Int, Date) -> QuizQuestion
+    @ObservationIgnored private let nextReviewDays: (String, Date) -> Int?
 
     init(
         task: TaskItem,
@@ -92,7 +159,12 @@ final class QuizSessionModel {
         workingRoot: String,
         additionalRoots: [String],
         autonomousMode: Bool,
-        runner: @escaping @Sendable (CodexRunRequest) async -> String?
+        runner: @escaping @Sendable (CodexRunRequest) async -> String?,
+        loadStoredQuestions: @escaping (String) -> [QuizQuestion],
+        loadDueQuestions: @escaping (String, Date) -> [QuizQuestion],
+        replaceStoredQuestions: @escaping (String, [QuizQuestion]) -> Void,
+        reviewStoredQuestion: @escaping (String, QuizQuestion, Int, Date) -> QuizQuestion,
+        nextReviewDays: @escaping (String, Date) -> Int?
     ) {
         self.task = task
         self.documents = documents
@@ -101,6 +173,14 @@ final class QuizSessionModel {
         self.additionalRoots = additionalRoots
         self.autonomousMode = autonomousMode
         self.runner = runner
+        self.loadStoredQuestions = loadStoredQuestions
+        self.loadDueQuestions = loadDueQuestions
+        self.replaceStoredQuestions = replaceStoredQuestions
+        self.reviewStoredQuestion = reviewStoredQuestion
+        self.nextReviewDays = nextReviewDays
+        let existingCards = loadStoredQuestions(task.subject)
+        self.storedCardCount = existingCards.count
+        self.nextReviewInDays = existingCards.isEmpty ? nil : nextReviewDays(task.subject, .now)
     }
 
     var subject: String { task.subject }
@@ -114,27 +194,42 @@ final class QuizSessionModel {
         !documents.isEmpty || !transcriptContexts.isEmpty
     }
 
-    var attemptedCount: Int { history.count }
-    var correctCount: Int { history.filter(\.isCorrect).count }
+    var attemptedCount: Int { history.compactMap(\.qualityScore).count }
+    var correctCount: Int {
+        history.reduce(into: 0) { total, record in
+            if record.qualityScore != nil && record.isCorrect {
+                total += 1
+            }
+        }
+    }
+    var averageQuality: Double {
+        let scores = history.compactMap(\.qualityScore)
+        guard !scores.isEmpty else { return 0 }
+        return Double(scores.reduce(0, +)) / Double(scores.count)
+    }
 
     var confidenceDeltaPercent: Int {
-        guard attemptedCount > 0 else { return 0 }
-        let ratio = Double(correctCount) / Double(attemptedCount)
-        let raw = (ratio - 0.5) * 20
-        return max(-10, min(10, Int(raw.rounded())))
+        updatedConfidencePercent - (initialConfidence * 20)
     }
 
     var updatedConfidence: Int {
-        let rawValue = Double(initialConfidence) + (Double(confidenceDeltaPercent) / 10.0)
-        return max(1, min(5, Int(rawValue.rounded())))
+        guard attemptedCount > 0 else { return initialConfidence }
+        return max(1, min(5, Int(averageQuality.rounded())))
+    }
+
+    var updatedConfidencePercent: Int {
+        guard attemptedCount > 0 else { return initialConfidence * 20 }
+        return max(0, min(100, Int(((averageQuality / 5.0) * 100.0).rounded())))
     }
 
     var summary: QuizSessionSummary {
         QuizSessionSummary(
             attemptedCount: attemptedCount,
             correctCount: correctCount,
+            averageQuality: averageQuality,
             confidenceDeltaPercent: confidenceDeltaPercent,
-            updatedConfidence: updatedConfidence
+            updatedConfidence: updatedConfidence,
+            updatedConfidencePercent: updatedConfidencePercent
         )
     }
 
@@ -144,11 +239,38 @@ final class QuizSessionModel {
     }
 
     func beginSession() async {
-        await generateQuestions(count: 5)
+        let now = Date.now
+        history = []
+        questions = []
+        currentQuestionIndex = 0
+        resetAnswerState()
+        let existingCards = loadStoredQuestions(subject)
+        storedCardCount = existingCards.count
+
+        if existingCards.isEmpty {
+            await generateQuestions(count: 5)
+            return
+        }
+
+        let dueQuestions = loadDueQuestions(subject, now)
+        guard !dueQuestions.isEmpty else {
+            questions = []
+            currentQuestionIndex = 0
+            nextReviewInDays = nextReviewDays(subject, now)
+            phase = .caughtUp
+            errorText = nil
+            return
+        }
+
+        questions = dueQuestions
+        currentQuestionIndex = 0
+        nextReviewInDays = nextReviewDays(subject, now)
+        resetAnswerState()
+        phase = .question
     }
 
     func submitAnswer() {
-        guard let currentQuestion else { return }
+        guard let currentQuestion, let selectedOptionIndex else { return }
 
         let isCorrect = selectedOptionIndex == currentQuestion.correctIndex
         history.append(
@@ -162,7 +284,15 @@ final class QuizSessionModel {
         phase = .feedback
     }
 
-    func advanceAfterFeedback() async {
+    func rateRecall(_ rating: RecallRating, now: Date = .now) {
+        guard let currentQuestion, let historyIndex = history.indices.last else { return }
+
+        let reviewedQuestion = reviewStoredQuestion(subject, currentQuestion, rating.rawValue, now)
+        questions[currentQuestionIndex] = reviewedQuestion
+        history[historyIndex].qualityScore = rating.rawValue
+        storedCardCount = loadStoredQuestions(subject).count
+        nextReviewInDays = nextReviewDays(subject, now)
+
         if currentQuestionIndex + 1 < questions.count {
             currentQuestionIndex += 1
             resetAnswerState()
@@ -170,16 +300,11 @@ final class QuizSessionModel {
             return
         }
 
-        if attemptedCount >= 5 {
-            phase = .summary
-            return
-        }
-
-        await generateQuestions(count: max(5 - attemptedCount, 1))
+        phase = .summary
     }
 
     func keepGoing() async {
-        await generateQuestions(count: 5)
+        await beginSession()
     }
 
     private func resetAnswerState() {
@@ -216,7 +341,17 @@ final class QuizSessionModel {
             return
         }
 
-        questions = parsedQuestions
+        let seededQuestions = parsedQuestions.map { question in
+            question.updated(
+                easeFactor: question.easeFactor,
+                interval: question.interval,
+                nextDue: Calendar.current.startOfDay(for: .now)
+            )
+        }
+        replaceStoredQuestions(subject, seededQuestions)
+        storedCardCount = seededQuestions.count
+        nextReviewInDays = nil
+        questions = seededQuestions
         currentQuestionIndex = 0
         resetAnswerState()
         phase = .question
@@ -395,6 +530,8 @@ struct QuizView: View {
                             feedbackCard
                         case .summary:
                             summaryCard
+                        case .caughtUp:
+                            caughtUpCard
                         }
                     }
                     .padding(.horizontal, 28)
@@ -431,7 +568,7 @@ struct QuizView: View {
 
             HStack(spacing: 10) {
                 statChip(title: "Confidence", value: "\(session.initialConfidence)/5")
-                statChip(title: "Correct", value: "\(session.correctCount)/\(max(session.attemptedCount, 1))")
+                statChip(title: "Correct", value: "\(session.correctCount)/\(session.attemptedCount)")
 
                 Button(action: onClose) {
                     Image(systemName: "xmark")
@@ -450,11 +587,12 @@ struct QuizView: View {
     private var introCard: some View {
         TimedCard(title: "Ready to study", icon: "graduationcap.fill") {
             VStack(alignment: .leading, spacing: 18) {
-                Text("Timed will generate a 5-question quiz using the top Obsidian notes and grounded transcript context for this subject.")
+                Text(introDescription)
                     .font(.system(size: 15))
                     .foregroundStyle(.white.opacity(0.78))
 
                 HStack(spacing: 12) {
+                    statPanel(title: "Stored cards", value: "\(session.storedCardCount)")
                     statPanel(title: "Top notes", value: "\(session.documents.count)")
                     statPanel(title: "Transcript items", value: "\(session.transcriptContexts.count)")
                     statPanel(title: "Baseline confidence", value: "\(session.initialConfidence)/5")
@@ -471,7 +609,34 @@ struct QuizView: View {
                         Task { await session.beginSession() }
                     }
                     .buttonStyle(.borderedProminent)
-                    .disabled(!session.hasGroundedMaterial || session.isGenerating)
+                    .disabled((session.storedCardCount == 0 && !session.hasGroundedMaterial) || session.isGenerating)
+
+                    Button("Close", action: onClose)
+                        .buttonStyle(.bordered)
+                }
+            }
+        }
+        .frame(maxWidth: 920)
+    }
+
+    private var caughtUpCard: some View {
+        TimedCard(title: "All caught up", icon: "checkmark.seal.fill") {
+            VStack(alignment: .leading, spacing: 18) {
+                Text(caughtUpMessage)
+                    .font(.system(size: 15))
+                    .foregroundStyle(.white.opacity(0.78))
+
+                HStack(spacing: 12) {
+                    statPanel(title: "Stored cards", value: "\(session.storedCardCount)")
+                    statPanel(title: "Next review", value: nextReviewText)
+                    statPanel(title: "Confidence", value: "\(session.initialConfidence)/5")
+                }
+
+                HStack(spacing: 10) {
+                    Button("Refresh Due Cards") {
+                        Task { await session.beginSession() }
+                    }
+                    .buttonStyle(.borderedProminent)
 
                     Button("Close", action: onClose)
                         .buttonStyle(.bordered)
@@ -585,11 +750,22 @@ struct QuizView: View {
                         }
                     }
 
-                    HStack(spacing: 10) {
-                        Button(session.currentQuestionIndex + 1 >= session.questions.count ? "View Summary" : "Next Question") {
-                            Task { await session.advanceAfterFeedback() }
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Rate your recall")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.58))
+                            .textCase(.uppercase)
+                            .tracking(1)
+
+                        HStack(spacing: 10) {
+                            ForEach(RecallRating.allCases) { rating in
+                                Button(rating.title) {
+                                    session.rateRecall(rating)
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(recallButtonTint(for: rating))
+                            }
                         }
-                        .buttonStyle(.borderedProminent)
 
                         statChip(
                             title: "Confidence delta",
@@ -608,11 +784,12 @@ struct QuizView: View {
             VStack(alignment: .leading, spacing: 18) {
                 HStack(spacing: 12) {
                     statPanel(title: "Score", value: "\(session.correctCount)/\(session.attemptedCount)")
+                    statPanel(title: "Average recall", value: String(format: "%.1f/5", session.averageQuality))
                     statPanel(title: "Confidence delta", value: deltaText(session.confidenceDeltaPercent))
                     statPanel(title: "New confidence", value: "\(session.updatedConfidence)/5")
                 }
 
-                Text("Timed will write the updated confidence back into the planner when you end this session.")
+                Text("Timed has already rescheduled every reviewed card. Ending this session writes the updated subject confidence back into the planner.")
                     .font(.system(size: 14))
                     .foregroundStyle(.white.opacity(0.76))
 
@@ -622,7 +799,7 @@ struct QuizView: View {
                     }
                     .buttonStyle(.borderedProminent)
 
-                    Button("Keep Going") {
+                    Button("Refresh Due Cards") {
                         Task { await session.keepGoing() }
                     }
                     .buttonStyle(.bordered)
@@ -761,6 +938,19 @@ struct QuizView: View {
         return String(Character(scalar))
     }
 
+    private func recallButtonTint(for rating: RecallRating) -> Color {
+        switch rating {
+        case .again:
+            return Color.red.opacity(0.86)
+        case .hard:
+            return Color.orange.opacity(0.82)
+        case .good:
+            return Color.blue.opacity(0.82)
+        case .easy:
+            return Color.green.opacity(0.82)
+        }
+    }
+
     private var inputBackground: some View {
         RoundedRectangle(cornerRadius: 14, style: .continuous)
             .fill(Color.white.opacity(0.08))
@@ -768,6 +958,27 @@ struct QuizView: View {
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .stroke(Color.white.opacity(0.10), lineWidth: 1)
             )
+    }
+
+    private var introDescription: String {
+        if session.storedCardCount == 0 {
+            return "Timed will generate an initial 5-card deck from the top Obsidian notes and grounded transcript context for this subject."
+        }
+
+        return "Timed will review only the cards due today for this subject and reschedule each one with spaced repetition."
+    }
+
+    private var nextReviewText: String {
+        guard let nextReviewInDays = session.nextReviewInDays else { return "Not scheduled" }
+        return "\(nextReviewInDays)d"
+    }
+
+    private var caughtUpMessage: String {
+        guard let nextReviewInDays = session.nextReviewInDays else {
+            return "All caught up."
+        }
+
+        return "All caught up — next review in \(nextReviewInDays)d."
     }
 }
 
