@@ -357,7 +357,7 @@
         "swift build passes"
       ],
       "priority": 21,
-      "passes": false,
+      "passes": true,
       "notes": "Add ConfidenceReading: Codable { let date: Date; let value: Double } to Models.swift. Add `confidenceHistory: [String: [ConfidenceReading]]` to PlannerStore, persisted. In ConfidenceCalibrationView submit handler, call `store.recordConfidence(subject:, value:)`. In StudyModeView subject detail, add Chart { ForEach(readings) { LineMark(x: .value('Date', r.date), y: .value('Score', r.value * 100)) } }."
     },
     {

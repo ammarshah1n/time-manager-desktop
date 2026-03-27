@@ -266,3 +266,6 @@
 [2026-03-27T15:33:13+1030] COMMIT story=STORY-019 sha=c2eb8eb
 [2026-03-27T15:33:15+1030] STORY START id=STORY-020 attempt=1 title=Task notes with inline Markdown rendering 
 [2026-03-27T15:36:22+1030] STORY COMPLETE id=STORY-020 attempt=1
+[2026-03-27T15:36:22+1030] COMMIT story=STORY-020 sha=287adf2
+[2026-03-27T15:36:24+1030] STORY START id=STORY-021 attempt=1 title=Subject confidence trend chart (7-day history) 
+[2026-03-27T15:42:45+1030] STORY COMPLETE id=STORY-021 attempt=1
