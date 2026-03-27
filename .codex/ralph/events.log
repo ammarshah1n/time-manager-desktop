@@ -263,3 +263,6 @@
 [2026-03-27T15:25:14+1030] COMMIT story=STORY-018 sha=379335d
 [2026-03-27T15:25:16+1030] STORY START id=STORY-019 attempt=1 title=Natural language task input parser 
 [2026-03-27T15:33:13+1030] STORY COMPLETE id=STORY-019 attempt=1
+[2026-03-27T15:33:13+1030] COMMIT story=STORY-019 sha=c2eb8eb
+[2026-03-27T15:33:15+1030] STORY START id=STORY-020 attempt=1 title=Task notes with inline Markdown rendering 
+[2026-03-27T15:36:22+1030] STORY COMPLETE id=STORY-020 attempt=1

@@ -341,7 +341,7 @@
         "swift build passes"
       ],
       "priority": 20,
-      "passes": false,
+      "passes": true,
       "notes": "Add `notes: String = ''` to TaskItem. In the right context drawer section of ContentView.swift (or a new TaskDetailView.swift), add a two-mode notes component. Use @State isEditingNotes: Bool. Preview: `Text(try! AttributedString(markdown: notes))`. Edit: `TextEditor(text: $task.notes)` with .font(.body). ⌘E KeyboardShortcut to toggle. Debounce save with a .onChange modifier + DispatchQueue.main.asyncAfter(0.5) pattern."
     },
     {

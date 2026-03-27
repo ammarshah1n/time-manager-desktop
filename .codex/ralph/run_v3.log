@@ -90039,3 +90039,754 @@ tokens used
   ▶ test: cd /Users/ammarshahin/time-manager-desktop && swift test 2>&1 | tail -20 || true
   ✓ test
   Verification passed.
+  Committed: c2eb8eb
+  Story STORY-019 done.
+
+══════════════════════════════════════════════════════════════
+  Iteration 5/300  |  15:33:15
+══════════════════════════════════════════════════════════════
+  Story: STORY-020 — Task notes with inline Markdown rendering  (11 remaining)
+  Attempt: 1/4
+Reading prompt from stdin...
+OpenAI Codex v0.115.0-alpha.27 (research preview)
+--------
+workdir: /Users/ammarshahin/time-manager-desktop
+model: gpt-5.4
+provider: openai
+approval: never
+sandbox: danger-full-access
+reasoning effort: high
+reasoning summaries: none
+session id: 019d2dac-db76-7060-8fb5-09b75b08c0a2
+--------
+user
+# Timed App — Autonomous Implementation Agent
+
+You are running inside a Ralph loop tasked with making **Timed** a 10/10 school time-planning app.
+Full write access. No permission gates. Keep going until the story is genuinely done.
+
+---
+
+## Critical context about this project
+
+**User:** Ammar Shahin, 16, Year 11, Prince Alfred College Adelaide.
+**App:** macOS 15 SwiftUI time-management app at `/Users/ammarshahin/time-manager-desktop`.
+**Stack:** Swift 5.10, SPM, `@Observable`, NSVisualEffectView, CodexBridge (wraps `codex` CLI), EventKit.
+
+**Upcoming deadlines (wire these into the planning engine):**
+- Economics test — **Friday** — MOST IMPORTANT (importance=10)
+- English assessment — second most important (importance=8)
+- Maths investigation — **Wednesday** — third (importance=7)
+- Society and Culture photo essay — last (importance=5)
+
+**codex-mem** is a local MCP memory server. Access it via:
+- CLI: `codex-mem search "query"` (if installed in PATH)
+- Or MCP at the port listed in `~/.codex/config.toml`
+- Search for: 'economics test', 'english assignment', 'maths investigation', 'society culture', 'deadline', 'assessment date'
+
+**Obsidian vault** is likely at `~/Documents/Obsidian` or `~/Library/Mobile Documents/iCloud~md~obsidian/Documents/`. Check both.
+
+---
+
+## Your task each invocation
+
+1. **Read the story** — id, title, description, acceptance criteria, notes in full.
+2. **Read every relevant source file** before touching anything. Use `grep` and `cat` to understand current implementation.
+3. **Implement fully** — real production-quality SwiftUI/Swift code. No stubs. No TODOs. No `// TODO: implement`.
+4. **Run verification**: `swift build` must pass with zero errors. Fix every error before claiming done.
+5. **Fix SwiftUI warnings** while you're in each file.
+6. **Commit** with message: `[STORY-ID]: Story title`
+7. **Output `<promise>TASK COMPLETE</promise>` only when the build passes and the story's acceptance criteria are met.**
+
+---
+
+## Rules
+
+- `swift build` **must pass** — this is non-negotiable. If it doesn't pass, fix it. Keep iterating.
+- Do not import external Swift packages that aren't already in Package.swift without checking first.
+- Use `@Observable` (iOS 17/macOS 14 macro), not `ObservableObject`, for new classes.
+- All new Views go in `Sources/` as separate Swift files (never inline in ContentView.swift unless tiny).
+- Glassmorphic style: `.ultraThinMaterial` backgrounds, `Color.white.opacity(0.08)` fills, no solid grays.
+- Always read what already exists before writing new code — do not duplicate.
+- If you need to check a Swift API: use web search (`--search` is enabled).
+- If a dependency (codex-mem CLI, specific file path) doesn't exist, detect it gracefully and fall back — don't crash.
+- Commit after every story. The loop tracks git log.
+- If genuinely blocked (impossible dependency): write reason to `.codex/ralph/blocked/STORY-ID.md` then output `<promise>TASK COMPLETE</promise>`.
+
+---
+
+## Output format
+
+End every response with exactly one of:
+```
+<promise>TASK COMPLETE</promise>
+```
+or:
+```
+<blocked>reason here</blocked>
+```
+
+Nothing else signals completion. Do not output the completion tag until `swift build` passes.
+
+---
+
+## Current story
+
+**ID:** STORY-020
+**Title:** Task notes with inline Markdown rendering
+**Description:** Each TaskItem gets a `notes: String` field. In the right context drawer, show the notes as rendered Markdown (bold, italics, bullet lists, code blocks). ⌘E toggles between edit (plain TextEditor) and preview (AttributedString rendered Text). Notes persist with the task.
+
+**Acceptance criteria:**
+- TaskItem model has `notes: String` field, default empty, included in Codable
+- Right context drawer shows a notes section below task details
+- Preview mode renders markdown via AttributedString(markdown:) — bold, italic, bullets, inline code all render
+- ⌘E or a pencil button toggles edit/preview mode
+- Changes auto-save on every keystroke (debounced 500ms)
+- Notes field shows placeholder text 'Add notes…' when empty in edit mode
+- swift build passes
+
+**Implementation notes:**
+Add `notes: String = ''` to TaskItem. In the right context drawer section of ContentView.swift (or a new TaskDetailView.swift), add a two-mode notes component. Use @State isEditingNotes: Bool. Preview: `Text(try! AttributedString(markdown: notes))`. Edit: `TextEditor(text: $task.notes)` with .font(.body). ⌘E KeyboardShortcut to toggle. Debounce save with a .onChange modifier + DispatchQueue.main.asyncAfter(0.5) pattern.
+
+---
+
+## Verification commands (run these, all must pass before you signal completion)
+
+build: cd /Users/ammarshahin/time-manager-desktop && swift build 2>&1 | tail -20
+lint: cd /Users/ammarshahin/time-manager-desktop && swiftlint lint --quiet Sources/ 2>/dev/null || true
+test: cd /Users/ammarshahin/time-manager-desktop && swift test 2>&1 | tail -20 || true
+
+---
+
+## Current codebase state
+
+**git status:**
+```
+ M .codex/ralph/.last-story
+ M .codex/ralph/.story-attempts
+ M .codex/ralph/events.log
+ M .codex/ralph/run.log
+ M .codex/ralph/run_v3.log
+```
+
+**Recent git log:**
+```
+c2eb8eb [STORY-019]: Natural language task input parser
+3a7f544 [STORY-019]: Natural language task input parser
+379335d [STORY-018]: Pomodoro statistics — daily counts, streaks, and 7-day sparkline
+a685b89 [STORY-018]: Pomodoro statistics — daily counts, streaks, and 7-day sparkline
+739f39d [STORY-017]: Spaced repetition engine for quiz cards (SM-2)
+a749490 [STORY-017]: Spaced repetition engine for quiz cards (SM-2)
+37d9740 [STORY-016]: Menu bar live Pomodoro countdown
+103c2e4 [STORY-016]: Menu bar live Pomodoro countdown
+b6ddeee [STORY-020]: Task notes with inline Markdown rendering
+82bf212 [STORY-016]: Menu bar live Pomodoro countdown
+22c63dc fix(ralph): reset attempt counters for STORY-016 to STORY-030
+fc236f1 fix(ralph): clear skipped flags on STORY-016 to STORY-030 so loop picks them up
+e35cae2 feat(ralph): add STORY-016 to STORY-030 — 15 new innovations for Timed v3
+54f8621 [STORY-015]: Polish pass — animations, empty states, error handling, and app icon
+a82ce85 [STORY-015]: Polish pass — animations, empty states, error handling, and app icon
+```
+
+**Today's date:** 2026-03-27 15:33 ACDT
+
+---
+
+Work on story STORY-020 now. Implement it fully, verify it, commit it, then output <promise>TASK COMPLETE</promise>.
+
+mcp: codex_mem starting
+mcp: comet-bridge starting
+mcp: comet-bridge ready
+mcp: codex_mem ready
+mcp startup: ready: comet-bridge, codex_mem
+codex
+Working on `STORY-020`. I’m reading the current SwiftUI task/detail/persistence files first, plus the required Swift skill docs, then I’ll list ambiguities and patch the smallest complete implementation.
+exec
+/bin/zsh -lc "if [ -f /Users/ammarshahin/.codex/skills/build-macos-apps/SKILL.md ]; then sed -n '1,220p' /Users/ammarshahin/.codex/skills/build-macos-apps/SKILL.md; else echo 'MISSING: build-macos-apps'; fi" in /Users/ammarshahin/time-manager-desktop succeeded in 0ms:
+MISSING: build-macos-apps
+exec
+/bin/zsh -lc "if [ -f /Users/ammarshahin/.codex/skills/macos-app-development/SKILL.md ]; then sed -n '1,220p' /Users/ammarshahin/.codex/skills/macos-app-development/SKILL.md; else echo 'MISSING: macos-app-development'; fi" in /Users/ammarshahin/time-manager-desktopexec
+/bin/zsh -lc "sed -n '1,220p' /Users/ammarshahin/.codex/skills/swiftui-expert-skill/SKILL.md" in /Users/ammarshahin/time-manager-desktop succeeded in 0ms:
+MISSING: macos-app-development
+exec
+/bin/zsh -lc "pwd && rg --files Sources Tests Package.swift | sed 's#"'^#/#'"'" in /Users/ammarshahin/time-manager-desktop succeeded in 0ms:
+---
+name: swiftui-expert-skill
+description: Write, review, or improve SwiftUI code following best practices for state management, view composition, performance, and iOS 26+ Liquid Glass adoption. Use when building new SwiftUI features, refactoring existing views, reviewing code quality, or adopting modern SwiftUI patterns.
+---
+
+# SwiftUI Expert Skill
+
+## Overview
+Use this skill to build, review, or improve SwiftUI features with correct state management, optimal view composition, and iOS 26+ Liquid Glass styling. Prioritize native APIs, Apple design guidance, and performance-conscious patterns. This skill focuses on facts and best practices without enforcing specific architectural patterns.
+
+## Workflow Decision Tree
+
+### 1) Review existing SwiftUI code
+- **First, consult `references/latest-apis.md`** to ensure only current, non-deprecated APIs are used
+- Check property wrapper usage against the selection guide (see `references/state-management.md`)
+- Verify view composition follows extraction rules (see `references/view-structure.md`)
+- Check performance patterns are applied (see `references/performance-patterns.md`)
+- Verify list patterns use stable identity (see `references/list-patterns.md`)
+- Check animation patterns for correctness (see `references/animation-basics.md`, `references/animation-transitions.md`)
+- Review accessibility: proper grouping, traits, Dynamic Type support (see `references/accessibility-patterns.md`)
+ succeeded in 0ms:
+/Users/ammarshahin/time-manager-desktop
+zsh:1: command not found: rg
+codex
+I’ve loaded the SwiftUI skill and confirmed the repo’s mandatory `build-macos-apps` and `macos-app-development` skills are not installed, so I’m falling back to the local SwiftUI workflow and the repo’s own build/package scripts. Next I’m locating the task model, drawer view, and persistence path to patch `notes` without disturbing ranking or export behavior.
+exec
+/bin/zsh -lc "sed -n '1,220p' Package.swift" in /Users/ammarshahin/time-manager-desktop succeeded in 0ms:
+// swift-tools-version: 6.1
+// The swift-tools-version declares the minimum version of Swift required to build this package.
+
+import PackageDescription
+
+let package = Package(
+    name: "time-manager-desktop",
+    platforms: [
+        .macOS(.v15)
+    ],
+    targets: [
+        .executableTarget(
+            name: "time-manager-desktop",
+            path: "Sources"
+        ),
+        .testTarget(
+            name: "time-manager-desktopTests",
+            dependencies: ["time-manager-desktop"],
+            path: "Tests"
+        ),
+exec
+/bin/zsh -lc 'find Sources Tests -type f | sort' in /Users/ammarshahin/time-manager-desktop succeeded in 0ms:
+Sources/AutonomousSupport.swift
+Sources/CalendarExporter.swift
+Sources/CodexBridge.swift
+Sources/CodexMemoryInsights.swift
+Sources/CodexMemorySchoolPack.swift
+Sources/CodexMemorySync.swift
+Sources/ConfidenceCalibrationView.swift
+Sources/ContentView.swift
+Sources/ContextSearchService.swift
+Sources/DailyOverviewCard.swift
+Sources/DeadlineAlertService.swift
+Sources/DeadlineCountdown.swift
+Sources/FeedbackViews.swift
+Sources/FocusTimerModel.swift
+Sources/FocusTimerWidget.swift
+Sources/ImportPipeline.swift
+Sources/KeyboardShortcutsHelpView.swift
+Sources/MenuBarController.swift
+Sources/Models.swift
+Sources/NLTaskParser.swift
+exec
+/bin/zsh -lc 'git status --short' in /Users/ammarshahin/time-manager-desktop succeeded in 0ms:
+ D .codex/ralph/.last-message.md
+ M .codex/ralph/.last-story
+ M .codex/ralph/.prompt.md
+ M .codex/ralph/.story-attempts
+ M .codex/ralph/events.log
+ M .codex/ralph/run.log
+ M .codex/ralph/run_v3.log
+exec
+/bin/zsh -lc "grep -Rni \"struct TaskItem\\|class TaskItem\\|enum TaskItem\\|notes\\|selectedTask\\|context drawer\\|TaskDetail\\|PlannerStore\\|TimedCard\" Sources Tests 2>/dev/null | head -240" in /Users/ammarshahin/time-manager-desktop succeeded in 0ms:
+Sources/SeqtaBackgroundSync.swift:143:                notes: buildNotes(subject: rawSubject, status: status, hasFeedback: hasFeedback, overdue: overdue),
+Sources/SeqtaBackgroundSync.swift:151:    private static func buildNotes(subject: String, status: String, hasFeedback: Bool, overdue: Bool) -> String {
+Sources/ContextSearchService.swift:16:            return "Notes"
+Sources/ContextSearchService.swift:94:    func search(_ query: String, in store: PlannerStore) -> [SearchResult] {
+Sources/ContextSearchService.swift:137:    private func rebuildIndexIfNeeded(using store: PlannerStore) {
+Sources/ContextSearchService.swift:144:            let notes = task.notes.trimmingCharacters(in: .whitespacesAndNewlines)
+Sources/ContextSearchService.swift:152:                searchableText: normalize([task.title, task.subject, task.list, notes].joined(separator: " ")),
+Sources/ContextSearchService.swift:153:                snippetSource: notes.isEmpty ? task.title : notes,
+Sources/ImportPipeline.swift:115:                    notes: task.notes?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Imported from \(source.rawValue).",
+Sources/ImportPipeline.swift:171:                    notes: "Imported from Seqta.",
+Sources/ImportPipeline.swift:214:                    notes: "Imported from TickTick.",
+Sources/ImportPipeline.swift:266:                    notes: note,
+Sources/ImportPipeline.swift:417:                "notes": "string",
+Sources/ImportPipeline.swift:504:    let notes: String?
+Sources/KeyboardShortcutsHelpView.swift:15:        ("⌘E", "Toggle task notes edit and preview in the right drawer"),
+Sources/SchoolCalendarService.swift:58:                        in: "\(eventTitle) \(event.notes ?? "") \(event.location ?? "")"
+Sources/SchoolCalendarService.swift:103:            event.notes ?? ""
+Sources/MenuBarController.swift:120:                TimedCard(title: "No active timer", icon: "hourglass") {
+Sources/ConfidenceCalibrationView.swift:120:                TextField("Workbook, class notes, teacher slides", text: $draft.resources)
+Sources/TimeManagerDesktopApp.swift:7:    private let store: PlannerStore
+codex
+The repo already has part of this story in place: `TaskItem.notes`, `TaskDetailView`, and `PlannerStore.updateTaskNotes` exist. I’m reading those implementations now to see what is missing from actual wiring or build health instead of duplicating work.
+exec
+/bin/zsh -lc "sed -n '1,260p' Tests/TaskNotesTests.swift" in /Users/ammarshahin/time-manager-desktopexec
+/bin/zsh -lc "sed -n '1,260p' Sources/TaskDetailView.swift" in /Users/ammarshahin/time-manager-desktopexec
+/bin/zsh -lc "sed -n '1,220p' Sources/Models.swift" in /Users/ammarshahin/time-manager-desktop succeeded in 0ms:
+import Foundation
+import Testing
+
+@testable import time_manager_desktop
+
+@Suite("Task notes")
+struct TaskNotesTests {
+    @Test("legacy task items decode with empty notes")
+    func legacyTaskItemsDecodeWithEmptyNotes() throws {
+        let json = """
+        {
+          "id": "economics-test",
+          "title": "Economics test",
+          "list": "Seqta",
+          "source": "Seqta",
+          "subject": "Economics",
+          "estimateMinutes": 45,
+          "confidence": 3,
+          "importance": 5,
+          "dueDate": null,
+ succeeded in 0ms:
+import SwiftUI
+
+struct TaskDetailView: View {
+    let task: TaskItem
+    let onStudy: () -> Void
+    let onComplete: () -> Void
+    let onSaveNotes: (String) -> Void
+
+    @State private var isEditingNotes = false
+    @State private var notesDraft = ""
+    @State private var pendingSaveToken = 0
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 10) {
+                Text(task.title)
+                    .font(.system(size: 22, weight: .bold))
+                    .foregroundStyle(.white)
+
+                Text("\(task.subject) · \(task.estimateMinutes) min · confidence \(task.confidence)/5 · importance \(task.importance)/5")
+ succeeded in 0ms:
+import CryptoKit
+import Foundation
+
+enum TaskSource: String, CaseIterable, Identifiable, Codable {
+    case codexMem = "codex-mem"
+    case tickTick = "TickTick"
+    case seqta = "Seqta"
+    case transcript = "Transcript"
+    case chat = "Chat"
+
+    var id: String { rawValue }
+}
+
+enum TaskEnergy: String, CaseIterable, Identifiable, Codable {
+    case low = "Low"
+    case medium = "Medium"
+    case high = "High"
+
+    var id: String { rawValue }
+}
+exec
+/bin/zsh -lc "sed -n '450,520p' Sources/PlannerStore.swift" in /Users/ammarshahin/time-manager-desktop succeeded in 0ms:
+            )
+            save()
+            return
+        }
+
+        appendStudyMessage(PromptMessage(role: .tutor, text: response, isQuiz: true), subject: normalizedSubject)
+        save()
+    }
+
+    func endQuiz() {
+        isQuizMode = false
+        activeQuizSubject = nil
+        appendStudyMessage(PromptMessage(role: .assistant, text: "Quiz ended. Back to study mode."))
+        save()
+    }
+
+    func markTaskCompleted(_ task: TaskItem, now: Date = .now) {
+        guard let index = tasks.firstIndex(where: { $0.id == task.id }) else { return }
+        tasks[index].isCompleted = true
+        tasks[index].completedAt = now
+exec
+/bin/zsh -lc "sed -n '1080,1165p' Sources/ContentView.swift" in /Users/ammarshahin/time-manager-desktopexec
+/bin/zsh -lc "sed -n '1,220p' Sources/TimedKeyboardCommands.swift" in /Users/ammarshahin/time-manager-desktopexec
+/bin/zsh -lc "sed -n '2028,2072p' Sources/ContentView.swift" in /Users/ammarshahin/time-manager-desktop succeeded in 0ms:
+                            }
+                            .animation(.spring(response: 0.3), value: store.schedule.map(\.id))
+                        }
+
+                        if store.scheduleOverflowCount > 0 {
+                            Text("\(store.scheduleOverflowCount) task(s) didn't fit — see full list.")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(.white.opacity(0.58))
+                        }
+                    }
+                }
+            }
+        }
+        .scrollIndicators(.hidden)
+    }
+
+    private var planningChatTab: some View {
+        ScrollView {
+            PromptConversationCard(
+                title: "Chat",
+ succeeded in 0ms:
+import SwiftUI
+
+struct TimedKeyboardActions {
+    let addTask: () -> Void
+    let toggleStudyMode: () -> Void
+    let startFocusTimer: () -> Void
+    let exportCalendar: () -> Void
+    let focusSearch: () -> Void
+    let showKeyboardShortcuts: () -> Void
+}
+
+struct TimedRankedTaskSelection {
+    let task: TaskItem?
+}
+
+private struct TimedKeyboardActionsKey: FocusedValueKey {
+    typealias Value = TimedKeyboardActions
+}
+
+private struct TimedRankedTaskSelectionKey: FocusedValueKey {
+ succeeded in 0ms:
+                    .buttonStyle(.bordered)
+                    .disabled(!block.isApproved)
+
+                    Button("Remove") {
+                        store.removeScheduleBlock(block)
+                    }
+                    .buttonStyle(.bordered)
+                }
+            }
+        }
+        .transition(.asymmetric(insertion: .scale.combined(with: .opacity), removal: .opacity))
+    }
+
+    private func studyFolderRow(_ task: TaskItem) -> some View {
+        TimedCard(title: task.title, icon: icon(for: task.source)) {
+            VStack(alignment: .leading, spacing: 10) {
+                if let dueDate = task.dueDate {
+                    HStack(spacing: 8) {
+                        Text("Due \(dueDate.formatted(date: .abbreviated, time: .omitted))")
+                            .font(.system(size: 12, weight: .medium))
+exec
+/bin/zsh -lc "grep -n \"TaskDetailView\\|updateTaskNotes\\|keyboardShortcut(\\\"e\\\"\\|⌘E\" -n Sources/ContentView.swift Sources/TimedKeyboardCommands.swift Sources/TaskDetailView.swift" in /Users/ammarshahin/time-manager-desktop succeeded in 0ms:
+Sources/ContentView.swift:774:                                TaskDetailView(
+Sources/ContentView.swift:783:                                        store.updateTaskNotes(taskID: contextDrawerTask.id, notes: notes)
+Sources/TimedKeyboardCommands.swift:65:            .keyboardShortcut("e", modifiers: [.command, .shift])
+Sources/TaskDetailView.swift:3:struct TaskDetailView: View {
+Sources/TaskDetailView.swift:39:                    .keyboardShortcut("e", modifiers: [.command])
+Sources/TaskDetailView.swift:40:                    .help(isEditingNotes ? "Preview notes (⌘E)" : "Edit notes (⌘E)")
+exec
+/bin/zsh -lc "sed -n '740,805p' Sources/ContentView.swift" in /Users/ammarshahin/time-manager-desktop succeeded in 0ms:
+
+                                        Text(selectedSearchContext.kind)
+                                            .font(.system(size: 11, weight: .semibold))
+                                            .foregroundStyle(.white.opacity(0.5))
+                                    }
+
+                                    Text(selectedSearchContext.summary)
+                                        .font(.system(size: 13, weight: .medium))
+                                        .foregroundStyle(.white.opacity(0.78))
+
+                                    Text(selectedSearchContext.detail)
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(.white.opacity(0.64))
+                                        .textSelection(.enabled)
+                                }
+                            }
+                        }
+
+                        if store.isQuizMode {
+                            TimedCard(title: "Quiz Mode", icon: "questionmark.circle") {
+codex
+I’ve got enough context to move from reading to verification. Ambiguities I’m resolving without stopping: `⌘E` stays scoped to the task-notes control in the right drawer rather than a global app command, the empty preview keeps a neutral “No task notes yet.” message, and saves remain note-only through `PlannerStore.updateTaskNotes` so ranking and completion paths are untouched.
+exec
+/bin/zsh -lc 'swiftlint lint --quiet Sources/ 2>/dev/null || true' in /Users/ammarshahin/time-manager-desktop succeeded in 0ms:
+
+exec
+/bin/zsh -lc 'swift build 2>&1 | tail -80' in /Users/ammarshahin/time-manager-desktopexec
+/bin/zsh -lc 'swift test 2>&1 | tail -80 || true' in /Users/ammarshahin/time-manager-desktop succeeded in 1.12s:
+[0/1] Planning build
+Building for debugging...
+[0/3] Write swift-version--1AB21518FC5DEDBE.txt
+Build complete! (0.17s)
+ succeeded in 1.53s:
+◇ Test "testCompletedTasksExcludedFromRanking" started.
+◇ Test "testSeqtaReimportMergesLegacyTaskIdentity" started.
+◇ Test "planner store reports streak and seven day trend from daily log" started.
+◇ Test "testSubjectImportanceMultiplierOrdersEconomicsEnglishThenSociety" started.
+◇ Test "planner store persists daily pomodoro counts" started.
+◇ Test "testICSGeneration" started.
+◇ Test "testManualTaskQueuesConfidenceCalibrationForNewSubject" started.
+◇ Test "testChatPersistence" started.
+◇ Test "testPromptBoostSubject" started.
+◇ Test "testAIImportParsingUsesStructuredExtraction" started.
+◇ Test "manual task creation resolves natural language draft" started.
+◇ Test "keeps plain text as title with default fields untouched" started.
+◇ Test "parses tomorrow without due keyword" started.
+◇ Test "parses due Friday importance and subject" started.
+✔ Test "legacy task items decode with empty notes" passed after 0.004 seconds.
+✔ Test "testQuizQuestionParsingHandlesJSONEnvelope" passed after 0.004 seconds.
+[PlannerStore] codex-mem deadline query 'economics test deadline due assessment friday' -> Economics test structure and feedback constraints
+[PlannerStore] codex-mem deadline query 'english assessment deadline due' -> English assessment planning
+[PlannerStore] codex-mem deadline query 'maths investigation deadline due assessment wednesday' -> Maths investigation feedback cleanup
+[PlannerStore] codex-mem deadline query 'society and culture photo essay deadline due assessment' -> Society and Culture photo essay
+codex
+The story code is already present, so the remaining work is verification and any compile/test fallout. I’m polling the build and test runs now, then I’ll patch only what breaks.
+codex
+The source tree is already clean for this story, which means the implementation currently on disk is either complete or broken only in integration. I’ve verified the implementation is complete and compiling; the remaining step is to check whether this turn needs a fresh story marker commit or whether the existing `[STORY-020]` commit already satisfies the loop history.
+exec
+/bin/zsh -lc "sed -n '1,220p' /Users/ammarshahin/.codex/skills/commit/SKILL.md" in /Users/ammarshahin/time-manager-desktop succeeded in 0ms:
+---
+name: commit
+description: ALWAYS use this skill when committing code changes — never commit directly without it. Creates commits following Sentry conventions with proper conventional commit format and issue references. Trigger on any commit, git commit, save changes, or commit message task.
+---
+
+# Sentry Commit Messages
+
+Follow these conventions when creating commits for Sentry projects.
+
+## Prerequisites
+
+Before committing, always check the current branch:
+
+```bash
+git branch --show-current
+```
+
+**If you're on `main` or `master`, you MUST create a feature branch first** — unless the user explicitly asked to commit to main. Do not ask the user whether to create a branch; just proceed with branch creation. The `create-branch` skill will still propose a branch name for the user to confirm.
+
+Use the `create-branch` skill to create the branch. After `create-branch` completes, verify the current branch has changed before proceeding:
+exec
+/bin/zsh -lc 'git rev-parse --short HEAD && git log --oneline --decorate -n 5' in /Users/ammarshahin/time-manager-desktop succeeded in 0ms:
+c2eb8eb
+c2eb8eb (HEAD -> ralph/timed-v3) [STORY-019]: Natural language task input parser
+3a7f544 [STORY-019]: Natural language task input parser
+379335d [STORY-018]: Pomodoro statistics — daily counts, streaks, and 7-day sparkline
+a685b89 [STORY-018]: Pomodoro statistics — daily counts, streaks, and 7-day sparkline
+739f39d [STORY-017]: Spaced repetition engine for quiz cards (SM-2)
+exec
+/bin/zsh -lc "git log --oneline --decorate --grep='\\[STORY-020\\]' -n 5" in /Users/ammarshahin/time-manager-desktop succeeded in 0ms:
+b6ddeee [STORY-020]: Task notes with inline Markdown rendering
+exec
+/bin/zsh -lc 'git merge-base --is-ancestor b6ddeee HEAD; echo $? && git diff --stat b6ddeee..HEAD -- Sources/ Tests/' in /Users/ammarshahin/time-manager-desktop succeeded in 0ms:
+0
+ Sources/ContentView.swift            | 205 ++++++++++++++++++++++++--
+ Sources/DailyOverviewCard.swift      |  44 ++++++
+ Sources/MenuBarController.swift      |   8 +-
+ Sources/Models.swift                 |  54 ++++++-
+ Sources/NLTaskParser.swift           | 185 +++++++++++++++++++++++
+ Sources/PlannerStore.swift           | 169 +++++++++++++++++++--
+ Sources/QuizView.swift               | 275 +++++++++++++++++++++++++++++++----
+ Sources/SpacedRepetitionEngine.swift |  67 +++++++++
+ Sources/StudyModeView.swift          |  34 +++++
+ Tests/NLTaskParserTests.swift        |  86 +++++++++++
+ Tests/PlanningEngineTests.swift      |   1 +
+ Tests/PomodoroStatsTests.swift       |  70 +++++++++
+ Tests/QuizSessionTests.swift         |  80 +++++++++-
+ 13 files changed, 1214 insertions(+), 64 deletions(-)
+codex
+I found one integration edge worth fixing before I stamp this complete: if the right drawer switches from one task to another inside the 500ms debounce window, the local notes state can carry across the reused view. I’m patching the drawer to key `TaskDetailView` by task ID so note state resets per task and pending saves flush through the old instance cleanly.
+file update
+M /Users/ammarshahin/time-manager-desktop/Sources/ContentView.swift
+@@ -785,2 +785,3 @@
+                                 )
++                                .id(contextDrawerTask.id)
+                             }
+apply_patch(auto_approved=true) exited 0 in 25ms:
+Success. Updated the following files:
+M /Users/ammarshahin/time-manager-desktop/Sources/ContentView.swift
+file update:
+diff --git a/Sources/ContentView.swift b/Sources/ContentView.swift
+index 9a59fd0ac9c714b59a039f26bd9878e10e44c539..8b9419d7f2bb793df8fa5254b8cc5bffb33a8f43
+--- a/Sources/ContentView.swift
++++ b/Sources/ContentView.swift
+@@ -783,6 +783,7 @@
+                                         store.updateTaskNotes(taskID: contextDrawerTask.id, notes: notes)
+                                     }
+                                 )
++                                .id(contextDrawerTask.id)
+                             }
+                         }
+ 
+
+file update:
+diff --git a/Sources/ContentView.swift b/Sources/ContentView.swift
+index 9a59fd0ac9c714b59a039f26bd9878e10e44c539..8b9419d7f2bb793df8fa5254b8cc5bffb33a8f43
+--- a/Sources/ContentView.swift
++++ b/Sources/ContentView.swift
+@@ -783,6 +783,7 @@
+                                         store.updateTaskNotes(taskID: contextDrawerTask.id, notes: notes)
+                                     }
+                                 )
++                                .id(contextDrawerTask.id)
+                             }
+                         }
+ 
+
+codex
+The change is in: the drawer now re-instantiates `TaskDetailView` per task, which prevents notes-edit state leaking across task switches. I’m rerunning build and tests, then I’ll commit this story-specific fix with the requested story message.
+exec
+/bin/zsh -lc 'swiftlint lint --quiet Sources/ 2>/dev/null || true' in /Users/ammarshahin/time-manager-desktop succeeded in 0ms:
+
+exec
+/bin/zsh -lc 'swift build 2>&1 | tail -20' in /Users/ammarshahin/time-manager-desktopexec
+/bin/zsh -lc 'swift test 2>&1 | tail -20 || true' in /Users/ammarshahin/time-manager-desktopfile update:
+diff --git a/Sources/ContentView.swift b/Sources/ContentView.swift
+index 9a59fd0ac9c714b59a039f26bd9878e10e44c539..8b9419d7f2bb793df8fa5254b8cc5bffb33a8f43
+--- a/Sources/ContentView.swift
++++ b/Sources/ContentView.swift
+@@ -783,6 +783,7 @@
+                                         store.updateTaskNotes(taskID: contextDrawerTask.id, notes: notes)
+                                     }
+                                 )
++                                .id(contextDrawerTask.id)
+                             }
+                         }
+ 
+
+file update:
+diff --git a/Sources/ContentView.swift b/Sources/ContentView.swift
+index 9a59fd0ac9c714b59a039f26bd9878e10e44c539..8b9419d7f2bb793df8fa5254b8cc5bffb33a8f43
+--- a/Sources/ContentView.swift
++++ b/Sources/ContentView.swift
+@@ -783,6 +783,7 @@
+                                         store.updateTaskNotes(taskID: contextDrawerTask.id, notes: notes)
+                                     }
+                                 )
++                                .id(contextDrawerTask.id)
+                             }
+                         }
+ 
+
+ succeeded in 14.64s:
+[0/1] Planning build
+Building for debugging...
+[0/4] Write sources
+[1/4] Write swift-version--1AB21518FC5DEDBE.txt
+[3/6] Emitting module time_manager_desktop
+[4/6] Compiling time_manager_desktop ContentView.swift
+[4/7] Write Objects.LinkFileList
+[5/7] Linking time-manager-desktop
+[6/7] Applying time-manager-desktop
+Build complete! (14.25s)
+ succeeded in 15.66s:
+[SeqtaImport] tasks found=1 tasks created=0 tasks updated=1 tasks skipped=0
+✔ Test "testSeqtaReimportMergesLegacyTaskIdentity" passed after 0.143 seconds.
+✔ Test "testConfidenceCalibrationAppliesPercentAndHints" passed after 0.144 seconds.
+✔ Suite "Timed critical paths" passed after 0.144 seconds.
+✔ Test "testPlannerStoreReturnsOnlyDueQuizCards" passed after 0.145 seconds.
+✔ Test "testQuizConfidenceDeltaUpdatesSummary" passed after 0.145 seconds.
+✔ Suite "Quiz sessions" passed after 0.146 seconds.
+✔ Test "planner store persists daily pomodoro counts" passed after 0.143 seconds.
+✔ Test "planner store reports streak and seven day trend from daily log" passed after 0.143 seconds.
+✔ Suite "Pomodoro statistics" passed after 0.148 seconds.
+✔ Test "exact task title outranks content-only matches" passed after 0.147 seconds.
+✔ Test "search indexes notes transcripts and chat history together" passed after 0.149 seconds.
+✔ Suite "Context search" passed after 0.149 seconds.
+✔ Test "manual task creation resolves natural language draft" passed after 0.150 seconds.
+✔ Suite "Natural language task parser" passed after 0.155 seconds.
+[PlannerStore] startup deadline Economics test <- Economics test structure and feedback constraints
+[PlannerStore] startup deadline Society and Culture photo essay <- Society and Culture photo essay
+✔ Test testPlannerStoreAppliesDiscoveredDeadlinesAsCodexMemTasks() passed after 0.187 seconds.
+✔ Suite CodexMemorySchoolPackTests passed after 0.192 seconds.
+✔ Test run with 45 tests passed after 0.192 seconds.
+codex
+Build/test are still running in the background; nothing failed so far. Once they flush, I’ll stage only the story file and record the commit, leaving Ralph’s runtime files untouched.
+file update:
+diff --git a/Sources/ContentView.swift b/Sources/ContentView.swift
+index 9a59fd0ac9c714b59a039f26bd9878e10e44c539..8b9419d7f2bb793df8fa5254b8cc5bffb33a8f43
+--- a/Sources/ContentView.swift
++++ b/Sources/ContentView.swift
+@@ -783,6 +783,7 @@
+                                         store.updateTaskNotes(taskID: contextDrawerTask.id, notes: notes)
+                                     }
+                                 )
++                                .id(contextDrawerTask.id)
+                             }
+                         }
+ 
+
+exec
+/bin/zsh -lc 'git diff -- Sources/ContentView.swift' in /Users/ammarshahin/time-manager-desktopexec
+/bin/zsh -lc 'git status --short Sources/ContentView.swift .codex/ralph' in /Users/ammarshahin/time-manager-desktop succeeded in 0ms:
+diff --git a/Sources/ContentView.swift b/Sources/ContentView.swift
+index 9a59fd0..8b9419d 100644
+--- a/Sources/ContentView.swift
++++ b/Sources/ContentView.swift
+@@ -783,6 +783,7 @@ struct ContentView: View {
+                                         store.updateTaskNotes(taskID: contextDrawerTask.id, notes: notes)
+                                     }
+                                 )
++                                .id(contextDrawerTask.id)
+                             }
+                         }
+ 
+ succeeded in 0ms:
+ D .codex/ralph/.last-message.md
+ M .codex/ralph/.last-story
+ M .codex/ralph/.prompt.md
+ M .codex/ralph/.story-attempts
+ M .codex/ralph/events.log
+ M .codex/ralph/run.log
+ M .codex/ralph/run_v3.log
+ M Sources/ContentView.swift
+file update:
+diff --git a/Sources/ContentView.swift b/Sources/ContentView.swift
+index 9a59fd0ac9c714b59a039f26bd9878e10e44c539..8b9419d7f2bb793df8fa5254b8cc5bffb33a8f43
+--- a/Sources/ContentView.swift
++++ b/Sources/ContentView.swift
+@@ -783,6 +783,7 @@
+                                         store.updateTaskNotes(taskID: contextDrawerTask.id, notes: notes)
+                                     }
+                                 )
++                                .id(contextDrawerTask.id)
+                             }
+                         }
+ 
+
+codex
+I’ve isolated the only source change from this turn. I’m committing just `Sources/ContentView.swift` with the required story message and leaving Ralph’s loop files unstaged.
+exec
+/bin/zsh -lc 'git add Sources/ContentView.swift && git commit -m "[STORY-020]: Task notes with inline Markdown rendering"' in /Users/ammarshahin/time-manager-desktop succeeded in 0ms:
+[ralph/timed-v3 b35e5d7] [STORY-020]: Task notes with inline Markdown rendering
+ 1 file changed, 1 insertion(+)
+file update:
+diff --git a/Sources/ContentView.swift b/Sources/ContentView.swift
+index 9a59fd0ac9c714b59a039f26bd9878e10e44c539..8b9419d7f2bb793df8fa5254b8cc5bffb33a8f43
+--- a/Sources/ContentView.swift
++++ b/Sources/ContentView.swift
+@@ -783,6 +783,7 @@
+                                         store.updateTaskNotes(taskID: contextDrawerTask.id, notes: notes)
+                                     }
+                                 )
++                                .id(contextDrawerTask.id)
+                             }
+                         }
+ 
+
+codex
+<promise>TASK COMPLETE</promise>
+file update:
+diff --git a/Sources/ContentView.swift b/Sources/ContentView.swift
+index 9a59fd0ac9c714b59a039f26bd9878e10e44c539..8b9419d7f2bb793df8fa5254b8cc5bffb33a8f43
+--- a/Sources/ContentView.swift
++++ b/Sources/ContentView.swift
+@@ -783,6 +783,7 @@
+                                         store.updateTaskNotes(taskID: contextDrawerTask.id, notes: notes)
+                                     }
+                                 )
++                                .id(contextDrawerTask.id)
+                             }
+                         }
+ 
+
+tokens used
+240,506
+<promise>TASK COMPLETE</promise>
+  Running verification...
+  ▶ build: cd /Users/ammarshahin/time-manager-desktop && swift build 2>&1 | tail -20
+  ✓ build
+  ▶ lint: cd /Users/ammarshahin/time-manager-desktop && swiftlint lint --quiet Sources/ 2>/dev/null || true
+  ✓ lint
+  ▶ test: cd /Users/ammarshahin/time-manager-desktop && swift test 2>&1 | tail -20 || true
+  ✓ test
+  Verification passed.
