@@ -1,44 +1,50 @@
 # PLAN.md — Timed
-<!-- New session: read this → then CHANGELOG.md last entry → working in 30 seconds -->
-<!-- Max 50 lines. Archive overflow to CHANGELOG.md -->
+<!-- New session: read this → CHANGELOG.md first entry → `swift build && swift test` → working in 30 seconds -->
+<!-- Do NOT explore Obsidian/transcripts/specs. Trust this file. Verify infra with CLI if unsure. -->
 
-## CURRENT STATE (2026-03-31)
-- **UI complete** — 10 screens, task detail modal, calendar drag-to-create, batch ops, voice capture
-- **Local persistence** — DataStore actor + JSON, survives restarts
-- **Backend LIVE** — Supabase project `fpmjuufefhtlwbfinxlx`, 8 edge functions deployed, all secrets set
-- **Azure LIVE** — App registration done, MSAL OAuth in GraphClient works (silent + interactive)
-- **Tests pass** — 49/49 via swift-testing
-- **Builds clean** — `swift build` → 0 errors
+## CURRENT STATE (2026-04-01)
+- **UI complete** — 10 screens + task detail modal + calendar drag-to-create + batch ops + voice morning interview
+- **Backend LIVE** — Supabase `fpmjuufefhtlwbfinxlx`, 8 edge functions ACTIVE, all secrets set
+- **Azure LIVE** — MSAL OAuth in GraphClient (silent + interactive)
+- **Auth flow built** — AuthService.swift: Microsoft OAuth sign-in, session restore, workspace/profile/email_account bootstrap
+- **All 3 ML loops CLOSED** — estimation write-back, email correction write-back, behaviour event logging
+- **7-rank ML upgrade shipped** — embeddings, Bayesian estimation, energy curve, social graph, Thompson sampling, active learning
+- **Scoring model upgraded** — real Beta Thompson, second-pass knapsack fill, adaptive penalty, overdue cap
+- **Tests pass** — 49/49, `swift build` clean
 
-## WHAT ACTUALLY WORKS END-TO-END
-- FR-01 Email Triage: classify-email edge function + GraphClient.fetchDeltaMessages — **real code, not stubs**
-- FR-02 Action/Read: TriagePane button classification → creates TimedTask per bucket
-- FR-04 Time Estimation: estimate-time edge function (historical + Claude Sonnet fallback)
-- FR-05 Dish Me Up: PlanningEngine knapsack + DishMeUpSheet UI — **fully working**
-- FR-09 Voice Input: Apple Speech + TranscriptParser → tasks — **fully working**
-- FR-11 Quick Capture: TodayPane inline add + CapturePane text/voice — **working**
+## WHAT WORKS END-TO-END
+- Email sync pipeline: GraphClient.fetchDeltaMessages → EmailSyncService → Supabase → classify-email (Haiku + semantic few-shot)
+- Time estimation: 4-tier (embedding similarity → historical → Bayesian Sonnet → personalised defaults from bucket_estimates)
+- Planning: PlanningEngine with Thompson sampling, timing bumps, mood filtering, behaviour rules, corrected durations
+- Voice: SpeechService (premium voices) + VoiceCaptureService + conversation state machine in MorningInterview
+- Learning: CompletionRecord → EMA posterior → estimation_history → weekly Opus profile card → behaviour rules → PlanningEngine
+- Calendar: auto-sync on auth, free-time detection, free-time banner in TodayPane
+- Sharing: SharingService + SharingPane with real Supabase invite links + PA member management
+- Insights: accuracy per bucket, confidence indicators on time pills, Learning tab in Settings
 
-## THE GAP: UI ↔ Backend Bridge
-TimedRootView uses local DataStore. SupabaseClient + GraphClient are fully implemented but **not called from UI**.
-- **Missing: Supabase Auth** — RLS policies need `auth.uid()`. No sign-in flow exists.
-- **Missing: EmailSyncService** — no background loop calling Graph delta sync
-- **Missing: Realtime subscriptions** — no live DB → UI updates
+## WHAT NEEDS TESTING / MANUAL STEPS
+- `supabase db push` — run 7 new migrations (20260331000002 through 20260401000007)
+- `supabase functions deploy` — redeploy classify-email, estimate-time, generate-profile-card
+- `supabase secrets set OPENAI_API_KEY=sk-...` — needed for embedding calls
+- Azure provider in Supabase Auth dashboard — needs client secret (create new one in Azure Portal)
+- First MSAL sign-in test — launch app, go through onboarding, click "Sign In" on Outlook
 
-## NEXT (sequential chain)
-1. Supabase Auth flow (Microsoft provider) + workspace/profile bootstrap
-2. Bridge UI state → SupabaseClient (dual-write: DataStore + Supabase)
-3. EmailSyncService (background Graph delta → classify → triage)
-4. Realtime subscriptions (tasks, email_messages, plan_items, waiting_items)
-5. FR-03 Task Extraction — thread bundling + AI extraction from email body
-6. FR-06 Calendar — bind Graph events to CalendarPane + free-time detection
-7. FR-07 PA Sharing — invite link + Realtime shared view
-8. FR-08 Aging alerts — configurable thresholds + stale item review
+## REMAINING WORK (priority order)
+1. **Test the auth → email sync → triage flow end-to-end** with real Outlook account
+2. **EventKit calendar context** — read macOS calendar for meeting fatigue signal (no OAuth needed)
+3. **Thread velocity** — compute messages-per-hour per conversation, pass to classify-email
+4. **Waiting items unblock** — detect reply in Graph delta sync, auto-unblock waiting_items
+5. **Session interruption tracking** — detect app backgrounding mid-task
+6. **Logistic regression calibration** of Score.* constants after 30 days of data
 
 ## FILE QUICK REF
 - Root state: `Sources/Features/TimedRootView.swift`
-- Local persistence: `Sources/Core/Services/DataStore.swift`
-- Supabase client (**real, not stubs**): `Sources/Core/Clients/SupabaseClient.swift`
-- Graph client (**real, not stubs**): `Sources/Core/Clients/GraphClient.swift`
-- Planning engine: `Sources/Core/Services/PlanningEngine.swift`
-- All models: `Sources/Features/PreviewData.swift`
-- Edge functions: `supabase/functions/` (8 deployed, all ACTIVE)
+- Auth: `Sources/Core/Services/AuthService.swift`
+- Email sync: `Sources/Core/Services/EmailSyncService.swift`
+- Planning: `Sources/Core/Services/PlanningEngine.swift`
+- Voice: `Sources/Core/Services/SpeechService.swift`, `VoiceCaptureService.swift`, `VoiceResponseParser.swift`
+- Models: `Sources/Features/PreviewData.swift`
+- Supabase: `Sources/Core/Clients/SupabaseClient.swift`
+- Graph: `Sources/Core/Clients/GraphClient.swift`
+- Edge functions: `supabase/functions/` (8 deployed)
+- Migrations: `supabase/migrations/` (7 total)
