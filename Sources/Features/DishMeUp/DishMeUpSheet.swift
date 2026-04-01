@@ -68,10 +68,16 @@ struct DishMeUpSheet: View {
     @State private var taskReasons: [UUID: String] = [:]
     @State private var generated   = false
     @State private var behaviourRules: [BehaviourRule] = []
+    @State private var bucketEstimates: [String: Double] = [:]
 
     private let presets: [(label: String, mins: Int)] = [("30m", 30), ("1h", 60), ("2h", 120), ("3h", 180)]
 
-    private var stackTotal: Int { stack.reduce(0) { $0 + $1.estimatedMinutes } }
+    private var stackTotal: Int {
+        stack.reduce(0) { total, task in
+            let corrected = bucketEstimates[task.bucket.rawValue].map { Int($0) } ?? task.estimatedMinutes
+            return total + corrected
+        }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -100,6 +106,8 @@ struct DishMeUpSheet: View {
                                  ruleValueJson: $0.ruleValueJson, confidence: $0.confidence)
                 }
             }
+            let bucketEst = (try? await DataStore.shared.loadBucketEstimates()) ?? [:]
+            bucketEstimates = bucketEst.mapValues { $0.meanMinutes }
         }
     }
 
@@ -393,6 +401,13 @@ struct DishMeUpSheet: View {
         }
 
         let planTasks = filtered.map { toPlanTask($0) }
+        // Translate bucket estimate keys from TaskBucket.rawValue to PlanTask.bucketType format
+        var planEstimates: [String: Double] = [:]
+        for bucket in TaskBucket.allCases {
+            if let val = bucketEstimates[bucket.rawValue] {
+                planEstimates[bucketTypeStr(bucket)] = val
+            }
+        }
         let request = PlanRequest(
             workspaceId: UUID(),
             profileId: UUID(),
@@ -400,7 +415,8 @@ struct DishMeUpSheet: View {
             moodContext: toMoodContext(mood),
             behaviouralRules: behaviourRules,
             tasks: planTasks,
-            bucketStats: []
+            bucketStats: [],
+            bucketEstimates: planEstimates
         )
         let result = PlanningEngine.generatePlan(request)
 

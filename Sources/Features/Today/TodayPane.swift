@@ -28,6 +28,7 @@ struct TodayPane: View {
     @State private var bucketAccuracy: [TaskBucket: (avgEstimated: Double, avgActual: Double)] = [:]
     @AppStorage("insights.dismissedUntil") private var insightsDismissedUntil: String = ""
     @State private var insightsExpanded: Bool = false
+    @State private var correctionToast: String? = nil
 
     // Stale items
     private var staleTasks: [TimedTask] {
@@ -509,9 +510,42 @@ struct TodayPane: View {
                             .font(.system(size: 12))
                             .foregroundStyle(.secondary)
                         Spacer()
+                        if let acc = bucketAccuracy[insight.bucket],
+                           acc.avgEstimated > 0,
+                           abs(acc.avgActual - acc.avgEstimated) / acc.avgEstimated > 0.15 {
+                            Button {
+                                let correctedMinutes = Int(acc.avgActual)
+                                var updatedCount = 0
+                                for idx in tasks.indices where tasks[idx].bucket == insight.bucket && !completedIds.contains(tasks[idx].id) {
+                                    tasks[idx].estimatedMinutes = correctedMinutes
+                                    updatedCount += 1
+                                }
+                                correctionToast = "Updated \(updatedCount) \(insight.bucket.rawValue) tasks to \(correctedMinutes)m"
+                                Task {
+                                    try? await Task.sleep(for: .seconds(3))
+                                    correctionToast = nil
+                                }
+                            } label: {
+                                Text("Update all \(insight.bucket.rawValue) \u{2192}")
+                                    .font(.system(size: 10, weight: .medium))
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.mini)
+                            .tint(insight.bucket.color)
+                        }
                     }
                     .padding(.horizontal, 16).padding(.vertical, 6)
                 }
+
+                if let toast = correctionToast {
+                    HStack(spacing: 6) {
+                        Image(systemName: "checkmark.circle.fill").font(.system(size: 10)).foregroundStyle(.green)
+                        Text(toast).font(.system(size: 11, weight: .medium)).foregroundStyle(.green)
+                    }
+                    .padding(.horizontal, 16).padding(.vertical, 6)
+                    .transition(.opacity)
+                }
+
                 Divider().padding(.leading, 38)
                 Button {
                     let f = ISO8601DateFormatter()
@@ -911,7 +945,19 @@ struct TodayTaskRow: View {
                             records.append(record)
                             try? await store.saveCompletionRecords(records)
 
-                            // Log behaviour event to Supabase
+                            // EMA posterior update
+                            var estimates = (try? await store.loadBucketEstimates()) ?? [:]
+                            var est = estimates[task.bucket.rawValue] ?? BucketEstimate(
+                                meanMinutes: Double(task.estimatedMinutes), sampleCount: 0, lastUpdatedAt: Date()
+                            )
+                            let alpha = est.sampleCount < 20 ? 1.0 / Double(est.sampleCount + 1) : 0.15
+                            est.meanMinutes = (1 - alpha) * est.meanMinutes + alpha * Double(actualMinutes)
+                            est.sampleCount += 1
+                            est.lastUpdatedAt = Date()
+                            estimates[task.bucket.rawValue] = est
+                            try? await store.saveBucketEstimates(estimates)
+
+                            // Log behaviour event + sync EMA to Supabase
                             if let wsId = AuthService.shared.workspaceId,
                                let profileId = AuthService.shared.profileId {
                                 @Dependency(\.supabaseClient) var supa
@@ -924,6 +970,7 @@ struct TodayTaskRow: View {
                                     oldValue: nil, newValue: "\(actualMinutes)"
                                 )
                                 try? await supa.insertBehaviourEvent(event)
+                                try? await supa.upsertBucketEstimate(wsId, profileId, task.bucket.rawValue, est.meanMinutes, est.sampleCount)
                             }
                         }
                         showActualTime = false

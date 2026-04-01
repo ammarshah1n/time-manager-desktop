@@ -74,6 +74,9 @@ actor DataStore {
 
     func loadCompletionRecords()                            throws -> [CompletionRecord] { try load("completions") }
     func saveCompletionRecords(_ v: [CompletionRecord])     throws                       { try save(v, "completions") }
+
+    func loadBucketEstimates()                              throws -> [String: BucketEstimate] { try load("bucket_estimates") }
+    func saveBucketEstimates(_ v: [String: BucketEstimate]) throws                             { try save(v, "bucket_estimates") }
 }
 
 // MARK: - Shared encoder / decoder

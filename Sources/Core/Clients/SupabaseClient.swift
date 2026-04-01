@@ -383,6 +383,10 @@ struct SupabaseClientDependency: Sendable {
     /// Used by the reply latency social graph to persist importance signals.
     var upsertSenderLatency: @Sendable (UUID, UUID, String, Double, Int) async throws -> Void = { _, _, _, _, _ in }
 
+    /// Upserts a bucket estimate: (workspaceId, profileId, bucketType, meanMinutes, sampleCount).
+    /// Syncs local EMA posterior to Supabase for cross-device consistency.
+    var upsertBucketEstimate: @Sendable (UUID, UUID, String, Double, Int) async throws -> Void = { _, _, _, _, _ in }
+
     // MARK: - Realtime
     var subscribeToTaskChanges: @Sendable (_ workspaceId: UUID, _ onChange: @escaping @Sendable () -> Void) async -> Void = { _, _ in }
 
@@ -626,6 +630,39 @@ extension SupabaseClientDependency {
                 try await client
                     .from("sender_latencies")
                     .upsert(row, onConflict: "workspace_id,profile_id,from_address")
+                    .execute()
+            },
+            upsertBucketEstimate: { workspaceId, profileId, bucketType, meanMinutes, sampleCount in
+                struct BucketEstimateRow: Encodable {
+                    let id: UUID
+                    let workspaceId: UUID
+                    let profileId: UUID
+                    let bucketType: String
+                    let meanMinutes: Double
+                    let sampleCount: Int
+                    let updatedAt: String
+                    enum CodingKeys: String, CodingKey {
+                        case id
+                        case workspaceId = "workspace_id"
+                        case profileId = "profile_id"
+                        case bucketType = "bucket_type"
+                        case meanMinutes = "mean_minutes"
+                        case sampleCount = "sample_count"
+                        case updatedAt = "updated_at"
+                    }
+                }
+                let row = BucketEstimateRow(
+                    id: UUID(),
+                    workspaceId: workspaceId,
+                    profileId: profileId,
+                    bucketType: bucketType,
+                    meanMinutes: meanMinutes,
+                    sampleCount: sampleCount,
+                    updatedAt: ISO8601DateFormatter().string(from: Date())
+                )
+                try await client
+                    .from("bucket_estimates")
+                    .upsert(row, onConflict: "workspace_id,profile_id,bucket_type")
                     .execute()
             },
             subscribeToTaskChanges: { workspaceId, onChange in

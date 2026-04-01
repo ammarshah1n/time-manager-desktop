@@ -19,6 +19,7 @@ struct PlanRequest: Sendable {
     let behaviouralRules: [BehaviourRule]
     let tasks: [PlanTask]
     let bucketStats: [BucketCompletionStat]
+    var bucketEstimates: [String: Double] = [:]  // bucket.rawValue -> corrected mean minutes
 }
 
 enum MoodContext: String, Sendable {
@@ -133,7 +134,7 @@ enum PlanningEngine {
 
         // 1. Score all tasks
         let scored: [(task: PlanTask, breakdown: ScoreBreakdown)] = effectiveTasks.map { task in
-            let breakdown = scoreTask(task, now: now, moodContext: request.moodContext, behaviouralRules: request.behaviouralRules, bucketStats: request.bucketStats)
+            let breakdown = scoreTask(task, now: now, moodContext: request.moodContext, behaviouralRules: request.behaviouralRules, bucketStats: request.bucketStats, bucketEstimates: request.bucketEstimates)
             return (task, breakdown)
         }
 
@@ -160,17 +161,20 @@ enum PlanningEngine {
         var overflow: [PlanTask] = []
         var usedMinutes = 0
 
-        // Reserve budget for fixed-position tasks
+        // Reserve budget for fixed-position tasks (using corrected durations)
         if let f = fixedFirst {
-            usedMinutes += f.task.estimatedMinutes + bufferPerTask
+            let corrected = request.bucketEstimates[f.task.bucketType].map { Int($0) } ?? f.task.estimatedMinutes
+            usedMinutes += corrected + bufferPerTask
         }
         if let s = fixedSecond {
-            usedMinutes += s.task.estimatedMinutes + bufferPerTask
+            let corrected = request.bucketEstimates[s.task.bucketType].map { Int($0) } ?? s.task.estimatedMinutes
+            usedMinutes += corrected + bufferPerTask
         }
 
         for item in pool {
-            let cost = item.task.estimatedMinutes + bufferPerTask
-            if usedMinutes + item.task.estimatedMinutes <= request.availableMinutes {
+            let corrected = request.bucketEstimates[item.task.bucketType].map { Int($0) } ?? item.task.estimatedMinutes
+            let cost = corrected + bufferPerTask
+            if usedMinutes + corrected <= request.availableMinutes {
                 selected.append(item)
                 usedMinutes += cost
             } else {
@@ -201,8 +205,8 @@ enum PlanningEngine {
 
         // 8. Sort overflow by score desc for caller convenience
         let overflowSorted = overflow.sorted {
-            let a = scoreTask($0, now: now, moodContext: request.moodContext, behaviouralRules: request.behaviouralRules, bucketStats: request.bucketStats).totalScore
-            let b = scoreTask($1, now: now, moodContext: request.moodContext, behaviouralRules: request.behaviouralRules, bucketStats: request.bucketStats).totalScore
+            let a = scoreTask($0, now: now, moodContext: request.moodContext, behaviouralRules: request.behaviouralRules, bucketStats: request.bucketStats, bucketEstimates: request.bucketEstimates).totalScore
+            let b = scoreTask($1, now: now, moodContext: request.moodContext, behaviouralRules: request.behaviouralRules, bucketStats: request.bucketStats, bucketEstimates: request.bucketEstimates).totalScore
             return a > b
         }
 
@@ -224,7 +228,8 @@ enum PlanningEngine {
         now: Date,
         moodContext: MoodContext?,
         behaviouralRules: [BehaviourRule],
-        bucketStats: [BucketCompletionStat] = []
+        bucketStats: [BucketCompletionStat] = [],
+        bucketEstimates: [String: Double] = [:]
     ) -> ScoreBreakdown {
 
         // Hard overrides for fixed-position tasks
@@ -253,7 +258,8 @@ enum PlanningEngine {
         let quickWin = task.estimatedMinutes <= 5 ? Score.quickWinBump : 0
 
         // Duration penalty (discourages padding plan with long tasks when shorter are available)
-        let durationPenalty = task.estimatedMinutes * Score.durationPenalty
+        let effectiveMinutes = bucketEstimates[task.bucketType].map { Int($0) } ?? task.estimatedMinutes
+        let durationPenalty = effectiveMinutes * Score.durationPenalty
 
         let base = bucketBase + priorityBase + quickWin + durationPenalty
 
