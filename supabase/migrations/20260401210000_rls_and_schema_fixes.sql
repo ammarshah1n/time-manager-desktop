@@ -72,15 +72,15 @@ DO $$ BEGIN
 END $$;
 
 -- E: pg_cron jobs (guarded)
-DO $$ BEGIN
+DO $outer$ BEGIN
   IF EXISTS (SELECT 1 FROM pg_extension WHERE extname='pg_cron') THEN
     PERFORM cron.schedule('update-overdue-tasks', '*/15 * * * *',
-      $$UPDATE public.tasks SET is_overdue=true, updated_at=now() WHERE status IN ('pending','in_progress') AND due_at IS NOT NULL AND due_at < now() AND is_overdue=false$$);
+      $sql$UPDATE public.tasks SET is_overdue=true, updated_at=now() WHERE status IN ('pending','in_progress') AND due_at IS NOT NULL AND due_at < now() AND is_overdue=false$sql$);
     PERFORM cron.schedule('vacuum-high-churn', '0 4 * * *',
-      $$VACUUM ANALYZE public.tasks, public.email_messages$$);
+      $sql$VACUUM ANALYZE public.tasks, public.email_messages$sql$);
     PERFORM cron.schedule('archive-old-behaviour-events', '0 5 * * 0',
-      $$DELETE FROM public.behaviour_events WHERE occurred_at < now() - interval '90 days'$$);
+      $sql$DELETE FROM public.behaviour_events WHERE occurred_at < now() - interval '90 days'$sql$);
     PERFORM cron.schedule('decay-stale-rules', '0 3 * * 0',
-      $$UPDATE public.behaviour_rules SET confidence=GREATEST(confidence-0.1,0.0), updated_at=now() WHERE is_active=true AND updated_at < now()-interval '14 days'$$);
+      $sql$UPDATE public.behaviour_rules SET confidence=GREATEST(confidence-0.1,0.0), updated_at=now() WHERE is_active=true AND updated_at < now()-interval '14 days'$sql$);
   END IF;
-END $$;
+END $outer$;
