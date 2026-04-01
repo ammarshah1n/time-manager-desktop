@@ -133,9 +133,31 @@ enum PlanningEngine {
         }
 
         // 1. Score all tasks
-        let scored: [(task: PlanTask, breakdown: ScoreBreakdown)] = effectiveTasks.map { task in
-            let breakdown = scoreTask(task, now: now, moodContext: request.moodContext, behaviouralRules: request.behaviouralRules, bucketStats: request.bucketStats, bucketEstimates: request.bucketEstimates)
+        var scored: [(task: PlanTask, breakdown: ScoreBreakdown)] = effectiveTasks.map { task in
+            let breakdown = scoreTask(task, now: now, moodContext: request.moodContext, behaviouralRules: request.behaviouralRules, bucketStats: request.bucketStats, bucketEstimates: request.bucketEstimates, availableMinutes: request.availableMinutes)
             return (task, breakdown)
+        }
+
+        // 1b. Cap overdue dominance: only top 3 overdue tasks get full bump.
+        //     Sort by total score desc first so the "top 3" are the highest-scoring overdue items.
+        scored.sort { $0.breakdown.totalScore > $1.breakdown.totalScore }
+        var overdueCount = 0
+        for i in scored.indices {
+            if scored[i].task.isOverdue {
+                overdueCount += 1
+                if overdueCount > 3 {
+                    // Reduce the overdue bump for excess overdue tasks
+                    let breakdown = scored[i].breakdown
+                    let reducedOverdue = 200  // Down from 1000
+                    let newTotal = breakdown.totalScore - (breakdown.overdueBump - reducedOverdue)
+                    scored[i] = (task: scored[i].task, breakdown: ScoreBreakdown(
+                        base: breakdown.base, overdueBump: reducedOverdue,
+                        deadlineBump: breakdown.deadlineBump, moodBump: breakdown.moodBump,
+                        behaviourBump: breakdown.behaviourBump, timingBump: breakdown.timingBump,
+                        thompsonBump: breakdown.thompsonBump, totalScore: newTotal
+                    ))
+                }
+            }
         }
 
         // 2. Apply hard constraints — pull fixed-position tasks out of the pool
@@ -182,6 +204,26 @@ enum PlanningEngine {
             }
         }
 
+        // Second-pass fill: fill remaining time with smaller overflow items
+        var remainingMinutes = request.availableMinutes - usedMinutes
+        let fillCandidates = overflow.sorted {
+            let e0 = request.bucketEstimates[$0.bucketType].map { Int($0) } ?? $0.estimatedMinutes
+            let e1 = request.bucketEstimates[$1.bucketType].map { Int($0) } ?? $1.estimatedMinutes
+            return e0 < e1
+        }
+        var newOverflow: [PlanTask] = []
+        for item in fillCandidates {
+            let corrected = request.bucketEstimates[item.bucketType].map { Int($0) } ?? item.estimatedMinutes
+            if corrected + bufferPerTask <= remainingMinutes {
+                let breakdown = scoreTask(item, now: now, moodContext: request.moodContext, behaviouralRules: request.behaviouralRules, bucketStats: request.bucketStats, bucketEstimates: request.bucketEstimates, availableMinutes: request.availableMinutes)
+                selected.append((task: item, breakdown: breakdown))
+                remainingMinutes -= (corrected + bufferPerTask)
+            } else {
+                newOverflow.append(item)
+            }
+        }
+        overflow = newOverflow
+
         // 5. Assemble ordered list: fixed positions first, then knapsack selection
         var ordered: [(task: PlanTask, breakdown: ScoreBreakdown)] = []
         if let f = fixedFirst { ordered.append(f) }
@@ -205,8 +247,8 @@ enum PlanningEngine {
 
         // 8. Sort overflow by score desc for caller convenience
         let overflowSorted = overflow.sorted {
-            let a = scoreTask($0, now: now, moodContext: request.moodContext, behaviouralRules: request.behaviouralRules, bucketStats: request.bucketStats, bucketEstimates: request.bucketEstimates).totalScore
-            let b = scoreTask($1, now: now, moodContext: request.moodContext, behaviouralRules: request.behaviouralRules, bucketStats: request.bucketStats, bucketEstimates: request.bucketEstimates).totalScore
+            let a = scoreTask($0, now: now, moodContext: request.moodContext, behaviouralRules: request.behaviouralRules, bucketStats: request.bucketStats, bucketEstimates: request.bucketEstimates, availableMinutes: request.availableMinutes).totalScore
+            let b = scoreTask($1, now: now, moodContext: request.moodContext, behaviouralRules: request.behaviouralRules, bucketStats: request.bucketStats, bucketEstimates: request.bucketEstimates, availableMinutes: request.availableMinutes).totalScore
             return a > b
         }
 
@@ -229,7 +271,8 @@ enum PlanningEngine {
         moodContext: MoodContext?,
         behaviouralRules: [BehaviourRule],
         bucketStats: [BucketCompletionStat] = [],
-        bucketEstimates: [String: Double] = [:]
+        bucketEstimates: [String: Double] = [:],
+        availableMinutes: Int = 120
     ) -> ScoreBreakdown {
 
         // Hard overrides for fixed-position tasks
@@ -257,9 +300,10 @@ enum PlanningEngine {
         // Quick win bump
         let quickWin = task.estimatedMinutes <= 5 ? Score.quickWinBump : 0
 
-        // Duration penalty (discourages padding plan with long tasks when shorter are available)
+        // Duration penalty — adaptive to session length (harsher in short sessions)
         let effectiveMinutes = bucketEstimates[task.bucketType].map { Int($0) } ?? task.estimatedMinutes
-        let durationPenalty = effectiveMinutes * Score.durationPenalty
+        let penaltyRate = availableMinutes < 45 ? -3 : availableMinutes < 90 ? -2 : -1
+        let durationPenalty = effectiveMinutes * penaltyRate
 
         let base = bucketBase + priorityBase + quickWin + durationPenalty
 
@@ -353,32 +397,42 @@ enum PlanningEngine {
 
     // MARK: - Thompson Sampling
 
-    /// Computes a score bump based on historical completion rate for this bucket+hour.
-    /// Uses simple completion ratio as a proxy until enough data accumulates for real Beta sampling.
+    /// Computes a score bump via Beta-distributed Thompson sampling for this bucket+hour.
+    /// Uses Gaussian approximation (Box-Muller) of Beta(alpha, beta) posterior.
     /// Returns 0 if fewer than `thompsonMinSamples` observations exist.
-    static func thompsonBump(
+    private static func thompsonBump(
         bucketType: String,
         currentHour: Int,
         stats: [BucketCompletionStat]
     ) -> Int {
-        let hourRange: String
-        switch currentHour {
-        case 6...11:  hourRange = "06-12"
-        case 12...15: hourRange = "12-16"
-        case 16...19: hourRange = "16-20"
-        default:      hourRange = "20-06"
-        }
-
-        guard let stat = stats.first(where: { $0.bucketType == bucketType && $0.hourRange == hourRange }) else {
-            return 0
-        }
-
+        let hourRange = hourToRange(currentHour)
+        guard let stat = stats.first(where: { $0.bucketType == bucketType && $0.hourRange == hourRange }) else { return 0 }
         let total = stat.completions + stat.deferrals
         guard total >= Score.thompsonMinSamples else { return 0 }
 
-        // Simple ratio proxy: completions / total, scaled to thompsonMax
-        let ratio = Double(stat.completions) / Double(total)
-        return Int(ratio * Double(Score.thompsonMax))
+        // Beta(alpha, beta) sampling via Gaussian approximation
+        let alpha = Double(stat.completions) + 1.0
+        let beta = Double(stat.deferrals) + 1.0
+        let mu = alpha / (alpha + beta)
+        let variance = (alpha * beta) / ((alpha + beta) * (alpha + beta) * (alpha + beta + 1.0))
+        let sigma = sqrt(variance)
+
+        // Box-Muller transform for Gaussian sample
+        let u1 = Double.random(in: 0.001..<1.0)
+        let u2 = Double.random(in: 0.001..<1.0)
+        let z = sqrt(-2.0 * log(u1)) * cos(2.0 * .pi * u2)
+        let sample = min(1.0, max(0.0, mu + sigma * z))
+
+        return Int(sample * Double(Score.thompsonMax))
+    }
+
+    private static func hourToRange(_ hour: Int) -> String {
+        switch hour {
+        case 6..<12:  return "06-12"
+        case 12..<16: return "12-16"
+        case 16..<20: return "16-20"
+        default:      return "20-06"
+        }
     }
 
     // MARK: - Reason computation
