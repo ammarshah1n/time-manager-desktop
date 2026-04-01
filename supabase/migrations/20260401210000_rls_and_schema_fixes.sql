@@ -130,24 +130,24 @@ CREATE POLICY "ai_pipeline_runs_workspace_isolation"
   USING  (workspace_id = ANY((select public.current_workspace_ids())))
   WITH CHECK (workspace_id = ANY((select public.current_workspace_ids())));
 
--- B8: behaviour_events partitions (RLS enabled on partitions, not parent)
-DROP POLICY IF EXISTS "behaviour_events_2026_03_ws" ON public.behaviour_events_2026_03;
-CREATE POLICY "behaviour_events_2026_03_ws"
-  ON public.behaviour_events_2026_03 FOR ALL TO authenticated
-  USING  (workspace_id = ANY((select public.current_workspace_ids())))
-  WITH CHECK (workspace_id = ANY((select public.current_workspace_ids())));
-
-DROP POLICY IF EXISTS "behaviour_events_2026_04_ws" ON public.behaviour_events_2026_04;
-CREATE POLICY "behaviour_events_2026_04_ws"
-  ON public.behaviour_events_2026_04 FOR ALL TO authenticated
-  USING  (workspace_id = ANY((select public.current_workspace_ids())))
-  WITH CHECK (workspace_id = ANY((select public.current_workspace_ids())));
-
-DROP POLICY IF EXISTS "behaviour_events_2026_05_ws" ON public.behaviour_events_2026_05;
-CREATE POLICY "behaviour_events_2026_05_ws"
-  ON public.behaviour_events_2026_05 FOR ALL TO authenticated
-  USING  (workspace_id = ANY((select public.current_workspace_ids())))
-  WITH CHECK (workspace_id = ANY((select public.current_workspace_ids())));
+-- B8: behaviour_events partitions (skip if partition doesn't exist yet)
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='behaviour_events_2026_03') THEN
+    DROP POLICY IF EXISTS "behaviour_events_2026_03_ws" ON public.behaviour_events_2026_03;
+    CREATE POLICY "behaviour_events_2026_03_ws" ON public.behaviour_events_2026_03 FOR ALL TO authenticated
+      USING (workspace_id = ANY((select public.current_workspace_ids()))) WITH CHECK (workspace_id = ANY((select public.current_workspace_ids())));
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='behaviour_events_2026_04') THEN
+    DROP POLICY IF EXISTS "behaviour_events_2026_04_ws" ON public.behaviour_events_2026_04;
+    CREATE POLICY "behaviour_events_2026_04_ws" ON public.behaviour_events_2026_04 FOR ALL TO authenticated
+      USING (workspace_id = ANY((select public.current_workspace_ids()))) WITH CHECK (workspace_id = ANY((select public.current_workspace_ids())));
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='behaviour_events_2026_05') THEN
+    DROP POLICY IF EXISTS "behaviour_events_2026_05_ws" ON public.behaviour_events_2026_05;
+    CREATE POLICY "behaviour_events_2026_05_ws" ON public.behaviour_events_2026_05 FOR ALL TO authenticated
+      USING (workspace_id = ANY((select public.current_workspace_ids()))) WITH CHECK (workspace_id = ANY((select public.current_workspace_ids())));
+  END IF;
+END $$;
 
 
 -- ============================================================
