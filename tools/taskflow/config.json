@@ -1,0 +1,13 @@
+{
+  "projectName": "Timed",
+  "vaultPath": "~/Timed Vault",
+  "walkthroughDir": "01-Walkthroughs",
+  "errorDir": "04-Errors",
+  "planFile": "PLAN.md",
+  "maxRetries": 3,
+  "maxTurnsPerTask": 25,
+  "defaultTdd": false,
+  "defaultMaxTasks": 15,
+  "specsDir": "docs/specs",
+  "claudeMdPath": "CLAUDE.md"
+}
