@@ -359,7 +359,8 @@ struct DishMeUpSheet: View {
             availableMinutes: minutes,
             moodContext: toMoodContext(mood),
             behaviouralRules: [],
-            tasks: planTasks
+            tasks: planTasks,
+            bucketStats: []
         )
         let result = PlanningEngine.generatePlan(request)
 

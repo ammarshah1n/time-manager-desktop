@@ -521,6 +521,20 @@ struct MorningInterviewPane: View {
                                 .lineLimit(1)
                                 .frame(maxWidth: .infinity, alignment: .leading)
 
+                            // Uncertainty badge — prompts user to override
+                            if task.isUncertain {
+                                HStack(spacing: 3) {
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .font(.system(size: 9))
+                                    Text("uncertain")
+                                        .font(.system(size: 10, weight: .medium))
+                                }
+                                .foregroundStyle(.orange)
+                                .padding(.horizontal, 6).padding(.vertical, 2)
+                                .background(Color.orange.opacity(0.12), in: Capsule())
+                                .help("Low confidence estimate (\u{00B1}\(task.estimateUncertainty ?? 0)m) — consider overriding")
+                            }
+
                             // Inline minute stepper
                             HStack(spacing: 4) {
                                 Button {

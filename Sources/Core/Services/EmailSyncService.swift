@@ -73,6 +73,15 @@ actor EmailSyncService {
     /// Caches folderId → displayName to avoid repeated Graph API calls.
     private var folderNameCache: [String: String] = [:]
 
+    // MARK: - Reply latency social graph (in-memory, persisted to Supabase)
+
+    /// sender_address → [latency_minutes] for all observed outbound replies.
+    private var senderReplyLatencies: [String: [Double]] = [:]
+
+    /// conversationId → (fromAddress, receivedDateTime) of the most recent inbound message.
+    /// Used to compute reply latency when an outbound message appears in the same thread.
+    private var inboundMessagesByThread: [String: (fromAddress: String, receivedAt: Date)] = [:]
+
     // MARK: - Dependencies
 
     @Dependency(\.graphClient) private var graphClient
@@ -161,15 +170,24 @@ actor EmailSyncService {
                         )
                     }
 
+                    // Track reply latency for the social graph
+                    trackReplyLatency(message: message, workspaceId: workspaceId, profileId: profileId)
+
                     let row = Self.makeInsertPayload(
                         from: message,
                         workspaceId: workspaceId,
                         emailAccountId: emailAccountId
                     )
                     try await upsertMessage(row)
+
+                    // Compute sender importance from reply latency before classifying
+                    let senderAddress = message.from?.emailAddress.address ?? "unknown"
+                    let senderImportance = senderImportanceScore(senderAddress)
+
                     await triggerClassification(
                         messageId: row.id,
-                        workspaceId: workspaceId
+                        workspaceId: workspaceId,
+                        senderImportance: senderImportance
                     )
                     totalProcessed += 1
                 } catch {
@@ -215,7 +233,7 @@ actor EmailSyncService {
 
     // MARK: - Edge Function: classify-email
 
-    private func triggerClassification(messageId: UUID, workspaceId: UUID) async {
+    private func triggerClassification(messageId: UUID, workspaceId: UUID, senderImportance: Double = 0.5) async {
         guard let url = URL(string: "\(supabaseURL)/functions/v1/classify-email") else {
             TimedLogger.graph.error("Invalid classify-email URL")
             return
@@ -226,11 +244,12 @@ actor EmailSyncService {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(supabaseAnonKey)", forHTTPHeaderField: "Authorization")
 
-        let body: [String: String] = [
+        let body: [String: Any] = [
             "message_id": messageId.uuidString,
             "workspace_id": workspaceId.uuidString,
+            "sender_importance": senderImportance,
         ]
-        request.httpBody = try? JSONEncoder().encode(body)
+        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
 
         do {
             let (_, response) = try await URLSession.shared.data(for: request)
@@ -243,6 +262,98 @@ actor EmailSyncService {
         } catch {
             TimedLogger.graph.error(
                 "classify-email request failed for \(messageId.uuidString, privacy: .public): \(error.localizedDescription, privacy: .public)"
+            )
+        }
+    }
+
+    // MARK: - Reply latency social graph
+
+    /// Detects outbound replies and computes reply latency against the original inbound message.
+    /// Outbound = message.from matches user's email. Reply = same conversationId as a tracked inbound.
+    private func trackReplyLatency(message: GraphEmailMessage, workspaceId: UUID, profileId: UUID?) {
+        let fromAddress = message.from?.emailAddress.address.lowercased() ?? ""
+        let userEmail = OnboardingUserPrefs.email.lowercased()
+
+        guard !fromAddress.isEmpty, !userEmail.isEmpty else { return }
+        guard let conversationId = message.conversationId, !conversationId.isEmpty else { return }
+
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let fallbackFormatter = ISO8601DateFormatter()
+
+        let messageDate: Date? = {
+            guard let raw = message.receivedDateTime else { return nil }
+            return formatter.date(from: raw) ?? fallbackFormatter.date(from: raw)
+        }()
+
+        if fromAddress == userEmail {
+            // Outbound message — check if we have an inbound in this thread
+            if let inbound = inboundMessagesByThread[conversationId],
+               let sentDate = messageDate {
+                let latencyMinutes = sentDate.timeIntervalSince(inbound.receivedAt) / 60.0
+                guard latencyMinutes > 0 else { return }
+
+                let sender = inbound.fromAddress.lowercased()
+                senderReplyLatencies[sender, default: []].append(latencyMinutes)
+
+                TimedLogger.triage.info(
+                    "Reply latency to \(sender, privacy: .public): \(String(format: "%.1f", latencyMinutes)) min"
+                )
+
+                // Persist to Supabase
+                if let profileId {
+                    let avgLatency = {
+                        let latencies = senderReplyLatencies[sender] ?? [latencyMinutes]
+                        return latencies.reduce(0, +) / Double(latencies.count)
+                    }()
+                    Task {
+                        await persistSenderLatency(
+                            workspaceId: workspaceId,
+                            profileId: profileId,
+                            fromAddress: sender,
+                            avgLatencyMinutes: avgLatency,
+                            sampleSize: senderReplyLatencies[sender]?.count ?? 1
+                        )
+                    }
+                }
+            }
+        } else {
+            // Inbound message — track it for future outbound matching.
+            // Only store the latest inbound per thread.
+            if let receivedDate = messageDate {
+                inboundMessagesByThread[conversationId] = (fromAddress: fromAddress, receivedAt: receivedDate)
+            }
+        }
+    }
+
+    /// Computes sender importance from average reply latency.
+    /// < 2 min = very important (1.0), < 10 min = important (0.8),
+    /// < 60 min = normal (0.5), > 60 min = low (0.2), no data = neutral (0.5).
+    private func senderImportanceScore(_ address: String) -> Double {
+        guard let latencies = senderReplyLatencies[address.lowercased()],
+              !latencies.isEmpty else { return 0.5 }
+        let avgLatency = latencies.reduce(0, +) / Double(latencies.count)
+        if avgLatency < 2 { return 1.0 }
+        if avgLatency < 10 { return 0.8 }
+        if avgLatency < 60 { return 0.5 }
+        return 0.2
+    }
+
+    /// Persists the rolling average reply latency for a sender to Supabase.
+    private func persistSenderLatency(
+        workspaceId: UUID,
+        profileId: UUID,
+        fromAddress: String,
+        avgLatencyMinutes: Double,
+        sampleSize: Int
+    ) async {
+        do {
+            try await supabaseClient.upsertSenderLatency(
+                workspaceId, profileId, fromAddress, avgLatencyMinutes, sampleSize
+            )
+        } catch {
+            TimedLogger.triage.error(
+                "Failed to persist sender latency for \(fromAddress, privacy: .public): \(error.localizedDescription, privacy: .public)"
             )
         }
     }

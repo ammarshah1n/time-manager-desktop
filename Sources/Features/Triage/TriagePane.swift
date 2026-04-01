@@ -16,6 +16,7 @@ struct TriagePane: View {
     @State private var undoStack: [(item: TriageItem, index: Int)] = []
     @State private var showBundleSheet = false
     @State private var extractedBundles: [ExtractedTaskBundle] = []
+    @State private var showBucketPicker = false
 
     private var current: TriageItem? {
         guard currentIndex < items.count else { return nil }
@@ -54,6 +55,12 @@ struct TriagePane: View {
                 .frame(maxWidth: 580, maxHeight: 280)
                 .padding(.top, 16)
                 .padding(.horizontal, 32)
+
+                // Low-confidence nudge
+                if let item = current, let conf = item.classificationConfidence, conf < 0.65,
+                   let bucket = item.classifiedBucket {
+                    lowConfidenceNudge(item: item, bucket: bucket)
+                }
 
                 Spacer().frame(height: 16)
 
@@ -298,6 +305,60 @@ struct TriagePane: View {
             .controlSize(.small)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    // MARK: - Low-confidence nudge
+
+    @ViewBuilder
+    private func lowConfidenceNudge(item: TriageItem, bucket: String) -> some View {
+        HStack(spacing: 8) {
+            Text("AI classified this as **\(bucket)** (low confidence). Is this right?")
+                .font(.system(size: 11))
+            Spacer()
+            if showBucketPicker {
+                Picker("", selection: Binding<String>(
+                    get: { bucket },
+                    set: { newBucket in
+                        logTriageCorrection(item: item, oldBucket: bucket, newBucket: newBucket)
+                        showBucketPicker = false
+                    }
+                )) {
+                    ForEach(TaskBucket.allCases, id: \.self) { b in
+                        Text(b.rawValue).tag(b.rawValue)
+                    }
+                }
+                .labelsHidden()
+                .frame(width: 120)
+                .controlSize(.small)
+            } else {
+                Button("Yes \u{2713}") {
+                    logTriageCorrection(item: item, oldBucket: bucket, newBucket: bucket)
+                }
+                .controlSize(.small)
+                Button("No, it's...") { showBucketPicker = true }
+                    .controlSize(.small)
+            }
+        }
+        .padding(.horizontal, 14).padding(.vertical, 6)
+        .frame(maxWidth: 580)
+        .background(Color.yellow.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+        .padding(.horizontal, 32).padding(.top, 8)
+    }
+
+    private func logTriageCorrection(item: TriageItem, oldBucket: String, newBucket: String) {
+        guard let emailId = item.emailMessageId,
+              let wsId = AuthService.shared.workspaceId,
+              let profileId = AuthService.shared.profileId else { return }
+        Task {
+            @Dependency(\.supabaseClient) var supa
+            let row = TriageCorrectionRow(
+                id: UUID(), workspaceId: wsId,
+                emailMessageId: emailId, profileId: profileId,
+                oldBucket: oldBucket, newBucket: newBucket, fromAddress: item.sender
+            )
+            try? await supa.insertTriageCorrection(row)
+        }
+        recentAction = oldBucket == newBucket ? "Confirmed \(oldBucket)" : "Corrected → \(newBucket)"
     }
 
     // MARK: - Actions

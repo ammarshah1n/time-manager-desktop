@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /Users/integrale/time-manager-desktop/.claude/hooks/permission-check.sh \"$CLAUDE_TOOL_NAME\" \"$CLAUDE_TOOL_INPUT\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

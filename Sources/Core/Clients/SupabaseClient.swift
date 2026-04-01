@@ -277,6 +277,37 @@ struct PipelineRunRow: Codable, Identifiable, Sendable {
     }
 }
 
+struct BucketCompletionStat: Codable, Sendable {
+    let bucketType: String
+    let hourRange: String
+    let completions: Int
+    let deferrals: Int
+
+    enum CodingKeys: String, CodingKey {
+        case bucketType = "bucket_type"
+        case hourRange = "hour_range"
+        case completions, deferrals
+    }
+}
+
+struct SenderLatencyRow: Codable, Sendable {
+    let id: UUID
+    let workspaceId: UUID
+    let profileId: UUID
+    let fromAddress: String
+    let replyLatencyAvg: Double
+    let sampleSize: Int
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case workspaceId = "workspace_id"
+        case profileId = "profile_id"
+        case fromAddress = "from_address"
+        case replyLatencyAvg = "reply_latency_avg"
+        case sampleSize = "sample_size"
+    }
+}
+
 struct BehaviourEventInsert: Codable, Sendable {
     let workspaceId: UUID
     let profileId: UUID
@@ -338,12 +369,19 @@ struct SupabaseClientDependency: Sendable {
     var logPipelineRun: @Sendable (PipelineRunRow) async throws -> Void = { _ in }
     var upsertEmailMessage: @Sendable (EmailMessageRow) async throws -> Void = { _ in }
 
+    /// Fetches bucket completion stats for Thompson sampling (workspaceId, profileId).
+    var fetchBucketStats: @Sendable (UUID, UUID) async throws -> [BucketCompletionStat] = { _, _ in [] }
+
     /// Inserts a behaviour event for the learning loop.
     var insertBehaviourEvent: @Sendable (BehaviourEventInsert) async throws -> Void = { _ in }
 
     /// Upserts a sender rule: (workspaceId, profileId, fromAddress, ruleType).
     /// ruleType is one of: "inbox_always", "black_hole", "later", "delegate".
     var upsertSenderRule: @Sendable (UUID, UUID, String, String) async throws -> Void = { _, _, _, _ in }
+
+    /// Upserts sender reply latency: (workspaceId, profileId, fromAddress, avgLatencyMinutes, sampleSize).
+    /// Used by the reply latency social graph to persist importance signals.
+    var upsertSenderLatency: @Sendable (UUID, UUID, String, Double, Int) async throws -> Void = { _, _, _, _, _ in }
 
     // MARK: - Realtime
     var subscribeToTaskChanges: @Sendable (_ workspaceId: UUID, _ onChange: @escaping @Sendable () -> Void) async -> Void = { _, _ in }
@@ -547,6 +585,16 @@ extension SupabaseClientDependency {
                     .upsert(message, onConflict: "graph_message_id")
                     .execute()
             },
+            fetchBucketStats: { workspaceId, profileId in
+                let rows: [BucketCompletionStat] = try await client
+                    .from("bucket_completion_stats")
+                    .select()
+                    .eq("workspace_id", value: workspaceId)
+                    .eq("profile_id", value: profileId)
+                    .execute()
+                    .value
+                return rows
+            },
             insertBehaviourEvent: { event in
                 try await client
                     .from("behaviour_events")
@@ -563,6 +611,20 @@ extension SupabaseClientDependency {
                 )
                 try await client
                     .from("sender_rules")
+                    .upsert(row, onConflict: "workspace_id,profile_id,from_address")
+                    .execute()
+            },
+            upsertSenderLatency: { workspaceId, profileId, fromAddress, avgLatencyMinutes, sampleSize in
+                let row = SenderLatencyRow(
+                    id: UUID(),
+                    workspaceId: workspaceId,
+                    profileId: profileId,
+                    fromAddress: fromAddress,
+                    replyLatencyAvg: avgLatencyMinutes,
+                    sampleSize: sampleSize
+                )
+                try await client
+                    .from("sender_latencies")
                     .upsert(row, onConflict: "workspace_id,profile_id,from_address")
                     .execute()
             },

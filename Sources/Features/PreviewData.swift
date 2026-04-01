@@ -115,6 +115,14 @@ struct TimedTask: Identifiable, Codable, Sendable, Equatable {
     var expectedByDate: Date? = nil
     // State
     var isDone: Bool = false
+    // AI estimation uncertainty (minutes) — nil means no data
+    var estimateUncertainty: Int? = nil
+
+    /// True when uncertainty exceeds 25% of the estimated time
+    var isUncertain: Bool {
+        guard let u = estimateUncertainty, estimatedMinutes > 0 else { return false }
+        return Double(u) > Double(estimatedMinutes) * 0.25
+    }
 
     var timeLabel: String {
         estimatedMinutes < 60
@@ -431,6 +439,8 @@ struct TriageItem: Identifiable, Codable, Sendable, Equatable {
     let preview: String
     let receivedAt: Date
     var emailMessageId: UUID? = nil
+    var classificationConfidence: Float? = nil
+    var classifiedBucket: String? = nil
 
     var initials: String {
         sender.split(separator: " ").prefix(2).compactMap(\.first).map(String.init).joined()
@@ -545,7 +555,9 @@ extension TriageItem {
             subject: row.subject,
             preview: row.snippet ?? "",
             receivedAt: row.receivedAt,
-            emailMessageId: row.id
+            emailMessageId: row.id,
+            classificationConfidence: row.triageConfidence,
+            classifiedBucket: row.triageBucket
         )
     }
 }

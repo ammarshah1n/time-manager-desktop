@@ -57,7 +57,8 @@ struct TimedPlanningEngineV2Tests {
             availableMinutes: availableMinutes,
             moodContext: mood,
             behaviouralRules: rules,
-            tasks: tasks
+            tasks: tasks,
+            bucketStats: []
         )
     }
 

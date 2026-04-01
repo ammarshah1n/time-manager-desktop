@@ -18,6 +18,7 @@ struct PlanRequest: Sendable {
     let moodContext: MoodContext?
     let behaviouralRules: [BehaviourRule]
     let tasks: [PlanTask]
+    let bucketStats: [BucketCompletionStat]
 }
 
 enum MoodContext: String, Sendable {
@@ -65,6 +66,8 @@ struct ScoreBreakdown: Sendable {
     let deadlineBump: Int
     let moodBump: Int
     let behaviourBump: Int
+    let timingBump: Int
+    let thompsonBump: Int
     let totalScore: Int
 }
 
@@ -96,6 +99,10 @@ private enum Score {
     static let deepFocusKill = -9_999   // non-action in deep_focus mode
     static let behaviourOrdering = 300  // ordering rule bump
     static let behaviourMood =   500    // mood-override bump (used by easy_wins/avoidance)
+    static let timingMatch   =   200    // timing rule — current hour in preferred window
+    static let timingMiss    =  -100    // timing rule — current hour outside preferred window
+    static let thompsonMax   =   250    // max Thompson sampling bump when completion ratio is high
+    static let thompsonMinSamples = 10  // minimum completions + deferrals before Thompson activates
 }
 
 private let bufferPerTask = 5  // minutes added between tasks in budget calculation
@@ -126,7 +133,7 @@ enum PlanningEngine {
 
         // 1. Score all tasks
         let scored: [(task: PlanTask, breakdown: ScoreBreakdown)] = effectiveTasks.map { task in
-            let breakdown = scoreTask(task, now: now, moodContext: request.moodContext, behaviouralRules: request.behaviouralRules)
+            let breakdown = scoreTask(task, now: now, moodContext: request.moodContext, behaviouralRules: request.behaviouralRules, bucketStats: request.bucketStats)
             return (task, breakdown)
         }
 
@@ -194,8 +201,8 @@ enum PlanningEngine {
 
         // 8. Sort overflow by score desc for caller convenience
         let overflowSorted = overflow.sorted {
-            let a = scoreTask($0, now: now, moodContext: request.moodContext, behaviouralRules: request.behaviouralRules).totalScore
-            let b = scoreTask($1, now: now, moodContext: request.moodContext, behaviouralRules: request.behaviouralRules).totalScore
+            let a = scoreTask($0, now: now, moodContext: request.moodContext, behaviouralRules: request.behaviouralRules, bucketStats: request.bucketStats).totalScore
+            let b = scoreTask($1, now: now, moodContext: request.moodContext, behaviouralRules: request.behaviouralRules, bucketStats: request.bucketStats).totalScore
             return a > b
         }
 
@@ -216,15 +223,16 @@ enum PlanningEngine {
         _ task: PlanTask,
         now: Date,
         moodContext: MoodContext?,
-        behaviouralRules: [BehaviourRule]
+        behaviouralRules: [BehaviourRule],
+        bucketStats: [BucketCompletionStat] = []
     ) -> ScoreBreakdown {
 
         // Hard overrides for fixed-position tasks
         if task.isDailyUpdate {
-            return ScoreBreakdown(base: Score.fixedFirst, overdueBump: 0, deadlineBump: 0, moodBump: 0, behaviourBump: 0, totalScore: Score.fixedFirst)
+            return ScoreBreakdown(base: Score.fixedFirst, overdueBump: 0, deadlineBump: 0, moodBump: 0, behaviourBump: 0, timingBump: 0, thompsonBump: 0, totalScore: Score.fixedFirst)
         }
         if task.isFamilyEmail {
-            return ScoreBreakdown(base: Score.fixedSecond, overdueBump: 0, deadlineBump: 0, moodBump: 0, behaviourBump: 0, totalScore: Score.fixedSecond)
+            return ScoreBreakdown(base: Score.fixedSecond, overdueBump: 0, deadlineBump: 0, moodBump: 0, behaviourBump: 0, timingBump: 0, thompsonBump: 0, totalScore: Score.fixedSecond)
         }
 
         // Base: bucket type + priority + duration penalty
@@ -285,7 +293,7 @@ enum PlanningEngine {
             }
         }
 
-        // Behavioural rules
+        // Behavioural rules — ordering
         var behaviourBump = 0
         for rule in behaviouralRules where rule.ruleType == "ordering" {
             // Decode rule to determine if it applies to this task.
@@ -300,7 +308,30 @@ enum PlanningEngine {
             }
         }
 
-        let total = base + overdueBump + deadlineBump + moodBump + behaviourBump
+        // Behavioural rules — timing (energy curve from hour_of_day)
+        var timingBump = 0
+        for rule in behaviouralRules where rule.ruleType == "timing" {
+            if let json = try? JSONSerialization.jsonObject(with: rule.ruleValueJson) as? [String: Any],
+               let bucket = json["bucket_type"] as? String,
+               let hours = json["preferred_hours"] as? [Int],
+               bucket == task.bucketType {
+                let currentHour = Calendar.current.component(.hour, from: now)
+                if hours.contains(currentHour) {
+                    timingBump += Int(Double(Score.timingMatch) * Double(rule.confidence))
+                } else {
+                    timingBump += Int(Double(Score.timingMiss) * Double(rule.confidence))
+                }
+            }
+        }
+
+        // Thompson sampling proxy — only activates with sufficient data
+        let thompsonBump = Self.thompsonBump(
+            bucketType: task.bucketType,
+            currentHour: Calendar.current.component(.hour, from: now),
+            stats: bucketStats
+        )
+
+        let total = base + overdueBump + deadlineBump + moodBump + behaviourBump + timingBump + thompsonBump
 
         return ScoreBreakdown(
             base: base,
@@ -308,8 +339,40 @@ enum PlanningEngine {
             deadlineBump: deadlineBump,
             moodBump: moodBump,
             behaviourBump: behaviourBump,
+            timingBump: timingBump,
+            thompsonBump: thompsonBump,
             totalScore: total
         )
+    }
+
+    // MARK: - Thompson Sampling
+
+    /// Computes a score bump based on historical completion rate for this bucket+hour.
+    /// Uses simple completion ratio as a proxy until enough data accumulates for real Beta sampling.
+    /// Returns 0 if fewer than `thompsonMinSamples` observations exist.
+    static func thompsonBump(
+        bucketType: String,
+        currentHour: Int,
+        stats: [BucketCompletionStat]
+    ) -> Int {
+        let hourRange: String
+        switch currentHour {
+        case 6...11:  hourRange = "06-12"
+        case 12...15: hourRange = "12-16"
+        case 16...19: hourRange = "16-20"
+        default:      hourRange = "20-06"
+        }
+
+        guard let stat = stats.first(where: { $0.bucketType == bucketType && $0.hourRange == hourRange }) else {
+            return 0
+        }
+
+        let total = stat.completions + stat.deferrals
+        guard total >= Score.thompsonMinSamples else { return 0 }
+
+        // Simple ratio proxy: completions / total, scaled to thompsonMax
+        let ratio = Double(stat.completions) / Double(total)
+        return Int(ratio * Double(Score.thompsonMax))
     }
 
     // MARK: - Reason computation

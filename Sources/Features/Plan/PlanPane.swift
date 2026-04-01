@@ -221,7 +221,8 @@ struct PlanPane: View {
             availableMinutes: totalAvailable,
             moodContext: nil,
             behaviouralRules: [],
-            tasks: planTasks
+            tasks: planTasks,
+            bucketStats: []
         )
         let result = PlanningEngine.generatePlan(request)
 

@@ -16,7 +16,9 @@ const anthropic = new Anthropic({ apiKey: Deno.env.get("ANTHROPIC_API_KEY")! });
 
 interface BehaviourRule {
   rule_text: string;
-  rule_type: "scheduling" | "avoidance" | "estimation" | "context";
+  rule_key?: string;
+  rule_type: "scheduling" | "avoidance" | "estimation" | "context" | "timing";
+  rule_value_json?: Record<string, unknown>;
   confidence: number;
   supporting_evidence: string;
 }
@@ -91,7 +93,21 @@ Based on the above data, generate an updated profile card and refined rules.`;
       system: [
         {
           type: "text",
-          text: `You are a behaviour pattern analyst for an executive productivity assistant. Given a log of how an executive actually worked over the past 90 days, extract actionable rules that should change how their daily plan is built. Focus on: timing preferences (when they do certain task types), avoidance patterns (tasks they consistently push), estimation errors (actual vs estimated), and context preferences (what they do during transit, focus time, etc). Return a JSON object: { "profile_summary": "2-3 sentence summary of this person's work style", "rules": [{ "rule_text": "string", "rule_type": "scheduling"|"avoidance"|"estimation"|"context", "confidence": 0.0-1.0, "supporting_evidence": "brief" }] }`,
+          text: `You are a behaviour pattern analyst for an executive productivity assistant. Given a log of how an executive actually worked over the past 90 days, extract actionable rules that should change how their daily plan is built. Focus on: timing preferences (when they do certain task types), avoidance patterns (tasks they consistently push), estimation errors (actual vs estimated), and context preferences (what they do during transit, focus time, etc).
+
+TIMING ANALYSIS (IMPORTANT):
+Analyze the hour_of_day field in behaviour_events per bucket_type (action, reply, calls, transit, read). If a bucket_type has >60% of its task_completed events falling within a specific 4-hour window, emit a timing rule. The timing rule format is:
+{
+  "rule_text": "User completes 80% of calls before noon",
+  "rule_key": "timing.<bucket_type>.<window_name>",
+  "rule_type": "timing",
+  "rule_value_json": {"bucket_type": "<bucket>", "preferred_hours": [8, 9, 10, 11]},
+  "confidence": <fraction of completions in that window, 0.0-1.0>,
+  "supporting_evidence": "User completes X% of <bucket> tasks between H:00-H:00"
+}
+Window names: "morning" (6-10), "late_morning" (9-13), "afternoon" (12-16), "late_afternoon" (14-18), "evening" (17-21). Pick the 4-hour window with the highest concentration. You may emit multiple timing rules if different bucket_types have different preferred windows.
+
+Return a JSON object: { "profile_summary": "2-3 sentence summary of this person's work style", "rules": [{ "rule_text": "string", "rule_key": "optional string for timing rules", "rule_type": "scheduling"|"avoidance"|"estimation"|"context"|"timing", "rule_value_json": "optional object for timing rules", "confidence": 0.0-1.0, "supporting_evidence": "brief" }] }`,
           // @ts-ignore
           cache_control: { type: "ephemeral" },
         },
@@ -131,30 +147,45 @@ Based on the above data, generate an updated profile card and refined rules.`;
 
     // Upsert each rule into behaviour_rules
     for (const rule of profileData.rules) {
+      // Timing rules match on rule_key; other rules match on rule_text
+      const matchColumn = rule.rule_type === "timing" && rule.rule_key ? "rule_key" : "rule_text";
+      const matchValue = matchColumn === "rule_key" ? rule.rule_key! : rule.rule_text;
+
       const { data: existing } = await supabase
         .from("behaviour_rules")
         .select("id,confidence")
         .eq("workspace_id", workspaceId)
         .eq("profile_id", profileId)
-        .eq("rule_text", rule.rule_text)
+        .eq(matchColumn, matchValue)
         .maybeSingle();
 
       if (existing) {
-        // Update confidence on existing rule
+        // Update confidence (and rule_value_json for timing rules) on existing rule
+        const updatePayload: Record<string, unknown> = { confidence: rule.confidence };
+        if (rule.rule_value_json) {
+          updatePayload.rule_value_json = rule.rule_value_json;
+        }
         await supabase
           .from("behaviour_rules")
-          .update({ confidence: rule.confidence })
+          .update(updatePayload)
           .eq("id", existing.id);
       } else {
         // Insert new rule
-        await supabase.from("behaviour_rules").insert({
+        const insertPayload: Record<string, unknown> = {
           workspace_id: workspaceId,
           profile_id: profileId,
           rule_text: rule.rule_text,
           rule_type: rule.rule_type,
           confidence: rule.confidence,
           is_active: true,
-        });
+        };
+        if (rule.rule_key) {
+          insertPayload.rule_key = rule.rule_key;
+        }
+        if (rule.rule_value_json) {
+          insertPayload.rule_value_json = rule.rule_value_json;
+        }
+        await supabase.from("behaviour_rules").insert(insertPayload);
       }
     }
 
