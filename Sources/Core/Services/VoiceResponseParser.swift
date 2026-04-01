@@ -19,6 +19,8 @@ enum VoiceResponse: Sendable {
     case moveToTomorrow(Int?)       // "move to tomorrow", "defer", "tomorrow" (optional item number)
     case addTask(String)            // "add [task description]"
     case undo                       // "undo", "take that back", "cancel that"
+    case adjustEndTime(Int)         // "I'm leaving at 3" → 15, "finishing at 5" → 17
+    case subtractTime(Int)          // "I have a call not on my calendar" → manual subtract minutes
     case unknown(String)            // anything we can't parse
 
     // MARK: - Parse
@@ -67,7 +69,13 @@ enum VoiceResponse: Sendable {
         // 12. Check remove
         if let remove = parseRemove(cleaned) { return remove }
 
-        // 13. Check number (with hours/minutes handling)
+        // 13. Check adjust end time ("I'm leaving at 3", "finishing at 5pm")
+        if let endTime = parseAdjustEndTime(cleaned) { return endTime }
+
+        // 14. Check subtract time ("I have a call not on my calendar for 30 minutes")
+        if let subtract = parseSubtractTime(cleaned) { return subtract }
+
+        // 15. Check number (with hours/minutes handling)
         if let mins = parseMinutes(cleaned) { return .number(mins) }
 
         return .unknown(transcript)
@@ -301,6 +309,39 @@ enum VoiceResponse: Sendable {
         for (word, idx) in ordinalToIndex {
             if text.contains(word) { return .removeItem(idx) }
         }
+        return nil
+    }
+
+    // MARK: - Adjust end time parsing
+
+    private static func parseAdjustEndTime(_ text: String) -> VoiceResponse? {
+        // "I'm leaving at 3", "leaving at 3pm", "finishing at 5", "done at 4", "wrapping up at 2"
+        let triggers = ["leaving at", "leave at", "finishing at", "done at", "wrapping up at",
+                        "stopping at", "stop at", "out at", "going at", "heading out at"]
+        guard triggers.contains(where: { text.contains($0) }) else { return nil }
+
+        // Extract hour: "3", "3pm", "15", "3:00"
+        let pattern = #"at\s+(\d{1,2})(?::(\d{2}))?\s*(?:pm|p\.m\.?)?"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive),
+              let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+              let hourRange = Range(match.range(at: 1), in: text),
+              var hour = Int(text[hourRange]) else { return nil }
+
+        // Normalise to 24h: if 1-12 and contains "pm" or hour < 7 (likely afternoon), add 12
+        let isPM = text.contains("pm") || text.contains("p.m")
+        if isPM && hour < 12 { hour += 12 }
+        else if hour >= 1 && hour <= 6 { hour += 12 } // "leaving at 3" means 15:00
+        guard hour >= 7 && hour <= 23 else { return nil }
+        return .adjustEndTime(hour)
+    }
+
+    // MARK: - Subtract time parsing
+
+    private static func parseSubtractTime(_ text: String) -> VoiceResponse? {
+        // "I have a call not on my calendar for 30 minutes", "subtract 45 minutes"
+        let triggers = ["not on my calendar", "subtract", "minus", "take off", "remove time"]
+        guard triggers.contains(where: { text.contains($0) }) else { return nil }
+        if let mins = parseMinutes(text) { return .subtractTime(mins) }
         return nil
     }
 

@@ -71,6 +71,12 @@ struct DishMeUpSheet: View {
     @State private var behaviourRules: [BehaviourRule] = []
     @State private var bucketStats: [BucketCompletionStat] = []
     @State private var bucketEstimates: [String: Double] = [:]
+    // Allocation metadata
+    @State private var totalFreeMinutes: Int = 0
+    @State private var freeTimeGapCount: Int = 0
+    @State private var utilizationPercent: Double = 0
+    @State private var warningMessage: String? = nil
+    @State private var deferredCount: Int = 0
 
     private let presets: [(label: String, mins: Int)] = [("30m", 30), ("1h", 60), ("2h", 120), ("3h", 180)]
 
@@ -334,13 +340,39 @@ struct DishMeUpSheet: View {
                 .background(Color.indigo.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
             }
 
-            // Overflow
-            let usedIds = Set(stack.map(\.id))
-            let leftOver = tasks.filter { !usedIds.contains($0.id) && !$0.isDone }.count
-            if leftOver > 0 {
+            // Allocation stats
+            HStack(spacing: 12) {
+                HStack(spacing: 4) {
+                    Image(systemName: "clock").font(.system(size: 10)).foregroundStyle(.teal)
+                    Text("\(formatMins(totalFreeMinutes)) free across \(freeTimeGapCount) block\(freeTimeGapCount == 1 ? "" : "s")")
+                        .font(.system(size: 11)).foregroundStyle(.secondary)
+                }
+                HStack(spacing: 4) {
+                    Image(systemName: "chart.bar.fill").font(.system(size: 10))
+                        .foregroundStyle(utilizationPercent > 90 ? .orange : .green)
+                    Text("\(Int(utilizationPercent))% utilised")
+                        .font(.system(size: 11)).foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+            .padding(.horizontal, 2)
+
+            // Warning
+            if let warning = warningMessage {
                 HStack(spacing: 5) {
-                    Image(systemName: "arrow.down.to.line").font(.system(size: 10)).foregroundStyle(.secondary)
-                    Text("\(leftOver) more tasks stay in queue for next session.")
+                    Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 10)).foregroundStyle(.orange)
+                    Text(warning)
+                        .font(.system(size: 11)).foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 10).padding(.vertical, 6)
+                .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            }
+
+            // Deferred / overflow
+            if deferredCount > 0 {
+                HStack(spacing: 5) {
+                    Image(systemName: "arrow.uturn.forward").font(.system(size: 10)).foregroundStyle(.secondary)
+                    Text("\(deferredCount) task\(deferredCount == 1 ? "" : "s") deferred to tomorrow")
                         .font(.system(size: 11)).foregroundStyle(.secondary)
                 }
                 .padding(.horizontal, 2)
@@ -430,6 +462,13 @@ struct DishMeUpSheet: View {
             workEndHour: OnboardingUserPrefs.workEndHour
         )
         let result = PlanningEngine.generatePlan(request)
+
+        // Capture allocation metadata
+        totalFreeMinutes = result.totalFreeMinutes
+        freeTimeGapCount = result.freeTimeGapCount
+        utilizationPercent = result.utilizationPercent
+        warningMessage = result.warningMessage
+        deferredCount = result.deferredTaskIds.count
 
         let taskById = Dictionary(uniqueKeysWithValues: tasks.map { ($0.id, $0) })
         var reasons: [UUID: String] = [:]

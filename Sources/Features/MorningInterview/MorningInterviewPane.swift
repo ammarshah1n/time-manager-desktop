@@ -46,6 +46,14 @@ struct MorningInterviewPane: View {
     @State private var lastTranscriptSnapshot: String = ""
     @State private var silenceTimeoutCount: Int = 0
 
+    // Computed free time (step 1)
+    @State private var computedFreeMinutes: Int = 0
+    @State private var computedGapCount: Int = 0
+    @State private var computedMeetingMinutes: Int = 0
+    @State private var workEndOverride: Int? = nil  // nil = use default from prefs
+    @State private var manualSubtract: Int = 0      // user-reported off-calendar time
+    @State private var freeTimeComputed: Bool = false
+
     // Deferral review (step 0) — tasks from yesterday not completed
     @State private var deferredTasks: [TimedTask] = []
     @State private var showDeferralStep: Bool = false
@@ -110,6 +118,33 @@ struct MorningInterviewPane: View {
             let hasTravelKeyword = travelKeywords.contains { block.title.lowercased().contains($0) }
             return isToday && (hasTravelKeyword || block.category == .transit)
         }
+    }
+
+    private var effectiveWorkEndHour: Int {
+        workEndOverride ?? OnboardingUserPrefs.workEndHour
+    }
+
+    private var effectiveFreeMinutes: Int {
+        max(0, computedFreeMinutes - manualSubtract)
+    }
+
+    private func recomputeFreeTime() {
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        let startHour = OnboardingUserPrefs.workStartHour
+        let endHour = effectiveWorkEndHour
+        guard let workStart = cal.date(bySettingHour: startHour, minute: 0, second: 0, of: today),
+              let workEnd = cal.date(bySettingHour: endHour, minute: 0, second: 0, of: today) else { return }
+        let result = TimeSlotAllocator.computeFreeTime(
+            calendarBlocks: blocks,
+            workStart: workStart,
+            workEnd: workEnd
+        )
+        computedFreeMinutes = result.totalFreeMinutes
+        computedGapCount = result.gapCount
+        computedMeetingMinutes = result.meetingMinutes
+        availableMinutes = effectiveFreeMinutes
+        freeTimeComputed = true
     }
 
     private var confirmedTotal: Int {
@@ -193,6 +228,9 @@ struct MorningInterviewPane: View {
             if skipCountStep1 >= skipThreshold { skippedSteps.insert(1) }
             if skipCountStep2 >= skipThreshold { skippedSteps.insert(2) }
             if skipCountStep3 >= skipThreshold { skippedSteps.insert(3) }
+
+            // Compute free time from calendar for step 1
+            recomputeFreeTime()
 
             if voiceMode {
                 speakForStep(step)
@@ -546,75 +584,165 @@ struct MorningInterviewPane: View {
         .padding(.horizontal, 28).padding(.top, 8)
     }
 
-    // MARK: - Step 1: Time declaration (was step 0)
+    // MARK: - Step 1: Computed free time confirmation (was time declaration)
 
     private var stepTimeDeclaration: some View {
-        VStack(alignment: .leading, spacing: 24) {
+        VStack(alignment: .leading, spacing: 20) {
             voiceStatusBar
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("It looks like you have free time today.")
+                Text("Your free time today")
                     .font(.system(size: 16, weight: .medium))
-                Text("How much time are you allocating to work today?")
+                Text("Computed from your calendar and work hours.")
                     .font(.system(size: 13))
                     .foregroundStyle(.secondary)
             }
 
-            // Preset buttons
-            HStack(spacing: 8) {
-                ForEach([60, 120, 180, 240], id: \.self) { mins in
-                    Button {
-                        availableMinutes = mins
-                    } label: {
-                        Text(formatMins(mins))
-                            .font(.system(size: 13, weight: .medium))
-                            .padding(.horizontal, 16).padding(.vertical, 8)
-                            .background(availableMinutes == mins ? Color.indigo : Color(.controlBackgroundColor),
-                                        in: RoundedRectangle(cornerRadius: 8))
-                            .foregroundStyle(availableMinutes == mins ? .white : .primary)
-                    }
-                    .buttonStyle(.plain)
-                }
+            // Prominent free time display
+            HStack(spacing: 20) {
+                freeTimeStat(
+                    value: formatMins(effectiveFreeMinutes),
+                    label: "Free",
+                    icon: "clock.fill",
+                    color: .indigo
+                )
+                freeTimeStat(
+                    value: "\(computedGapCount)",
+                    label: computedGapCount == 1 ? "Block" : "Blocks",
+                    icon: "square.split.2x1.fill",
+                    color: .teal
+                )
+                freeTimeStat(
+                    value: formatMins(computedMeetingMinutes),
+                    label: "Meetings",
+                    icon: "person.2.fill",
+                    color: .orange
+                )
             }
 
-            // Slider
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Text("Custom")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Text(formatMins(availableMinutes))
-                        .font(.system(size: 14, weight: .semibold))
-                        .monospacedDigit()
-                }
-                Slider(value: Binding(
-                    get: { Double(availableMinutes) },
-                    set: { availableMinutes = Int($0) }
-                ), in: 30...480, step: 15)
-                .tint(.indigo)
-            }
-            .padding(.horizontal, 2)
-
-            // Summary
+            // Work window info
             HStack(spacing: 8) {
                 Image(systemName: "calendar")
                     .font(.system(size: 11))
                     .foregroundStyle(.indigo)
-                Text("Based on your calendar, you have \(formatMins(availableMinutes)) of clear time today.")
+                Text("Work window: \(OnboardingUserPrefs.workStartHour):00 – \(effectiveWorkEndHour):00")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
+                if workEndOverride != nil {
+                    Text("(adjusted)")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.orange)
+                }
             }
             .padding(10)
             .background(Color.indigo.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
 
+            // Manual subtract display
+            if manualSubtract > 0 {
+                HStack(spacing: 8) {
+                    Image(systemName: "minus.circle.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.orange)
+                    Text("\(formatMins(manualSubtract)) subtracted for off-calendar commitments")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button {
+                        manualSubtract = 0
+                        availableMinutes = effectiveFreeMinutes
+                    } label: {
+                        Text("Reset")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(.orange)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(10)
+                .background(Color.orange.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+            }
+
+            // Override actions (non-voice)
             if !voiceMode {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Need to adjust?")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.secondary)
+                    HStack(spacing: 8) {
+                        // End time override menu
+                        Menu {
+                            ForEach([13, 14, 15, 16, 17, 18, 19, 20], id: \.self) { hour in
+                                Button("\(hour):00") {
+                                    workEndOverride = hour
+                                    recomputeFreeTime()
+                                }
+                            }
+                            if workEndOverride != nil {
+                                Divider()
+                                Button("Reset to default") {
+                                    workEndOverride = nil
+                                    recomputeFreeTime()
+                                }
+                            }
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "clock.arrow.2.circlepath")
+                                    .font(.system(size: 11))
+                                Text("Leaving early?")
+                                    .font(.system(size: 12))
+                            }
+                            .padding(.horizontal, 12).padding(.vertical, 7)
+                            .background(Color(.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
+                        }
+                        .buttonStyle(.plain)
+
+                        // Manual subtract
+                        Menu {
+                            ForEach([15, 30, 45, 60, 90], id: \.self) { mins in
+                                Button("−\(formatMins(mins))") {
+                                    manualSubtract += mins
+                                    availableMinutes = effectiveFreeMinutes
+                                }
+                            }
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "minus.circle")
+                                    .font(.system(size: 11))
+                                Text("Off-calendar call?")
+                                    .font(.system(size: 12))
+                            }
+                            .padding(.horizontal, 12).padding(.vertical, 7)
+                            .background(Color(.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+
                 voiceButton
             }
 
             Spacer()
         }
         .padding(.horizontal, 28).padding(.top, 8)
+    }
+
+    @ViewBuilder
+    private func freeTimeStat(value: String, label: String, icon: String, color: Color) -> some View {
+        VStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.system(size: 14))
+                .foregroundStyle(color)
+            Text(value)
+                .font(.system(size: 20, weight: .bold))
+                .monospacedDigit()
+            Text(label)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+                .tracking(0.5)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 14)
+        .background(color.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
     }
 
     // MARK: - Step 2: Due today review (was step 1)
@@ -915,7 +1043,12 @@ struct MorningInterviewPane: View {
             let titles = deferredTasks.prefix(3).map(\.title).joined(separator: ", ")
             text = "Yesterday you deferred \(deferredTasks.count) tasks: \(titles). Want to carry them over?"
         case 1:
-            text = "Good morning. How much time have you got today?"
+            let hours = effectiveFreeMinutes / 60
+            let mins = effectiveFreeMinutes % 60
+            let timeDesc = mins > 0 ? "\(hours) hours and \(mins) minutes" : "\(hours) hours"
+            let blockDesc = computedGapCount == 1 ? "1 block" : "\(computedGapCount) blocks"
+            let meetingDesc = computedMeetingMinutes > 0 ? ", after \(formatMins(computedMeetingMinutes)) of meetings" : ""
+            text = "Looking at your calendar, you have \(timeDesc) free today across \(blockDesc)\(meetingDesc). Shall I plan around that?"
         case 2:
             let count = todayCandidates.count
             let titles = todayCandidates.prefix(3).map(\.title).joined(separator: ", ")
@@ -1173,15 +1306,54 @@ struct MorningInterviewPane: View {
 
     private func handleTimeResponse(_ response: VoiceResponse) {
         switch response {
+        case .affirmative:
+            // User confirms computed free time — proceed
+            recordNonOverride(forStep: step)
+            advanceStep()
+        case .adjustEndTime(let hour):
+            // "I'm leaving at 3" → recompute with new work end
+            let oldOverride = workEndOverride
+            let oldSubtract = manualSubtract
+            workEndOverride = hour
+            recomputeFreeTime()
+            undoStack.append((step: step, action: { [self] in
+                self.workEndOverride = oldOverride
+                self.manualSubtract = oldSubtract
+                self.recomputeFreeTime()
+            }))
+            recordOverride(forStep: step)
+            if voiceMode {
+                let hours = effectiveFreeMinutes / 60
+                let mins = effectiveFreeMinutes % 60
+                let timeDesc = mins > 0 ? "\(hours) hours and \(mins) minutes" : "\(hours) hours"
+                speechService.speak("Got it, leaving at \(hour). That gives you \(timeDesc). Shall I plan around that?")
+            }
+        case .subtractTime(let mins):
+            // "I have a call not on my calendar for 30 minutes"
+            let oldSubtract = manualSubtract
+            manualSubtract += mins
+            availableMinutes = effectiveFreeMinutes
+            undoStack.append((step: step, action: { [self] in
+                self.manualSubtract = oldSubtract
+                self.availableMinutes = self.effectiveFreeMinutes
+            }))
+            recordOverride(forStep: step)
+            if voiceMode {
+                speechService.speak("Noted, subtracted \(formatMins(mins)). You now have \(formatMins(effectiveFreeMinutes)) free. Sound good?")
+            }
         case .number(let mins):
+            // Manual override — user wants to set their own total
             let oldMins = availableMinutes
             availableMinutes = mins
             undoStack.append((step: step, action: { [self] in self.availableMinutes = oldMins }))
             recordOverride(forStep: step)
             advanceStep()
-        case .affirmative:
-            recordNonOverride(forStep: step)
-            advanceStep()
+        case .negative:
+            // User disagrees — prompt for adjustment
+            if voiceMode {
+                conversationState = .ambiguous(step: step, prompt: "How would you like to adjust? You can say a time like 'leaving at 3', or tell me to subtract time.")
+                speechService.speak("No worries. You can say something like 'I'm leaving at 3', or 'subtract 30 minutes', or just tell me how many hours you want.")
+            }
         default:
             break
         }
@@ -1351,7 +1523,7 @@ struct MorningInterviewPane: View {
         let displayTotal = showDeferralStep ? totalSteps : totalSteps - 1
         switch step {
         case 0: return "Step \(displayStep) of \(displayTotal) — Yesterday's deferrals"
-        case 1: return "Step \(displayStep) of \(displayTotal) — How much time do you have?"
+        case 1: return "Step \(displayStep) of \(displayTotal) — Your free time today"
         case 2: return "Step \(displayStep) of \(displayTotal) — Confirm what's on for today"
         case 3: return "Step \(displayStep) of \(displayTotal) — Check time estimates"
         case 4: return "Step \(displayStep) of \(displayTotal) — Review and start"

@@ -62,6 +62,7 @@ struct PlanItem: Sendable {
     let bufferAfterMinutes: Int
     let rankReason: String?
     let scoreBreakdown: ScoreBreakdown
+    let scheduledSlotStart: Date?  // from TimeSlotAllocator — nil if no slot assigned
 }
 
 struct ScoreBreakdown: Sendable {
@@ -81,6 +82,12 @@ struct PlanResult: Sendable {
     let totalMinutes: Int
     let overflowTasks: [PlanTask]  // tasks that didn't fit, sorted by score desc
     let generatedAt: Date
+    // Allocation metadata from TimeSlotAllocator
+    let totalFreeMinutes: Int          // total free time in work window
+    let freeTimeGapCount: Int          // number of free-time blocks
+    let utilizationPercent: Double     // how loaded the plan is (0–100)
+    let warningMessage: String?        // over-scheduling warning if applicable
+    let deferredTaskIds: [UUID]        // task IDs that didn't fit
 }
 
 // MARK: - Score Constants
@@ -184,90 +191,87 @@ enum PlanningEngine {
             }
         }
 
-        // 3. Sort pool by score descending
+        // 3. Build full task list for allocator: fixed-position tasks first, then pool by score
         pool.sort { $0.breakdown.totalScore > $1.breakdown.totalScore }
 
-        // 4. Greedy knapsack — fill available minutes
-        var selected: [(task: PlanTask, breakdown: ScoreBreakdown)] = []
-        var overflow: [PlanTask] = []
-        var usedMinutes = 0
+        var allScoredForAllocator: [(task: PlanTask, breakdown: ScoreBreakdown)] = []
+        if let f = fixedFirst { allScoredForAllocator.append(f) }
+        if let s = fixedSecond { allScoredForAllocator.append(s) }
+        allScoredForAllocator.append(contentsOf: pool)
 
-        // Reserve budget for fixed-position tasks (using corrected durations)
-        if let f = fixedFirst {
-            let corrected = request.bucketEstimates[f.task.bucketType].map { Int($0) } ?? f.task.estimatedMinutes
-            usedMinutes += corrected + bufferPerTask
-        }
-        if let s = fixedSecond {
-            let corrected = request.bucketEstimates[s.task.bucketType].map { Int($0) } ?? s.task.estimatedMinutes
-            usedMinutes += corrected + bufferPerTask
-        }
-
-        for item in pool {
-            let corrected = request.bucketEstimates[item.task.bucketType].map { Int($0) } ?? item.task.estimatedMinutes
-            let cost = corrected + bufferPerTask
-            if usedMinutes + corrected <= effectiveAvailable {
-                selected.append(item)
-                usedMinutes += cost
-            } else {
-                overflow.append(item.task)
-            }
+        let allocatorTasks: [SlotTaskInput] = allScoredForAllocator.map { entry in
+            let corrected = request.bucketEstimates[entry.task.bucketType].map { Int($0) } ?? entry.task.estimatedMinutes
+            return SlotTaskInput(
+                id: entry.task.id,
+                estimatedMinutes: corrected,
+                bucketType: entry.task.bucketType,
+                priorityScore: Double(entry.breakdown.totalScore),
+                isLocked: false,
+                lockedStartTime: nil,
+                prepForMeetingId: nil
+            )
         }
 
-        // Second-pass fill: fill remaining time with smaller overflow items
-        var remainingMinutes = effectiveAvailable - usedMinutes
-        let fillCandidates = overflow.sorted {
-            let e0 = request.bucketEstimates[$0.bucketType].map { Int($0) } ?? $0.estimatedMinutes
-            let e1 = request.bucketEstimates[$1.bucketType].map { Int($0) } ?? $1.estimatedMinutes
-            return e0 < e1
-        }
-        var newOverflow: [PlanTask] = []
-        for item in fillCandidates {
-            let corrected = request.bucketEstimates[item.bucketType].map { Int($0) } ?? item.estimatedMinutes
-            if corrected + bufferPerTask <= remainingMinutes {
-                let breakdown = scoreTask(item, now: now, moodContext: request.moodContext, behaviouralRules: request.behaviouralRules, bucketStats: request.bucketStats, bucketEstimates: request.bucketEstimates, availableMinutes: effectiveAvailable, workStartHour: request.workStartHour, workEndHour: request.workEndHour)
-                selected.append((task: item, breakdown: breakdown))
-                remainingMinutes -= (corrected + bufferPerTask)
-            } else {
-                newOverflow.append(item)
-            }
-        }
-        overflow = newOverflow
+        // 4. Compute work window dates
+        let calendar = Calendar.current
+        let today = Date()
+        let workStart = calendar.date(bySettingHour: request.workStartHour, minute: 0, second: 0, of: today)!
+        let workEnd = calendar.date(bySettingHour: request.workEndHour, minute: 0, second: 0, of: today)!
 
-        // 5. Assemble ordered list: fixed positions first, then knapsack selection
-        var ordered: [(task: PlanTask, breakdown: ScoreBreakdown)] = []
-        if let f = fixedFirst { ordered.append(f) }
-        if let s = fixedSecond { ordered.append(s) }
-        ordered.append(contentsOf: selected)
+        // 5. Call TimeSlotAllocator
+        let allocation = TimeSlotAllocator.buildDayPlan(
+            calendarBlocks: request.calendarBlocks,
+            tasks: allocatorTasks,
+            workStart: workStart,
+            workEnd: workEnd
+        )
 
-        // 6. Build PlanItems with computed rank reason
-        let items: [PlanItem] = ordered.enumerated().map { index, entry in
-            PlanItem(
+        // Also compute free-time gap stats for the result
+        let freeTimeStats = TimeSlotAllocator.computeFreeTime(
+            calendarBlocks: request.calendarBlocks,
+            workStart: workStart,
+            workEnd: workEnd
+        )
+
+        // 6. Map allocation results back to PlanItems, ordered by slotStart
+        let scoredById = Dictionary(uniqueKeysWithValues: allScoredForAllocator.map { ($0.task.id, $0) })
+        let scheduledSlots = allocation.scheduled.sorted { $0.slotStart < $1.slotStart }
+
+        let items: [PlanItem] = scheduledSlots.enumerated().compactMap { (index, slot) -> PlanItem? in
+            guard let entry = scoredById[slot.taskId] else { return nil }
+            return PlanItem(
                 task: entry.task,
                 position: index,
                 estimatedMinutes: entry.task.estimatedMinutes,
                 bufferAfterMinutes: bufferPerTask,
                 rankReason: computeReason(entry.task, breakdown: entry.breakdown, moodContext: request.moodContext),
-                scoreBreakdown: entry.breakdown
+                scoreBreakdown: entry.breakdown,
+                scheduledSlotStart: slot.slotStart
             )
         }
 
-        // 7. Compute actual total (sum of selected task minutes only, no trailing buffer)
+        // 7. Compute actual total
         let totalMinutes = items.reduce(0) { $0 + $1.estimatedMinutes }
 
-        // 8. Sort overflow by score desc for caller convenience
-        let overflowSorted = overflow.sorted {
-            let a = scoreTask($0, now: now, moodContext: request.moodContext, behaviouralRules: request.behaviouralRules, bucketStats: request.bucketStats, bucketEstimates: request.bucketEstimates, availableMinutes: effectiveAvailable, workStartHour: request.workStartHour, workEndHour: request.workEndHour).totalScore
-            let b = scoreTask($1, now: now, moodContext: request.moodContext, behaviouralRules: request.behaviouralRules, bucketStats: request.bucketStats, bucketEstimates: request.bucketEstimates, availableMinutes: effectiveAvailable, workStartHour: request.workStartHour, workEndHour: request.workEndHour).totalScore
-            return a > b
-        }
+        // 8. Build overflow list from deferred IDs, sorted by score desc
+        let deferredSet = Set(allocation.deferred)
+        let overflowSorted = allScoredForAllocator
+            .filter { deferredSet.contains($0.task.id) }
+            .sorted { $0.breakdown.totalScore > $1.breakdown.totalScore }
+            .map(\.task)
 
         let result = PlanResult(
             items: items,
             totalMinutes: totalMinutes,
             overflowTasks: overflowSorted,
-            generatedAt: now
+            generatedAt: now,
+            totalFreeMinutes: allocation.totalFreeMinutes,
+            freeTimeGapCount: freeTimeStats.gapCount,
+            utilizationPercent: allocation.utilizationPercent * 100.0,
+            warningMessage: allocation.warningMessage,
+            deferredTaskIds: allocation.deferred
         )
-        TimedLogger.planning.info("Plan generated: \(result.items.count) tasks selected, \(result.totalMinutes) min planned, \(result.overflowTasks.count) overflow")
+        TimedLogger.planning.info("Plan generated: \(result.items.count) tasks selected, \(result.totalMinutes) min planned, \(result.overflowTasks.count) overflow, \(Int(result.utilizationPercent))% utilization")
         return result
     }
 

@@ -19,6 +19,12 @@ struct PlanPane: View {
     @State private var bucketStats: [BucketCompletionStat] = []
     @State private var bucketEstimates: [String: Double] = [:]
     @State private var mood: DishMeUpMood = .none
+    // Allocation metadata
+    @State private var totalFreeMinutes: Int = 0
+    @State private var freeTimeGapCount: Int = 0
+    @State private var utilizationPercent: Double = 0
+    @State private var warningMessage: String? = nil
+    @State private var deferredCount: Int = 0
 
     private let presets: [(label: String, mins: Int)] = [
         ("30 min", 30), ("1 hr", 60), ("2 hr", 120), ("3 hr", 180)
@@ -289,6 +295,9 @@ struct PlanPane: View {
             .padding(.horizontal, 16).padding(.vertical, 12)
             .background(Color(.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
 
+            // Allocation stats
+            allocationInfoBar
+
             // Task sequence — staggered auto-weave reveal
             VStack(spacing: 2) {
                 ForEach(Array(generatedPlan.enumerated()), id: \.element.id) { idx, item in
@@ -304,22 +313,63 @@ struct PlanPane: View {
             }
             .background(Color(.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
 
-            // Overflow notice
-            let overflow = tasks.filter { t in
-                !generatedPlan.contains(where: { $0.task.id == t.id })
-            }
-            if !overflow.isEmpty {
+            // Warning message
+            if let warning = warningMessage {
                 HStack(spacing: 6) {
-                    Image(systemName: "info.circle")
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.orange)
+                    Text(warning)
                         .font(.system(size: 12))
                         .foregroundStyle(.secondary)
-                    Text("\(overflow.count) tasks don't fit in \(formatMins(totalAvailable)) — left in queue.")
+                }
+                .padding(.horizontal, 12).padding(.vertical, 8)
+                .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            }
+
+            // Deferred tasks notice
+            if deferredCount > 0 {
+                HStack(spacing: 6) {
+                    Image(systemName: "arrow.uturn.forward")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                    Text("\(deferredCount) task\(deferredCount == 1 ? "" : "s") deferred to tomorrow")
                         .font(.system(size: 12))
                         .foregroundStyle(.secondary)
                 }
                 .padding(.horizontal, 2)
             }
         }
+    }
+
+    // MARK: - Allocation info bar
+
+    private var allocationInfoBar: some View {
+        HStack(spacing: 16) {
+            // Free time
+            HStack(spacing: 5) {
+                Image(systemName: "clock")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.teal)
+                Text("\(formatMins(totalFreeMinutes)) free across \(freeTimeGapCount) block\(freeTimeGapCount == 1 ? "" : "s")")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+            }
+
+            // Utilization
+            HStack(spacing: 5) {
+                Image(systemName: "chart.bar.fill")
+                    .font(.system(size: 11))
+                    .foregroundStyle(utilizationPercent > 90 ? .orange : .green)
+                Text("Plan is \(Int(utilizationPercent))% of free time")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+        }
+        .padding(.horizontal, 12).padding(.vertical, 8)
+        .background(Color(.controlBackgroundColor).opacity(0.6), in: RoundedRectangle(cornerRadius: 8))
     }
 
     // MARK: - Generation logic
@@ -357,20 +407,32 @@ struct PlanPane: View {
         )
         let result = PlanningEngine.generatePlan(request)
 
+        // Capture allocation metadata
+        totalFreeMinutes = result.totalFreeMinutes
+        freeTimeGapCount = result.freeTimeGapCount
+        utilizationPercent = result.utilizationPercent
+        warningMessage = result.warningMessage
+        deferredCount = result.deferredTaskIds.count
+
         // Map PlanItems back to PlannedItems using original TimedTask
-        // Compute scheduled start times based on sequential placement
+        // Use scheduledStartTime from allocator slots where available
         let taskById = Dictionary(uniqueKeysWithValues: tasks.map { ($0.id, $0) })
+
+        // Build a lookup of slotStart by taskId from the PlanItems' positions
+        // The PlanningEngine already sets items ordered by slotStart from the allocator
         let cal = Calendar.current
-        var cursor = Date()
-        let mins = cal.component(.minute, from: cursor)
+        var fallbackCursor = Date()
+        let mins = cal.component(.minute, from: fallbackCursor)
         let roundedMins = mins < 30 ? 30 : 60
-        cursor = cal.date(byAdding: .minute, value: roundedMins - mins, to: cursor) ?? cursor
+        fallbackCursor = cal.date(byAdding: .minute, value: roundedMins - mins, to: fallbackCursor) ?? fallbackCursor
 
         planRevealed = false
         generatedPlan = result.items.compactMap { item in
             guard let original = taskById[item.task.id] else { return nil }
-            let planned = PlannedItem(task: original, scheduledStartTime: cursor)
-            cursor = cursor.addingTimeInterval(TimeInterval(original.estimatedMinutes * 60 + 5 * 60))
+            // Use the allocator's slot start time; fall back to sequential cursor
+            let startTime = item.scheduledSlotStart ?? fallbackCursor
+            let planned = PlannedItem(task: original, scheduledStartTime: startTime)
+            fallbackCursor = startTime.addingTimeInterval(TimeInterval(original.estimatedMinutes * 60 + 5 * 60))
             return planned
         }
         planGenerated = true
