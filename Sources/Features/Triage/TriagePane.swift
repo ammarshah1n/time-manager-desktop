@@ -402,6 +402,18 @@ struct TriagePane: View {
             Task {
                 @Dependency(\.supabaseClient) var supa
                 try? await supa.updateEmailBucket(emailId, bucket.rawValue, 1.0)
+
+                // Log correction if AI classification differs from user choice
+                if let aiClassification = item.classifiedBucket,
+                   aiClassification != bucket.rawValue {
+                    let correction = TriageCorrectionRow(
+                        id: UUID(), workspaceId: AuthService.shared.workspaceId ?? UUID(),
+                        emailMessageId: emailId, profileId: AuthService.shared.profileId ?? UUID(),
+                        oldBucket: aiClassification, newBucket: bucket.rawValue,
+                        fromAddress: item.sender
+                    )
+                    try? await supa.insertTriageCorrection(correction)
+                }
             }
         }
 

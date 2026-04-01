@@ -41,7 +41,7 @@ serve(async (req: Request) => {
 
   try {
     // Fetch email + sender rules + recent corrections
-    const [emailResult, senderRulesResult, correctionsResult] =
+    const [emailResult, senderRulesResult] =
       await Promise.all([
         supabase
           .from("email_messages")
@@ -53,17 +53,49 @@ serve(async (req: Request) => {
           .select("from_address,rule_type")
           .eq("workspace_id", workspaceId)
           .eq("profile_id", profileId),
-        supabase
-          .from("email_triage_corrections")
-          .select("from_address,old_bucket,new_bucket,subject_snippet")
-          .eq("workspace_id", workspaceId)
-          .order("created_at", { ascending: false })
-          .limit(15),
       ]);
 
     const email = emailResult.data!;
     const senderRules = senderRulesResult.data ?? [];
-    const corrections = correctionsResult.data ?? [];
+
+    // Generate embedding for similarity-based correction retrieval
+    const inputText = `${email.subject ?? ''} ${email.from_address} ${email.snippet ?? ''}`.trim();
+    let embedding: number[] | null = null;
+    const openaiKey = Deno.env.get('OPENAI_API_KEY');
+    if (openaiKey && inputText) {
+        const embResp = await fetch('https://api.openai.com/v1/embeddings', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${openaiKey}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ model: 'text-embedding-3-small', input: inputText })
+        });
+        const embJson = await embResp.json();
+        embedding = embJson.data?.[0]?.embedding ?? null;
+
+        if (embedding) {
+            await supabase.from('email_messages')
+                .update({ embedding: JSON.stringify(embedding) })
+                .eq('id', emailMessageId);
+        }
+    }
+
+    // Fetch corrections: similarity-based if embedding available, recency fallback
+    let corrections;
+    if (embedding) {
+        const { data } = await supabase.rpc('similar_corrections', {
+            p_workspace_id: workspaceId,
+            p_embedding: JSON.stringify(embedding),
+            p_limit: 10
+        });
+        corrections = data ?? [];
+    } else {
+        // Fallback to recency if embedding failed
+        const { data } = await supabase.from('email_triage_corrections')
+            .select('from_address,old_bucket,new_bucket,subject_snippet')
+            .eq('workspace_id', workspaceId)
+            .order('created_at', { ascending: false })
+            .limit(15);
+        corrections = data ?? [];
+    }
 
     // Check CC-only rule first (deterministic, no AI needed)
     const toPrimary = email.to_addresses as string[];
@@ -76,6 +108,12 @@ serve(async (req: Request) => {
       .map((r: { from_address: string }) => r.from_address);
     const blackHole = senderRules
       .filter((r: { rule_type: string }) => r.rule_type === "black_hole")
+      .map((r: { from_address: string }) => r.from_address);
+    const laterSenders = senderRules
+      .filter((r: { rule_type: string }) => r.rule_type === "later")
+      .map((r: { from_address: string }) => r.from_address);
+    const delegateSenders = senderRules
+      .filter((r: { rule_type: string }) => r.rule_type === "delegate")
       .map((r: { from_address: string }) => r.from_address);
 
     // Format corrections for few-shot
@@ -105,8 +143,10 @@ CRITICAL RULES:
 
     const userMessage = `INBOX_ALWAYS senders: ${inboxAlways.join(", ") || "none"}
 BLACK_HOLE senders: ${blackHole.join(", ") || "none"}
+LATER senders (high probability later, but content may override): ${laterSenders.join(", ") || "none"}
+DELEGATE senders (likely action, but not for this user — forward or delegate): ${delegateSenders.join(", ") || "none"}
 
-PAST CORRECTIONS (recent training signal):
+PAST CORRECTIONS (${embedding ? "similarity-ranked" : "recent"} training signal):
 ${correctionText || "none yet"}
 
 ---

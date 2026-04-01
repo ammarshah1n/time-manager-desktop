@@ -61,6 +61,7 @@ actor EmailSyncService {
     private var deltaLink: String?
     private var syncTask: Task<Void, Never>?
     private var isRunning = false
+    private var currentEmailAccountId: UUID?
 
     /// Default polling interval in seconds.
     var pollInterval: TimeInterval = 60
@@ -69,6 +70,9 @@ actor EmailSyncService {
 
     /// Maps graphMessageId → parentFolderId last seen for that message.
     private var knownFolders: [String: String] = [:]
+
+    /// Tracks when each knownFolders entry was last updated.
+    private var knownFoldersTimestamps: [String: Date] = [:]
 
     /// Caches folderId → displayName to avoid repeated Graph API calls.
     private var folderNameCache: [String: String] = [:]
@@ -97,6 +101,37 @@ actor EmailSyncService {
             ?? "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZwbWp1dWZlZmh0bHdiZmlueGx4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5MTMxMDEsImV4cCI6MjA5MDQ4OTEwMX0.VUtjezhFMpwrcVMXltyYmU2n0Xazi9lvhuwAQlKOTO4"
     }()
 
+    // MARK: - Known Folders Persistence
+
+    private func loadKnownFolders(for accountId: UUID) {
+        if let data = UserDefaults.standard.data(forKey: "knownFolders_\(accountId)"),
+           let dict = try? JSONDecoder().decode([String: String].self, from: data) {
+            knownFolders = dict
+        }
+        if let tsData = UserDefaults.standard.data(forKey: "knownFoldersTS_\(accountId)"),
+           let dict = try? JSONDecoder().decode([String: Date].self, from: tsData) {
+            knownFoldersTimestamps = dict
+        }
+    }
+
+    private func saveKnownFolders(for accountId: UUID) {
+        // Prune: cap at 5000 entries, removing oldest by timestamp
+        if knownFolders.count > 5000 {
+            let sorted = knownFoldersTimestamps.sorted { $0.value < $1.value }
+            let toRemove = sorted.prefix(knownFolders.count - 5000)
+            for (key, _) in toRemove {
+                knownFolders.removeValue(forKey: key)
+                knownFoldersTimestamps.removeValue(forKey: key)
+            }
+        }
+        if let data = try? JSONEncoder().encode(knownFolders) {
+            UserDefaults.standard.set(data, forKey: "knownFolders_\(accountId)")
+        }
+        if let tsData = try? JSONEncoder().encode(knownFoldersTimestamps) {
+            UserDefaults.standard.set(tsData, forKey: "knownFoldersTS_\(accountId)")
+        }
+    }
+
     // MARK: - Start / Stop
 
     /// Starts the background sync loop. Idempotent — calling while already running is a no-op.
@@ -106,6 +141,8 @@ actor EmailSyncService {
             return
         }
         isRunning = true
+        currentEmailAccountId = emailAccountId
+        loadKnownFolders(for: emailAccountId)
         TimedLogger.graph.info("EmailSyncService starting (interval: \(self.pollInterval)s)")
 
         syncTask = Task { [weak self] in
@@ -132,6 +169,9 @@ actor EmailSyncService {
     /// Stops the background sync loop.
     func stop() {
         TimedLogger.graph.info("EmailSyncService stopping")
+        if let accountId = currentEmailAccountId {
+            saveKnownFolders(for: accountId)
+        }
         syncTask?.cancel()
         syncTask = nil
         isRunning = false
@@ -203,6 +243,12 @@ actor EmailSyncService {
 
         // Persist the delta link for the next call
         deltaLink = currentDeltaLink
+
+        // Save known folders after each sync pass
+        if let accountId = currentEmailAccountId {
+            saveKnownFolders(for: accountId)
+        }
+
         return totalProcessed
     }
 
@@ -371,6 +417,7 @@ actor EmailSyncService {
     ) async {
         let previousFolderId = knownFolders[message.id]
         knownFolders[message.id] = currentFolderId
+        knownFoldersTimestamps[message.id] = Date()
 
         // No previous record → first time seeing this message, nothing to compare
         guard let previousFolderId, previousFolderId != currentFolderId else { return }
