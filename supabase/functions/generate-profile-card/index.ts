@@ -17,7 +17,7 @@ const anthropic = new Anthropic({ apiKey: Deno.env.get("ANTHROPIC_API_KEY")! });
 interface BehaviourRule {
   rule_text: string;
   rule_key?: string;
-  rule_type: "scheduling" | "avoidance" | "estimation" | "context" | "timing";
+  rule_type: "scheduling" | "avoidance" | "estimation" | "context" | "timing" | "ordering";
   rule_value_json?: Record<string, unknown>;
   confidence: number;
   supporting_evidence: string;
@@ -119,7 +119,12 @@ For each bucket_type in the estimation history, compute the average estimate_err
 }
 If the user overestimates, use "User overestimates [bucket] tasks by [X]%" instead.
 
-Return a JSON object: { "profile_summary": "2-3 sentence summary of this person's work style", "rules": [{ "rule_text": "string", "rule_key": "optional string for timing/estimation rules", "rule_type": "scheduling"|"avoidance"|"estimation"|"context"|"timing", "rule_value_json": "optional object for timing/estimation rules", "confidence": 0.0-1.0, "supporting_evidence": "brief" }] }`,
+ORDER OVERRIDE ANALYSIS:
+Look for plan_order_override events where old_value and new_value contain task positions and bucket types.
+If the same bucket_type is consistently moved earlier or later, emit an ordering rule:
+{"rule_type": "ordering", "rule_key": "ordering.<bucket>.<direction>", "rule_value_json": {"bucket_type": "<bucket>", "direction": "earlier|later"}, "confidence": <count/10 capped at 1.0>, "supporting_evidence": "User moved <bucket> tasks <direction> N times"}
+
+Return a JSON object: { "profile_summary": "2-3 sentence summary of this person's work style", "rules": [{ "rule_text": "string", "rule_key": "optional string for timing/estimation/ordering rules", "rule_type": "scheduling"|"avoidance"|"estimation"|"context"|"timing"|"ordering", "rule_value_json": "optional object for timing/estimation/ordering rules", "confidence": 0.0-1.0, "supporting_evidence": "brief" }] }`,
           // @ts-ignore
           cache_control: { type: "ephemeral" },
         },

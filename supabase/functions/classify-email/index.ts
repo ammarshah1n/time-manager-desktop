@@ -15,7 +15,7 @@ const supabase = createClient(
 const anthropic = new Anthropic({ apiKey: Deno.env.get("ANTHROPIC_API_KEY")! });
 
 serve(async (req: Request) => {
-  const { emailMessageId, workspaceId, profileId } = await req.json();
+  const { emailMessageId, workspaceId, profileId, sender_importance: senderImportance } = await req.json();
   if (!emailMessageId || !workspaceId || !profileId) {
     return new Response(
       JSON.stringify({ error: "Missing required fields" }),
@@ -153,7 +153,8 @@ ${correctionText || "none yet"}
 CLASSIFY THIS EMAIL:
 From: ${email.from_address}
 Subject: ${email.subject ?? "(no subject)"}
-Preview: ${email.snippet ?? "(empty)"}`;
+Preview: ${email.snippet ?? "(empty)"}
+This sender has a historical importance score of ${senderImportance?.toFixed(2) ?? 'unknown'} (0=low, 1=high based on how quickly the user replies to this sender).`;
 
     // Claude Haiku call with prompt caching
     const message = await anthropic.messages.create({
