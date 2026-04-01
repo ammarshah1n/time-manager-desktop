@@ -22,57 +22,57 @@
 DROP POLICY IF EXISTS "tasks_workspace_isolation" ON public.tasks;
 CREATE POLICY "tasks_workspace_isolation"
   ON public.tasks FOR ALL TO authenticated
-  USING  (workspace_id = ANY((select public.current_workspace_ids())))
-  WITH CHECK (workspace_id = ANY((select public.current_workspace_ids())));
+  USING  (workspace_id = ANY(public.current_workspace_ids()))
+  WITH CHECK (workspace_id = ANY(public.current_workspace_ids()));
 
 -- A2: email_messages
 DROP POLICY IF EXISTS "email_messages_workspace_isolation" ON public.email_messages;
 CREATE POLICY "email_messages_workspace_isolation"
   ON public.email_messages FOR ALL TO authenticated
-  USING  (workspace_id = ANY((select public.current_workspace_ids())))
-  WITH CHECK (workspace_id = ANY((select public.current_workspace_ids())));
+  USING  (workspace_id = ANY(public.current_workspace_ids()))
+  WITH CHECK (workspace_id = ANY(public.current_workspace_ids()));
 
 -- A3: daily_plans
 DROP POLICY IF EXISTS "daily_plans_workspace_isolation" ON public.daily_plans;
 CREATE POLICY "daily_plans_workspace_isolation"
   ON public.daily_plans FOR ALL TO authenticated
-  USING  (workspace_id = ANY((select public.current_workspace_ids())))
-  WITH CHECK (workspace_id = ANY((select public.current_workspace_ids())));
+  USING  (workspace_id = ANY(public.current_workspace_ids()))
+  WITH CHECK (workspace_id = ANY(public.current_workspace_ids()));
 
 -- A4: waiting_items
 DROP POLICY IF EXISTS "waiting_items_workspace_isolation" ON public.waiting_items;
 CREATE POLICY "waiting_items_workspace_isolation"
   ON public.waiting_items FOR ALL TO authenticated
-  USING  (workspace_id = ANY((select public.current_workspace_ids())))
-  WITH CHECK (workspace_id = ANY((select public.current_workspace_ids())));
+  USING  (workspace_id = ANY(public.current_workspace_ids()))
+  WITH CHECK (workspace_id = ANY(public.current_workspace_ids()));
 
 -- A5: voice_captures
 DROP POLICY IF EXISTS "voice_captures_workspace_isolation" ON public.voice_captures;
 CREATE POLICY "voice_captures_workspace_isolation"
   ON public.voice_captures FOR ALL TO authenticated
-  USING  (workspace_id = ANY((select public.current_workspace_ids())))
-  WITH CHECK (workspace_id = ANY((select public.current_workspace_ids())));
+  USING  (workspace_id = ANY(public.current_workspace_ids()))
+  WITH CHECK (workspace_id = ANY(public.current_workspace_ids()));
 
 -- A6: user_profiles
 DROP POLICY IF EXISTS "user_profiles_workspace_isolation" ON public.user_profiles;
 CREATE POLICY "user_profiles_workspace_isolation"
   ON public.user_profiles FOR ALL TO authenticated
-  USING  (workspace_id = ANY((select public.current_workspace_ids())))
-  WITH CHECK (workspace_id = ANY((select public.current_workspace_ids())));
+  USING  (workspace_id = ANY(public.current_workspace_ids()))
+  WITH CHECK (workspace_id = ANY(public.current_workspace_ids()));
 
 -- A7: behaviour_rules
 DROP POLICY IF EXISTS "behaviour_rules_workspace_isolation" ON public.behaviour_rules;
 CREATE POLICY "behaviour_rules_workspace_isolation"
   ON public.behaviour_rules FOR ALL TO authenticated
-  USING  (workspace_id = ANY((select public.current_workspace_ids())))
-  WITH CHECK (workspace_id = ANY((select public.current_workspace_ids())));
+  USING  (workspace_id = ANY(public.current_workspace_ids()))
+  WITH CHECK (workspace_id = ANY(public.current_workspace_ids()));
 
 -- A8: bucket_estimates (created in 000003 without wrapper)
 DROP POLICY IF EXISTS "bucket_estimates_workspace_isolation" ON public.bucket_estimates;
 CREATE POLICY "bucket_estimates_workspace_isolation"
   ON public.bucket_estimates FOR ALL TO authenticated
-  USING  (workspace_id = ANY((select public.current_workspace_ids())))
-  WITH CHECK (workspace_id = ANY((select public.current_workspace_ids())));
+  USING  (workspace_id = ANY(public.current_workspace_ids()))
+  WITH CHECK (workspace_id = ANY(public.current_workspace_ids()));
 
 
 -- ============================================================
@@ -85,67 +85,67 @@ CREATE POLICY "bucket_estimates_workspace_isolation"
 DROP POLICY IF EXISTS "email_accounts_workspace_isolation" ON public.email_accounts;
 CREATE POLICY "email_accounts_workspace_isolation"
   ON public.email_accounts FOR ALL TO authenticated
-  USING  (workspace_id = ANY((select public.current_workspace_ids())))
-  WITH CHECK (workspace_id = ANY((select public.current_workspace_ids())));
+  USING  (workspace_id = ANY(public.current_workspace_ids()))
+  WITH CHECK (workspace_id = ANY(public.current_workspace_ids()));
 
 -- B2: email_triage_corrections
 DROP POLICY IF EXISTS "email_triage_corrections_workspace_isolation" ON public.email_triage_corrections;
 CREATE POLICY "email_triage_corrections_workspace_isolation"
   ON public.email_triage_corrections FOR ALL TO authenticated
-  USING  (workspace_id = ANY((select public.current_workspace_ids())))
-  WITH CHECK (workspace_id = ANY((select public.current_workspace_ids())));
+  USING  (workspace_id = ANY(public.current_workspace_ids()))
+  WITH CHECK (workspace_id = ANY(public.current_workspace_ids()));
 
 -- B3: sender_rules
 DROP POLICY IF EXISTS "sender_rules_workspace_isolation" ON public.sender_rules;
 CREATE POLICY "sender_rules_workspace_isolation"
   ON public.sender_rules FOR ALL TO authenticated
-  USING  (workspace_id = ANY((select public.current_workspace_ids())))
-  WITH CHECK (workspace_id = ANY((select public.current_workspace_ids())));
+  USING  (workspace_id = ANY(public.current_workspace_ids()))
+  WITH CHECK (workspace_id = ANY(public.current_workspace_ids()));
 
 -- B4: estimation_history
 DROP POLICY IF EXISTS "estimation_history_workspace_isolation" ON public.estimation_history;
 CREATE POLICY "estimation_history_workspace_isolation"
   ON public.estimation_history FOR ALL TO authenticated
-  USING  (workspace_id = ANY((select public.current_workspace_ids())))
-  WITH CHECK (workspace_id = ANY((select public.current_workspace_ids())));
+  USING  (workspace_id = ANY(public.current_workspace_ids()))
+  WITH CHECK (workspace_id = ANY(public.current_workspace_ids()));
 
 -- B5: plan_items
 DROP POLICY IF EXISTS "plan_items_workspace_isolation" ON public.plan_items;
 CREATE POLICY "plan_items_workspace_isolation"
   ON public.plan_items FOR ALL TO authenticated
-  USING  (workspace_id = ANY((select public.current_workspace_ids())))
-  WITH CHECK (workspace_id = ANY((select public.current_workspace_ids())));
+  USING  (workspace_id = ANY(public.current_workspace_ids()))
+  WITH CHECK (workspace_id = ANY(public.current_workspace_ids()));
 
 -- B6: voice_capture_items
 DROP POLICY IF EXISTS "voice_capture_items_workspace_isolation" ON public.voice_capture_items;
 CREATE POLICY "voice_capture_items_workspace_isolation"
   ON public.voice_capture_items FOR ALL TO authenticated
-  USING  (workspace_id = ANY((select public.current_workspace_ids())))
-  WITH CHECK (workspace_id = ANY((select public.current_workspace_ids())));
+  USING  (workspace_id = ANY(public.current_workspace_ids()))
+  WITH CHECK (workspace_id = ANY(public.current_workspace_ids()));
 
 -- B7: ai_pipeline_runs
 DROP POLICY IF EXISTS "ai_pipeline_runs_workspace_isolation" ON public.ai_pipeline_runs;
 CREATE POLICY "ai_pipeline_runs_workspace_isolation"
   ON public.ai_pipeline_runs FOR ALL TO authenticated
-  USING  (workspace_id = ANY((select public.current_workspace_ids())))
-  WITH CHECK (workspace_id = ANY((select public.current_workspace_ids())));
+  USING  (workspace_id = ANY(public.current_workspace_ids()))
+  WITH CHECK (workspace_id = ANY(public.current_workspace_ids()));
 
 -- B8: behaviour_events partitions (skip if partition doesn't exist yet)
 DO $$ BEGIN
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='behaviour_events_2026_03') THEN
     DROP POLICY IF EXISTS "behaviour_events_2026_03_ws" ON public.behaviour_events_2026_03;
     CREATE POLICY "behaviour_events_2026_03_ws" ON public.behaviour_events_2026_03 FOR ALL TO authenticated
-      USING (workspace_id = ANY((select public.current_workspace_ids()))) WITH CHECK (workspace_id = ANY((select public.current_workspace_ids())));
+      USING (workspace_id = ANY(public.current_workspace_ids())) WITH CHECK (workspace_id = ANY(public.current_workspace_ids()));
   END IF;
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='behaviour_events_2026_04') THEN
     DROP POLICY IF EXISTS "behaviour_events_2026_04_ws" ON public.behaviour_events_2026_04;
     CREATE POLICY "behaviour_events_2026_04_ws" ON public.behaviour_events_2026_04 FOR ALL TO authenticated
-      USING (workspace_id = ANY((select public.current_workspace_ids()))) WITH CHECK (workspace_id = ANY((select public.current_workspace_ids())));
+      USING (workspace_id = ANY(public.current_workspace_ids())) WITH CHECK (workspace_id = ANY(public.current_workspace_ids()));
   END IF;
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='behaviour_events_2026_05') THEN
     DROP POLICY IF EXISTS "behaviour_events_2026_05_ws" ON public.behaviour_events_2026_05;
     CREATE POLICY "behaviour_events_2026_05_ws" ON public.behaviour_events_2026_05 FOR ALL TO authenticated
-      USING (workspace_id = ANY((select public.current_workspace_ids()))) WITH CHECK (workspace_id = ANY((select public.current_workspace_ids())));
+      USING (workspace_id = ANY(public.current_workspace_ids())) WITH CHECK (workspace_id = ANY(public.current_workspace_ids()));
   END IF;
 END $$;
 
@@ -261,7 +261,7 @@ PERFORM cron.schedule(
           'ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', _name
         );
         EXECUTE format(
-          'CREATE POLICY %I ON public.%I FOR ALL TO authenticated USING (workspace_id = ANY((select public.current_workspace_ids()))) WITH CHECK (workspace_id = ANY((select public.current_workspace_ids())))',
+          'CREATE POLICY %I ON public.%I FOR ALL TO authenticated USING (workspace_id = ANY(public.current_workspace_ids())) WITH CHECK (workspace_id = ANY(public.current_workspace_ids()))',
           _name || '_ws', _name
         );
         -- Attach rule triggers
