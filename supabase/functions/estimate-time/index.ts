@@ -47,7 +47,16 @@ serve(async (req: Request) => {
   }
 
   const startTime = Date.now();
-  const categoryDefault = CATEGORY_DEFAULTS[bucketType] ?? 15;
+
+  // Tier 3: personalised bucket default from bucket_estimates, fallback to static CATEGORY_DEFAULTS
+  const { data: userDefault } = await supabase
+    .from("bucket_estimates")
+    .select("mean_minutes")
+    .eq("profile_id", profileId)
+    .eq("bucket_type", bucketType)
+    .maybeSingle();
+
+  const categoryDefault = userDefault?.mean_minutes ?? CATEGORY_DEFAULTS[bucketType] ?? 15;
 
   // Generate embedding for the task title (used in tier 1 and stored on task + history)
   const titleEmbedding = title ? await generateEmbedding(title) : null;

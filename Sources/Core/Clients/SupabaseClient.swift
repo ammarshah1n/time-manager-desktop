@@ -383,6 +383,9 @@ struct SupabaseClientDependency: Sendable {
     /// Used by the reply latency social graph to persist importance signals.
     var upsertSenderLatency: @Sendable (UUID, UUID, String, Double, Int) async throws -> Void = { _, _, _, _, _ in }
 
+    /// Updates tasks.actual_minutes — triggers trg_insert_estimation_history which auto-inserts to estimation_history.
+    var updateTaskActualMinutes: @Sendable (UUID, Int) async throws -> Void = { _, _ in }
+
     /// Upserts a bucket estimate: (workspaceId, profileId, bucketType, meanMinutes, sampleCount).
     /// Syncs local EMA posterior to Supabase for cross-device consistency.
     var upsertBucketEstimate: @Sendable (UUID, UUID, String, Double, Int) async throws -> Void = { _, _, _, _, _ in }
@@ -630,6 +633,25 @@ extension SupabaseClientDependency {
                 try await client
                     .from("sender_latencies")
                     .upsert(row, onConflict: "workspace_id,profile_id,from_address")
+                    .execute()
+            },
+            updateTaskActualMinutes: { taskId, actualMinutes in
+                struct ActualMinutesUpdate: Encodable {
+                    let actualMinutes: Int
+                    let updatedAt: String
+                    enum CodingKeys: String, CodingKey {
+                        case actualMinutes = "actual_minutes"
+                        case updatedAt = "updated_at"
+                    }
+                }
+                let payload = ActualMinutesUpdate(
+                    actualMinutes: actualMinutes,
+                    updatedAt: ISO8601DateFormatter().string(from: Date())
+                )
+                try await client
+                    .from("tasks")
+                    .update(payload)
+                    .eq("id", value: taskId)
                     .execute()
             },
             upsertBucketEstimate: { workspaceId, profileId, bucketType, meanMinutes, sampleCount in

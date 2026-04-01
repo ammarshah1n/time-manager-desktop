@@ -971,6 +971,9 @@ struct TodayTaskRow: View {
                                 )
                                 try? await supa.insertBehaviourEvent(event)
                                 try? await supa.upsertBucketEstimate(wsId, profileId, task.bucket.rawValue, est.meanMinutes, est.sampleCount)
+
+                                // Update tasks.actual_minutes — DB trigger auto-inserts to estimation_history
+                                try? await supa.updateTaskActualMinutes(task.id, actualMinutes)
                             }
                         }
                         showActualTime = false

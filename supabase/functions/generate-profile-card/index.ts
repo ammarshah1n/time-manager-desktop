@@ -107,7 +107,19 @@ Analyze the hour_of_day field in behaviour_events per bucket_type (action, reply
 }
 Window names: "morning" (6-10), "late_morning" (9-13), "afternoon" (12-16), "late_afternoon" (14-18), "evening" (17-21). Pick the 4-hour window with the highest concentration. You may emit multiple timing rules if different bucket_types have different preferred windows.
 
-Return a JSON object: { "profile_summary": "2-3 sentence summary of this person's work style", "rules": [{ "rule_text": "string", "rule_key": "optional string for timing rules", "rule_type": "scheduling"|"avoidance"|"estimation"|"context"|"timing", "rule_value_json": "optional object for timing rules", "confidence": 0.0-1.0, "supporting_evidence": "brief" }] }`,
+ESTIMATION ANALYSIS (IMPORTANT):
+For each bucket_type in the estimation history, compute the average estimate_error. If |avg_error| > 0.20 (20%), emit an estimation rule:
+{
+  "rule_text": "User underestimates [bucket] tasks by [X]%",
+  "rule_key": "estimation.[bucket].bias",
+  "rule_type": "estimation",
+  "rule_value_json": {"bucket_type": "[bucket]", "avg_error": [error], "correction_factor": [1/(1+error)]},
+  "confidence": min(sample_count / 20, 1.0),
+  "supporting_evidence": "Based on N completions"
+}
+If the user overestimates, use "User overestimates [bucket] tasks by [X]%" instead.
+
+Return a JSON object: { "profile_summary": "2-3 sentence summary of this person's work style", "rules": [{ "rule_text": "string", "rule_key": "optional string for timing/estimation rules", "rule_type": "scheduling"|"avoidance"|"estimation"|"context"|"timing", "rule_value_json": "optional object for timing/estimation rules", "confidence": 0.0-1.0, "supporting_evidence": "brief" }] }`,
           // @ts-ignore
           cache_control: { type: "ephemeral" },
         },

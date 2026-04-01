@@ -68,6 +68,7 @@ struct DishMeUpSheet: View {
     @State private var taskReasons: [UUID: String] = [:]
     @State private var generated   = false
     @State private var behaviourRules: [BehaviourRule] = []
+    @State private var bucketStats: [BucketCompletionStat] = []
     @State private var bucketEstimates: [String: Double] = [:]
 
     private let presets: [(label: String, mins: Int)] = [("30m", 30), ("1h", 60), ("2h", 120), ("3h", 180)]
@@ -104,6 +105,12 @@ struct DishMeUpSheet: View {
                 behaviourRules = rows.map {
                     BehaviourRule(ruleKey: $0.ruleKey, ruleType: $0.ruleType,
                                  ruleValueJson: $0.ruleValueJson, confidence: $0.confidence)
+                }
+            }
+            // Fetch bucket completion stats for Thompson sampling
+            if let wsId = AuthService.shared.workspaceId {
+                if let stats = try? await supa.fetchBucketStats(wsId, profileId) {
+                    bucketStats = stats
                 }
             }
             let bucketEst = (try? await DataStore.shared.loadBucketEstimates()) ?? [:]
@@ -415,7 +422,7 @@ struct DishMeUpSheet: View {
             moodContext: toMoodContext(mood),
             behaviouralRules: behaviourRules,
             tasks: planTasks,
-            bucketStats: [],
+            bucketStats: bucketStats,
             bucketEstimates: planEstimates
         )
         let result = PlanningEngine.generatePlan(request)
