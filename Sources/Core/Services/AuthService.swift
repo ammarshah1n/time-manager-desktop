@@ -25,7 +25,7 @@ final class AuthService: ObservableObject {
         let urlString = ProcessInfo.processInfo.environment["SUPABASE_URL"]
             ?? "https://fpmjuufefhtlwbfinxlx.supabase.co"
         let anonKey = ProcessInfo.processInfo.environment["SUPABASE_ANON_KEY"]
-            ?? "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZwbWp1dWZlZmh0bHdiZmlueGx4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5MTMxMDEsImV4cCI6MjA5MDQ4OTEwMX0.VUtjezhFMpwrcVMXltyYmU2n0Xazi9lvhuwAQlKOTO4"
+            ?? ""
         guard let url = URL(string: urlString), !urlString.contains("fake.supabase.co") else { return nil }
         return SupabaseClient(supabaseURL: url, supabaseKey: anonKey)
     }
@@ -62,7 +62,7 @@ final class AuthService: ObservableObject {
         do {
             let url = try await client.auth.getOAuthSignInURL(
                 provider: .azure,
-                scopes: "email profile openid",
+                scopes: "email profile openid Mail.Read Calendars.Read offline_access",
                 redirectTo: URL(string: "timed://auth/callback")
             )
             // Open the OAuth URL in default browser
@@ -112,6 +112,41 @@ final class AuthService: ObservableObject {
             TimedLogger.graph.error("Graph OAuth failed: \(error.localizedDescription, privacy: .public)")
         }
         isLoading = false
+    }
+
+    // MARK: - Token Provider (auto-refresh)
+
+    /// Returns a closure that always yields a fresh Graph access token.
+    /// Each call attempts MSAL silent refresh first, falls back to interactive auth,
+    /// and caches the result on `graphAccessToken`.
+    ///
+    /// Usage: pass `auth.makeTokenProvider()` to EmailSyncService / CalendarSyncService
+    /// instead of a raw access token string.
+    func makeTokenProvider() -> @Sendable () async throws -> String {
+        // Capture self weakly to avoid retain cycles in long-lived sync tasks.
+        return { [weak self] in
+            guard let self else {
+                throw TokenProviderError.authServiceDeallocated
+            }
+            // Try silent refresh via GraphClient (wraps MSAL acquireTokenSilent → interactive fallback)
+            @Dependency(\.graphClient) var graphClient
+            let token = try await graphClient.authenticate("", self.userEmail ?? "")
+            await MainActor.run {
+                self.graphAccessToken = token
+            }
+            return token
+        }
+    }
+
+    enum TokenProviderError: Error, LocalizedError {
+        case authServiceDeallocated
+
+        var errorDescription: String? {
+            switch self {
+            case .authServiceDeallocated:
+                return "AuthService was deallocated — cannot refresh token"
+            }
+        }
     }
 
     // MARK: - Sign out

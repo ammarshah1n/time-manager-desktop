@@ -233,13 +233,29 @@ struct CapturePane: View {
     private func addTextCapture() {
         let t = textInput.trimmingCharacters(in: .whitespaces)
         guard !t.isEmpty else { return }
-        let item = CaptureItem(
-            id: UUID(), inputType: .text,
-            rawText: t, parsedTitle: t,
-            suggestedBucket: .action, suggestedMinutes: 15,
-            capturedAt: Date()
-        )
-        items.insert(item, at: 0)
+
+        let parsed = TranscriptParser.parse(t)
+        let newItems: [CaptureItem]
+        if parsed.isEmpty {
+            // NLP couldn't extract anything — fall back to raw text with defaults
+            newItems = [CaptureItem(
+                id: UUID(), inputType: .text,
+                rawText: t, parsedTitle: t,
+                suggestedBucket: .action, suggestedMinutes: 15,
+                capturedAt: Date()
+            )]
+        } else {
+            newItems = parsed.map { p in
+                CaptureItem(
+                    id: p.id, inputType: .text,
+                    rawText: t, parsedTitle: p.title,
+                    suggestedBucket: bucketFromVoice(p.bucketType),
+                    suggestedMinutes: p.estimatedMinutes ?? 15,
+                    capturedAt: Date()
+                )
+            }
+        }
+        items.insert(contentsOf: newItems, at: 0)
         textInput = ""
     }
 

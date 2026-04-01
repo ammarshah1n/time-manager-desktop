@@ -368,6 +368,21 @@ struct TriagePane: View {
 
         // CC/FYI: archive with no task created
         if bucket == .ccFyi {
+            // Log correction if AI classification differs from user's CC/FYI choice
+            if let emailId = item.emailMessageId,
+               let aiClassification = item.classifiedBucket,
+               aiClassification != bucket.rawValue {
+                Task {
+                    @Dependency(\.supabaseClient) var supa
+                    let correction = TriageCorrectionRow(
+                        id: UUID(), workspaceId: AuthService.shared.workspaceId ?? UUID(),
+                        emailMessageId: emailId, profileId: AuthService.shared.profileId ?? UUID(),
+                        oldBucket: aiClassification, newBucket: bucket.rawValue,
+                        fromAddress: item.sender
+                    )
+                    try? await supa.insertTriageCorrection(correction)
+                }
+            }
             undoStack.append((item: item, index: currentIndex))
             recentAction = "CC/FYI — archived"
             animateOut(direction: .right) {
@@ -435,8 +450,22 @@ struct TriagePane: View {
     }
 
     private func archiveCurrent() {
-        guard current != nil else { return }
-        undoStack.append((item: items[currentIndex], index: currentIndex))
+        guard let item = current else { return }
+        // Log correction if AI had classified this into a bucket but user chose to archive
+        if let emailId = item.emailMessageId,
+           let aiClassification = item.classifiedBucket {
+            Task {
+                @Dependency(\.supabaseClient) var supa
+                let correction = TriageCorrectionRow(
+                    id: UUID(), workspaceId: AuthService.shared.workspaceId ?? UUID(),
+                    emailMessageId: emailId, profileId: AuthService.shared.profileId ?? UUID(),
+                    oldBucket: aiClassification, newBucket: "archive",
+                    fromAddress: item.sender
+                )
+                try? await supa.insertTriageCorrection(correction)
+            }
+        }
+        undoStack.append((item: item, index: currentIndex))
         recentAction = "Archived"
         animateOut(direction: .right) {
             items.remove(at: currentIndex)

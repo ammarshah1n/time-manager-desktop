@@ -14,4 +14,5 @@ enum TimedLogger: Sendable {
     static let calendar  = Logger(subsystem: "com.timed.app", category: "calendar")
     static let sharing   = Logger(subsystem: "com.timed.app", category: "sharing")
     static let triage    = Logger(subsystem: "com.timed.app", category: "triage")
+    static let focus     = Logger(subsystem: "com.timed.app", category: "focus")
 }

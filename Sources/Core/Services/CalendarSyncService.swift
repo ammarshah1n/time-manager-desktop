@@ -28,6 +28,15 @@ actor CalendarSyncService {
     // MARK: - Fetch Today's Events
 
     /// Fetches today's calendar events from Outlook and returns CalendarBlocks.
+    ///
+    /// - Parameter tokenProvider: Closure that returns a fresh Graph access token on each call.
+    func fetchTodayEvents(tokenProvider: @escaping @Sendable () async throws -> String) async throws -> [CalendarBlock] {
+        let accessToken = try await tokenProvider()
+        return try await fetchTodayEvents(accessToken: accessToken)
+    }
+
+    /// Fetches today's calendar events using a pre-acquired access token.
+    /// Prefer `fetchTodayEvents(tokenProvider:)` for automatic token refresh.
     func fetchTodayEvents(accessToken: String) async throws -> [CalendarBlock] {
         let cal = Calendar.current
         let startOfDay = cal.startOfDay(for: Date())
@@ -128,6 +137,15 @@ actor CalendarSyncService {
     // MARK: - Auto Sync (fetch + free time detection)
 
     /// Convenience: fetches today's events and detects free time slots in one call.
+    ///
+    /// - Parameter tokenProvider: Closure that returns a fresh Graph access token on each call.
+    func autoSync(tokenProvider: @escaping @Sendable () async throws -> String) async throws -> (blocks: [CalendarBlock], freeSlots: [FreeTimeSlot]) {
+        let blocks = try await fetchTodayEvents(tokenProvider: tokenProvider)
+        let freeSlots = detectFreeTime(events: blocks)
+        return (blocks, freeSlots)
+    }
+
+    /// Convenience overload using a pre-acquired access token (no auto-refresh).
     func autoSync(accessToken: String) async throws -> (blocks: [CalendarBlock], freeSlots: [FreeTimeSlot]) {
         let blocks = try await fetchTodayEvents(accessToken: accessToken)
         let freeSlots = detectFreeTime(events: blocks)

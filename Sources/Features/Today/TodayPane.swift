@@ -48,14 +48,17 @@ struct TodayPane: View {
         return Date() < until
     }
 
-    // Section data
-    private var doFirst:    [TimedTask] { tasks.filter { $0.isDoFirst && !completedIds.contains($0.id) } }
-    private var replies:    [TimedTask] { tasks.filter { $0.bucket == .reply && !$0.isDoFirst && !completedIds.contains($0.id) } }
-    private var actions:    [TimedTask] { tasks.filter { $0.bucket == .action && !$0.isDoFirst && !completedIds.contains($0.id) } }
-    private var calls:      [TimedTask] { tasks.filter { $0.bucket == .calls && !completedIds.contains($0.id) } }
-    private var transit:    [TimedTask] { tasks.filter { $0.bucket == .transit && !$0.isDoFirst && !completedIds.contains($0.id) } }
-    private var readsToday: [TimedTask] { tasks.filter { $0.bucket == .readToday && !completedIds.contains($0.id) } }
-    private var readsWeek:  [TimedTask] { tasks.filter { $0.bucket == .readThisWeek && !completedIds.contains($0.id) } }
+    // Section data — sorted by planScore descending within each bucket
+    private func sortedByScore(_ items: [TimedTask]) -> [TimedTask] {
+        items.sorted { ($0.planScore ?? 0) > ($1.planScore ?? 0) }
+    }
+    private var doFirst:    [TimedTask] { sortedByScore(tasks.filter { $0.isDoFirst && !completedIds.contains($0.id) }) }
+    private var replies:    [TimedTask] { sortedByScore(tasks.filter { $0.bucket == .reply && !$0.isDoFirst && !completedIds.contains($0.id) }) }
+    private var actions:    [TimedTask] { sortedByScore(tasks.filter { $0.bucket == .action && !$0.isDoFirst && !completedIds.contains($0.id) }) }
+    private var calls:      [TimedTask] { sortedByScore(tasks.filter { $0.bucket == .calls && !completedIds.contains($0.id) }) }
+    private var transit:    [TimedTask] { sortedByScore(tasks.filter { $0.bucket == .transit && !$0.isDoFirst && !completedIds.contains($0.id) }) }
+    private var readsToday: [TimedTask] { sortedByScore(tasks.filter { $0.bucket == .readToday && !completedIds.contains($0.id) }) }
+    private var readsWeek:  [TimedTask] { sortedByScore(tasks.filter { $0.bucket == .readThisWeek && !completedIds.contains($0.id) }) }
     private var completed:  [TimedTask] { tasks.filter { completedIds.contains($0.id) } }
 
     private var plannedMins: Int {
@@ -212,7 +215,7 @@ struct TodayPane: View {
                     }
                 }
                 .padding(.horizontal, 28).padding(.bottom, 12)
-                .animation(.easeInOut(duration: 0.15), value: quickTitle.isEmpty)
+                .animation(TimedMotion.micro, value: quickTitle.isEmpty)
 
                 // ── Running totals ───────────────────────────────────────
                 totalsStrip
@@ -225,7 +228,7 @@ struct TodayPane: View {
                             id: "doFirst",
                             icon: "star.fill",
                             title: "DO FIRST",
-                            color: .indigo,
+                            color: Color.Timed.accent,
                             tasks: doFirst,
                             expanded: expandedSections.contains("doFirst"),
                             completedIds: $completedIds,
@@ -400,7 +403,7 @@ struct TodayPane: View {
 
     private var staleItemsBanner: some View {
         VStack(spacing: 0) {
-            Button { withAnimation(.easeInOut(duration: 0.18)) { staleExpanded.toggle() } } label: {
+            Button { withAnimation(TimedMotion.smooth) { staleExpanded.toggle() } } label: {
                 HStack(spacing: 10) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.system(size: 13))
@@ -473,14 +476,14 @@ struct TodayPane: View {
             }
         }
         .background(Color(.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
-        .animation(.easeInOut(duration: 0.18), value: staleExpanded)
+        .animation(TimedMotion.smooth, value: staleExpanded)
     }
 
     // MARK: - Insights banner
 
     private var insightsBanner: some View {
         VStack(spacing: 0) {
-            Button { withAnimation(.easeInOut(duration: 0.18)) { insightsExpanded.toggle() } } label: {
+            Button { withAnimation(TimedMotion.smooth) { insightsExpanded.toggle() } } label: {
                 HStack(spacing: 10) {
                     Image(systemName: "lightbulb.fill")
                         .font(.system(size: 13))
@@ -561,7 +564,7 @@ struct TodayPane: View {
             }
         }
         .background(Color(.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
-        .animation(.easeInOut(duration: 0.18), value: insightsExpanded)
+        .animation(TimedMotion.smooth, value: insightsExpanded)
     }
 
     // MARK: - Totals strip
@@ -688,7 +691,7 @@ struct TodayPane: View {
             }
         }
         .background(Color(.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
-        .animation(.easeInOut(duration: 0.18), value: expandedSections.contains("replies"))
+        .animation(TimedMotion.smooth, value: expandedSections.contains("replies"))
     }
 
     // MARK: - Completed section
@@ -726,6 +729,23 @@ struct TodayPane: View {
                     HStack(spacing: 12) {
                         Button {
                             completedIds.remove(task.id)
+
+                            // Log task_deferred behaviour event
+                            if let wsId = AuthService.shared.workspaceId,
+                               let profileId = AuthService.shared.profileId {
+                                Task {
+                                    @Dependency(\.supabaseClient) var supa
+                                    let event = BehaviourEventInsert(
+                                        workspaceId: wsId, profileId: profileId,
+                                        eventType: "task_deferred", taskId: task.id,
+                                        bucketType: task.bucket.rawValue,
+                                        hourOfDay: Calendar.current.component(.hour, from: Date()),
+                                        dayOfWeek: Calendar.current.component(.weekday, from: Date()),
+                                        oldValue: nil, newValue: nil
+                                    )
+                                    try? await supa.insertBehaviourEvent(event)
+                                }
+                            }
                         } label: {
                             Image(systemName: "checkmark.circle.fill")
                                 .font(.system(size: 16))
@@ -745,22 +765,25 @@ struct TodayPane: View {
             }
         }
         .background(Color(.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
-        .animation(.easeInOut(duration: 0.18), value: expandedSections.contains("completed"))
+        .animation(TimedMotion.smooth, value: expandedSections.contains("completed"))
     }
 
     // MARK: - Empty state
 
     private var emptyState: some View {
         VStack(spacing: 12) {
-            Image(systemName: "checkmark.circle")
-                .font(.system(size: 36, weight: .light))
-                .foregroundStyle(.secondary.opacity(0.4))
-            Text("No tasks yet")
-                .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(.secondary)
-            Button("Run Morning Review") { onStartMorning() }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
+            Image(systemName: "sun.max")
+                .font(.system(size: 40))
+                .foregroundStyle(Color.Timed.tertiaryText)
+            Text("Today is clear")
+                .font(.title2.weight(.semibold))
+                .foregroundStyle(Color.Timed.primaryText)
+            Text("Add a task or generate today's plan")
+                .font(.subheadline)
+                .foregroundStyle(Color.Timed.secondaryText)
+            Button("Generate Plan", action: onDishMeUp)
+                .buttonStyle(.borderedProminent)
+                .tint(Color.Timed.accent)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 40)
@@ -785,7 +808,7 @@ struct TodayPane: View {
     }
 
     private func toggleSection(_ id: String) {
-        withAnimation(.easeInOut(duration: 0.18)) {
+        withAnimation(TimedMotion.smooth) {
             if expandedSections.contains(id) {
                 expandedSections.remove(id)
             } else {
@@ -874,7 +897,7 @@ struct TodaySection: View {
             }
         }
         .background(Color(.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
-        .animation(.easeInOut(duration: 0.18), value: expanded)
+        .animation(TimedMotion.smooth, value: expanded)
     }
 }
 
@@ -892,8 +915,16 @@ struct TodayTaskRow: View {
     @State private var draftMinutes: Int = 0
     @State private var showActualTime = false
     @State private var actualMinutes: Int = 0
+    @State private var checkboxScale: CGFloat = 1.0
 
     private var isCompleted: Bool { completedIds.contains(task.id) }
+
+    private static let startTimeFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateStyle = .none
+        f.timeStyle = .short  // locale-aware, e.g. "9:30 AM" or "09:30"
+        return f
+    }()
 
     private func formatMins(_ m: Int) -> String {
         m < 60 ? "\(m)m" : (m % 60 == 0 ? "\(m/60)h" : "\(m/60)h \(m%60)m")
@@ -902,19 +933,46 @@ struct TodayTaskRow: View {
     var body: some View {
         HStack(spacing: 12) {
             Button {
-                withAnimation(.easeInOut(duration: 0.15)) {
-                    if completedIds.contains(task.id) {
-                        completedIds.remove(task.id)
-                    } else {
-                        completedIds.insert(task.id)
-                        actualMinutes = task.estimatedMinutes
-                        showActualTime = true
+                // Micro press: scale down then spring back
+                withAnimation(TimedMotion.micro) {
+                    checkboxScale = 0.96
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.07) {
+                    withAnimation(TimedMotion.smooth) {
+                        checkboxScale = 1.0
+                        if completedIds.contains(task.id) {
+                            completedIds.remove(task.id)
+
+                            // Log task_deferred behaviour event (un-completing = deferring)
+                            if let wsId = AuthService.shared.workspaceId,
+                               let profileId = AuthService.shared.profileId {
+                                Task {
+                                    @Dependency(\.supabaseClient) var supa
+                                    let event = BehaviourEventInsert(
+                                        workspaceId: wsId, profileId: profileId,
+                                        eventType: "task_deferred", taskId: task.id,
+                                        bucketType: task.bucket.rawValue,
+                                        hourOfDay: Calendar.current.component(.hour, from: Date()),
+                                        dayOfWeek: Calendar.current.component(.weekday, from: Date()),
+                                        oldValue: nil, newValue: nil
+                                    )
+                                    try? await supa.insertBehaviourEvent(event)
+                                }
+                            }
+                        } else {
+                            completedIds.insert(task.id)
+                            actualMinutes = task.estimatedMinutes
+                            showActualTime = true
+                            TimedSound.completion.play()
+                        }
                     }
                 }
             } label: {
                 Image(systemName: isCompleted ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 17))
                     .foregroundStyle(isCompleted ? .green : Color(.separatorColor))
+                    .scaleEffect(checkboxScale)
+                    .contentTransition(.symbolEffect(.replace))
             }
             .buttonStyle(.plain)
             .popover(isPresented: $showActualTime, arrowEdge: .trailing) {
@@ -998,10 +1056,23 @@ struct TodayTaskRow: View {
                     .foregroundStyle(isCompleted ? .secondary : .primary)
                     .strikethrough(isCompleted, color: .secondary)
                     .lineLimit(1)
-                if !task.sender.isEmpty && task.sender != "System" && task.sender != "" {
-                    Text(task.sender)
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
+                HStack(spacing: 6) {
+                    if !task.sender.isEmpty && task.sender != "System" && task.sender != "" {
+                        Text(task.sender)
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                    }
+                    if let startTime = task.scheduledStartTime {
+                        if !task.sender.isEmpty && task.sender != "System" && task.sender != "" {
+                            Text("\u{00B7}")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.tertiary)
+                        }
+                        Text(Self.startTimeFormatter.string(from: startTime))
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
+                    }
                 }
             }
             .contentShape(Rectangle())
@@ -1062,8 +1133,27 @@ struct TodayTaskRow: View {
                             .frame(minWidth: 60)
                     }
                     Button("Done") {
+                        let oldMinutes = task.estimatedMinutes
                         onUpdateTime?(draftMinutes)
                         showTimePicker = false
+
+                        // Log estimate_override behaviour event
+                        if draftMinutes != oldMinutes,
+                           let wsId = AuthService.shared.workspaceId,
+                           let profileId = AuthService.shared.profileId {
+                            Task {
+                                @Dependency(\.supabaseClient) var supa
+                                let event = BehaviourEventInsert(
+                                    workspaceId: wsId, profileId: profileId,
+                                    eventType: "estimate_override", taskId: task.id,
+                                    bucketType: task.bucket.rawValue,
+                                    hourOfDay: Calendar.current.component(.hour, from: Date()),
+                                    dayOfWeek: Calendar.current.component(.weekday, from: Date()),
+                                    oldValue: "\(oldMinutes)", newValue: "\(draftMinutes)"
+                                )
+                                try? await supa.insertBehaviourEvent(event)
+                            }
+                        }
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
@@ -1075,5 +1165,6 @@ struct TodayTaskRow: View {
         }
         .padding(.horizontal, 14).padding(.vertical, 8)
         .opacity(isCompleted ? 0.5 : 1)
+        .animation(TimedMotion.smooth, value: isCompleted)
     }
 }

@@ -58,6 +58,7 @@ enum DishMeUpMood: String, CaseIterable {
 
 struct DishMeUpSheet: View {
     @Binding var tasks: [TimedTask]
+    var blocks: [CalendarBlock] = []
     let onDismiss: () -> Void
     let onAccept: (TimedTask?) -> Void
 
@@ -416,14 +417,17 @@ struct DishMeUpSheet: View {
             }
         }
         let request = PlanRequest(
-            workspaceId: UUID(),
-            profileId: UUID(),
+            workspaceId: AuthService.shared.workspaceId ?? UUID(),
+            profileId: AuthService.shared.profileId ?? UUID(),
             availableMinutes: minutes,
             moodContext: toMoodContext(mood),
             behaviouralRules: behaviourRules,
             tasks: planTasks,
             bucketStats: bucketStats,
-            bucketEstimates: planEstimates
+            bucketEstimates: planEstimates,
+            calendarBlocks: blocks,
+            workStartHour: OnboardingUserPrefs.workStartHour,
+            workEndHour: OnboardingUserPrefs.workEndHour
         )
         let result = PlanningEngine.generatePlan(request)
 

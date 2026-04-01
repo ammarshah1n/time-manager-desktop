@@ -4,6 +4,7 @@
 
 import Foundation
 import Dependencies
+import Network
 import os
 
 // MARK: - Insert payload (mutable fields for initial insert)
@@ -77,6 +78,9 @@ actor EmailSyncService {
     /// Caches folderId → displayName to avoid repeated Graph API calls.
     private var folderNameCache: [String: String] = [:]
 
+    /// Whether the folder cache has been pre-warmed this session.
+    private var folderCacheWarmed = false
+
     // MARK: - Reply latency social graph (in-memory, persisted to Supabase)
 
     /// sender_address → [latency_minutes] for all observed outbound replies.
@@ -98,8 +102,22 @@ actor EmailSyncService {
 
     private let supabaseAnonKey: String = {
         ProcessInfo.processInfo.environment["SUPABASE_ANON_KEY"]
-            ?? "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZwbWp1dWZlZmh0bHdiZmlueGx4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5MTMxMDEsImV4cCI6MjA5MDQ4OTEwMX0.VUtjezhFMpwrcVMXltyYmU2n0Xazi9lvhuwAQlKOTO4"
+            ?? ""
     }()
+
+    // MARK: - DeltaLink Persistence
+
+    private func loadDeltaLink(for accountId: UUID) {
+        deltaLink = UserDefaults.standard.string(forKey: "deltaLink_\(accountId)")
+    }
+
+    private func saveDeltaLink(for accountId: UUID) {
+        if let deltaLink {
+            UserDefaults.standard.set(deltaLink, forKey: "deltaLink_\(accountId)")
+        } else {
+            UserDefaults.standard.removeObject(forKey: "deltaLink_\(accountId)")
+        }
+    }
 
     // MARK: - Known Folders Persistence
 
@@ -132,16 +150,45 @@ actor EmailSyncService {
         }
     }
 
+    // MARK: - Folder Cache Pre-warm
+
+    /// Fetches all mail folders from Graph and populates folderNameCache.
+    /// Called once per session on first sync to avoid per-message folder lookups.
+    private func preWarmFolderCache(accessToken: String) async {
+        guard !folderCacheWarmed else { return }
+        do {
+            let folders = try await graphClient.fetchMailFolders(accessToken)
+            for folder in folders {
+                folderNameCache[folder.id] = folder.displayName
+            }
+            folderCacheWarmed = true
+            TimedLogger.graph.info("Pre-warmed folder cache with \(folders.count) folder(s)")
+        } catch {
+            TimedLogger.graph.warning(
+                "Failed to pre-warm folder cache: \(error.localizedDescription, privacy: .public)"
+            )
+        }
+    }
+
     // MARK: - Start / Stop
 
     /// Starts the background sync loop. Idempotent — calling while already running is a no-op.
-    func start(accessToken: String, workspaceId: UUID, emailAccountId: UUID, profileId: UUID? = nil) {
+    ///
+    /// - Parameter tokenProvider: Closure that returns a fresh Graph access token on each call.
+    ///   Handles MSAL silent refresh + interactive fallback internally.
+    func start(
+        tokenProvider: @escaping @Sendable () async throws -> String,
+        workspaceId: UUID,
+        emailAccountId: UUID,
+        profileId: UUID? = nil
+    ) {
         guard !isRunning else {
             TimedLogger.graph.info("EmailSyncService.start called but already running — skipping")
             return
         }
         isRunning = true
         currentEmailAccountId = emailAccountId
+        loadDeltaLink(for: emailAccountId)
         loadKnownFolders(for: emailAccountId)
         TimedLogger.graph.info("EmailSyncService starting (interval: \(self.pollInterval)s)")
 
@@ -150,7 +197,7 @@ actor EmailSyncService {
             while !Task.isCancelled {
                 do {
                     let count = try await self.syncOnce(
-                        accessToken: accessToken,
+                        tokenProvider: tokenProvider,
                         workspaceId: workspaceId,
                         emailAccountId: emailAccountId,
                         profileId: profileId
@@ -170,6 +217,7 @@ actor EmailSyncService {
     func stop() {
         TimedLogger.graph.info("EmailSyncService stopping")
         if let accountId = currentEmailAccountId {
+            saveDeltaLink(for: accountId)
             saveKnownFolders(for: accountId)
         }
         syncTask?.cancel()
@@ -180,31 +228,60 @@ actor EmailSyncService {
     // MARK: - Single sync pass
 
     /// Performs one delta sync pass. Returns the number of messages processed.
+    ///
+    /// - Parameter tokenProvider: Closure that returns a fresh Graph access token on each call.
     func syncOnce(
-        accessToken: String,
+        tokenProvider: @escaping @Sendable () async throws -> String,
         workspaceId: UUID,
         emailAccountId: UUID,
         profileId: UUID? = nil
     ) async throws -> Int {
+        // Skip sync if offline
+        let isConnected = await NetworkMonitor.shared.isConnected
+        guard isConnected else {
+            TimedLogger.graph.info("EmailSyncService skipping sync — offline")
+            return 0
+        }
+
+        // Acquire a fresh token at the start of each sync pass
+        let accessToken = try await tokenProvider()
+
+        // Pre-warm the folder name cache on first sync
+        await preWarmFolderCache(accessToken: accessToken)
+
         var totalProcessed = 0
         var currentDeltaLink = deltaLink
         var hasMore = true
 
         while hasMore {
-            let result = try await graphClient.fetchDeltaMessages(
-                "",               // accountId — not used by the live implementation
-                currentDeltaLink, // nil on first call → full delta
-                accessToken
-            )
+            let result: DeltaResult
+            do {
+                result = try await graphClient.fetchDeltaMessages(
+                    "",               // accountId — not used by the live implementation
+                    currentDeltaLink, // nil on first call → full delta
+                    accessToken
+                )
+            } catch GraphError.syncStateNotFound {
+                // 410 Gone — delta token expired or invalid. Reset to full re-sync.
+                TimedLogger.graph.warning("Delta token expired (410 syncStateNotFound) — resetting to full sync")
+                deltaLink = nil
+                if let accountId = currentEmailAccountId {
+                    saveDeltaLink(for: accountId)
+                }
+                currentDeltaLink = nil
+                continue
+            }
 
             for message in result.messages {
                 do {
                     // Detect folder moves before upserting
                     if let profileId, let folderId = message.parentFolderId {
+                        // Fetch a fresh token for folder-move detection (may be long-running)
+                        let moveToken = try await tokenProvider()
                         await detectFolderMove(
                             message: message,
                             currentFolderId: folderId,
-                            accessToken: accessToken,
+                            accessToken: moveToken,
                             workspaceId: workspaceId,
                             profileId: profileId
                         )
@@ -243,6 +320,9 @@ actor EmailSyncService {
 
         // Persist the delta link for the next call
         deltaLink = currentDeltaLink
+        if let accountId = currentEmailAccountId {
+            saveDeltaLink(for: accountId)
+        }
 
         // Save known folders after each sync pass
         if let accountId = currentEmailAccountId {
@@ -492,9 +572,15 @@ actor EmailSyncService {
         let receivedAt = message.receivedDateTime ?? ISO8601DateFormatter().string(from: Date())
         let isFamilySender = (fromName ?? "").isFamilyMember(surname: OnboardingUserPrefs.familySurname)
 
-        // Detect CC/FYI: if the user's address isn't in the to: list, they were CC'd
-        let ccRecipientCount = message.ccRecipients.count
-        let isCcFyi = ccRecipientCount > 0 && message.toRecipients.isEmpty
+        // Detect CC/FYI: user is in CC but not in To recipients
+        let userEmail = OnboardingUserPrefs.email.lowercased()
+        let isInTo = message.toRecipients.contains {
+            $0.emailAddress.address.lowercased() == userEmail
+        }
+        let isInCc = message.ccRecipients.contains {
+            $0.emailAddress.address.lowercased() == userEmail
+        }
+        let isCcFyi = isInCc && !isInTo
 
         return EmailMessageInsert(
             id: UUID(),

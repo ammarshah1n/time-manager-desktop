@@ -50,6 +50,7 @@ final class VoiceCaptureService: NSObject, ObservableObject {
     @Published private(set) var liveTranscript: String = ""   // updates in real-time
     @Published private(set) var parsedItems: [ParsedItem] = []
     @Published private(set) var lastError: Error?
+    @Published var lastConfidence: Float = 1.0
 
     // MARK: - Private
 
@@ -168,8 +169,16 @@ final class VoiceCaptureService: NSObject, ObservableObject {
                     // Apple Speech handles in-place corrections natively
                     // "actually make that 20, not 30" — last mentioned value wins in bestTranscription
                     self.liveTranscript = result.bestTranscription.formattedString
+
+                    // Average segment confidences for STT confidence guard
+                    let segments = result.bestTranscription.segments
+                    if !segments.isEmpty {
+                        let avg = segments.reduce(Float(0)) { $0 + $1.confidence } / Float(segments.count)
+                        self.lastConfidence = avg
+                    }
+
                     if result.isFinal {
-                        TimedLogger.voice.debug("Final transcript received (\(result.bestTranscription.formattedString.count) chars)")
+                        TimedLogger.voice.debug("Final transcript received (\(result.bestTranscription.formattedString.count) chars, confidence: \(self.lastConfidence, privacy: .public))")
                     }
                 }
                 if let error {

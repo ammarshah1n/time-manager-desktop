@@ -6,6 +6,9 @@ import AVFoundation
 import Dependencies
 
 struct PrefsPane: View {
+    /// Set to false to reveal all settings tabs for v2.
+    private let v1BetaMode = true
+
     @State private var tab = PrefTab.accounts
 
     var body: some View {
@@ -14,33 +17,45 @@ struct PrefsPane: View {
                 .tabItem { Label("Accounts", systemImage: "envelope.badge") }
                 .tag(PrefTab.accounts)
 
-            SyncTab()
-                .tabItem { Label("Sync",     systemImage: "arrow.clockwise") }
-                .tag(PrefTab.sync)
+            // Hidden in v1 beta — email sync settings (triage product)
+            if !v1BetaMode {
+                SyncTab()
+                    .tabItem { Label("Sync",     systemImage: "arrow.clockwise") }
+                    .tag(PrefTab.sync)
+            }
 
             BlocksTab()
                 .tabItem { Label("Blocks",   systemImage: "calendar.badge.plus") }
                 .tag(PrefTab.blocks)
 
-            NotificationsTab()
-                .tabItem { Label("Alerts",   systemImage: "bell") }
-                .tag(PrefTab.notifications)
+            // Hidden in v1 beta — excessive for minimal settings
+            if !v1BetaMode {
+                NotificationsTab()
+                    .tabItem { Label("Alerts",   systemImage: "bell") }
+                    .tag(PrefTab.notifications)
 
-            AppearanceTab()
-                .tabItem { Label("Appearance", systemImage: "paintbrush") }
-                .tag(PrefTab.appearance)
+                AppearanceTab()
+                    .tabItem { Label("Appearance", systemImage: "paintbrush") }
+                    .tag(PrefTab.appearance)
+            }
 
             VoiceTab()
                 .tabItem { Label("Voice", systemImage: "waveform") }
                 .tag(PrefTab.voice)
 
-            SharingPane()
-                .tabItem { Label("Sharing", systemImage: "person.2") }
-                .tag(PrefTab.sharing)
+            // Hidden in v1 beta — sharing is v2
+            if !v1BetaMode {
+                SharingPane()
+                    .tabItem { Label("Sharing", systemImage: "person.2") }
+                    .tag(PrefTab.sharing)
+            }
 
-            LearningTab()
-                .tabItem { Label("Learning", systemImage: "brain") }
-                .tag(PrefTab.learning)
+            // Hidden in v1 beta — ML learns silently, no user-facing tab
+            if !v1BetaMode {
+                LearningTab()
+                    .tabItem { Label("Learning", systemImage: "brain") }
+                    .tag(PrefTab.learning)
+            }
         }
         .padding(20)
         .frame(minWidth: 500, minHeight: 360)
@@ -386,7 +401,8 @@ struct LearningTab: View {
 
     private func loadData() async {
         do {
-            rules = try await supabase.fetchBehaviourRules(UUID())
+            guard let wsId = AuthService.shared.workspaceId else { return }
+            rules = try await supabase.fetchBehaviourRules(wsId)
         } catch {}
         do {
             records = try await DataStore.shared.loadCompletionRecords()

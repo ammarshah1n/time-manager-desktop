@@ -19,11 +19,13 @@ struct TimedRootView: View {
 
     @StateObject private var network = NetworkMonitor.shared
     @StateObject private var auth = AuthService.shared
+    @EnvironmentObject private var menuBarManager: MenuBarManager
     @State private var showMorningInterview = false
     @State private var morningDone          = false
     @State private var showDishMeUp         = false
     @State private var focusTask: TimedTask? = nil
     @State private var showFocus: Bool = false
+    @State private var showCommandPalette = false
 
     private static let ymd: DateFormatter = {
         let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; return f
@@ -47,7 +49,7 @@ struct TimedRootView: View {
         }
         .navigationSplitViewStyle(.balanced)
         .background(persistenceObserver)
-        .onAppear { loadData(); checkMorningInterview(); network.start() }
+        .onAppear { loadData(); checkMorningInterview(); network.start(); wireMenuBar() }
         .overlay(alignment: .topTrailing) {
             if !network.isConnected {
                 Text("Offline")
@@ -65,14 +67,39 @@ struct TimedRootView: View {
             FocusPane(task: focusTask) { showFocus = false; focusTask = nil }
                 .frame(minWidth: 600, minHeight: 680)
         }
+        .onKeyPress(keys: [.init("k")], phases: .down) { keyPress in
+            guard keyPress.modifiers == .command else { return .ignored }
+            showCommandPalette.toggle()
+            return .handled
+        }
+        .overlay {
+            if showCommandPalette {
+                CommandPaletteView(
+                    isPresented: $showCommandPalette,
+                    actions: paletteActions
+                )
+            }
+        }
+    }
+
+    private var paletteActions: [PaletteAction] {
+        ActionRegistry.actions(
+            navigate: { section in selection = section },
+            showMorningInterview: { showMorningInterview = true },
+            showFocus: { task in focusTask = task; showFocus = true },
+            addTask: {
+                // Navigate to Action bucket where new task can be created
+                selection = .tasks(.action)
+            }
+        )
     }
 
     @ViewBuilder private var persistenceObserver: some View {
         Color.clear
-            .onChange(of: tasks)       { (_: [TimedTask],     v: [TimedTask])     in saveTasks(v) }
+            .onChange(of: tasks)       { (_: [TimedTask],     v: [TimedTask])     in saveTasks(v); syncMenuBar() }
             .onChange(of: triageItems) { (_: [TriageItem],    v: [TriageItem])    in saveTriage(v) }
             .onChange(of: wooItems)    { (_: [WOOItem],       v: [WOOItem])       in saveWOO(v) }
-            .onChange(of: blocks)        { (_: [CalendarBlock], v: [CalendarBlock]) in saveBlocks(v) }
+            .onChange(of: blocks)        { (_: [CalendarBlock], v: [CalendarBlock]) in saveBlocks(v); syncMenuBar() }
             .onChange(of: captureItems)  { (_: [CaptureItem],   v: [CaptureItem])   in saveCaptures(v) }
     }
 
@@ -99,7 +126,7 @@ struct TimedRootView: View {
     }
 
     @ViewBuilder private var dishMeUpSheet: some View {
-        DishMeUpSheet(tasks: $tasks) {
+        DishMeUpSheet(tasks: $tasks, blocks: blocks) {
             showDishMeUp = false
         } onAccept: { firstTask in
             showDishMeUp = false
@@ -156,22 +183,24 @@ struct TimedRootView: View {
     }
 
     private func startEmailSyncIfReady() {
-        guard let token = auth.graphAccessToken,
+        guard auth.graphAccessToken != nil,
               let wsId = auth.workspaceId,
               let eaId = auth.emailAccountId else { return }
+        let tokenProvider = auth.makeTokenProvider()
         Task {
             await EmailSyncService.shared.start(
-                accessToken: token, workspaceId: wsId, emailAccountId: eaId,
+                tokenProvider: tokenProvider, workspaceId: wsId, emailAccountId: eaId,
                 profileId: auth.profileId
             )
         }
     }
 
     private func startCalendarSyncIfReady() {
-        guard let token = auth.graphAccessToken else { return }
+        guard auth.graphAccessToken != nil else { return }
+        let tokenProvider = auth.makeTokenProvider()
         Task {
             do {
-                let result = try await CalendarSyncService.shared.autoSync(accessToken: token)
+                let result = try await CalendarSyncService.shared.autoSync(tokenProvider: tokenProvider)
                 blocks = result.blocks
                 freeTimeSlots = result.freeSlots
             } catch {
@@ -195,6 +224,9 @@ struct TimedRootView: View {
 
     // MARK: - Sidebar
 
+    /// Set to false to reveal all screens (Triage, Waiting, Insights, etc.) for v2.
+    private let v1BetaMode = true
+
     @ViewBuilder
     private var sidebar: some View {
         List(selection: $selection) {
@@ -203,19 +235,24 @@ struct TimedRootView: View {
             SidebarRow(
                 label: "Today",
                 icon: "sparkles",
-                color: .indigo,
-                badge: 0
+                color: Color.Timed.accent,
+                badge: 0,
+                isSelected: selection == .today
             )
             .tag(NavSection.today)
 
             // ── Triage ─────────────────────────────────────────────────
-            SidebarRow(
-                label: "Triage",
-                icon: "tray.and.arrow.down.fill",
-                color: .red,
-                badge: triageItems.count
-            )
-            .tag(NavSection.triage)
+            // Hidden in v1 beta — email triage is a separate product
+            if !v1BetaMode {
+                SidebarRow(
+                    label: "Triage",
+                    icon: "tray.and.arrow.down.fill",
+                    color: .red,
+                    badge: triageItems.count,
+                    isSelected: selection == .triage
+                )
+                .tag(NavSection.triage)
+            }
 
             // ── WORK ───────────────────────────────────────────────────
             Section {
@@ -229,19 +266,23 @@ struct TimedRootView: View {
                         icon: bucket.icon,
                         color: bucket.color,
                         badge: bucketTasks.count,
-                        timeHint: totalMins > 0 ? timeHint(totalMins) : nil
+                        timeHint: totalMins > 0 ? timeHint(totalMins) : nil,
+                        isSelected: selection == .tasks(bucket)
                     )
                     .tag(NavSection.tasks(bucket))
                 }
 
-                // Waiting on Others
-                SidebarRow(
-                    label: "Waiting",
-                    icon: "clock.badge.questionmark",
-                    color: .teal,
-                    badge: overdueWOOCount
-                )
-                .tag(NavSection.waiting)
+                // Waiting on Others — hidden in v1 beta (delegation feature)
+                if !v1BetaMode {
+                    SidebarRow(
+                        label: "Waiting",
+                        icon: "clock.badge.questionmark",
+                        color: .teal,
+                        badge: overdueWOOCount,
+                        isSelected: selection == .waiting
+                    )
+                    .tag(NavSection.waiting)
+                }
 
             } header: {
                 sidebarHeader("WORK")
@@ -249,10 +290,10 @@ struct TimedRootView: View {
 
             // ── TOOLS ──────────────────────────────────────────────────
             Section {
-                SidebarRow(label: "Capture", icon: "mic.fill", color: .purple, badge: 0)
+                SidebarRow(label: "Capture", icon: "mic.fill", color: .purple, badge: 0, isSelected: selection == .capture)
                     .tag(NavSection.capture)
 
-                SidebarRow(label: "Calendar", icon: "calendar", color: .blue, badge: 0)
+                SidebarRow(label: "Calendar", icon: "calendar", color: .blue, badge: 0, isSelected: selection == .calendar)
                     .tag(NavSection.calendar)
 
             } header: {
@@ -261,7 +302,7 @@ struct TimedRootView: View {
 
             // ── Settings ───────────────────────────────────────────────
             Section {
-                SidebarRow(label: "Settings", icon: "gear", color: Color(.systemGray), badge: 0)
+                SidebarRow(label: "Settings", icon: "gear", color: Color(.systemGray), badge: 0, isSelected: selection == .prefs)
                     .tag(NavSection.prefs)
             }
         }
@@ -318,6 +359,81 @@ struct TimedRootView: View {
             .foregroundStyle(.secondary)
             .tracking(1.2)
     }
+
+    // MARK: - Menu Bar Integration
+
+    private func wireMenuBar() {
+        menuBarManager.onStartFocus = { task in
+            focusTask = task
+            showFocus = true
+            NSApp.activate(ignoringOtherApps: true)
+        }
+
+        menuBarManager.onMarkComplete = { taskId in
+            if let idx = tasks.firstIndex(where: { $0.id == taskId }) {
+                tasks[idx].isDone = true
+            }
+        }
+
+        menuBarManager.onQuickCapture = { text in
+            let parsed = TranscriptParser.parse(text)
+            let newItems: [CaptureItem]
+            if parsed.isEmpty {
+                newItems = [CaptureItem(
+                    id: UUID(), inputType: .text,
+                    rawText: text, parsedTitle: text,
+                    suggestedBucket: .action, suggestedMinutes: 15,
+                    capturedAt: Date()
+                )]
+            } else {
+                newItems = parsed.map { p in
+                    CaptureItem(
+                        id: p.id, inputType: .text,
+                        rawText: text, parsedTitle: p.title,
+                        suggestedBucket: bucketFromParser(p.bucketType),
+                        suggestedMinutes: p.estimatedMinutes ?? 15,
+                        capturedAt: Date()
+                    )
+                }
+            }
+            captureItems.insert(contentsOf: newItems, at: 0)
+        }
+
+        syncMenuBar()
+    }
+
+    private func syncMenuBar() {
+        let focusName = focusTask?.title
+        let undone = tasks.filter { !$0.isDone }
+
+        // Next calendar event
+        let now = Date()
+        let upcoming = blocks
+            .filter { $0.startTime > now }
+            .sorted { $0.startTime < $1.startTime }
+        let nextBlock = upcoming.first
+        let nextName = nextBlock?.title
+        let nextIn = nextBlock.map { $0.startTime.timeIntervalSince(now) }
+
+        menuBarManager.updateStatus(
+            currentTask: focusName,
+            elapsed: 0,
+            nextEvent: nextName,
+            nextEventIn: nextIn,
+            remainingCount: undone.count,
+            allTasks: tasks
+        )
+    }
+
+    private func bucketFromParser(_ type: String) -> TaskBucket {
+        switch type {
+        case "calls":       return .calls
+        case "reply_email": return .reply
+        case "read_today":  return .readToday
+        case "action":      return .action
+        default:            return .action
+        }
+    }
 }
 
 // MARK: - Nav section enum
@@ -340,6 +456,7 @@ struct SidebarRow: View {
     let color: Color
     let badge: Int
     var timeHint: String? = nil
+    var isSelected: Bool = false
 
     var body: some View {
         HStack(spacing: 8) {
@@ -347,9 +464,10 @@ struct SidebarRow: View {
                 .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(color)
                 .frame(width: 20)
+                .contentTransition(.symbolEffect(.replace))
 
             Text(label)
-                .font(.system(size: 13))
+                .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
 
             Spacer()
 
@@ -365,5 +483,6 @@ struct SidebarRow: View {
                     .foregroundStyle(.secondary)
             }
         }
+        .animation(TimedMotion.smooth, value: isSelected)
     }
 }

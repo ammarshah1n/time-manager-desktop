@@ -11,6 +11,14 @@ enum VoiceResponse: Sendable {
     case removeItem(Int)            // "remove the last one" → index, "remove the second" → 2
     case swapItems(Int, Int)        // "swap the first two" → (1, 2)
     case estimateOverride(ordinal: Int, minutes: Int)  // "make the third one 20 minutes"
+    case skip                       // "skip", "next", "pass"
+    case done                       // "done", "finished", "that's it", "that's all"
+    case noMore                     // "no more", "nothing else"
+    case repeat_                    // "repeat", "say again", "what?"
+    case goBack                     // "go back", "previous", "back"
+    case moveToTomorrow(Int?)       // "move to tomorrow", "defer", "tomorrow" (optional item number)
+    case addTask(String)            // "add [task description]"
+    case undo                       // "undo", "take that back", "cancel that"
     case unknown(String)            // anything we can't parse
 
     // MARK: - Parse
@@ -22,22 +30,44 @@ enum VoiceResponse: Sendable {
 
         guard !cleaned.isEmpty else { return .unknown("") }
 
-        // 1. Check affirmative
+        // 1. Check undo (before affirmative/negative to avoid "cancel" collisions)
+        if isUndo(cleaned) { return .undo }
+
+        // 2. Check affirmative
         if isAffirmative(cleaned) { return .affirmative }
 
-        // 2. Check negative
+        // 3. Check done / no-more (before negative — "that's it" is not negative)
+        if isDone(cleaned) { return .done }
+        if isNoMore(cleaned) { return .noMore }
+
+        // 4. Check negative
         if isNegative(cleaned) { return .negative }
 
-        // 3. Check estimate override ("make the third one 20 minutes")
+        // 5. Check skip
+        if isSkip(cleaned) { return .skip }
+
+        // 6. Check repeat
+        if isRepeat(cleaned) { return .repeat_ }
+
+        // 7. Check go back
+        if isGoBack(cleaned) { return .goBack }
+
+        // 8. Check add task ("add [description]")
+        if let addTask = parseAddTask(cleaned) { return addTask }
+
+        // 9. Check move to tomorrow / defer
+        if let move = parseMoveToTomorrow(cleaned) { return move }
+
+        // 10. Check estimate override ("make the third one 20 minutes")
         if let override_ = parseEstimateOverride(cleaned) { return override_ }
 
-        // 4. Check swap
+        // 11. Check swap
         if let swap = parseSwap(cleaned) { return swap }
 
-        // 5. Check remove
+        // 12. Check remove
         if let remove = parseRemove(cleaned) { return remove }
 
-        // 6. Check number (with hours/minutes handling)
+        // 13. Check number (with hours/minutes handling)
         if let mins = parseMinutes(cleaned) { return .number(mins) }
 
         return .unknown(transcript)
@@ -60,8 +90,8 @@ enum VoiceResponse: Sendable {
     // MARK: - Negative
 
     private static let negativeWords: Set<String> = [
-        "no", "nah", "nope", "skip", "remove", "don't", "not", "none",
-        "remove all", "clear", "nothing", "cancel"
+        "no", "nah", "nope", "remove", "don't", "not", "none",
+        "remove all", "clear", "nothing"
     ]
 
     private static func isNegative(_ text: String) -> Bool {
@@ -151,6 +181,95 @@ enum VoiceResponse: Sendable {
 
         if let n = Int(stripped) { return n }
         return wordToNumber[stripped]
+    }
+
+    // MARK: - Skip / Done / NoMore / Repeat / GoBack / Undo
+
+    private static let skipWords: Set<String> = ["skip", "next", "pass", "skip it", "next one"]
+
+    private static func isSkip(_ text: String) -> Bool {
+        skipWords.contains(text)
+    }
+
+    private static let doneWords: Set<String> = [
+        "done", "finished", "that's it", "thats it", "that's all", "thats all",
+        "i'm done", "im done", "all done", "we're done", "were done"
+    ]
+
+    private static func isDone(_ text: String) -> Bool {
+        doneWords.contains(text) || doneWords.contains { text.hasPrefix($0) }
+    }
+
+    private static let noMoreWords: Set<String> = [
+        "no more", "nothing else", "nothing more", "that's everything", "thats everything"
+    ]
+
+    private static func isNoMore(_ text: String) -> Bool {
+        noMoreWords.contains(text) || noMoreWords.contains { text.hasPrefix($0) }
+    }
+
+    private static let repeatWords: Set<String> = [
+        "repeat", "say again", "say that again", "what", "what?", "pardon",
+        "come again", "repeat that", "one more time", "huh"
+    ]
+
+    private static func isRepeat(_ text: String) -> Bool {
+        repeatWords.contains(text) || repeatWords.contains { text.hasPrefix($0) }
+    }
+
+    private static let goBackWords: Set<String> = [
+        "go back", "previous", "back", "go back one", "previous step",
+        "previous question", "back up"
+    ]
+
+    private static func isGoBack(_ text: String) -> Bool {
+        goBackWords.contains(text) || goBackWords.contains { text.hasPrefix($0) }
+    }
+
+    private static let undoWords: Set<String> = [
+        "undo", "take that back", "cancel that", "undo that", "revert",
+        "never mind", "nevermind", "scratch that"
+    ]
+
+    private static func isUndo(_ text: String) -> Bool {
+        undoWords.contains(text) || undoWords.contains { text.hasPrefix($0) }
+    }
+
+    // MARK: - Add task parsing
+
+    private static func parseAddTask(_ text: String) -> VoiceResponse? {
+        // "add call John", "add review the deck"
+        let prefixes = ["add ", "add a ", "add task ", "new task "]
+        for prefix in prefixes {
+            if text.hasPrefix(prefix) {
+                let description = String(text.dropFirst(prefix.count))
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !description.isEmpty else { return nil }
+                return .addTask(description)
+            }
+        }
+        return nil
+    }
+
+    // MARK: - Move to tomorrow / defer parsing
+
+    private static func parseMoveToTomorrow(_ text: String) -> VoiceResponse? {
+        let triggers = ["move to tomorrow", "defer", "push to tomorrow", "tomorrow",
+                        "move it to tomorrow", "do it tomorrow", "defer that"]
+        guard triggers.contains(where: { text.contains($0) }) else { return nil }
+        // Check for item number: "move the third to tomorrow", "defer number 2"
+        for (word, idx) in ordinalToIndex {
+            if text.contains(word) { return .moveToTomorrow(idx) }
+        }
+        // Check bare digit: "defer 3"
+        let pattern = #"(\d+)"#
+        if let regex = try? NSRegularExpression(pattern: pattern),
+           let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+           let range = Range(match.range(at: 1), in: text),
+           let num = Int(text[range]) {
+            return .moveToTomorrow(num)
+        }
+        return .moveToTomorrow(nil)
     }
 
     // MARK: - Remove parsing

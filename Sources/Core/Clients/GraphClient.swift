@@ -35,6 +35,7 @@ struct GraphEmailMessage: Codable, Identifiable, Sendable {
     let toRecipients: [GraphRecipientWrapper]
     let ccRecipients: [GraphRecipientWrapper]
     let parentFolderId: String?
+    let isDraft: Bool?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -46,6 +47,7 @@ struct GraphEmailMessage: Codable, Identifiable, Sendable {
         case toRecipients
         case ccRecipients
         case parentFolderId
+        case isDraft
     }
 }
 
@@ -130,6 +132,12 @@ struct GraphClientDependency: Sendable {
     /// params: (folderId, accessToken) → displayName
     var fetchFolderName: @Sendable (String, String) async throws -> String = { _, _ in
         throw NotImplementedError(methodName: "fetchFolderName")
+    }
+
+    /// Fetches all mail folders. Returns array of (id, displayName) tuples.
+    /// params: (accessToken) → [(id, displayName)]
+    var fetchMailFolders: @Sendable (String) async throws -> [(id: String, displayName: String)] = { _ in
+        throw NotImplementedError(methodName: "fetchMailFolders")
     }
 
     /// Fetches calendar events within the given date range.
@@ -250,7 +258,7 @@ extension GraphClientDependency {
             fetchDeltaMessages: { _, deltaLink, accessToken in
                 let urlString = deltaLink
                     ?? "\(graphBaseURL)/me/messages/delta"
-                    + "?$select=id,conversationId,subject,from,receivedDateTime,bodyPreview,toRecipients,ccRecipients,isRead,parentFolderId"
+                    + "?$select=id,subject,from,receivedDateTime,parentFolderId,bodyPreview,conversationId,toRecipients,ccRecipients,isDraft"
                     + "&$top=50"
 
                 guard let url = URL(string: urlString) else {
@@ -261,8 +269,12 @@ extension GraphClientDependency {
                 request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
 
                 let (data, response) = try await URLSession.shared.data(for: request)
-                guard (response as? HTTPURLResponse)?.statusCode == 200 else {
-                    throw GraphError.httpError((response as? HTTPURLResponse)?.statusCode ?? 0)
+                let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+                if statusCode == 410 {
+                    throw GraphError.syncStateNotFound
+                }
+                guard statusCode == 200 else {
+                    throw GraphError.httpError(statusCode)
                 }
 
                 let decoded = try JSONDecoder().decode(GraphDeltaResponse.self, from: data)
@@ -363,6 +375,22 @@ extension GraphClientDependency {
                 return decoded.displayName
             },
 
+            // MARK: fetchMailFolders
+            // params: (accessToken) → [(id, displayName)]
+            fetchMailFolders: { accessToken in
+                let request = graphRequest(
+                    path: "/me/mailFolders?$top=100",
+                    method: "GET",
+                    accessToken: accessToken
+                )
+                let (data, response) = try await URLSession.shared.data(for: request)
+                guard (response as? HTTPURLResponse)?.statusCode == 200 else {
+                    throw GraphError.httpError((response as? HTTPURLResponse)?.statusCode ?? 0)
+                }
+                let decoded = try JSONDecoder().decode(GraphFoldersResponse.self, from: data)
+                return decoded.value.map { ($0.id, $0.displayName) }
+            },
+
             // MARK: fetchCalendarEvents
             // params: (startDate, endDate, accessToken) → [GraphCalendarEvent]
             fetchCalendarEvents: { startDate, endDate, accessToken in
@@ -442,6 +470,10 @@ private struct GraphFolder: Decodable {
     let displayName: String
 }
 
+private struct GraphFoldersResponse: Decodable {
+    let value: [GraphFolder]
+}
+
 private struct GraphCalendarResponse: Decodable {
     let value: [GraphCalendarEvent]
 }
@@ -452,4 +484,5 @@ enum GraphError: Error, Sendable {
     case httpError(Int)
     case noAccount
     case tokenExpired
+    case syncStateNotFound
 }

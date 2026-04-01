@@ -420,7 +420,7 @@ extension SupabaseClientDependency {
         let urlString = ProcessInfo.processInfo.environment["SUPABASE_URL"]
             ?? "https://fpmjuufefhtlwbfinxlx.supabase.co"
         let anonKey = ProcessInfo.processInfo.environment["SUPABASE_ANON_KEY"]
-            ?? "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZwbWp1dWZlZmh0bHdiZmlueGx4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5MTMxMDEsImV4cCI6MjA5MDQ4OTEwMX0.VUtjezhFMpwrcVMXltyYmU2n0Xazi9lvhuwAQlKOTO4"
+            ?? ""
 
         // Detect placeholder / invalid URLs
         let isPlaceholder = urlString.contains("fake.supabase.co")

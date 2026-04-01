@@ -1,12 +1,16 @@
 // estimate-time/index.ts
 // Estimates task duration using hybrid: embedding similarity + historical + Claude Sonnet fallback.
-// Model: Claude Sonnet 4.6 (LLM), text-embedding-3-small (embeddings)
+// Model: Claude Sonnet 4.6 (LLM), jina-embeddings-v3 (embeddings via Jina AI)
 // Loop 2 of AI learning: improves with every user override + actual_minutes logged.
+// Auth: JWT verified via _shared/auth.ts
+// Resilience: withRetry via _shared/retry.ts
 // See: ~/Timed-Brain/06 - Context/ai-learning-loops-architecture-v2.md
 
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import Anthropic from "https://esm.sh/@anthropic-ai/sdk@0.27.0";
+import { verifyAuth, AuthError, authErrorResponse } from "../_shared/auth.ts";
+import { withRetry } from "../_shared/retry.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -14,10 +18,9 @@ const supabase = createClient(
 );
 const anthropic = new Anthropic({ apiKey: Deno.env.get("ANTHROPIC_API_KEY")! });
 
-// OpenAI API key for text-embedding-3-small
-// Set via: supabase secrets set OPENAI_API_KEY=sk-...
-const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") ?? "";
-const EMBEDDING_MODEL = "text-embedding-3-small";
+// Jina AI API key for jina-embeddings-v3 (1024-dim embeddings)
+// Set via: supabase secrets set JINA_API_KEY=jina_...
+const JINA_API_KEY = Deno.env.get("JINA_API_KEY") ?? "";
 const EMBEDDING_SIMILARITY_THRESHOLD = 0.7;
 const EMBEDDING_MIN_MATCHES = 3;
 
@@ -36,6 +39,14 @@ const CATEGORY_DEFAULTS: Record<string, number> = {
 };
 
 serve(async (req: Request) => {
+  // JWT auth
+  try {
+    await verifyAuth(req);
+  } catch (err) {
+    if (err instanceof AuthError) return authErrorResponse(err);
+    return new Response(JSON.stringify({ error: "Auth failed" }), { status: 401, headers: { "Content-Type": "application/json" } });
+  }
+
   const { taskId, workspaceId, profileId, title, bucketType, description, fromAddress } =
     await req.json();
 
@@ -102,35 +113,40 @@ serve(async (req: Request) => {
 
   // 2. Fallback: Claude Sonnet estimate
   try {
-    const message = await anthropic.messages.create({
-      model: "claude-sonnet-4-6",
-      max_tokens: 128,
-      system: [
-        {
-          type: "text",
-          text: `You are a time estimation assistant for an executive productivity app.
+    const message = await withRetry(
+      () => anthropic.messages.create({
+        model: "claude-sonnet-4-6",
+        max_tokens: 128,
+        system: [
+          {
+            type: "text",
+            text: `You are a time estimation assistant for an executive productivity app.
 Estimate how many minutes a task will take. Be realistic, not optimistic.
 Respond ONLY with a JSON object: {"estimated_minutes": <integer>, "confidence": <0.0-1.0>}`,
-          // @ts-ignore
-          cache_control: { type: "ephemeral" },
-        },
-      ],
-      messages: [
-        {
-          role: "user",
-          content: `Task type: ${bucketType}
+            // @ts-ignore
+            cache_control: { type: "ephemeral" },
+          },
+        ],
+        messages: [
+          {
+            role: "user",
+            content: `Task type: ${bucketType}
 Title: ${title ?? "(untitled)"}
 Description: ${description ?? "(none)"}
 ${fromAddress ? `From: ${fromAddress}` : ""}
 Category default: ${categoryDefault} min
 
 Estimate the actual time this will take.`,
-        },
-      ],
-    });
+          },
+        ],
+      }),
+      { label: "estimate-time-anthropic" }
+    );
 
     const text = message.content.find((b) => b.type === "text")?.text ?? "{}";
-    const parsed = JSON.parse(text.match(/\{[\s\S]*\}/)![0]);
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error("No JSON in LLM response");
+    const parsed = JSON.parse(jsonMatch[0]);
     const estimated = Math.max(1, Math.round(parsed.estimated_minutes ?? categoryDefault));
     // AI LLM fallback: no historical data, so uncertainty = 50% of category default (high)
     const aiUncertainty = Math.round(categoryDefault * 0.5);
@@ -167,34 +183,36 @@ Estimate the actual time this will take.`,
 });
 
 // ============================================================
-// Embedding generation via OpenAI text-embedding-3-small
+// Embedding generation via Jina AI jina-embeddings-v3 (1024 dims)
 // ============================================================
 
 async function generateEmbedding(text: string): Promise<number[] | null> {
-  if (!OPENAI_API_KEY) return null;
+  if (!JINA_API_KEY) return null;
 
   try {
-    const res = await fetch("https://api.openai.com/v1/embeddings", {
+    const res = await fetch("https://api.jina.ai/v1/embeddings", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${OPENAI_API_KEY}`,
+        "Authorization": `Bearer ${JINA_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: EMBEDDING_MODEL,
-        input: text,
+        model: "jina-embeddings-v3",
+        input: [text],
+        task: "retrieval.passage",
+        dimensions: 1024,
       }),
     });
 
     if (!res.ok) {
-      console.error(`OpenAI embedding error: ${res.status} ${await res.text()}`);
+      console.error(`Jina AI embedding error: ${res.status} ${await res.text()}`);
       return null;
     }
 
     const json = await res.json();
     return json.data?.[0]?.embedding ?? null;
   } catch (err) {
-    console.error("OpenAI embedding call failed:", err);
+    console.error("Jina AI embedding call failed:", err);
     return null;
   }
 }

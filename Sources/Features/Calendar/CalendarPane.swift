@@ -160,18 +160,18 @@ struct CalendarPane: View {
         guard !isSyncing else { return }
 
         // Retrieve token from environment / keychain. If unavailable, log and bail.
-        guard let token = auth.graphAccessToken,
-              !token.isEmpty else {
+        guard auth.graphAccessToken != nil else {
             TimedLogger.calendar.warning("Sync Calendar: No Graph access token — skipping sync")
             return
         }
 
+        let tokenProvider = auth.makeTokenProvider()
         isSyncing = true
         Task {
             defer { Task { @MainActor in isSyncing = false } }
             do {
                 let service = CalendarSyncService.shared
-                let fetched = try await service.fetchTodayEvents(accessToken: token)
+                let fetched = try await service.fetchTodayEvents(tokenProvider: tokenProvider)
 
                 // Remove previously synced blocks (so we don't duplicate on re-sync)
                 await MainActor.run {

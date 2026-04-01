@@ -21,6 +21,8 @@ struct OnboardingFlow: View {
     // Step 3 — Work Day
     @AppStorage("onboarding_workdayHours") private var workdayHours: Int = 9
     @AppStorage("onboarding_todayHours") private var todayHours: Int = 7
+    @AppStorage("onboarding_workStartHour") private var workStartHour: Int = 9
+    @AppStorage("onboarding_workEndHour") private var workEndHour: Int = 18
 
     // Step 4 — Email Cadence
     @AppStorage("onboarding_emailCadence") private var emailCadence: Int = 2
@@ -245,6 +247,24 @@ struct OnboardingFlow: View {
                         .font(.callout)
                     Spacer()
                     Stepper("\(todayHours) hours", value: $todayHours, in: 1...12)
+                        .fixedSize()
+                }
+
+                Divider()
+
+                HStack {
+                    Text("Work starts at")
+                        .font(.callout)
+                    Spacer()
+                    Stepper("\(workStartHour):00", value: $workStartHour, in: 5...12)
+                        .fixedSize()
+                }
+
+                HStack {
+                    Text("Work ends at")
+                        .font(.callout)
+                    Spacer()
+                    Stepper("\(workEndHour):00", value: $workEndHour, in: 14...23)
                         .fixedSize()
                 }
             }
@@ -612,6 +632,16 @@ struct OnboardingUserPrefs {
 
     static var paEnabled: Bool {
         UserDefaults.standard.bool(forKey: "onboarding_paEnabled")
+    }
+
+    static var workStartHour: Int {
+        let v = UserDefaults.standard.integer(forKey: "onboarding_workStartHour")
+        return v == 0 ? 9 : v
+    }
+
+    static var workEndHour: Int {
+        let v = UserDefaults.standard.integer(forKey: "onboarding_workEndHour")
+        return v == 0 ? 18 : v
     }
 
     static var outlookConnected: Bool {

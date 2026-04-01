@@ -80,6 +80,10 @@ cat > "$APP_DIR/Contents/Info.plist" <<'PLIST'
   <string>Timed writes your approved study blocks to Apple Calendar so they sync to your iPhone.</string>
   <key>NSAppleEventsUsageDescription</key>
   <string>Timed may automate calendar and local productivity workflows on your Mac.</string>
+  <key>NSMicrophoneUsageDescription</key>
+  <string>Timed uses your microphone for voice capture during the morning planning interview.</string>
+  <key>NSSpeechRecognitionUsageDescription</key>
+  <string>Timed uses speech recognition to convert your voice commands into planning actions.</string>
 </dict>
 </plist>
 PLIST

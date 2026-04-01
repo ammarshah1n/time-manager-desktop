@@ -3,6 +3,7 @@
 // Sequences tasks by bucket priority: Reply → Action → Read Today → Read This Week → Waiting
 
 import SwiftUI
+import Dependencies
 
 struct PlanPane: View {
     @Binding var tasks: [TimedTask]
@@ -13,6 +14,11 @@ struct PlanPane: View {
     @State private var useCustom = false
     @State private var generatedPlan: [PlannedItem] = []
     @State private var planGenerated = false
+    @State private var planRevealed = false
+    @State private var behaviourRules: [BehaviourRule] = []
+    @State private var bucketStats: [BucketCompletionStat] = []
+    @State private var bucketEstimates: [String: Double] = [:]
+    @State private var mood: DishMeUpMood = .none
 
     private let presets: [(label: String, mins: Int)] = [
         ("30 min", 30), ("1 hr", 60), ("2 hr", 120), ("3 hr", 180)
@@ -37,6 +43,23 @@ struct PlanPane: View {
         }
         .frame(maxWidth: .infinity)
         .navigationTitle("Plan")
+        .task {
+            guard let profileId = AuthService.shared.profileId else { return }
+            @Dependency(\.supabaseClient) var supa
+            if let rows = try? await supa.fetchBehaviourRules(profileId) {
+                behaviourRules = rows.map {
+                    BehaviourRule(ruleKey: $0.ruleKey, ruleType: $0.ruleType,
+                                 ruleValueJson: $0.ruleValueJson, confidence: $0.confidence)
+                }
+            }
+            if let wsId = AuthService.shared.workspaceId {
+                if let stats = try? await supa.fetchBucketStats(wsId, profileId) {
+                    bucketStats = stats
+                }
+            }
+            let bucketEst = (try? await DataStore.shared.loadBucketEstimates()) ?? [:]
+            bucketEstimates = bucketEst.mapValues { $0.meanMinutes }
+        }
     }
 
     // MARK: - Time selector
@@ -54,6 +77,7 @@ struct PlanPane: View {
                         availableMinutes = preset.mins
                         useCustom = false
                         planGenerated = false
+                        planRevealed = false
                     } label: {
                         Text(preset.label)
                             .font(.system(size: 13, weight: .medium))
@@ -61,7 +85,7 @@ struct PlanPane: View {
                             .padding(.horizontal, 14).padding(.vertical, 7)
                             .background(
                                 !useCustom && availableMinutes == preset.mins
-                                    ? Color.indigo : Color(.controlBackgroundColor),
+                                    ? Color.Timed.accent : Color(.controlBackgroundColor),
                                 in: RoundedRectangle(cornerRadius: 8)
                             )
                             .foregroundStyle(
@@ -78,18 +102,50 @@ struct PlanPane: View {
                         .font(.system(size: 13, weight: .medium))
                         .frame(width: 44)
                         .multilineTextAlignment(.center)
-                        .onTapGesture { useCustom = true; planGenerated = false }
+                        .onTapGesture { useCustom = true; planGenerated = false; planRevealed = false }
                     Text("min")
                         .font(.system(size: 12))
                         .foregroundStyle(.secondary)
                 }
                 .padding(.horizontal, 12).padding(.vertical, 7)
                 .background(
-                    useCustom ? Color.indigo : Color(.controlBackgroundColor),
+                    useCustom ? Color.Timed.accent : Color(.controlBackgroundColor),
                     in: RoundedRectangle(cornerRadius: 8)
                 )
                 .foregroundStyle(useCustom ? .white : .primary)
                 .onTapGesture { useCustom = true }
+            }
+
+            // Mood picker
+            Text("MOOD (OPTIONAL)")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .tracking(1.2)
+                .padding(.top, 6)
+
+            HStack(spacing: 8) {
+                ForEach(DishMeUpMood.allCases, id: \.self) { m in
+                    Button {
+                        mood = m
+                        if planGenerated { generate() }
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: m.icon).font(.system(size: 10)).foregroundStyle(m.color)
+                            Text(m.rawValue).font(.system(size: 11, weight: .medium))
+                        }
+                        .padding(.horizontal, 10).padding(.vertical, 6)
+                        .background(
+                            mood == m ? m.color.opacity(0.12) : Color(.controlBackgroundColor),
+                            in: RoundedRectangle(cornerRadius: 8)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .strokeBorder(mood == m ? m.color.opacity(0.5) : Color.clear, lineWidth: 1)
+                        )
+                        .foregroundStyle(mood == m ? m.color : .primary)
+                    }
+                    .buttonStyle(.plain)
+                }
             }
 
             Button {
@@ -102,7 +158,7 @@ struct PlanPane: View {
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(.white)
                 .padding(.horizontal, 18).padding(.vertical, 9)
-                .background(.indigo, in: RoundedRectangle(cornerRadius: 9))
+                .background(Color.Timed.accent, in: RoundedRectangle(cornerRadius: 9))
             }
             .buttonStyle(.plain)
             .padding(.top, 4)
@@ -112,34 +168,82 @@ struct PlanPane: View {
     // MARK: - Plan prompt (pre-generation)
 
     private var planPrompt: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 12) {
-                Image(systemName: "calendar.badge.clock")
-                    .font(.system(size: 28, weight: .light))
-                    .foregroundStyle(.indigo.opacity(0.6))
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Ready to plan")
-                        .font(.system(size: 15, weight: .semibold))
-                    Text("Hit \"Dish me up\" and Timed will sequence your tasks by urgency and time fit.")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+        VStack(alignment: .leading, spacing: 16) {
+            // Preview card — shows what a generated plan looks like
+            VStack(spacing: 0) {
+                HStack(spacing: 10) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 16))
+                        .foregroundStyle(Color.Timed.accent)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Your plan will appear here")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(Color.Timed.primaryText)
+                        Text("Tasks sequenced by urgency, time fit, and your mood")
+                            .font(.system(size: 12))
+                            .foregroundStyle(Color.Timed.secondaryText)
+                    }
+                    Spacer()
+                }
+                .padding(14)
+
+                // Mock skeleton rows
+                ForEach(0..<3, id: \.self) { i in
+                    HStack(spacing: 10) {
+                        Text("\(i + 1)")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(Color.Timed.tertiaryText)
+                            .frame(width: 18, alignment: .trailing)
+                        RoundedRectangle(cornerRadius: 3)
+                            .fill(Color.Timed.tertiaryText.opacity(0.18))
+                            .frame(height: 10)
+                            .frame(maxWidth: [160, 120, 140][i])
+                        Spacer()
+                        RoundedRectangle(cornerRadius: 3)
+                            .fill(Color.Timed.tertiaryText.opacity(0.12))
+                            .frame(width: 36, height: 10)
+                    }
+                    .padding(.horizontal, 14).padding(.vertical, 8)
+                    if i < 2 {
+                        Divider().padding(.leading, 42)
+                    }
                 }
             }
+            .background(Color(.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 12))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .strokeBorder(Color.Timed.hairline, lineWidth: 1)
+            )
 
             // Task inventory
-            let total = tasks.count
-            let totalMins = tasks.reduce(0) { $0 + $1.estimatedMinutes }
+            let total = tasks.filter({ !$0.isDone }).count
+            let totalMins = tasks.filter({ !$0.isDone }).reduce(0) { $0 + $1.estimatedMinutes }
+
             if total > 0 {
                 HStack(spacing: 16) {
                     planStat("\(total)", "tasks queued")
                     planStat(formatMins(totalMins), "total backlog")
+                    Spacer()
                 }
-                .padding(.top, 8)
+                .padding(.top, 2)
+            } else {
+                // No tasks at all
+                VStack(spacing: 10) {
+                    Image(systemName: "tray")
+                        .font(.system(size: 28))
+                        .foregroundStyle(Color.Timed.tertiaryText)
+                    Text("No tasks to plan")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(Color.Timed.secondaryText)
+                    Text("Add tasks in the Today view or import from your calendar")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Color.Timed.tertiaryText)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
             }
         }
-        .padding(18)
-        .background(Color(.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 12))
     }
 
     // MARK: - Generated plan
@@ -178,17 +282,24 @@ struct PlanPane: View {
                         .font(.system(size: 12, weight: .medium))
                     }
                     .buttonStyle(.borderedProminent)
-                    .tint(.indigo)
+                    .tint(Color.Timed.accent)
                     .controlSize(.small)
                 }
             }
             .padding(.horizontal, 16).padding(.vertical, 12)
             .background(Color(.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
 
-            // Task sequence
+            // Task sequence — staggered auto-weave reveal
             VStack(spacing: 2) {
                 ForEach(Array(generatedPlan.enumerated()), id: \.element.id) { idx, item in
-                    PlanItemRow(index: idx + 1, item: item)
+                    PlanItemRow(index: idx + 1, item: item, isRevealed: planRevealed)
+                        .opacity(planRevealed ? 1 : 0)
+                        .offset(y: planRevealed ? 0 : 20)
+                        .animation(
+                            .spring(response: 0.4, dampingFraction: 0.85)
+                            .delay(Double(idx) * 0.025),
+                            value: planRevealed
+                        )
                 }
             }
             .background(Color(.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
@@ -213,26 +324,69 @@ struct PlanPane: View {
 
     // MARK: - Generation logic
 
+    private func toMoodContext(_ mood: DishMeUpMood) -> MoodContext? {
+        switch mood {
+        case .none:      return nil
+        case .easyWins:  return .easyWins
+        case .avoidance: return .avoidance
+        case .deepFocus: return .deepFocus
+        }
+    }
+
     private func generate() {
         let planTasks = tasks.filter { !$0.isDone }.map { toPlanTask($0) }
+        // Translate bucket estimate keys from TaskBucket.rawValue to PlanTask.bucketType format
+        var planEstimates: [String: Double] = [:]
+        for bucket in TaskBucket.allCases {
+            if let val = bucketEstimates[bucket.rawValue] {
+                planEstimates[bucketTypeStr(bucket)] = val
+            }
+        }
         let request = PlanRequest(
-            workspaceId: UUID(),   // placeholder until Supabase is wired
-            profileId: UUID(),
+            workspaceId: AuthService.shared.workspaceId ?? UUID(),
+            profileId: AuthService.shared.profileId ?? UUID(),
             availableMinutes: totalAvailable,
-            moodContext: nil,
-            behaviouralRules: [],
+            moodContext: toMoodContext(mood),
+            behaviouralRules: behaviourRules,
             tasks: planTasks,
-            bucketStats: []
+            bucketStats: bucketStats,
+            bucketEstimates: planEstimates,
+            calendarBlocks: blocks,
+            workStartHour: OnboardingUserPrefs.workStartHour,
+            workEndHour: OnboardingUserPrefs.workEndHour
         )
         let result = PlanningEngine.generatePlan(request)
 
         // Map PlanItems back to PlannedItems using original TimedTask
+        // Compute scheduled start times based on sequential placement
         let taskById = Dictionary(uniqueKeysWithValues: tasks.map { ($0.id, $0) })
+        let cal = Calendar.current
+        var cursor = Date()
+        let mins = cal.component(.minute, from: cursor)
+        let roundedMins = mins < 30 ? 30 : 60
+        cursor = cal.date(byAdding: .minute, value: roundedMins - mins, to: cursor) ?? cursor
+
+        planRevealed = false
         generatedPlan = result.items.compactMap { item in
             guard let original = taskById[item.task.id] else { return nil }
-            return PlannedItem(task: original)
+            let planned = PlannedItem(task: original, scheduledStartTime: cursor)
+            cursor = cursor.addingTimeInterval(TimeInterval(original.estimatedMinutes * 60 + 5 * 60))
+            return planned
         }
         planGenerated = true
+
+        // Trigger staggered reveal after layout settles
+        let itemCount = generatedPlan.count
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            planRevealed = true
+        }
+
+        // Play completion tone after last item finishes revealing
+        // Total duration: 0.05s layout delay + (itemCount * 0.025s stagger) + 0.4s spring
+        let totalRevealDuration = 0.05 + Double(itemCount) * 0.025 + 0.4
+        DispatchQueue.main.asyncAfter(deadline: .now() + totalRevealDuration) {
+            TimedSound.planGenerated.play()
+        }
     }
 
     private func sendToCalendar() {
@@ -312,6 +466,41 @@ struct PlanPane: View {
 struct PlannedItem: Identifiable {
     let id = UUID()
     let task: TimedTask
+    let scheduledStartTime: Date?
+}
+
+// MARK: - Counting time text animation
+
+struct CountingTimeText: View {
+    let targetTime: Date
+    @State private var progress: Double = 0
+
+    private static let formatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "h:mm a"
+        return f
+    }()
+
+    private var interpolatedTime: String {
+        let cal = Calendar.current
+        let midnight = cal.startOfDay(for: targetTime)
+        let targetInterval = targetTime.timeIntervalSince(midnight)
+        let currentInterval = targetInterval * progress
+        let display = midnight.addingTimeInterval(currentInterval)
+        return Self.formatter.string(from: display)
+    }
+
+    var body: some View {
+        Text(interpolatedTime)
+            .monospacedDigit()
+            .font(.system(size: 11, weight: .medium))
+            .foregroundStyle(Color.Timed.accent.opacity(0.8))
+            .onAppear {
+                withAnimation(.easeOut(duration: 0.3)) {
+                    progress = 1.0
+                }
+            }
+    }
 }
 
 // MARK: - Plan item row
@@ -319,6 +508,7 @@ struct PlannedItem: Identifiable {
 struct PlanItemRow: View {
     let index: Int
     let item: PlannedItem
+    var isRevealed: Bool = true
 
     var body: some View {
         HStack(spacing: 12) {
@@ -328,6 +518,18 @@ struct PlanItemRow: View {
                 .foregroundStyle(.secondary)
                 .monospacedDigit()
                 .frame(width: 20, alignment: .trailing)
+
+            // Scheduled time slot
+            if let startTime = item.scheduledStartTime, isRevealed {
+                CountingTimeText(targetTime: startTime)
+                    .frame(width: 56, alignment: .leading)
+            } else {
+                Text("0:00 AM")
+                    .monospacedDigit()
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(Color.Timed.accent.opacity(0.3))
+                    .frame(width: 56, alignment: .leading)
+            }
 
             // Bucket indicator
             Image(systemName: item.task.bucket.icon)

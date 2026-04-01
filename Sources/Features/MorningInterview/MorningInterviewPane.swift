@@ -17,6 +17,9 @@ struct MorningInterviewPane: View {
         case waitingToListen
         case listening(step: Int)
         case processing
+        case correcting(step: Int, field: String)
+        case interrupted(resumeStep: Int)
+        case ambiguous(step: Int, prompt: String)
     }
 
     @Binding var tasks: [TimedTask]
@@ -43,7 +46,28 @@ struct MorningInterviewPane: View {
     @State private var lastTranscriptSnapshot: String = ""
     @State private var silenceTimeoutCount: Int = 0
 
-    private let totalSteps = 4
+    // Deferral review (step 0) — tasks from yesterday not completed
+    @State private var deferredTasks: [TimedTask] = []
+    @State private var showDeferralStep: Bool = false
+
+    // Confidence-based text fallback
+    @State private var showConfirmationBanner: Bool = false
+    @State private var pendingTranscript: String = ""
+    @State private var showTextFallback: Bool = false
+
+    // Undo stack — stores (step, action description) for last voice action
+    @State private var undoStack: [(step: Int, action: () -> Void)] = []
+
+    // Adaptive question skipping — consecutive non-override counts per step
+    @AppStorage("interview.skipCount.step0") private var skipCountStep0: Int = 0
+    @AppStorage("interview.skipCount.step1") private var skipCountStep1: Int = 0
+    @AppStorage("interview.skipCount.step2") private var skipCountStep2: Int = 0
+    @AppStorage("interview.skipCount.step3") private var skipCountStep3: Int = 0
+    @State private var skippedSteps: Set<Int> = []
+    private let skipThreshold = 5
+
+    // totalSteps is now 5: deferral review (0), time (1), due today (2), estimates (3), confirm (4)
+    private let totalSteps = 5
 
     init(tasks: Binding<[TimedTask]>, blocks: Binding<[CalendarBlock]>, isPresented: Binding<Bool>) {
         self._tasks = tasks
@@ -52,6 +76,10 @@ struct MorningInterviewPane: View {
         // pre-select all due-today tasks
         let ids = Set(tasks.wrappedValue.filter { $0.dueToday || $0.isDoFirst }.map(\.id))
         self._confirmedIds = State(initialValue: ids)
+        // Detect deferred tasks — overdue, not done, not due-today flagged
+        let deferred = tasks.wrappedValue.filter { !$0.isDone && $0.isStale && !$0.dueToday }
+        self._deferredTasks = State(initialValue: deferred)
+        self._showDeferralStep = State(initialValue: !deferred.isEmpty)
     }
 
     // Tasks AI thinks should happen today
@@ -94,10 +122,11 @@ struct MorningInterviewPane: View {
             Divider()
 
             ZStack {
-                if step == 0 { stepTimeDeclaration.transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading))) }
-                if step == 1 { stepDueTodayReview.transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading))) }
-                if step == 2 { stepAssumptions.transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading))) }
-                if step == 3 { stepPlanConfirm.transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading))) }
+                if step == 0 { stepDeferralReview.transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading))) }
+                if step == 1 { stepTimeDeclaration.transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading))) }
+                if step == 2 { stepDueTodayReview.transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading))) }
+                if step == 3 { stepAssumptions.transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading))) }
+                if step == 4 { stepPlanConfirm.transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading))) }
             }
             .animation(.easeInOut(duration: 0.25), value: step)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -114,10 +143,13 @@ struct MorningInterviewPane: View {
             if isOn {
                 speakForStep(step)
             } else {
+                // Step 6: preserve step + confirmedIds when toggling voice off
+                // Only stop audio services, don't reset state machine position
                 speechService.stop()
                 stopListening()
-                conversationState = .idle
                 cancelSilenceTimer()
+                conversationState = .idle
+                // step and confirmedIds intentionally preserved for touch continuation
             }
         }
         .onChange(of: speechService.isSpeaking) { wasSpeaking, isSpeaking in
@@ -135,6 +167,17 @@ struct MorningInterviewPane: View {
             }
         }
         .onChange(of: voiceCapture.liveTranscript) { _, newTranscript in
+            // Barge-in: user speaks while app is speaking → interrupt TTS
+            if case .appSpeaking(let spokenStep) = conversationState, !newTranscript.isEmpty {
+                speechService.stop()
+                conversationState = .interrupted(resumeStep: spokenStep)
+                // Process barge-in speech after a short delay for accumulation
+                Task {
+                    try? await Task.sleep(for: .milliseconds(800))
+                    finishListening()
+                }
+                return
+            }
             // Any new speech resets the silence timer
             if case .listening(let listenStep) = conversationState, !newTranscript.isEmpty {
                 lastTranscriptSnapshot = newTranscript
@@ -142,6 +185,15 @@ struct MorningInterviewPane: View {
             }
         }
         .onAppear {
+            // Skip deferral step if no deferred tasks
+            if !showDeferralStep && step == 0 {
+                step = 1
+            }
+            // Compute which steps are auto-skippable (adaptive skipping)
+            if skipCountStep1 >= skipThreshold { skippedSteps.insert(1) }
+            if skipCountStep2 >= skipThreshold { skippedSteps.insert(2) }
+            if skipCountStep3 >= skipThreshold { skippedSteps.insert(3) }
+
             if voiceMode {
                 speakForStep(step)
             }
@@ -222,22 +274,72 @@ struct MorningInterviewPane: View {
     private var voiceStatusBar: some View {
         Group {
             if voiceMode {
-                HStack(spacing: 10) {
-                    switch conversationState {
-                    case .appSpeaking:
-                        speakingIndicator
-                    case .waitingToListen:
-                        speakingIndicator  // brief transition, show same as speaking
-                    case .listening:
-                        listeningIndicator
-                    case .processing:
-                        processingIndicator
-                    case .idle:
-                        idleVoiceIndicator
+                VStack(spacing: 6) {
+                    HStack(spacing: 10) {
+                        switch conversationState {
+                        case .appSpeaking:
+                            speakingIndicator
+                        case .waitingToListen:
+                            speakingIndicator  // brief transition, show same as speaking
+                        case .listening:
+                            listeningIndicator
+                        case .processing:
+                            processingIndicator
+                        case .interrupted:
+                            processingIndicator
+                        case .correcting:
+                            listeningIndicator
+                        case .ambiguous:
+                            ambiguousIndicator
+                        case .idle:
+                            idleVoiceIndicator
+                        }
+                    }
+                    .padding(.horizontal, 14).padding(.vertical, 10)
+                    .background(voiceStatusBackground, in: RoundedRectangle(cornerRadius: 10))
+
+                    // Confidence confirmation banner
+                    if showConfirmationBanner {
+                        HStack(spacing: 8) {
+                            Image(systemName: "questionmark.circle.fill")
+                                .foregroundStyle(.orange)
+                            Text("Did you mean: \"\(pendingTranscript)\"?")
+                                .font(.system(size: 12))
+                                .lineLimit(2)
+                            Spacer()
+                            Button("Yes") { confirmPendingTranscript() }
+                                .buttonStyle(.borderedProminent)
+                                .tint(.indigo)
+                                .controlSize(.mini)
+                            Button("No") { rejectPendingTranscript() }
+                                .buttonStyle(.bordered)
+                                .controlSize(.mini)
+                        }
+                        .padding(.horizontal, 12).padding(.vertical, 8)
+                        .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+                    }
+
+                    // Text fallback input
+                    if showTextFallback {
+                        HStack(spacing: 8) {
+                            Image(systemName: "keyboard")
+                                .foregroundStyle(.secondary)
+                            Text("Voice unclear — use buttons or try again")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Button("Retry Voice") {
+                                showTextFallback = false
+                                conversationState = .idle
+                                speakForStep(step)
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.mini)
+                        }
+                        .padding(.horizontal, 12).padding(.vertical, 8)
+                        .background(Color(.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
                     }
                 }
-                .padding(.horizontal, 14).padding(.vertical, 10)
-                .background(voiceStatusBackground, in: RoundedRectangle(cornerRadius: 10))
                 .padding(.bottom, 8)
             }
         }
@@ -332,16 +434,119 @@ struct MorningInterviewPane: View {
         }
     }
 
+    private var ambiguousIndicator: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "questionmark.circle.fill")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(.orange)
+            if case .ambiguous(_, let prompt) = conversationState {
+                Text(prompt)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.orange)
+                    .lineLimit(2)
+            }
+            Spacer()
+        }
+    }
+
     private var voiceStatusBackground: Color {
         switch conversationState {
         case .appSpeaking, .waitingToListen: return Color.indigo.opacity(0.06)
-        case .listening: return Color.red.opacity(0.06)
-        case .processing: return Color(.controlBackgroundColor)
+        case .listening, .correcting: return Color.red.opacity(0.06)
+        case .processing, .interrupted: return Color(.controlBackgroundColor)
+        case .ambiguous: return Color.orange.opacity(0.06)
         case .idle: return Color(.controlBackgroundColor)
         }
     }
 
-    // MARK: - Step 0: Time declaration
+    // MARK: - Step 0: Deferral review (yesterday's unfinished tasks)
+
+    private var stepDeferralReview: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            voiceStatusBar
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Yesterday's unfinished tasks")
+                    .font(.system(size: 16, weight: .medium))
+                Text("You deferred \(deferredTasks.count) task\(deferredTasks.count == 1 ? "" : "s"). Carry them over?")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+            }
+
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: 2) {
+                    ForEach(deferredTasks) { task in
+                        HStack(spacing: 12) {
+                            Image(systemName: confirmedIds.contains(task.id) ? "checkmark.circle.fill" : "circle")
+                                .font(.system(size: 16))
+                                .foregroundStyle(confirmedIds.contains(task.id) ? Color.indigo : Color(.separatorColor))
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(task.title)
+                                    .font(.system(size: 13))
+                                    .lineLimit(1)
+                                Text("\(task.daysInQueue) days in queue")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(.orange)
+                            }
+
+                            Spacer()
+
+                            Text(task.timeLabel)
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(.secondary)
+                                .monospacedDigit()
+                        }
+                        .padding(.horizontal, 12).padding(.vertical, 9)
+                        .background(
+                            confirmedIds.contains(task.id) ? Color.indigo.opacity(0.06) : Color(.controlBackgroundColor),
+                            in: RoundedRectangle(cornerRadius: 8)
+                        )
+                        .onTapGesture {
+                            if confirmedIds.contains(task.id) {
+                                confirmedIds.remove(task.id)
+                            } else {
+                                confirmedIds.insert(task.id)
+                            }
+                        }
+                    }
+
+                    if deferredTasks.isEmpty {
+                        Text("No deferred tasks.")
+                            .font(.system(size: 13))
+                            .foregroundStyle(.secondary)
+                            .padding(.vertical, 20)
+                    }
+                }
+            }
+
+            HStack(spacing: 8) {
+                Button("Carry All Over") {
+                    for task in deferredTasks { confirmedIds.insert(task.id) }
+                    advanceStep()
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.indigo)
+                .controlSize(.small)
+
+                Button("Skip All") {
+                    for task in deferredTasks { confirmedIds.remove(task.id) }
+                    advanceStep()
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+
+                Spacer()
+            }
+
+            if !voiceMode {
+                voiceButton
+            }
+        }
+        .padding(.horizontal, 28).padding(.top, 8)
+    }
+
+    // MARK: - Step 1: Time declaration (was step 0)
 
     private var stepTimeDeclaration: some View {
         VStack(alignment: .leading, spacing: 24) {
@@ -412,7 +617,7 @@ struct MorningInterviewPane: View {
         .padding(.horizontal, 28).padding(.top, 8)
     }
 
-    // MARK: - Step 1: Due today review
+    // MARK: - Step 2: Due today review (was step 1)
 
     private var stepDueTodayReview: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -492,7 +697,7 @@ struct MorningInterviewPane: View {
         .padding(.horizontal, 28).padding(.top, 8)
     }
 
-    // MARK: - Step 2: Assumptions review
+    // MARK: - Step 3: Assumptions review (was step 2)
 
     private var stepAssumptions: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -567,7 +772,7 @@ struct MorningInterviewPane: View {
 
             HStack(spacing: 6) {
                 Button("Accept all estimates") {
-                    step = 3
+                    step = 4
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
@@ -580,7 +785,7 @@ struct MorningInterviewPane: View {
         .padding(.horizontal, 28).padding(.top, 8)
     }
 
-    // MARK: - Step 3: Plan confirmation
+    // MARK: - Step 4: Plan confirmation (was step 3)
 
     private var stepPlanConfirm: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -694,11 +899,24 @@ struct MorningInterviewPane: View {
         stopListening()
         cancelSilenceTimer()
 
+        // Adaptive skipping: if this step is skippable, auto-advance
+        if skippedSteps.contains(stepIndex) && stepIndex > 0 && stepIndex < totalSteps - 1 {
+            advanceStep()
+            return
+        }
+
         let text: String
         switch stepIndex {
         case 0:
-            text = "Good morning. How much time have you got today?"
+            if deferredTasks.isEmpty {
+                advanceStep()
+                return
+            }
+            let titles = deferredTasks.prefix(3).map(\.title).joined(separator: ", ")
+            text = "Yesterday you deferred \(deferredTasks.count) tasks: \(titles). Want to carry them over?"
         case 1:
+            text = "Good morning. How much time have you got today?"
+        case 2:
             let count = todayCandidates.count
             let titles = todayCandidates.prefix(3).map(\.title).joined(separator: ", ")
             if count == 0 {
@@ -706,13 +924,13 @@ struct MorningInterviewPane: View {
             } else {
                 text = "I found \(count) items due today. Here they are: \(titles). Should we keep all of them?"
             }
-        case 2:
+        case 3:
             let topAssumptions = assumptions.prefix(3).map { task in
                 let mins = estimates[task.id] ?? task.estimatedMinutes
                 return "\(task.title), \(formatMins(mins))"
             }.joined(separator: ". ")
             text = "I'm assuming these time estimates: \(topAssumptions). Sound right?"
-        case 3:
+        case 4:
             let topTasks = confirmedTasks.prefix(3).map { task in
                 let mins = estimates[task.id] ?? task.estimatedMinutes
                 return "\(task.title), \(formatMins(mins))"
@@ -794,6 +1012,7 @@ struct MorningInterviewPane: View {
 
     private func finishListening() {
         let transcript = voiceCapture.liveTranscript
+        let confidence = voiceCapture.lastConfidence
         stopListening()
         cancelSilenceTimer()
         guard !transcript.isEmpty else {
@@ -801,6 +1020,47 @@ struct MorningInterviewPane: View {
             return
         }
 
+        // STT Confidence Guard
+        if confidence < 0.30 {
+            // Auto-switch to text fallback
+            showTextFallback = true
+            conversationState = .idle
+            return
+        } else if confidence < 0.50 {
+            // Re-prompt with text fallback option
+            showTextFallback = true
+            conversationState = .ambiguous(step: step, prompt: "I didn't catch that clearly. Could you try again?")
+            speechService.speak("I didn't catch that clearly. Could you try again, or use the text input?")
+            return
+        } else if confidence < 0.75 {
+            // Show confirmation banner
+            pendingTranscript = transcript
+            showConfirmationBanner = true
+            conversationState = .ambiguous(step: step, prompt: "Did you mean: \(transcript)?")
+            speechService.speak("Did you mean: \(transcript)?")
+            return
+        }
+
+        processTranscript(transcript)
+    }
+
+    private func confirmPendingTranscript() {
+        showConfirmationBanner = false
+        let transcript = pendingTranscript
+        pendingTranscript = ""
+        processTranscript(transcript)
+    }
+
+    private func rejectPendingTranscript() {
+        showConfirmationBanner = false
+        pendingTranscript = ""
+        conversationState = .idle
+        if voiceMode {
+            speakForStep(step)
+        }
+    }
+
+    private func processTranscript(_ transcript: String) {
         conversationState = .processing
         voiceProcessing = true
         let response = VoiceResponse.parse(transcript)
@@ -817,15 +1077,95 @@ struct MorningInterviewPane: View {
     // MARK: - Voice: handle response
 
     private func handleVoiceResponse(_ response: VoiceResponse) {
+        // Universal intents handled first, regardless of step
+        switch response {
+        case .skip:
+            recordNonOverride(forStep: step)
+            advanceStep()
+            return
+        case .done, .noMore:
+            recordNonOverride(forStep: step)
+            applyPlan()
+            isPresented = false
+            return
+        case .repeat_:
+            speakForStep(step)
+            return
+        case .goBack:
+            if step > 0 {
+                speechService.stop()
+                stopListening()
+                cancelSilenceTimer()
+                step -= 1
+                if voiceMode { speakForStep(step) }
+            }
+            return
+        case .undo:
+            if let last = undoStack.popLast() {
+                last.action()
+                if voiceMode {
+                    speechService.speak("Undone.")
+                    Task {
+                        try? await Task.sleep(for: .milliseconds(600))
+                        guard voiceMode else { return }
+                        speakForStep(step)
+                    }
+                }
+            }
+            return
+        case .addTask(let description):
+            let newTask = TimedTask(
+                id: UUID(), title: description, sender: "",
+                estimatedMinutes: 15, bucket: .action, emailCount: 0,
+                receivedAt: Date(), dueToday: true
+            )
+            tasks.append(newTask)
+            confirmedIds.insert(newTask.id)
+            if voiceMode {
+                speechService.speak("Added: \(description).")
+            }
+            return
+        default:
+            break
+        }
+
+        // Step-specific handling
         switch step {
         case 0:
-            handleTimeResponse(response)
+            handleDeferralResponse(response)
         case 1:
-            handleDueTodayResponse(response)
+            handleTimeResponse(response)
         case 2:
-            handleAssumptionsResponse(response)
+            handleDueTodayResponse(response)
         case 3:
+            handleAssumptionsResponse(response)
+        case 4:
             handlePlanResponse(response)
+        default:
+            break
+        }
+    }
+
+    private func handleDeferralResponse(_ response: VoiceResponse) {
+        switch response {
+        case .affirmative:
+            // Carry all deferred tasks over
+            for task in deferredTasks { confirmedIds.insert(task.id) }
+            advanceStep()
+        case .negative:
+            // Skip all deferred
+            for task in deferredTasks { confirmedIds.remove(task.id) }
+            advanceStep()
+        case .moveToTomorrow(let idx):
+            // Defer specific item by index
+            if let idx, idx > 0, idx <= deferredTasks.count {
+                confirmedIds.remove(deferredTasks[idx - 1].id)
+            }
+        case .removeItem(let idx):
+            let resolvedIndex = idx == -1 ? deferredTasks.count - 1 : idx - 1
+            if resolvedIndex >= 0 && resolvedIndex < deferredTasks.count {
+                confirmedIds.remove(deferredTasks[resolvedIndex].id)
+            }
         default:
             break
         }
@@ -834,14 +1174,15 @@ struct MorningInterviewPane: View {
     private func handleTimeResponse(_ response: VoiceResponse) {
         switch response {
         case .number(let mins):
+            let oldMins = availableMinutes
             availableMinutes = mins
-            // Auto-advance after setting time
+            undoStack.append((step: step, action: { [self] in self.availableMinutes = oldMins }))
+            recordOverride(forStep: step)
             advanceStep()
         case .affirmative:
-            // Keep current time, advance
+            recordNonOverride(forStep: step)
             advanceStep()
         default:
-            // Couldn't parse — stay on step, user uses buttons
             break
         }
     }
@@ -849,19 +1190,33 @@ struct MorningInterviewPane: View {
     private func handleDueTodayResponse(_ response: VoiceResponse) {
         switch response {
         case .affirmative:
-            // Keep all, advance
+            recordNonOverride(forStep: step)
             advanceStep()
         case .negative:
-            // Clear all
+            let oldIds = confirmedIds
             confirmedIds.removeAll()
+            undoStack.append((step: step, action: { [self] in self.confirmedIds = oldIds }))
+            recordOverride(forStep: step)
             advanceStep()
         case .removeItem(let idx):
             let candidates = todayCandidates
             let resolvedIndex = idx == -1 ? candidates.count - 1 : idx - 1
             if resolvedIndex >= 0 && resolvedIndex < candidates.count {
-                confirmedIds.remove(candidates[resolvedIndex].id)
+                let removedId = candidates[resolvedIndex].id
+                confirmedIds.remove(removedId)
+                undoStack.append((step: step, action: { [self] in self.confirmedIds.insert(removedId) }))
             }
+            recordOverride(forStep: step)
             advanceStep()
+        case .moveToTomorrow(let idx):
+            // Remove specific item from today
+            let candidates = todayCandidates
+            if let idx, idx > 0, idx <= candidates.count {
+                let removedId = candidates[idx - 1].id
+                confirmedIds.remove(removedId)
+                undoStack.append((step: step, action: { [self] in self.confirmedIds.insert(removedId) }))
+            }
+            recordOverride(forStep: step)
         default:
             break
         }
@@ -870,15 +1225,24 @@ struct MorningInterviewPane: View {
     private func handleAssumptionsResponse(_ response: VoiceResponse) {
         switch response {
         case .affirmative:
+            recordNonOverride(forStep: step)
             advanceStep()
         case .estimateOverride(let ordinal, let minutes):
-            // Resolve ordinal to task index (1-based, -1 = last)
             let list = assumptions
             let resolvedIndex = ordinal == -1 ? list.count - 1 : ordinal - 1
             if resolvedIndex >= 0, resolvedIndex < list.count {
-                estimates[list[resolvedIndex].id] = max(5, minutes)
+                let taskId = list[resolvedIndex].id
+                let oldEstimate = estimates[taskId]
+                estimates[taskId] = max(5, minutes)
+                undoStack.append((step: step, action: { [self] in
+                    if let old = oldEstimate {
+                        self.estimates[taskId] = old
+                    } else {
+                        self.estimates.removeValue(forKey: taskId)
+                    }
+                }))
             }
-            // Stay on step so user can make more overrides or confirm
+            recordOverride(forStep: step)
         default:
             break
         }
@@ -890,13 +1254,10 @@ struct MorningInterviewPane: View {
             applyPlan()
             isPresented = false
         case .swapItems(let a, let b):
-            // Swap confirmed task order not directly possible with Set, but we can note intent
-            // For now, treat as affirmative after swap acknowledgement
-            _ = (a, b)  // acknowledged
+            _ = (a, b)  // acknowledged — swap logic deferred to ordered list support
             break
         case .negative:
-            // Go back to review
-            step = 1
+            step = 2
         default:
             break
         }
@@ -905,7 +1266,33 @@ struct MorningInterviewPane: View {
     private func advanceStep() {
         if step < totalSteps - 1 {
             step += 1
+            // Auto-skip steps marked as skippable (adaptive skipping)
+            if skippedSteps.contains(step) && step < totalSteps - 1 {
+                step += 1
+            }
         }
+    }
+
+    // MARK: - Adaptive skipping counters
+
+    private func recordNonOverride(forStep s: Int) {
+        switch s {
+        case 1: skipCountStep0 += 1  // step 1 maps to counter 0 (time)
+        case 2: skipCountStep1 += 1  // step 2 maps to counter 1 (due today)
+        case 3: skipCountStep2 += 1  // step 3 maps to counter 2 (estimates)
+        default: break
+        }
+    }
+
+    private func recordOverride(forStep s: Int) {
+        // Reset counter on override
+        switch s {
+        case 1: skipCountStep0 = 0
+        case 2: skipCountStep1 = 0
+        case 3: skipCountStep2 = 0
+        default: break
+        }
+        skippedSteps.remove(s)
     }
 
     // MARK: - Helpers
@@ -960,11 +1347,14 @@ struct MorningInterviewPane: View {
     }
 
     private var stepLabel: String {
+        let displayStep = showDeferralStep ? step + 1 : step
+        let displayTotal = showDeferralStep ? totalSteps : totalSteps - 1
         switch step {
-        case 0: return "Step 1 of 4 — How much time do you have?"
-        case 1: return "Step 2 of 4 — Confirm what's on for today"
-        case 2: return "Step 3 of 4 — Check time estimates"
-        case 3: return "Step 4 of 4 — Review and start"
+        case 0: return "Step \(displayStep) of \(displayTotal) — Yesterday's deferrals"
+        case 1: return "Step \(displayStep) of \(displayTotal) — How much time do you have?"
+        case 2: return "Step \(displayStep) of \(displayTotal) — Confirm what's on for today"
+        case 3: return "Step \(displayStep) of \(displayTotal) — Check time estimates"
+        case 4: return "Step \(displayStep) of \(displayTotal) — Review and start"
         default: return ""
         }
     }

@@ -4,6 +4,8 @@ import SwiftUI
 struct TimeManagerDesktopApp: App {
     @AppStorage("prefs.appearance.theme") private var theme: String = "system"
     @StateObject private var auth = AuthService.shared
+    @StateObject private var menuBarManager = MenuBarManager()
+    private let hotkeyManager = GlobalHotkeyManager()
 
     private var colorScheme: ColorScheme? {
         switch theme {
@@ -17,6 +19,7 @@ struct TimeManagerDesktopApp: App {
         WindowGroup("Timed") {
             TimedRootView()
                 .environmentObject(auth)
+                .environmentObject(menuBarManager)
                 .preferredColorScheme(colorScheme)
                 .onOpenURL { url in
                     // Handle timed://auth/callback from OAuth
@@ -25,7 +28,20 @@ struct TimeManagerDesktopApp: App {
                     }
                 }
                 .task { await auth.restoreSession() }
+                .onAppear {
+                    menuBarManager.setup()
+                    registerGlobalHotkey()
+                }
+                .onDisappear {
+                    hotkeyManager.unregister()
+                }
         }
         .defaultSize(width: 1240, height: 820)
+    }
+
+    private func registerGlobalHotkey() {
+        hotkeyManager.register { [menuBarManager] in
+            QuickCapturePanel.shared.show(onSubmit: menuBarManager.onQuickCapture)
+        }
     }
 }

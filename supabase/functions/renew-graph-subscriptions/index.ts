@@ -17,9 +17,9 @@ serve(async (_req: Request) => {
   // 1. Fetch all email_accounts with subscriptions expiring within 24 hours
   const { data: accounts, error: fetchError } = await supabase
     .from("email_accounts")
-    .select("id,workspace_id,graph_subscription_id,graph_subscription_expires_at,oauth_access_token")
+    .select("id,workspace_id,graph_subscription_id,subscription_expires_at,oauth_access_token")
     .not("graph_subscription_id", "is", null)
-    .lt("graph_subscription_expires_at", renewWindowCutoff)
+    .lt("subscription_expires_at", renewWindowCutoff)
     .eq("is_active", true);
 
   if (fetchError) {
@@ -68,7 +68,7 @@ serve(async (_req: Request) => {
 
         await supabase
           .from("email_accounts")
-          .update({ graph_subscription_expires_at: confirmedExpiry })
+          .update({ subscription_expires_at: confirmedExpiry })
           .eq("id", accountId);
 
         renewed++;

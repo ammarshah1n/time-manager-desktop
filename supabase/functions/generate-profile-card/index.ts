@@ -2,11 +2,15 @@
 // Weekly job: reads behaviour_events + estimation_history and generates a user profile card + rules.
 // Model: claude-opus-4-6
 // Loop 3 of AI learning. Runs on pg_cron weekly (Sunday 02:00 UTC).
+// Auth: JWT verified via _shared/auth.ts
+// Resilience: withRetry via _shared/retry.ts
 // Upserts user_profiles.profile_card + rules_json, and individual behaviour_rules rows.
 
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import Anthropic from "https://esm.sh/@anthropic-ai/sdk@0.27.0";
+import { verifyAuth, AuthError, authErrorResponse } from "../_shared/auth.ts";
+import { withRetry } from "../_shared/retry.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -29,6 +33,14 @@ interface ProfileCardResponse {
 }
 
 serve(async (req: Request) => {
+  // JWT auth
+  try {
+    await verifyAuth(req);
+  } catch (err) {
+    if (err instanceof AuthError) return authErrorResponse(err);
+    return new Response(JSON.stringify({ error: "Auth failed" }), { status: 401, headers: { "Content-Type": "application/json" } });
+  }
+
   const { workspaceId, profileId } = await req.json();
 
   if (!workspaceId || !profileId) {
@@ -86,14 +98,15 @@ ${existingRules.length > 0 ? JSON.stringify(existingRules, null, 2) : "No existi
 
 Based on the above data, generate an updated profile card and refined rules.`;
 
-    // Call Claude Opus
-    const message = await anthropic.messages.create({
-      model: "claude-opus-4-6",
-      max_tokens: 1024,
-      system: [
-        {
-          type: "text",
-          text: `You are a behaviour pattern analyst for an executive productivity assistant. Given a log of how an executive actually worked over the past 90 days, extract actionable rules that should change how their daily plan is built. Focus on: timing preferences (when they do certain task types), avoidance patterns (tasks they consistently push), estimation errors (actual vs estimated), and context preferences (what they do during transit, focus time, etc).
+    // Call Claude Opus with retry
+    const message = await withRetry(
+      () => anthropic.messages.create({
+        model: "claude-opus-4-6",
+        max_tokens: 1024,
+        system: [
+          {
+            type: "text",
+            text: `You are a behaviour pattern analyst for an executive productivity assistant. Given a log of how an executive actually worked over the past 90 days, extract actionable rules that should change how their daily plan is built. Focus on: timing preferences (when they do certain task types), avoidance patterns (tasks they consistently push), estimation errors (actual vs estimated), and context preferences (what they do during transit, focus time, etc).
 
 TIMING ANALYSIS (IMPORTANT):
 Analyze the hour_of_day field in behaviour_events per bucket_type (action, reply, calls, transit, read). If a bucket_type has >60% of its task_completed events falling within a specific 4-hour window, emit a timing rule. The timing rule format is:
@@ -125,17 +138,19 @@ If the same bucket_type is consistently moved earlier or later, emit an ordering
 {"rule_type": "ordering", "rule_key": "ordering.<bucket>.<direction>", "rule_value_json": {"bucket_type": "<bucket>", "direction": "earlier|later"}, "confidence": <count/10 capped at 1.0>, "supporting_evidence": "User moved <bucket> tasks <direction> N times"}
 
 Return a JSON object: { "profile_summary": "2-3 sentence summary of this person's work style", "rules": [{ "rule_text": "string", "rule_key": "optional string for timing/estimation/ordering rules", "rule_type": "scheduling"|"avoidance"|"estimation"|"context"|"timing"|"ordering", "rule_value_json": "optional object for timing/estimation/ordering rules", "confidence": 0.0-1.0, "supporting_evidence": "brief" }] }`,
-          // @ts-ignore
-          cache_control: { type: "ephemeral" },
-        },
-      ],
-      messages: [
-        {
-          role: "user",
-          content: userMessage,
-        },
-      ],
-    });
+            // @ts-ignore
+            cache_control: { type: "ephemeral" },
+          },
+        ],
+        messages: [
+          {
+            role: "user",
+            content: userMessage,
+          },
+        ],
+      }),
+      { label: "generate-profile-card-anthropic" }
+    );
 
     const text = message.content.find((b) => b.type === "text")?.text ?? "{}";
     const jsonMatch = text.match(/\{[\s\S]*\}/);

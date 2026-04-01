@@ -114,8 +114,8 @@ serve(async (req: Request) => {
   const now = Date.now();
   const createdAt = new Date(waitingItem.created_at).getTime();
   const daysWaiting = Math.round((now - createdAt) / (1000 * 60 * 60 * 24));
-  const isOverdue = waitingItem.expected_by_date
-    ? new Date(waitingItem.expected_by_date).getTime() < now
+  const isOverdue = waitingItem.expected_by
+    ? new Date(waitingItem.expected_by).getTime() < now
     : false;
 
   return new Response(

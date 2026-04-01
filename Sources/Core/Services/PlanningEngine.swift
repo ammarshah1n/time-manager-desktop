@@ -20,6 +20,9 @@ struct PlanRequest: Sendable {
     let tasks: [PlanTask]
     let bucketStats: [BucketCompletionStat]
     var bucketEstimates: [String: Double] = [:]  // bucket.rawValue -> corrected mean minutes
+    var calendarBlocks: [CalendarBlock] = []      // today's calendar events — meetings subtract from available time
+    var workStartHour: Int = 9                    // user's preferred work window start (0–23)
+    var workEndHour: Int = 18                     // user's preferred work window end (0–23)
 }
 
 enum MoodContext: String, Sendable {
@@ -69,6 +72,7 @@ struct ScoreBreakdown: Sendable {
     let behaviourBump: Int
     let timingBump: Int
     let thompsonBump: Int
+    let workHourPenalty: Int
     let totalScore: Int
 }
 
@@ -104,6 +108,7 @@ private enum Score {
     static let timingMiss    =  -100    // timing rule — current hour outside preferred window
     static let thompsonMax   =   250    // max Thompson sampling bump when completion ratio is high
     static let thompsonMinSamples = 10  // minimum completions + deferrals before Thompson activates
+    static let outsideWorkHour = -400   // penalty for tasks placed outside user's work window
 }
 
 private let bufferPerTask = 5  // minutes added between tasks in budget calculation
@@ -117,7 +122,10 @@ enum PlanningEngine {
     /// Generates a daily plan synchronously.
     /// Pure — no I/O, no async, no external dependencies.
     static func generatePlan(_ request: PlanRequest) -> PlanResult {
-        TimedLogger.planning.info("Generating plan: \(request.tasks.count) tasks, \(request.availableMinutes) min available, mood=\(request.moodContext?.rawValue ?? "none", privacy: .public)")
+        // Subtract calendar block (meeting) time from available minutes
+        let meetingMinutes = calendarBlockMinutesToday(request.calendarBlocks)
+        let effectiveAvailable = max(0, request.availableMinutes - meetingMinutes)
+        TimedLogger.planning.info("Generating plan: \(request.tasks.count) tasks, \(request.availableMinutes) min declared, \(meetingMinutes) min in meetings, \(effectiveAvailable) min effective, mood=\(request.moodContext?.rawValue ?? "none", privacy: .public)")
         let now = Date()
 
         // Quiet hours: if enabled and current hour < quietEnd, only include isDoFirst tasks
@@ -134,7 +142,7 @@ enum PlanningEngine {
 
         // 1. Score all tasks
         var scored: [(task: PlanTask, breakdown: ScoreBreakdown)] = effectiveTasks.map { task in
-            let breakdown = scoreTask(task, now: now, moodContext: request.moodContext, behaviouralRules: request.behaviouralRules, bucketStats: request.bucketStats, bucketEstimates: request.bucketEstimates, availableMinutes: request.availableMinutes)
+            let breakdown = scoreTask(task, now: now, moodContext: request.moodContext, behaviouralRules: request.behaviouralRules, bucketStats: request.bucketStats, bucketEstimates: request.bucketEstimates, availableMinutes: effectiveAvailable, workStartHour: request.workStartHour, workEndHour: request.workEndHour)
             return (task, breakdown)
         }
 
@@ -154,7 +162,8 @@ enum PlanningEngine {
                         base: breakdown.base, overdueBump: reducedOverdue,
                         deadlineBump: breakdown.deadlineBump, moodBump: breakdown.moodBump,
                         behaviourBump: breakdown.behaviourBump, timingBump: breakdown.timingBump,
-                        thompsonBump: breakdown.thompsonBump, totalScore: newTotal
+                        thompsonBump: breakdown.thompsonBump, workHourPenalty: breakdown.workHourPenalty,
+                        totalScore: newTotal
                     ))
                 }
             }
@@ -196,7 +205,7 @@ enum PlanningEngine {
         for item in pool {
             let corrected = request.bucketEstimates[item.task.bucketType].map { Int($0) } ?? item.task.estimatedMinutes
             let cost = corrected + bufferPerTask
-            if usedMinutes + corrected <= request.availableMinutes {
+            if usedMinutes + corrected <= effectiveAvailable {
                 selected.append(item)
                 usedMinutes += cost
             } else {
@@ -205,7 +214,7 @@ enum PlanningEngine {
         }
 
         // Second-pass fill: fill remaining time with smaller overflow items
-        var remainingMinutes = request.availableMinutes - usedMinutes
+        var remainingMinutes = effectiveAvailable - usedMinutes
         let fillCandidates = overflow.sorted {
             let e0 = request.bucketEstimates[$0.bucketType].map { Int($0) } ?? $0.estimatedMinutes
             let e1 = request.bucketEstimates[$1.bucketType].map { Int($0) } ?? $1.estimatedMinutes
@@ -215,7 +224,7 @@ enum PlanningEngine {
         for item in fillCandidates {
             let corrected = request.bucketEstimates[item.bucketType].map { Int($0) } ?? item.estimatedMinutes
             if corrected + bufferPerTask <= remainingMinutes {
-                let breakdown = scoreTask(item, now: now, moodContext: request.moodContext, behaviouralRules: request.behaviouralRules, bucketStats: request.bucketStats, bucketEstimates: request.bucketEstimates, availableMinutes: request.availableMinutes)
+                let breakdown = scoreTask(item, now: now, moodContext: request.moodContext, behaviouralRules: request.behaviouralRules, bucketStats: request.bucketStats, bucketEstimates: request.bucketEstimates, availableMinutes: effectiveAvailable, workStartHour: request.workStartHour, workEndHour: request.workEndHour)
                 selected.append((task: item, breakdown: breakdown))
                 remainingMinutes -= (corrected + bufferPerTask)
             } else {
@@ -247,8 +256,8 @@ enum PlanningEngine {
 
         // 8. Sort overflow by score desc for caller convenience
         let overflowSorted = overflow.sorted {
-            let a = scoreTask($0, now: now, moodContext: request.moodContext, behaviouralRules: request.behaviouralRules, bucketStats: request.bucketStats, bucketEstimates: request.bucketEstimates, availableMinutes: request.availableMinutes).totalScore
-            let b = scoreTask($1, now: now, moodContext: request.moodContext, behaviouralRules: request.behaviouralRules, bucketStats: request.bucketStats, bucketEstimates: request.bucketEstimates, availableMinutes: request.availableMinutes).totalScore
+            let a = scoreTask($0, now: now, moodContext: request.moodContext, behaviouralRules: request.behaviouralRules, bucketStats: request.bucketStats, bucketEstimates: request.bucketEstimates, availableMinutes: effectiveAvailable, workStartHour: request.workStartHour, workEndHour: request.workEndHour).totalScore
+            let b = scoreTask($1, now: now, moodContext: request.moodContext, behaviouralRules: request.behaviouralRules, bucketStats: request.bucketStats, bucketEstimates: request.bucketEstimates, availableMinutes: effectiveAvailable, workStartHour: request.workStartHour, workEndHour: request.workEndHour).totalScore
             return a > b
         }
 
@@ -272,15 +281,17 @@ enum PlanningEngine {
         behaviouralRules: [BehaviourRule],
         bucketStats: [BucketCompletionStat] = [],
         bucketEstimates: [String: Double] = [:],
-        availableMinutes: Int = 120
+        availableMinutes: Int = 120,
+        workStartHour: Int = 9,
+        workEndHour: Int = 18
     ) -> ScoreBreakdown {
 
         // Hard overrides for fixed-position tasks
         if task.isDailyUpdate {
-            return ScoreBreakdown(base: Score.fixedFirst, overdueBump: 0, deadlineBump: 0, moodBump: 0, behaviourBump: 0, timingBump: 0, thompsonBump: 0, totalScore: Score.fixedFirst)
+            return ScoreBreakdown(base: Score.fixedFirst, overdueBump: 0, deadlineBump: 0, moodBump: 0, behaviourBump: 0, timingBump: 0, thompsonBump: 0, workHourPenalty: 0, totalScore: Score.fixedFirst)
         }
         if task.isFamilyEmail {
-            return ScoreBreakdown(base: Score.fixedSecond, overdueBump: 0, deadlineBump: 0, moodBump: 0, behaviourBump: 0, timingBump: 0, thompsonBump: 0, totalScore: Score.fixedSecond)
+            return ScoreBreakdown(base: Score.fixedSecond, overdueBump: 0, deadlineBump: 0, moodBump: 0, behaviourBump: 0, timingBump: 0, thompsonBump: 0, workHourPenalty: 0, totalScore: Score.fixedSecond)
         }
 
         // Base: bucket type + priority + duration penalty
@@ -381,7 +392,16 @@ enum PlanningEngine {
             stats: bucketStats
         )
 
-        let total = base + overdueBump + deadlineBump + moodBump + behaviourBump + timingBump + thompsonBump
+        // Work-hour window enforcement: penalise tasks when current hour is outside preferred work window
+        let workHourPenalty: Int
+        let currentHourForWork = Calendar.current.component(.hour, from: now)
+        if currentHourForWork < workStartHour || currentHourForWork >= workEndHour {
+            workHourPenalty = Score.outsideWorkHour
+        } else {
+            workHourPenalty = 0
+        }
+
+        let total = base + overdueBump + deadlineBump + moodBump + behaviourBump + timingBump + thompsonBump + workHourPenalty
 
         return ScoreBreakdown(
             base: base,
@@ -391,6 +411,7 @@ enum PlanningEngine {
             behaviourBump: behaviourBump,
             timingBump: timingBump,
             thompsonBump: thompsonBump,
+            workHourPenalty: workHourPenalty,
             totalScore: total
         )
     }
@@ -452,5 +473,25 @@ enum PlanningEngine {
         if breakdown.overdueBump > 0 { return "Overdue" }
         let bucket = task.bucketType.prefix(1).uppercased() + task.bucketType.dropFirst()
         return "\(bucket) — \(task.estimatedMinutes)m"
+    }
+
+    // MARK: - Calendar block helpers
+
+    /// Computes total meeting/event minutes from today's calendar blocks.
+    /// Only counts non-focus blocks (meetings, admin, transit) as they consume available time.
+    private static func calendarBlockMinutesToday(_ blocks: [CalendarBlock]) -> Int {
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        guard let tomorrow = cal.date(byAdding: .day, value: 1, to: today) else { return 0 }
+
+        return blocks
+            .filter { block in
+                block.startTime >= today && block.startTime < tomorrow
+                    && block.category != .focus  // focus blocks are user's own work time
+                    && block.category != .break   // breaks don't eat task budget
+            }
+            .reduce(0) { total, block in
+                total + max(0, Int(block.endTime.timeIntervalSince(block.startTime) / 60))
+            }
     }
 }

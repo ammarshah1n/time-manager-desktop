@@ -117,6 +117,10 @@ struct TimedTask: Identifiable, Codable, Sendable, Equatable {
     var isDone: Bool = false
     // AI estimation uncertainty (minutes) — nil means no data
     var estimateUncertainty: Int? = nil
+    // Planning: score from PlanningEngine (higher = more important)
+    var planScore: Int? = nil
+    // Planning: scheduled start time from generated plan
+    var scheduledStartTime: Date? = nil
 
     /// True when uncertainty exceeds 25% of the estimated time
     var isUncertain: Bool {

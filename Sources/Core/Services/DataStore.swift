@@ -77,6 +77,20 @@ actor DataStore {
 
     func loadBucketEstimates()                              throws -> [String: BucketEstimate] { try load("bucket_estimates") }
     func saveBucketEstimates(_ v: [String: BucketEstimate]) throws                             { try save(v, "bucket_estimates") }
+
+    func loadFocusSessions()                                   throws -> [FocusSessionRecord] { try load("focus_sessions") }
+    func saveFocusSessions(_ v: [FocusSessionRecord])          throws                         { try save(v, "focus_sessions") }
+
+    func loadActiveFocusSession()                              throws -> FocusSessionRecord?  { try load("active_focus_session") }
+    func saveActiveFocusSession(_ v: FocusSessionRecord?)      throws {
+        if let v {
+            try save(v, "active_focus_session")
+        } else {
+            // Remove the file when clearing active session
+            let url = fileURL("active_focus_session")
+            try? FileManager.default.removeItem(at: url)
+        }
+    }
 }
 
 // MARK: - Shared encoder / decoder
