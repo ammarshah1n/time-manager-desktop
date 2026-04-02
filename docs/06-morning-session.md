@@ -1,0 +1,98 @@
+# 06 — Morning Session Specification
+
+## Overview
+
+The morning session is the primary delivery interface for Timed's intelligence.
+It is NOT a task list. It is a cognitive briefing from a system that has spent
+the night thinking about this specific executive.
+
+**Status:** Partially implemented — MorningInterviewPane.swift exists but delivers
+tasks, not intelligence. Needs to be upgraded to intelligence delivery.
+
+## Design Principles (from CIA PDB Research)
+
+The President's Daily Brief identified five principles for delivering
+intelligence to a time-constrained principal:
+1. Problem-focused (not information-dumping)
+2. Adaptable to individual cognitive and communication styles
+3. Curatorial (the recipient helps shape what matters), not purely editorial
+4. Extensible to the person's full information ecosystem
+5. Continuously available, not delivered in a single locked window
+
+## Morning Session Structure
+
+### Phase 1: Pattern Headline (10 seconds)
+One named pattern detected since the last session.
+
+Example: "You've avoided the Meridian acquisition analysis for 8 days. The last
+two times this happened, a key assumption was uncertain."
+
+This is what makes Timed different from everything else. No task manager, PA,
+or calendar can produce this.
+
+### Phase 2: Cognitive State Assessment (15 seconds)
+Based on voice tone analysis, first words spoken, and historical comparison.
+
+Example: "Your morning energy signature suggests high focus today — comparable
+to the sessions that preceded your three best strategic outputs this quarter."
+
+### Phase 3: Day Plan (30 seconds)
+Tasks ranked by Thompson sampling model, scheduled against calendar, placed
+in chronotype-optimal windows.
+
+### Phase 4: One Question
+"What's the thing you most need to think about today that isn't yet on the list?"
+
+This question generates signal that feeds back into the model. The system has
+a perspective. The executive tests, corrects, and extends it. That dialogue
+IS the training signal.
+
+## Voice Interaction Principles
+
+The morning session should feel like a brilliant chief of staff who has been
+watching you for months. Not a chatbot.
+
+- Complete the executive's sentences when high confidence (don't ask what you already know)
+- Name reasoning explicitly: "I'm scheduling the CFO call at 10am because that's
+  your highest focus window and this conversation has historically required 40%
+  more time than you schedule"
+- Surface avoidance without framing as failure: "This is the third time this item
+  has moved. Do you want to talk about what's in the way?"
+- Silence and pacing matter — don't rapid-fire questions
+
+## Data Dependencies
+
+The morning session draws from:
+1. Reflection engine output (named patterns, insights from nightly run)
+2. Core memory snapshot (priorities, relationships, chronotype)
+3. Today's calendar (via CalendarSyncService)
+4. Active procedural rules (what to flag, what to schedule, what to avoid)
+5. Task queue (via PlanningEngine scoring)
+6. Previous morning session transcript (conversational continuity)
+
+## Existing Code to Upgrade
+
+**MorningInterviewPane.swift** — current 5-step wizard:
+1. Deferral review
+2. Time estimation
+3. Due today
+4. Estimates acceptance
+5. Confirmation
+
+This needs to become:
+1. Pattern headline (from reflection engine output)
+2. Cognitive state assessment (from voice analysis + historical model)
+3. Intelligent day plan (from full intelligence stack)
+4. One question (curatorial, not editorial)
+5. (Optional) Any proactive alerts flagged by reflection engine
+
+## Proactive Alerts (menu bar)
+
+Low-frequency, high-signal notifications. NOT task reminders.
+
+Examples:
+- "You've been in back-to-back meetings for 3 hours. Your data shows cognitive
+  drop after 2.5 hours of continuous meetings."
+- "You haven't spoken to [key stakeholder] in 3 weeks."
+- "You're about to make a people decision at 4:30pm after a full day. Your
+  historical data shows these decisions get revised 60% more often."
