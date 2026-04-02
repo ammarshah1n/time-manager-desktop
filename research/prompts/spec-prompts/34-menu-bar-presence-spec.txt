@@ -1,0 +1,54 @@
+I need a complete specification for the macOS menu bar presence of Timed — a cognitive intelligence layer for C-suite executives. The menu bar is the system's persistent, ambient interface. It is how the executive knows Timed is there, what it's currently tracking, and whether anything needs attention.
+
+**Hard constraints:**
+- Timed never acts on the world — observation only.
+- macOS native: Swift 5.9+, SwiftUI, NSStatusItem API.
+- Intelligence compounds — Month 6 >> Month 1.
+- C-suite executive user. The menu bar must feel premium and restrained, not noisy.
+- Connects to: morning session, focus timer, proactive alerts, query interface.
+
+**What I need specified:**
+
+1. **Resting state — what the icon shows at a glance** — The menu bar icon at rest must communicate something useful without requiring a click. Options to research and evaluate:
+   - Current task name (truncated) + time remaining in focus block
+   - Next calendar event + countdown
+   - System confidence level (how well it understands today's plan)
+   - Nothing — just a minimal icon indicating "Timed is running"
+   - A single-word state: "Focus", "Meetings", "Open", "Winding Down"
+   
+   Research on information density in menu bar apps. What do the best macOS menu bar apps (Bartender, iStat Menus, Fantastical) show at rest? What's the maximum useful information in ~120px of menu bar space? How do executives actually use menu bar apps?
+
+2. **Click-to-expand view — the intelligence panel** — What appears when the executive clicks the menu bar icon. This is the "at a glance" intelligence view — not the full app, but the quick-access panel. Content hierarchy:
+   - Current/next focus block with progress
+   - Today's remaining plan (ordered tasks with time slots)
+   - Pending alerts or pattern notices
+   - Quick access to query interface ("Ask Timed...")
+   - Link to open full morning session / app
+   
+   Research on macOS menu bar popover design patterns. NSPopover sizing constraints. How much information can you show before the popover feels cluttered? Best examples of information-rich menu bar popovers.
+
+3. **State changes — when the icon changes** — Define every state the menu bar icon can be in:
+   - **Default:** System running, nothing urgent
+   - **Focus active:** Currently in a focus session (timer visible?)
+   - **Alert pending:** A proactive alert has been generated but not yet viewed
+   - **Session available:** Morning session is ready and hasn't been completed today
+   - **Listening:** Voice input is active
+   - **Thinking:** System is processing a query
+   
+   For each state: visual treatment (icon change, color, animation, badge). Research on macOS menu bar conventions — Apple's Human Interface Guidelines for menu bar extras. What animations/states are acceptable? What feels native vs intrusive?
+
+4. **Connection to focus timer state** — When a focus session is active, the menu bar becomes the primary timer display. How to show: elapsed/remaining time, current task, session quality indicators. What happens when the focus session ends? When a break is recommended? When the executive switches apps during focus (distraction event)?
+
+5. **Connection to proactive alerts** — How does a new alert manifest in the menu bar? Subtle pulse animation? Badge? The alert must be noticeable without being aggressive. When the executive clicks to view the alert, how is it presented in the popover? Dismissal mechanics from the popover.
+
+6. **Connection to query interface** — Can the executive initiate a query from the menu bar? A text field in the popover? A voice trigger? How does query input/output appear in the constrained popover space?
+
+7. **Visual design constraints** — macOS menu bar design conventions. Dark mode and light mode support. Retina display requirements. Icon sizing (@1x, @2x, @3x). Typography in popovers. The design must feel like it belongs on the same bar as the system clock and WiFi indicator — native, restrained, professional. Research on SF Symbols for appropriate iconography.
+
+8. **Keyboard shortcuts** — Global hotkeys for common actions: toggle focus timer, open query interface, view today's plan, dismiss current alert. Research on macOS global keyboard shortcut conventions and conflicts to avoid.
+
+9. **Performance and resource usage** — The menu bar app must be essentially invisible in Activity Monitor. Memory footprint targets. CPU usage during idle. How to update the menu bar display without polling (use observation/notification patterns). Research on macOS menu bar app performance best practices.
+
+Produce a complete menu bar specification with every state defined, visual treatments for each state, content hierarchy for the popover, and interaction flows for all connected features. Include wireframe-level layout descriptions for the popover.
+
+If current research suggests a superior approach to any component, recommend it with evidence.

@@ -1,0 +1,69 @@
+I am building **Timed**, a macOS-native cognitive intelligence layer for C-suite executives. It is NOT a productivity app, task manager, or personal assistant. It builds a deep, compounding model of how a specific executive thinks, decides, avoids, prioritises, and operates — then uses that model to return cognitive bandwidth.
+
+**Hard constraints:**
+- Timed never acts on the world — observation and intelligence only. It never sends emails, never modifies calendars, never takes any action.
+- macOS native: Swift 5.9+, SwiftUI, CoreData, on-device voice only.
+- Four strict layers: Signal Ingestion → Memory Store → Reflection Engine → Intelligence Delivery. No cross-layer coupling.
+- Intelligence compounds over time — Month 6 must be qualitatively smarter than Month 1.
+- No cost cap on intelligence quality — uses Claude Opus for nightly reflection.
+- User is a C-suite executive who has tried everything. Impressed by understanding, not features.
+
+**Tech stack:** Supabase backend + Edge Functions. AI models: Haiku 3.5 (classification), Sonnet (estimation), Opus 4.6 (reflection + morning director). Embeddings: Jina AI jina-embeddings-v3 (1024-dim). Auth: Microsoft OAuth via MSAL (Mail.Read, Calendars.Read, offline_access). Voice: Apple Speech (on-device only). Distribution: Direct DMG + Sparkle.
+
+**Architecture overview (for context):**
+- **Layer 1 — Signal Ingestion** (continuous, passive): Background agents observe calendar, email, voice, app focus, task behaviour. Records raw signals, doesn't interpret. Everything timestamped + modality-tagged.
+- **Layer 2 — Memory Store** (persistent, tiered): Episodic (raw events), Semantic (learned facts about the user), Procedural (operating rules the system learns). MemGPT-inspired tiers: core memory (always in context), recall memory (searchable), archival (vector store). Retrieval scored by recency × importance × relevance.
+- **Layer 3 — Reflection Engine** (periodic, nightly): Opus runs recursive reflection: raw observations → first-order patterns → second-order synthesis → rule generation. Based on Stanford Generative Agents (Park et al. 2023). Named patterns fed back into memory.
+- **Layer 4 — Intelligence Delivery** (on-demand + scheduled): Morning session (opens with named patterns, not tasks), menu bar (glanceable intelligence), proactive alerts (low-frequency, pattern-based).
+
+**Shipped features (already built):** Voice morning session, email triage (Graph → buckets), Thompson sampling task scoring, EMA time estimation, calendar-aware slot allocator, focus timer, menu bar widget, command palette.
+
+---
+
+**Your task:** Produce a comprehensive, implementation-ready **Master Data Models** specification for Timed. This document must define every Swift type, CoreData entity, relationship, attribute, and enum the entire system uses. It should be directly implementable — a developer should be able to open Xcode and build the CoreData model from this document alone.
+
+**The document must cover:**
+
+1. **Task Model** — All attributes for a task entity (title, estimated duration, actual duration, priority score, energy level, category, status, deadlines, Thompson sampling parameters alpha/beta, EMA parameters, creation/modification timestamps, relationships to calendar slots, focus sessions, and patterns).
+
+2. **Email Signal Model** — Everything captured from Microsoft Graph: sender, recipient, subject, thread ID, conversation ID, timestamp sent/received, read/unread state, response latency (computed), categories/labels, body text (for NLP), importance flag, is-reply flag, folder. Relationships to episodic memory entries and patterns.
+
+3. **Calendar Event Model** — Everything captured from Microsoft Graph: event ID, subject, start/end times, duration, attendees (count + names), organiser, location, is-recurring flag, series master ID, acceptance status, response status, is-cancelled, actual vs scheduled duration delta, meeting density context. Relationships to time slots and patterns.
+
+4. **Memory Tier Entities:**
+   - **Episodic Memory** — Raw timestamped events from any signal source (email, calendar, voice, app focus, task). Must include: timestamp, source modality (enum), raw content, importance score (0.0-1.0), access count, last accessed, embedding vector reference, metadata JSON blob.
+   - **Semantic Memory** — Learned facts about the user. Key-value with confidence scores, source references (which episodic memories contributed), creation date, last reinforced date, reinforcement count, category (work style, preferences, relationships, avoidance patterns).
+   - **Procedural Memory** — Operating rules the system has learned. Rule text, confidence score, activation count, last activated, source pattern references, conditions (when this rule applies), exceptions discovered.
+   - **Core Memory** (MemGPT-style) — Always-in-context user profile facts. Fixed-size buffer. Each entry has: content, priority rank, last updated, source.
+   - Define the tiering logic: what promotes/demotes between tiers, size limits per tier, eviction/consolidation policy.
+
+5. **Pattern Model** — Named patterns discovered by the reflection engine. Pattern ID, name (human-readable, e.g., "Monday morning avoidance"), description, type (enum: behavioural, temporal, relational, cognitive, avoidance), confidence score, first observed date, last observed date, observation count, contributing episodic memory references, status (emerging/confirmed/fading/archived), trend direction.
+
+6. **Rule Model** — Rules generated by the reflection engine from confirmed patterns. Rule text, source pattern references, confidence, activation history, exceptions, status.
+
+7. **Signal Model** — Raw signal envelope: timestamp, source (enum: email, calendar, voice, app_focus, task, system), modality tag, raw payload reference, processed flag, processing timestamp, Layer 1 metadata.
+
+8. **User Profile Model** — Learned executive profile: communication style preferences, chronotype (morning/evening/variable), energy curve (hourly weights), meeting tolerance threshold, deep work preference windows, relationship map (key contacts + interaction frequency + sentiment trend), avoidance patterns, decision-making style notes.
+
+9. **App Focus / Dwell Time Model** — Active app bundle ID, window title (optional, privacy-controlled), session start/end, duration, context-switch events, classification (deep work / shallow work / communication / break / unknown).
+
+10. **Voice Session Model** — Transcript text, session start/end, word count, speaking pace (WPM), detected topics (array), sentiment score, energy level inference, source (morning session / ad-hoc / focus debrief).
+
+11. **Focus Session Model** — Linked task, planned duration, actual duration, interruption count, interruption sources, flow state score, outcome (completed/partial/abandoned), post-session reflection text.
+
+12. **ML Model State** — Thompson sampling parameters per task, EMA coefficients, any local model weights or calibration state that must persist across sessions.
+
+13. **Enums** — Every enum used across the system: TaskStatus, TaskPriority, EnergyLevel, SignalSource, MemoryTier, PatternType, PatternStatus, MeetingType, EmailCategory, AppCategory, FocusOutcome, DeliveryChannel, etc.
+
+14. **Relationships diagram** — Describe all relationships (one-to-one, one-to-many, many-to-many) between entities. Include cascade delete rules and nullify rules.
+
+15. **Constraints and validation rules** — Required fields, unique constraints, value ranges, business logic constraints.
+
+16. **Migration strategy** — How the CoreData model will evolve as new signal sources and memory types are added. Lightweight vs heavyweight migration guidance.
+
+**Format requirements:**
+- Every entity must include Swift code showing the CoreData managed object subclass OR a SwiftData @Model definition (recommend whichever is more appropriate for a macOS app targeting macOS 14+ with complex relationships and background processing — justify the choice).
+- Include a visual entity-relationship description (text-based is fine).
+- Group entities by layer.
+
+If current research suggests a superior approach to what is described here, recommend it with evidence and explain the tradeoff.

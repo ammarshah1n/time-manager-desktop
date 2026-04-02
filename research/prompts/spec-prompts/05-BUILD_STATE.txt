@@ -1,0 +1,101 @@
+I am building **Timed**, a macOS-native cognitive intelligence layer for C-suite executives. It is NOT a productivity app, task manager, or personal assistant. It builds a deep, compounding model of how a specific executive thinks, decides, avoids, prioritises, and operates — then uses that model to return cognitive bandwidth.
+
+**Hard constraints:**
+- Timed never acts on the world — observation and intelligence only. It never sends emails, never modifies calendars, never takes any action.
+- macOS native: Swift 5.9+, SwiftUI, CoreData, on-device voice only.
+- Four strict layers: Signal Ingestion → Memory Store → Reflection Engine → Intelligence Delivery. No cross-layer coupling.
+- Intelligence compounds over time — Month 6 must be qualitatively smarter than Month 1.
+- No cost cap on intelligence quality — uses Claude Opus for nightly reflection.
+- User is a C-suite executive who has tried everything. Impressed by understanding, not features.
+
+**Tech stack:** Supabase backend + Edge Functions. AI models: Haiku 3.5 (classification), Sonnet (estimation), Opus 4.6 (reflection + morning director). Embeddings: Jina AI jina-embeddings-v3 (1024-dim). Auth: Microsoft OAuth via MSAL (Mail.Read, Calendars.Read, offline_access). Voice: Apple Speech (on-device only). Distribution: Direct DMG + Sparkle.
+
+**Architecture:**
+- **Layer 1 — Signal Ingestion** (continuous, passive): Background agents observe calendar, email, voice, app focus, task behaviour. Records, doesn't interpret. Everything timestamped + modality-tagged.
+- **Layer 2 — Memory Store** (persistent, tiered): Episodic (raw events), Semantic (learned facts), Procedural (operating rules). MemGPT-inspired tiers: core memory (always in context), recall memory (searchable), archival (vector store). Retrieval via recency × importance × relevance scoring.
+- **Layer 3 — Reflection Engine** (periodic, nightly): Opus runs recursive reflection: raw observations → first-order patterns → second-order synthesis → rule generation. Based on Stanford Generative Agents (Park et al. 2023). Named patterns fed back into memory.
+- **Layer 4 — Intelligence Delivery** (on-demand + scheduled): Morning session (opens with named patterns, not tasks), menu bar (glanceable), proactive alerts (low-frequency, pattern-based).
+
+**Shipped features (already built, mark as DONE):** Voice morning session, email triage (Graph → buckets), Thompson sampling task scoring, EMA time estimation, calendar-aware slot allocator, focus timer, menu bar widget, command palette.
+
+---
+
+**Your task:** Produce a comprehensive **BUILD_STATE.md** — a living document that maps every component in the system to its build status, dependencies, complexity, and build order.
+
+**Requirements:**
+
+1. **Every component** must be listed, grouped by layer (Layer 1: Signal Ingestion, Layer 2: Memory Store, Layer 3: Reflection Engine, Layer 4: Intelligence Delivery, Cross-cutting: Auth, Infra, Distribution).
+
+2. **For each component, provide:**
+   - **Name:** Descriptive component name
+   - **Status:** `DONE` | `NOT STARTED` | `IN PROGRESS` | `BLOCKED`
+   - **Complexity:** `S` (< 1 day) | `M` (1-3 days) | `L` (3-7 days) | `XL` (1-2 weeks)
+   - **Prerequisites:** What must be built first (list component names)
+   - **Description:** One sentence on what this component does
+   - **Layer:** Which layer it belongs to
+   - **Notes:** Any implementation notes, risks, or open questions
+
+3. **Component list must include (at minimum):**
+
+   **Layer 1 — Signal Ingestion:**
+   - Signal queue / unified signal bus
+   - Email signal agent (Microsoft Graph Mail.Read)
+   - Calendar signal agent (Microsoft Graph Calendars.Read)
+   - App focus observer (NSWorkspace / Accessibility API)
+   - Voice input signal agent (Apple Speech on-device)
+   - Task behaviour signal agent (internal task events)
+   - Signal timestamp + modality tagging
+
+   **Layer 2 — Memory Store:**
+   - CoreData model (all entities from data model spec)
+   - Episodic memory repository (CRUD + query)
+   - Semantic memory repository (CRUD + query + reinforcement)
+   - Procedural memory repository (CRUD + query + activation tracking)
+   - Core memory manager (MemGPT-style fixed buffer)
+   - Memory retrieval engine (recency × importance × relevance scoring)
+   - Memory consolidation engine (episodic → semantic promotion)
+   - Embedding generation service (Jina AI integration)
+   - Vector similarity search (local or Supabase pgvector)
+   - Memory tier promotion/demotion logic
+
+   **Layer 3 — Reflection Engine:**
+   - Nightly reflection orchestrator
+   - First-order pattern detection
+   - Second-order pattern synthesis
+   - Rule generation from confirmed patterns
+   - Pattern lifecycle management (emerging → confirmed → fading → archived)
+   - Reflection prompt templates
+   - Opus API integration for reflection
+   - Reflection output parser + memory writer
+   - Morning session script generator
+
+   **Layer 4 — Intelligence Delivery:**
+   - Morning session UI + voice output
+   - Menu bar widget (glanceable intelligence)
+   - Proactive alert system
+   - Command palette (on-demand queries)
+   - Pattern display views
+   - Intelligence payload formatter
+
+   **Cross-cutting:**
+   - Microsoft OAuth (MSAL) authentication
+   - Supabase client setup
+   - Edge Function deployment pipeline
+   - Anthropic API client (Haiku/Sonnet/Opus routing)
+   - Jina AI embedding client
+   - Background processing infrastructure (App Nap, XPC, etc.)
+   - Sparkle update framework integration
+   - DMG packaging + notarisation
+   - Logging and telemetry (local only)
+   - Error handling framework
+   - Settings / preferences UI
+
+4. **Dependency graph:** Text-based dependency graph showing critical path. What is the longest chain from start to a working v1?
+
+5. **Build phases:** Group components into recommended build phases (Phase 1: Foundation, Phase 2: Signal Ingestion, Phase 3: Memory, Phase 4: Reflection, Phase 5: Intelligence Delivery, Phase 6: Polish + Distribution). Each phase should be independently testable.
+
+6. **Mark shipped features as DONE** — map the already-shipped features (voice morning session, email triage, Thompson sampling, EMA estimation, calendar slot allocator, focus timer, menu bar, command palette) to specific components and mark them.
+
+Research how other complex macOS applications and AI systems structure their build state documents. Produce a document that can be used as a daily standup reference and sprint planning input.
+
+If current research suggests a superior approach to what is described here, recommend it with evidence and explain the tradeoff.

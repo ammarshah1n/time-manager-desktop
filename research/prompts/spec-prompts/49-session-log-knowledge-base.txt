@@ -1,0 +1,82 @@
+I'm building a macOS application called Timed — a cognitive intelligence layer for C-suite executives. It builds a compounding model of how a specific person thinks, decides, avoids, and operates. Observation and intelligence only — it never acts on the world.
+
+**Hard constraints:**
+- macOS native: Swift 5.9+, SwiftUI, CoreData, on-device voice
+- Four layers: Signal Ingestion → Memory Store → Reflection Engine → Intelligence Delivery. No cross-layer coupling.
+- Dev environment: Claude Code (Claude Max 20x) as the primary coding tool
+- Knowledge base: Obsidian vault for project knowledge
+- Single developer using AI-pair-programming for 100% of development
+- Intelligence compounds — this principle applies to the development process itself, not just the product
+
+The development process should mirror the product's philosophy: every session builds knowledge that makes the next session more productive. Session logs aren't bureaucracy — they're the developer's version of what the reflection engine does for the executive.
+
+**What I need:**
+
+1. **SESSION_LOG.md template.** A structured template for tracking each coding session. Fields:
+
+   - Session number and date
+   - Goal: what was planned for this session (one sentence)
+   - Context loaded: which spec docs, which skills were active
+   - What was built: concrete deliverables (files created/modified, features completed)
+   - Commits: list of commit hashes with messages
+   - What was learned: technical insights, architectural decisions made, patterns discovered
+   - Blockers encountered: what went wrong, how it was resolved (or not)
+   - Time spent: actual session duration
+   - Tests: which tests were added/modified, current pass rate
+   - Next session priorities: what to do next, in order
+   - Open questions: things that need research or decision before proceeding
+   - Compounding note: one insight that will make future sessions better (a new convention, a debugging trick, an architectural pattern that worked well)
+
+   The template must be quick to fill (under 5 minutes) or it won't get used. Design it so Claude Code can auto-populate most fields from git log and test results.
+
+2. **Obsidian vault structure for the Timed knowledge base.** Folder hierarchy:
+
+   ```
+   timed-kb/
+   ├── 00-overview/          (project vision, architecture summary, key decisions)
+   ├── 01-specs/             (all spec docs, linked)
+   ├── 02-sessions/          (session logs)
+   ├── 03-architecture/      (architecture decision records, design patterns)
+   ├── 04-layers/
+   │   ├── layer1-signals/   (signal agent docs, API integration notes)
+   │   ├── layer2-memory/    (memory architecture, CoreData notes, embedding notes)
+   │   ├── layer3-reflection/ (reflection engine, prompt engineering, pattern quality)
+   │   └── layer4-delivery/  (UI patterns, morning session design, menu bar)
+   ├── 05-models/            (ML model docs — Thompson sampling, EMA, chronotype, etc.)
+   ├── 06-infrastructure/    (Supabase, auth, distribution, CI)
+   ├── 07-debugging/         (bug postmortems, common issues, fix patterns)
+   └── 08-retrospectives/    (weekly/phase retrospectives, what worked, what didn't)
+   ```
+
+   For each folder: what goes in it, naming conventions, required frontmatter (tags, date, layer, status), and linking strategy (how notes reference each other).
+
+3. **Note templates for each category.**
+   - **Architecture Decision Record (ADR):** Context, decision, rationale, alternatives considered, consequences, status (proposed/accepted/superseded)
+   - **Bug postmortem:** Symptom, root cause, fix, how to prevent recurrence, time spent
+   - **API integration note:** Endpoint, auth method, request/response format, rate limits, error handling, gotchas
+   - **Prompt engineering note:** Model (Haiku/Sonnet/Opus), purpose, prompt template, example input/output, quality assessment, iteration history
+   - **Phase retrospective:** What was planned, what was delivered, what was learned, what to change, session count, velocity trend
+
+4. **Tag taxonomy.** A controlled vocabulary of tags for cross-cutting concerns:
+   - Layer tags: #layer1, #layer2, #layer3, #layer4
+   - Type tags: #adr, #bug, #api, #prompt, #session, #retro
+   - Status tags: #active, #done, #blocked, #superseded
+   - Component tags: #calendar-agent, #email-agent, #voice-agent, #episodic-memory, #semantic-memory, #procedural-memory, #reflection-engine, #morning-session, #menu-bar, #focus-timer, etc.
+   - Quality tags: #needs-review, #validated, #deprecated
+
+5. **How session logs feed into the knowledge base.** After every session, what gets extracted from the session log into permanent knowledge:
+   - New architectural decisions → ADR note
+   - Bugs found and fixed → bug postmortem note
+   - New API integration knowledge → API note
+   - New prompt patterns → prompt engineering note
+   - Compounding notes → aggregated into a "development patterns" note that grows over time
+
+   The extraction process — should it be manual, semi-automated (Claude Code skill?), or fully automated?
+
+6. **The development reflection cycle.** Weekly: review all session logs, extract patterns (which layers are taking longest? which types of bugs recur? where is velocity increasing?), update the knowledge base, adjust the build plan. This mirrors the product's nightly reflection cycle. Template for the weekly development reflection.
+
+7. **How Claude Code uses the knowledge base.** When starting a session, which notes should Claude Code read? How to reference the knowledge base in CLAUDE.md. How to avoid loading too much context (the knowledge base will grow large). A retrieval strategy: Claude Code reads the session log from the last session + the relevant layer notes + any ADRs tagged with the current work.
+
+Provide all templates as complete, copy-paste-ready markdown files. Include Obsidian-specific syntax (YAML frontmatter, wikilinks, tags, dataview queries if useful).
+
+If current research suggests a superior approach to development knowledge management, recommend it with evidence.

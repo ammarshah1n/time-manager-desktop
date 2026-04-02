@@ -1,0 +1,93 @@
+I am building **Timed**, a macOS-native cognitive intelligence layer for C-suite executives. It is NOT a productivity app, task manager, or personal assistant. It builds a deep, compounding model of how a specific executive thinks, decides, avoids, prioritises, and operates — then uses that model to return cognitive bandwidth.
+
+**Hard constraints:**
+- Timed never acts on the world — observation and intelligence only. It never sends emails, never modifies calendars, never takes any action.
+- macOS native: Swift 5.9+, SwiftUI, CoreData, on-device voice only.
+- Four strict layers: Signal Ingestion → Memory Store → Reflection Engine → Intelligence Delivery. No cross-layer coupling.
+- Intelligence compounds over time — Month 6 must be qualitatively smarter than Month 1.
+- No cost cap on intelligence quality — uses Claude Opus for nightly reflection.
+- User is a C-suite executive who has tried everything. Impressed by understanding, not features.
+
+**Tech stack:** Supabase backend + Edge Functions. AI models: Haiku 3.5 (classification), Sonnet (estimation), Opus 4.6 (reflection + morning director). Embeddings: Jina AI jina-embeddings-v3 (1024-dim). Auth: Microsoft OAuth via MSAL (Mail.Read, Calendars.Read, offline_access). Voice: Apple Speech (on-device only). Distribution: Direct DMG + Sparkle.
+
+**Architecture:**
+- **Layer 1 — Signal Ingestion** (continuous, passive): Background agents observe calendar, email, voice, app focus, task behaviour. Records, doesn't interpret. Everything timestamped + modality-tagged.
+- **Layer 2 — Memory Store** (persistent, tiered): Episodic (raw events), Semantic (learned facts), Procedural (operating rules). MemGPT-inspired tiers: core memory (always in context), recall memory (searchable), archival (vector store). Retrieval via recency × importance × relevance scoring.
+- **Layer 3 — Reflection Engine** (periodic, nightly): Opus runs recursive reflection: raw observations → first-order patterns → second-order synthesis → rule generation. Based on Stanford Generative Agents (Park et al. 2023). Named patterns fed back into memory.
+- **Layer 4 — Intelligence Delivery** (on-demand + scheduled): Morning session (opens with named patterns, not tasks), menu bar (glanceable), proactive alerts (low-frequency, pattern-based).
+
+**Shipped features:** Voice morning session, email triage (Graph → buckets), Thompson sampling task scoring, EMA time estimation, calendar-aware slot allocator, focus timer, menu bar widget, command palette.
+
+---
+
+**Your task:** Produce a fully populated **CLAUDE.md** file — the project brain file that lives in the repository root. This file is read by AI coding assistants (Claude Code, Cursor, Copilot) at the start of every session. It must give any AI assistant complete context to work on any part of the codebase without asking questions.
+
+**The document must contain:**
+
+1. **Project Identity:**
+   - What Timed is (and what it is NOT — explicitly).
+   - The observation-only constraint, stated as a non-negotiable rule.
+   - The four-layer architecture, summarised in 4 sentences.
+   - The compounding intelligence thesis in 2 sentences.
+
+2. **Architecture Rules (NON-NEGOTIABLE):**
+   - Layer isolation: no layer imports another layer's internal types.
+   - All cross-layer communication goes through defined protocols.
+   - Signal Ingestion never interprets data.
+   - Memory Store never calls external APIs.
+   - Reflection Engine is the ONLY component that calls LLMs for reasoning.
+   - Intelligence Delivery never writes to Memory Store directly.
+   - The observation-only constraint: list every way this could be accidentally violated and the rule that prevents it.
+
+3. **File Structure:**
+   - Full Xcode project directory tree.
+   - Where each layer's code lives.
+   - Where models, services, protocols, views, and utilities live.
+   - Where tests live (mirroring source structure).
+   - Where configuration and environment files live.
+
+4. **Naming Conventions:**
+   - Swift types: naming patterns for models, services, protocols, views, view models.
+   - Files: one type per file, file named after the type.
+   - Protocols: verb-based (e.g., `SignalIngesting`, `MemoryStoring`, `PatternReflecting`).
+   - Signal agents: `[Source]SignalAgent` (e.g., `EmailSignalAgent`, `CalendarSignalAgent`).
+   - Memory types: `[Tier]Memory` prefix.
+   - Patterns: always have a human-readable `name` field.
+
+5. **Coding Standards:**
+   - SwiftUI views: small, composable, no business logic.
+   - async/await for all asynchronous work (no Combine for new code unless SwiftUI binding requires it).
+   - CoreData access: always through repository pattern, never direct context access from views.
+   - Error handling: typed errors per layer, never force unwrap, never silent catch.
+   - Dependency injection: protocol-based, no singletons except for app-level services.
+
+6. **Testing Rules:**
+   - Every public method must have a test.
+   - Memory operations: test with in-memory CoreData store.
+   - Signal agents: test with mock data, never hit real APIs in tests.
+   - Reflection engine: test with deterministic inputs, validate output structure.
+   - No UI tests for now — unit and integration only.
+
+7. **AI Assistant Rules (what Claude Code / Cursor must and must not do):**
+   - MUST: Follow layer boundaries. Use Edit not Write for existing files. Run tests after changes. Keep functions under 40 lines.
+   - MUST NOT: Add action-taking capabilities (email sending, calendar modification, etc.). Import a layer's internals from another layer. Add dependencies without discussing first. Modify the reflection engine's prompt templates without explicit approval. Skip error handling. Use force unwrap.
+   - NEVER: Store raw audio. Send data to any endpoint not in the approved list (Anthropic API, Supabase project, Microsoft Graph read-only endpoints, Jina embeddings API).
+
+8. **Build Commands:**
+   - How to build, test, run, and archive.
+   - Environment variables needed.
+   - Xcode scheme names.
+   - How to run the reflection engine locally for testing.
+
+9. **Environment Setup:**
+   - Required API keys and where they go.
+   - Supabase project reference.
+   - Microsoft app registration details (what scopes, what redirect URI).
+   - Jina AI API key location.
+
+10. **MCP Tool Configuration:**
+    - If using MCP servers for development, what tools are available and what they do.
+
+Research what the best CLAUDE.md / AI-context files look like in production open-source projects. Study examples from Cursor rules, Claude Code project files, and similar AI-assisted development setups. Produce the most effective possible context file for this specific project.
+
+If current research suggests a superior approach to what is described here, recommend it with evidence and explain the tradeoff.

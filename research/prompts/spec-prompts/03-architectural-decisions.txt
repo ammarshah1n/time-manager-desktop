@@ -1,0 +1,58 @@
+I am building **Timed**, a macOS-native cognitive intelligence layer for C-suite executives. It is NOT a productivity app, task manager, or personal assistant. It builds a deep, compounding model of how a specific executive thinks, decides, avoids, prioritises, and operates — then uses that model to return cognitive bandwidth.
+
+**Hard constraints:**
+- Timed never acts on the world — observation and intelligence only. It never sends emails, never modifies calendars, never takes any action.
+- macOS native: Swift 5.9+, SwiftUI, CoreData, on-device voice only.
+- Four strict layers: Signal Ingestion → Memory Store → Reflection Engine → Intelligence Delivery. No cross-layer coupling.
+- Intelligence compounds over time — Month 6 must be qualitatively smarter than Month 1.
+- No cost cap on intelligence quality — uses Claude Opus for nightly reflection.
+- User is a C-suite executive who has tried everything. Impressed by understanding, not features.
+
+**Tech stack:** Supabase backend + Edge Functions. AI models: Haiku 3.5 (classification), Sonnet (estimation), Opus 4.6 (reflection + morning director). Embeddings: Jina AI jina-embeddings-v3 (1024-dim). Auth: Microsoft OAuth via MSAL (Mail.Read, Calendars.Read, offline_access). Voice: Apple Speech (on-device only). Distribution: Direct DMG + Sparkle.
+
+**Architecture:**
+- **Layer 1 — Signal Ingestion** (continuous, passive): Background agents observe calendar, email, voice, app focus, task behaviour. Records, doesn't interpret. Everything timestamped + modality-tagged.
+- **Layer 2 — Memory Store** (persistent, tiered): Episodic (raw events), Semantic (learned facts), Procedural (operating rules). MemGPT-inspired tiers: core memory (always in context), recall memory (searchable), archival (vector store). Retrieval via recency × importance × relevance scoring.
+- **Layer 3 — Reflection Engine** (periodic, nightly): Opus runs recursive reflection: raw observations → first-order patterns → second-order synthesis → rule generation. Based on Stanford Generative Agents (Park et al. 2023). Named patterns fed back into memory.
+- **Layer 4 — Intelligence Delivery** (on-demand + scheduled): Morning session (opens with named patterns, not tasks), menu bar (glanceable), proactive alerts (low-frequency, pattern-based).
+
+**Shipped features:** Voice morning session, email triage (Graph → buckets), Thompson sampling task scoring, EMA time estimation, calendar-aware slot allocator, focus timer, menu bar widget, command palette.
+
+---
+
+**Your task:** Produce an **Architectural Decision Records (ADR)** document containing the first 10 non-obvious architectural decisions for Timed, each with full justification. These are the decisions where reasonable engineers would disagree, where the tradeoffs are real, and where getting it wrong would be expensive to reverse.
+
+**For each decision, use this format:**
+- **Decision:** One-sentence summary
+- **Status:** Proposed / Accepted / Superseded
+- **Context:** Why this decision matters. What problem it solves. What constraints apply.
+- **Options Considered:** At least 3 options with pros/cons for each.
+- **Decision:** Which option and why.
+- **Consequences:** What this enables, what it costs, what risks remain.
+- **Reversal Cost:** How hard it would be to change this later (Low/Medium/High/Catastrophic).
+
+**The 10 decisions to research and document:**
+
+1. **CoreData vs SQLite (GRDB/FMDB) vs SwiftData** — For the memory store with complex relationships, background processing, vector storage needs, and migration requirements. Consider that SwiftData is newer but CoreData has battle-tested concurrency. Consider that vector similarity search is a core operation.
+
+2. **On-device voice (Apple Speech) vs cloud transcription (Whisper API / Deepgram)** — For voice input. Consider accuracy, latency, privacy, offline capability, language support, and the constraint that the user is a C-suite executive who may discuss sensitive board-level information.
+
+3. **Nightly batch reflection vs continuous micro-reflection** — When does the reflection engine run? Nightly gives more context but delays insight. Continuous gives faster feedback but uses more tokens and may produce lower-quality patterns. Consider the Stanford Generative Agents paper's approach vs alternatives.
+
+4. **Embedding storage: CoreData binary attribute vs pgvector (Supabase) vs local FAISS/Annoy/USearch** — Where do the 1024-dim Jina embeddings live? On-device for speed and privacy, or in Supabase for cross-device and server-side retrieval? Hybrid? Consider macOS memory constraints, vector search performance, and the observation-only constraint.
+
+5. **macOS background processing: App Nap management vs XPC service vs LaunchAgent vs Login Item** — How do signal ingestion agents run continuously on macOS without being killed, throttled, or draining battery? Consider App Nap, Background App Refresh (or lack thereof on macOS), energy impact, and user trust.
+
+6. **Observation-only constraint enforcement: architectural vs runtime** — How do you guarantee Timed never takes action? Do you enforce it at the architecture level (no write APIs available), at the protocol level (read-only protocol conformance), or at runtime (permission checks)? What about accidental scope creep?
+
+7. **Memory tier boundaries: fixed size vs dynamic vs LRU** — How big is core memory? What triggers promotion from recall to core? What triggers demotion from core to recall? What triggers archival? Consider the MemGPT paper's approach, token budget constraints for LLM context, and the need for intelligence to compound (not be forgotten).
+
+8. **Haiku / Sonnet / Opus routing: static rules vs dynamic classifier** — How does the system decide which model handles a given task? Static mapping (email classification → always Haiku) or dynamic routing based on complexity/importance? Consider cost, latency, quality, and the principle that intelligence quality has no cost cap.
+
+9. **Microsoft Graph sync: delta query vs full sync vs webhooks** — How does Timed stay current with email and calendar? Delta query (poll for changes), full periodic sync (simple but wasteful), or webhooks (real-time but requires server infrastructure)? Consider that this is a macOS desktop app, not a server.
+
+10. **Distribution: Mac App Store vs direct DMG + Sparkle vs both** — How is Timed distributed? App Store gives trust and discovery but limits background processing, entitlements, and Accessibility API access. Direct distribution gives full control but requires code signing, notarisation, and update infrastructure. Consider the target user (C-suite executives who value trust and security).
+
+For each decision, research what other macOS apps, cognitive computing systems, personal knowledge management tools, and AI agent frameworks have done. Cite specific examples and papers where relevant.
+
+If current research suggests a superior approach to what is described here, recommend it with evidence and explain the tradeoff.

@@ -1,0 +1,118 @@
+I am building **Timed**, a macOS-native cognitive intelligence layer for C-suite executives. It is NOT a productivity app, task manager, or personal assistant. It builds a deep, compounding model of how a specific executive thinks, decides, avoids, prioritises, and operates — then uses that model to return cognitive bandwidth.
+
+**Hard constraints:**
+- Timed never acts on the world — observation and intelligence only. It never sends emails, never modifies calendars, never takes any action.
+- macOS native: Swift 5.9+, SwiftUI, CoreData, on-device voice only.
+- Four strict layers: Signal Ingestion → Memory Store → Reflection Engine → Intelligence Delivery. No cross-layer coupling.
+- Intelligence compounds over time — Month 6 must be qualitatively smarter than Month 1.
+- No cost cap on intelligence quality — uses Claude Opus for nightly reflection.
+- User is a C-suite executive who has tried everything. Impressed by understanding, not features.
+
+**Tech stack:** Swift 5.9+, SwiftUI, CoreData. macOS 14+ (Sonoma or later).
+
+**Architecture context:**
+- This spec is for **Layer 1 — Signal Ingestion**, specifically the **App Focus Observer**.
+- Layer 1's job: observe, record, timestamp, tag modality. It does NOT interpret or classify.
+- The App Focus Observer writes raw app focus signals to a unified signal queue.
+- Classification into "deep work" vs "shallow work" happens in Layer 2 or Layer 3 — NOT here.
+
+---
+
+**Your task:** Produce a comprehensive, implementation-ready **App Focus and Dwell Time Observer** spec for Timed on macOS.
+
+**The document must cover:**
+
+1. **macOS APIs for Active Application Tracking:**
+   - **NSWorkspace:** `didActivateApplicationNotification`, `didDeactivateApplicationNotification`, `runningApplications`. What data is available from `NSRunningApplication` (bundle ID, localized name, process ID, is active, activation policy).
+   - **Accessibility API (AXUIElement):** What additional data is available (window title, focused UI element). When is Accessibility API needed vs NSWorkspace sufficient? What permissions are required (Accessibility permission in System Preferences).
+   - **CGWindowListCopyWindowInfo:** For window-level tracking. When is this useful vs overkill?
+   - Recommend which API combination provides the best balance of data richness, privacy, performance, and permission requirements.
+
+2. **What is Captured Per App Focus Event:**
+   - App bundle identifier (e.g., `com.apple.Safari`, `com.microsoft.Outlook`)
+   - App display name
+   - Window title (OPTIONAL — privacy controlled, opt-in only. Default: OFF)
+   - Focus start timestamp
+   - Focus end timestamp (set when another app becomes active)
+   - Duration (computed: end - start)
+   - Whether the system was idle during focus (detect idle/screen saver via `NSWorkspace` or IOKit)
+   - Whether the app was in full-screen mode
+   - Previous app bundle ID (for context-switch tracking)
+
+3. **Derived Signals (factual, not interpretive):**
+   - **Context switch count:** Number of app switches per hour/day. Raw count, no judgment.
+   - **Session detection:** Contiguous focus on a single app (or small set of related apps) for > N minutes = a "session". Define session boundaries (gap > 2 min = new session? configurable?).
+   - **Focus session duration:** Total time in a detected session.
+   - **App category mapping:** A static (configurable) mapping from bundle ID to category (e.g., `com.apple.Safari` → browser, `com.microsoft.VSCode` → development, `com.tinyspeck.slackmacgap` → communication). This is configuration, not interpretation.
+   - **Daily app usage summary:** Total time per app per day, number of sessions per app per day.
+   - **Context-switch velocity:** Rate of app switches over a rolling window (per 15-min block).
+
+4. **What is NOT Captured (explicit exclusions):**
+   - Window content (no screenshots, no OCR, no text scraping).
+   - URLs visited in browsers (privacy — only the browser bundle ID is logged).
+   - Document names in productivity apps (unless window title tracking is opted in).
+   - Keystrokes or mouse movements.
+   - Clipboard content.
+   - Anything requiring screen recording permission (ScreenCaptureKit) — Timed must NOT request this.
+
+5. **Privacy Controls:**
+   - Window title capture is OFF by default. User explicitly opts in via settings.
+   - App exclusion list: user can exclude specific apps from tracking entirely (e.g., banking apps, medical apps).
+   - "Pause tracking" button: temporarily disables the observer.
+   - All data stored locally only (CoreData). Never sent to Supabase or external APIs.
+   - App focus data is included in LLM prompts only as aggregated summaries (e.g., "3 hours in development tools, 1.5 hours in email"), never raw window titles.
+
+6. **Write Path to Signal Queue:**
+   - App focus signal envelope structure.
+   - Mapping to unified signal format (timestamp, source=.app_focus, modality tag).
+   - Batching strategy: write on each app switch, or batch every N seconds? (Consider CoreData write performance vs signal granularity.)
+   - Handling rapid app switches (< 2 seconds in an app — still log? filter? configurable minimum dwell time?).
+
+7. **macOS Performance and Battery Constraints:**
+   - CPU/energy impact of NSWorkspace notifications (negligible — research and confirm).
+   - CPU/energy impact of Accessibility API polling (if used — can be significant).
+   - CPU/energy impact of CGWindowListCopyWindowInfo (if used).
+   - Recommend the most efficient approach for continuous monitoring.
+   - How to handle App Nap (Timed must not be napped while observing).
+   - How to handle system sleep/wake (resume tracking cleanly).
+   - Memory footprint: keeping a running window of recent app focus events in memory vs writing everything to CoreData immediately.
+
+8. **macOS Permissions:**
+   - What permissions are needed and how to request them gracefully.
+   - Accessibility permission: when is it needed, how to detect if granted, how to prompt user.
+   - Automation permission: NOT needed (Timed doesn't automate other apps).
+   - Screen Recording permission: NOT needed and must NOT be requested.
+   - How to handle permission denial gracefully (degrade to bundle-ID-only tracking without window titles).
+
+9. **How App Focus Signals Feed Higher-Order Intelligence:**
+   - **Deep vs shallow work classification:** (Done in Layer 2/3, not here.) Long unbroken sessions in development/writing tools vs frequent switching between email/Slack/browser.
+   - **Context-switch cost awareness:** The reflection engine uses context-switch counts to identify days where the executive was "scattered" vs "focused". Over time, patterns emerge (e.g., "Mondays after Board meetings have 3x more context switches").
+   - **Chronotype refinement:** When does the executive do deep work? When do they default to email? Combined with calendar data, this refines the chronotype model.
+   - **Meeting recovery time:** After a meeting ends, how long before the executive enters a deep work session? This measures meeting cognitive cost.
+   - **Procrastination detection:** Avoiding a specific app/project by spending unusual time in other apps. (Requires baseline comparison.)
+   - For each downstream use case, state which captured fields are required.
+
+10. **Edge Cases:**
+    - User locks screen: end current focus event, mark as "screen locked".
+    - User switches to a full-screen app: capture full-screen state.
+    - Multiple displays: which app is "active"? (NSWorkspace tracks the frontmost app regardless of display.)
+    - Virtual desktops (Mission Control spaces): same — NSWorkspace tracks frontmost.
+    - App crashes: the deactivation notification may not fire — handle via periodic heartbeat check.
+    - System restart: handle via launch-time state recovery.
+    - Rapid app switching (< 500ms): configurable minimum dwell threshold.
+
+11. **Acceptance Criteria:**
+    - Observer correctly captures all app focus changes with < 100ms latency.
+    - Duration is accurately computed for each focus event.
+    - Context-switch count is accurate per hour and per day.
+    - Session detection correctly groups contiguous focus periods.
+    - Window title capture is OFF by default and only activates on explicit opt-in.
+    - Observer has negligible CPU/energy impact (< 0.5% CPU in Activity Monitor during normal use).
+    - App exclusion list works correctly.
+    - Pause/resume tracking works correctly.
+    - Observer recovers correctly from screen lock, sleep/wake, and app crashes.
+    - No screen recording, keystroke, or clipboard data is ever captured.
+
+Research how existing macOS time-tracking tools (Timing, RescueTime, Toggl Track, WakaTime) implement app focus tracking. Study Apple's documentation on NSWorkspace notifications, Accessibility API, and energy-efficient background processing on macOS. Research the macOS privacy permission model for Sonoma/Sequoia.
+
+If current research suggests a superior approach to what is described here, recommend it with evidence and explain the tradeoff.

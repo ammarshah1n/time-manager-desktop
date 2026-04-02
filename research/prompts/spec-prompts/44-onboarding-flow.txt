@@ -1,0 +1,49 @@
+I'm building a macOS application called Timed — a cognitive intelligence layer for C-suite executives. It builds a compounding model of how a specific person thinks, decides, avoids, and operates. Observation and intelligence only — it never acts on the world.
+
+**Hard constraints:**
+- macOS native: Swift 5.9+, SwiftUI, CoreData, on-device voice
+- Four layers: Signal Ingestion → Memory Store → Reflection Engine → Intelligence Delivery. No cross-layer coupling.
+- Intelligence compounds — Month 6 >> Month 1
+- Microsoft Graph OAuth (MSAL): Mail.Read, Calendars.Read, offline_access
+- On-device Apple Speech for voice capture
+- C-suite executive user with zero patience for setup friction
+
+The onboarding must solve a fundamental tension: the system's value comes from compounding intelligence over months, but the executive needs to experience value within 24 hours of install or they'll never open it again. A CEO will not tolerate a week of "learning" before seeing results.
+
+**What I need:**
+
+1. **The complete onboarding flow, step by step.** From DMG download to first useful morning session. Every screen, every decision point, every permission request. Target: complete setup in under 10 minutes, first useful morning session within 24 hours.
+
+   Sequence should include:
+   - Welcome and value proposition (what this is, what it isn't — the observation-only promise)
+   - Microsoft OAuth connection (Mail.Read, Calendars.Read, offline_access via MSAL)
+   - Permission grants: Accessibility (app focus tracking), Microphone (voice sessions), Notifications
+   - Calendar history import: pull 90 days of calendar history to bootstrap the chronotype model, meeting pattern detection, and relationship graph
+   - Email history import: pull recent email metadata (not bodies initially) to bootstrap communication pattern detection
+   - Archetype selection: the executive self-identifies along 3-4 axes (maker vs manager, morning vs evening, structured vs fluid, solo vs collaborative) to seed the model with reasonable priors instead of starting from zero
+   - First voice session walkthrough: guided 90-second voice capture where the executive describes their current priorities, and the system demonstrates how it processes voice into structured intelligence
+   - Privacy briefing: clear explanation of what is observed, what stays on device, what is abstracted before API calls
+   - Notification preferences: morning session time, alert frequency
+   - "What happens next" — setting expectations for the compounding timeline
+
+2. **The 90-day bootstrap problem.** How to make 90 days of calendar history useful immediately. What can be inferred from calendar data alone: meeting frequency, back-to-back patterns, meeting-free blocks, recurring commitments, relationship frequency (who appears most in meetings), potential chronotype signals (when do they schedule focused work vs meetings). How to present these inferences to the executive on day 1 as "here's what I already see about how you work."
+
+3. **Cold start for each ML model.** Each model needs specific bootstrap data:
+   - Thompson sampling (task scoring): seed with archetype-based priors, then learn from corrections
+   - EMA time estimation: no history yet — use archetype-based defaults, explicitly tell the user "these estimates will get accurate after ~2 weeks"
+   - Chronotype detection: infer from calendar patterns, refine with actual behaviour observation
+   - Avoidance detection: cannot detect avoidance without behavioural history — what to show on day 1?
+   - Cognitive load estimation: requires calibration data — how to calibrate during onboarding?
+   For each model: what the cold start state looks like, what priors to use, how long until the model is useful, and how to communicate this to the user.
+
+4. **The first morning session — what makes it useful on day 1?** The morning session is the flagship experience. On day 1, the system has: 90 days of calendar data, one voice session, archetype priors, and maybe 12-24 hours of email/app observation. What can the morning session plausibly deliver? How to make it impressive without being dishonest about the system's current knowledge depth? How to frame it as "here's your day, and here's what I'll know in a week that I don't know yet."
+
+5. **Expectation management for compounding intelligence.** How to tell a CEO "this gets dramatically better over months" without them hearing "it's not useful now." The psychology of early adoption curves. What milestones to communicate: "After 1 week: [X]. After 1 month: [Y]. After 3 months: [Z]. After 6 months: [this is where it gets extraordinary]." How to deliver small "intelligence moments" in the first week that preview the long-term value.
+
+6. **Error states and recovery.** OAuth fails. Calendar import times out. The executive refuses a permission. The voice session is interrupted. The executive quits halfway through onboarding. For each: how to handle gracefully, how to resume, what's the minimum viable onboarding that still produces a useful first session.
+
+7. **UI design principles for the onboarding.** This is not a consumer app onboarding with cute illustrations. This is a tool for a person who runs a company. Visual design: minimal, confident, no hand-holding. Copy tone: direct, intelligent, respectful of the user's time. What the screens look like. How progress is communicated. How long each step takes.
+
+Provide concrete SwiftUI view hierarchy for the onboarding flow, the calendar bootstrap analysis pipeline, and the archetype-to-prior mapping. Include the MSAL OAuth integration pattern for macOS.
+
+If current research suggests a superior approach, recommend it with evidence.

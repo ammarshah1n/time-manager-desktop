@@ -1,0 +1,29 @@
+I'm building a macOS executive intelligence system called Timed that observes a C-suite executive's digital behaviour and builds a compounding cognitive model of them over months. It never acts on the world — observation and intelligence only.
+
+I need a complete implementation spec for inferring the executive's actual chronotype — their peak cognitive windows per task type — from observed behavioural data. Not self-report. Not surveys. Purely from what the system sees them do.
+
+Architecture context: the system has four decoupled layers — Signal Ingestion, Memory Store, Reflection Engine, Intelligence Delivery. This model sits at the boundary of Signal Ingestion and the Reflection Engine. Tech stack: Swift 5.9+, SwiftUI, CoreData on-device, Supabase backend, Jina embeddings (1024-dim), Claude Haiku/Sonnet/Opus tiered processing. The nightly reflection engine runs Opus at maximum effort with no cost cap. Intelligence must compound — month 6 should be incomparably better than month 1.
+
+Research and spec every dimension:
+
+1. **Observable signals for chronotype inference** — What digital behavioural signals correlate with cognitive performance at different times of day? Email composition speed and quality, response latency distribution by hour, document editing velocity, error rate in typed communications, code review thoroughness (if applicable), decision speed on email approvals, meeting engagement proxies (response time to post-meeting actions), focus session duration before first interruption acceptance. For each signal: what resolution is needed (minute, 15-min, hourly), what's the noise floor, what research validates its use as a cognitive performance proxy?
+
+2. **Task type taxonomy for chronotype mapping** — Not all tasks have the same cognitive profile. Strategic/creative work, administrative triage, communication (email), analytical work, people/relationship work, decision-making. Research on which task types show the strongest time-of-day effects. How to classify the executive's activities into these categories from observed signals without explicit labelling.
+
+3. **Statistical model for time-of-day performance curves** — What model structure captures an individual's performance curve per task type? Gaussian process regression over time-of-day? Bayesian hierarchical model with population prior and individual posterior? Sinusoidal models based on circadian literature? How to handle multimodal curves (morning peak + afternoon peak). How to represent uncertainty — the model should know when it doesn't know.
+
+4. **Cold start and convergence** — How many days of observation before the model becomes minimally useful? How many before it's reliable? Research on learning curves for individual chronotype inference. What population-level priors can bootstrap the model (e.g., "most executives show a cortisol-driven peak at 9-11am")? How to communicate confidence to the user during the learning phase.
+
+5. **Adaptation to pattern shifts** — The executive travels to a different timezone. Their role changes and they're now in meetings all morning. Seasonal variation (winter vs summer energy). How does the model detect that the underlying chronotype signal has shifted vs the person just having a bad week? Change-point detection algorithms. Exponential decay weighting vs sliding window vs Bayesian online change detection. How fast should the model adapt?
+
+6. **Output specification** — What exactly does the chronotype model produce? A performance curve per task type (0-24h, relative performance score). Confidence intervals. Named peak windows ("Your strategic thinking peak is 9:30-11:00am, confidence: high based on 47 days of evidence"). Named trough windows. How this feeds into the morning intelligence session ("Today you have a board strategy discussion at 3pm — historically your strategic output quality drops 34% after 2pm"). How it feeds into the Memory Store as a semantic memory.
+
+7. **Update cadence and computational cost** — Should the chronotype model update nightly (as part of reflection), weekly, or continuously? What's the token/compute cost per update cycle? How to make this efficient enough to run as one component of a larger nightly reflection pipeline.
+
+8. **Validation and ground truth** — How do you know the chronotype model is correct without explicit self-report? Proxy validation: do the predicted peak windows correlate with objective output quality? Can the system detect when its chronotype model led to a good recommendation (executive followed it and performed well) vs when it was wrong?
+
+9. **Research on computational chronotype detection** — What exists in the literature? Digital phenotyping for circadian rhythm. Smartphone-based chronotype inference (Ciman & Wac, Murnane et al.). Keystroke dynamics and time-of-day (Vizer et al.). Wearable-free circadian estimation from digital traces. What accuracy levels have been demonstrated?
+
+If current research suggests a superior approach to anything I've described, recommend it with evidence.
+
+Deliver a complete implementation-ready spec with: data model schemas, algorithm selection with justification, processing pipeline, update protocol, output format, integration points with the four-layer architecture, and a convergence timeline showing expected model quality at 1 week, 1 month, 3 months, 6 months.

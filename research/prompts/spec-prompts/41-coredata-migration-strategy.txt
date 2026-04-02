@@ -1,0 +1,38 @@
+I'm building a macOS application called Timed — a cognitive intelligence layer for C-suite executives. It builds a compounding model of how a specific person thinks, decides, avoids, and operates. Observation and intelligence only — it never acts on the world.
+
+**Hard constraints:**
+- macOS native: Swift 5.9+, SwiftUI, CoreData, on-device voice
+- Four layers: Signal Ingestion → Memory Store → Reflection Engine → Intelligence Delivery. No cross-layer coupling.
+- Intelligence compounds — Month 6 >> Month 1
+- Opus 4.6 at max effort for reflection, no cost cap
+- C-suite executive user
+
+The Memory Store layer uses CoreData with three memory types: episodic (raw events — meetings, emails, decisions, conversations), semantic (learned facts about the person — "avoids financial discussions on Mondays"), and procedural (operating rules the reflection engine generates — "never schedule deep work after back-to-back meetings"). Each memory type has its own entity hierarchy.
+
+**The problem:** The data model WILL change significantly in the first 6 months. New memory types will be added. New signal sources will feed new entity types. The reflection engine will evolve its rule schema. Episodic memories will gain new relationship types. Semantic memories will gain confidence scores and decay functions. The vector embedding dimension or provider may change. New metadata fields will appear on every entity.
+
+Meanwhile, this system is storing months of irreplaceable cognitive intelligence about a specific person. Data loss is unacceptable. Downtime during migration must be invisible.
+
+**What I need:**
+
+1. **Lightweight vs heavyweight CoreData migrations — when to use each.** Concrete decision criteria. What changes qualify for lightweight automatic migration (additive attributes, optional fields, simple renames)? What forces heavyweight migration (relationship changes, entity hierarchy restructuring, data transformations)? What is the actual failure mode when you attempt a lightweight migration on a change that requires heavyweight?
+
+2. **Versioning strategy for rapid schema evolution.** How to version the .xcdatamodeld properly when changes happen weekly during active development. Naming conventions. How many model versions is too many before you should consolidate. How to handle branching development where two branches modify the schema differently.
+
+3. **Migration strategy for each memory type:**
+   - Episodic memories: potentially hundreds of thousands of records. Adding new fields, new relationships to signal sources, changing the event taxonomy. How to migrate without blocking the app.
+   - Semantic memories: smaller count but high value. Adding confidence scores, decay timestamps, source attribution chains. How to preserve the integrity of learned knowledge during migration.
+   - Procedural memories (rules): schema changes as the reflection engine's rule format evolves. How to migrate rules that reference entity types that have themselves changed.
+   - Vector embeddings: what happens when the embedding model changes and old 1024-dim vectors are incompatible with new vectors? Re-embedding strategy.
+
+4. **Background migration for large stores.** Progressive migration that doesn't block the UI. How to handle the app launching mid-migration. How to show migration progress to the user without alarming them. What happens if migration is interrupted (crash, force quit, power loss).
+
+5. **Testing migrations rigorously.** How to generate realistic test stores at each schema version. How to test the full migration chain (v1 → v2 → v3 → ... → vN). Automated migration testing in CI. How to catch migration failures before they reach production.
+
+6. **Rollback strategy.** What to do when a migration fails or produces corrupt data. Pre-migration backup strategy. How to maintain the ability to roll back to the previous schema version. Whether to keep a parallel read-only copy of the pre-migration store.
+
+7. **CoreData vs SwiftData decision point.** Given that this project targets macOS 14+ and is starting fresh — should I use SwiftData instead of CoreData? What does SwiftData's migration story look like as of 2025/2026? Is it mature enough for a complex schema that will evolve rapidly? What are the concrete limitations that would force a fallback to CoreData?
+
+Provide concrete Swift code patterns for the migration mapping models, version management, and background migration coordinator. Include the NSManagedObjectModel version hash comparison approach for detecting schema drift.
+
+If current research suggests a superior approach to CoreData/SwiftData for this use case (e.g., GRDB, Realm, or a hybrid approach), recommend it with evidence.

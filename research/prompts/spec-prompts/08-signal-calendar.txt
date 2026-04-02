@@ -1,0 +1,114 @@
+I am building **Timed**, a macOS-native cognitive intelligence layer for C-suite executives. It is NOT a productivity app, task manager, or personal assistant. It builds a deep, compounding model of how a specific executive thinks, decides, avoids, prioritises, and operates — then uses that model to return cognitive bandwidth.
+
+**Hard constraints:**
+- Timed never acts on the world — observation and intelligence only. It never sends emails, never modifies calendars, never takes any action.
+- macOS native: Swift 5.9+, SwiftUI, CoreData, on-device voice only.
+- Four strict layers: Signal Ingestion → Memory Store → Reflection Engine → Intelligence Delivery. No cross-layer coupling.
+- Intelligence compounds over time — Month 6 must be qualitatively smarter than Month 1.
+- No cost cap on intelligence quality — uses Claude Opus for nightly reflection.
+- User is a C-suite executive who has tried everything. Impressed by understanding, not features.
+
+**Tech stack:** Supabase backend + Edge Functions. AI models: Haiku 3.5 (classification), Sonnet (estimation), Opus 4.6 (reflection + morning director). Embeddings: Jina AI jina-embeddings-v3 (1024-dim). Auth: Microsoft OAuth via MSAL (Calendars.Read scope — read-only). Voice: Apple Speech (on-device only).
+
+**Architecture context:**
+- This spec is for **Layer 1 — Signal Ingestion**, specifically the **Calendar Signal Agent**.
+- Layer 1's job: observe, record, timestamp, tag modality. It does NOT interpret or make judgments.
+- The Calendar Signal Agent writes raw calendar signals to a unified signal queue.
+- Classification and intelligence extraction happen in Layer 2 and Layer 3.
+
+**Shipped context:** Calendar-aware slot allocator is already built. This spec defines the proper, architecture-aligned calendar signal ingestion.
+
+---
+
+**Your task:** Produce a comprehensive, implementation-ready **Calendar Signal Ingestion Spec** for Timed.
+
+**The document must cover:**
+
+1. **Microsoft Graph Calendar API — Exact Endpoints:**
+   - List events, get event, calendarView, delta query for events.
+   - API versions and query parameters.
+   - `$select` fields to minimize transfer.
+   - Handling multiple calendars (primary + shared/delegated).
+   - Recurring event expansion (instances endpoint vs series master).
+   - Delta sync for calendar events — how it differs from mail delta.
+
+2. **What is Captured Per Event:**
+   - Event ID, iCalUID (for cross-system dedup)
+   - Subject / title
+   - Start time, end time, duration (computed), time zone
+   - Location (text, not coordinates)
+   - Attendees: count, names, email addresses, response status (accepted/declined/tentative/none), organiser identification
+   - Is the user the organiser?
+   - Is it a recurring event? Series master ID, recurrence pattern (daily/weekly/monthly)
+   - Is it an all-day event?
+   - Event status: confirmed, tentative, cancelled
+   - Online meeting URL (Teams/Zoom — URL only, not content)
+   - Sensitivity: normal, personal, private, confidential
+   - Show-as status: free, tentative, busy, oof, working elsewhere
+   - Created datetime, last modified datetime
+   - Categories (user-applied Outlook categories)
+   - Body/description (plain text, for meeting agenda extraction downstream)
+   - Response status of the user (accepted/tentative/declined)
+
+3. **Computed Metadata (factual, not interpretive):**
+   - **Acceptance rate:** Ratio of accepted vs declined/tentative invitations per sender, per meeting type, over rolling windows (7d, 30d, 90d).
+   - **Rescheduling frequency:** How often a recurring or specific event is rescheduled (detected via modified timestamp changes + time changes in delta sync).
+   - **Cancellation patterns:** Which meetings get cancelled, by whom, how frequently.
+   - **Meeting density:** Number of meetings per day/half-day, total meeting hours per day, longest unbroken meeting streak, gaps between meetings.
+   - **Duration vs actual:** Compare scheduled duration to actual (if the calendar event is modified after the fact, or infer from next event start time). This is hard — research how to approximate this.
+   - **Back-to-back detection:** Events with < 5 min gap.
+   - **Free time blocks:** Contiguous unscheduled periods > 30 min.
+
+4. **What is NOT Captured:**
+   - Meeting content or transcripts (that's the Voice signal agent's job if the user records).
+   - Attachment content on calendar events.
+   - Actual attendance (who actually showed up — not available via Graph read-only).
+   - Personal calendar events if the user opts out of a specific calendar.
+
+5. **Write Path to Signal Queue:**
+   - Calendar signal envelope structure.
+   - Mapping to unified signal format (timestamp, source=.calendar, modality tag).
+   - How recurring events are handled: store each instance separately or store the series master + exceptions?
+   - Deduplication strategy for delta sync re-delivery.
+
+6. **Delta Sync Mechanism:**
+   - Calendar delta query specifics (differs from mail delta — research the differences).
+   - calendarView vs events endpoint — which is better for delta sync of a date range?
+   - How far back to sync initially (90 days? 6 months?).
+   - How far forward to sync (30 days? configurable?).
+   - Handling timezone changes and DST transitions.
+   - Handling cancelled events (they still appear in delta as cancelled — capture the cancellation as a signal).
+
+7. **How Calendar Signals Feed Higher-Order Intelligence:**
+   - **Cognitive load estimation:** Many back-to-back meetings = high cognitive load day. The reflection engine uses meeting density + gaps to estimate daily cognitive capacity remaining.
+   - **Chronotype inference:** What times does the executive block for deep work? What times have most meetings? Over months, this reveals their natural rhythm.
+   - **Meeting ROI patterns:** Which recurring meetings get consistently rescheduled or cancelled? (May indicate low perceived value.)
+   - **Relationship patterns:** Which people appear in most meetings? How does acceptance rate vary by person? (High-value relationships vs meeting fatigue.)
+   - **Avoidance signals:** Declining meetings from specific people/teams, cancelling certain recurring meetings, tentative responses that never become accepts.
+   - **Energy mapping:** If combined with app focus data (Layer 1 cross-signal), meeting-heavy mornings may correlate with low-productivity afternoons.
+   - For each use case, state exactly which captured fields are required.
+
+8. **Error Handling:**
+   - Graph API unavailable: queue state, retry strategy.
+   - Token expiry: MSAL refresh flow.
+   - Timezone parsing errors: fallback to UTC with warning.
+   - Missing fields in API response: which fields are nullable, defaults.
+   - Delta token expiry: full re-sync strategy.
+
+9. **Privacy:**
+   - Meeting body text stored locally, may be sent to Anthropic for classification. User consent required.
+   - Attendee names/emails are stored for relationship pattern analysis. User can exclude specific calendars.
+   - Sensitivity: events marked "private" or "confidential" — should body text be captured? (Research recommendation: capture metadata only, exclude body for private events.)
+
+10. **Acceptance Criteria:**
+    - Agent correctly syncs all calendar events via delta query on configurable interval.
+    - All specified fields captured and written to signal queue.
+    - Recurring events correctly expanded into instances.
+    - Acceptance rate and rescheduling frequency correctly computed.
+    - Meeting density correctly calculated per day.
+    - No write API calls to Microsoft Graph (observation only).
+    - Performance: sync completes in < 3 seconds for typical delta (< 20 changed events).
+
+Research the Microsoft Graph Calendar API thoroughly — event schemas, delta query behaviour for calendar, recurring event handling, timezone complexities. Research how calendar analytics tools (Clockwise, Reclaim.ai, Trevor.ai) extract meeting intelligence. Research how cognitive load can be estimated from calendar patterns.
+
+If current research suggests a superior approach to what is described here, recommend it with evidence and explain the tradeoff.

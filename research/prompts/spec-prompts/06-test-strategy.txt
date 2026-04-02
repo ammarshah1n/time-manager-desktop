@@ -1,0 +1,94 @@
+I am building **Timed**, a macOS-native cognitive intelligence layer for C-suite executives. It is NOT a productivity app, task manager, or personal assistant. It builds a deep, compounding model of how a specific executive thinks, decides, avoids, prioritises, and operates — then uses that model to return cognitive bandwidth.
+
+**Hard constraints:**
+- Timed never acts on the world — observation and intelligence only. It never sends emails, never modifies calendars, never takes any action.
+- macOS native: Swift 5.9+, SwiftUI, CoreData, on-device voice only.
+- Four strict layers: Signal Ingestion → Memory Store → Reflection Engine → Intelligence Delivery. No cross-layer coupling.
+- Intelligence compounds over time — Month 6 must be qualitatively smarter than Month 1.
+- No cost cap on intelligence quality — uses Claude Opus for nightly reflection.
+- User is a C-suite executive who has tried everything. Impressed by understanding, not features.
+
+**Tech stack:** Supabase backend + Edge Functions. AI models: Haiku 3.5 (classification), Sonnet (estimation), Opus 4.6 (reflection + morning director). Embeddings: Jina AI jina-embeddings-v3 (1024-dim). Auth: Microsoft OAuth via MSAL (Mail.Read, Calendars.Read, offline_access). Voice: Apple Speech (on-device only). Distribution: Direct DMG + Sparkle.
+
+**Architecture:**
+- **Layer 1 — Signal Ingestion** (continuous, passive): Background agents observe calendar, email, voice, app focus, task behaviour. Records, doesn't interpret.
+- **Layer 2 — Memory Store** (persistent, tiered): Episodic, Semantic, Procedural. MemGPT-inspired tiers: core, recall, archival. Retrieval via recency × importance × relevance.
+- **Layer 3 — Reflection Engine** (periodic, nightly): Opus recursive reflection → patterns → rules → memory updates. Stanford Generative Agents inspired.
+- **Layer 4 — Intelligence Delivery** (on-demand + scheduled): Morning session, menu bar, proactive alerts, command palette.
+
+**Shipped features:** Voice morning session, email triage, Thompson sampling task scoring, EMA time estimation, calendar-aware slot allocator, focus timer, menu bar widget, command palette.
+
+---
+
+**Your task:** Produce a comprehensive **Test Strategy** document for Timed. This is not a generic testing guide — it must address the unique challenges of testing a system where intelligence compounds over time, where the primary output is LLM-generated insight, and where correctness is partially subjective.
+
+**The document must cover:**
+
+1. **Testing Philosophy:**
+   - What "correct" means for each layer.
+   - Layer 1: Did we capture the right data in the right format? (Deterministic, fully testable.)
+   - Layer 2: Do memory operations maintain integrity? Does retrieval return relevant results? Does consolidation preserve important information? (Mostly deterministic.)
+   - Layer 3: Are patterns meaningful? Do rules make sense? Is the system getting smarter? (Partially subjective — how do we test this?)
+   - Layer 4: Does intelligence reach the user in the right format at the right time? (Testable for format/timing, subjective for content quality.)
+
+2. **Unit Testing Strategy:**
+   - **ML Models:** Thompson sampling (test that alpha/beta update correctly, test exploration vs exploitation ratio, test convergence), EMA estimation (test coefficient updates, test accuracy improvement over time, test with known sequences).
+   - **Memory Scoring:** Recency × importance × relevance calculation (test with known inputs/outputs, test edge cases: brand new memory vs very old but important, test tie-breaking).
+   - **Memory Operations:** CRUD for all memory tiers (test with in-memory CoreData store), promotion/demotion logic, consolidation (test that duplicate episodic memories merge correctly into semantic).
+   - **Signal Parsing:** Email signal extraction (test with mock Graph API responses), calendar event parsing, app focus event creation, voice transcript metadata extraction.
+   - **Pattern Lifecycle:** Status transitions (emerging → confirmed → fading → archived), confidence score updates, observation count tracking.
+   - Coverage target per layer.
+
+3. **Integration Testing Strategy:**
+   - **Microsoft Graph API:** Test with recorded responses (VCR-style). Test delta sync pagination. Test token refresh flow. Test rate limit handling. Test webhook delivery (if used). NEVER hit real Graph API in CI.
+   - **Memory Consolidation Pipeline:** Feed known episodic memories → run consolidation → verify correct semantic memories were created with correct confidence scores and source references.
+   - **Reflection Output Quality:** Feed known memory state → run reflection engine → validate output structure (has patterns? has rules? references real memories?). Separate structure validation (automated) from quality validation (manual/LLM-judged).
+   - **Signal → Memory → Delivery Pipeline:** End-to-end test from raw signal ingestion through to intelligence delivery payload. Verify data integrity across all layer boundaries.
+
+4. **Testing the Compounding Intelligence Claim:**
+   - This is the hardest testing challenge. How do you prove the system is smarter at Month 6 than Month 1?
+   - **Longitudinal test fixtures:** Create synthetic executive profiles with 1 week, 1 month, 3 months, 6 months of simulated signal data. Run reflection engine on each. Compare pattern count, pattern depth (first-order vs second-order), rule count, prediction accuracy.
+   - **Pattern quality metrics:** Specificity (is the pattern about this executive, or generic?), actionability (does it contain information the executive didn't already know?), accuracy (does it match ground truth in synthetic data?).
+   - **Regression testing:** Ensure that a system update doesn't reduce the quality of patterns generated from the same input data.
+   - **Memory integrity over time:** Ensure that important semantic memories are never lost, that consolidation preserves signal, that archival retrieval still works after months.
+
+5. **Testing the Observation-Only Constraint:**
+   - Automated test that scans the entire codebase for any write API calls to external services (Graph API write endpoints, email send, calendar create/modify).
+   - Protocol-level test: ensure all external service protocols only expose read methods.
+   - Runtime assertion: if any code path attempts a write to an external service, the app crashes in debug and logs an error in release.
+
+6. **LLM Output Testing:**
+   - How to test that Opus reflection output is well-structured (JSON schema validation, required fields present).
+   - How to test that morning session scripts are coherent (LLM-as-judge with a cheaper model).
+   - How to handle non-deterministic LLM output in CI (seed control, output structure validation vs content validation, golden output comparison with fuzzy matching).
+   - Cost management: don't run Opus in CI — use recorded responses for structure tests, run live Opus tests manually on a schedule.
+
+7. **Performance Testing:**
+   - Memory retrieval latency with 10K, 100K, 1M episodic memories.
+   - Vector similarity search latency with growing embedding count.
+   - Signal ingestion throughput: can all agents run simultaneously without dropping signals?
+   - CoreData background context merge performance.
+   - App launch time with large memory stores.
+
+8. **Privacy Testing:**
+   - Verify raw audio is never persisted to disk.
+   - Verify no PII appears in logs.
+   - Verify only approved endpoints receive network traffic (test with network proxy).
+   - Verify window titles are not captured unless opt-in is enabled.
+
+9. **Test Infrastructure:**
+   - Recommend a test framework (XCTest vs Swift Testing — justify choice for this project).
+   - Mock strategy: protocol-based mocking vs third-party framework.
+   - CI pipeline: what runs on every commit, what runs nightly, what runs manually.
+   - Test data management: how synthetic executive profiles are generated and maintained.
+
+10. **Coverage Targets:**
+    - Layer 1: 90%+ (deterministic, no excuse).
+    - Layer 2: 85%+ (memory operations are critical).
+    - Layer 3: 60%+ for structure/pipeline, separate quality metrics for LLM output.
+    - Layer 4: 70%+ (view models and formatters, not views).
+    - Cross-cutting: 80%+ (auth, API clients, error handling).
+
+Research how other AI-native applications test LLM-dependent features. Study approaches from LangChain, LlamaIndex, and similar frameworks for testing LLM pipelines. Research how cognitive computing systems validate that intelligence is actually improving.
+
+If current research suggests a superior approach to what is described here, recommend it with evidence and explain the tradeoff.

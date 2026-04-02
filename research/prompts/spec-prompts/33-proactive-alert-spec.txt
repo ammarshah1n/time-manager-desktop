@@ -1,0 +1,42 @@
+I need a complete specification for the proactive alert system in Timed — a macOS cognitive intelligence layer for C-suite executives. Alerts are mid-day intelligence deliveries that surface insights the executive didn't ask for but needs to hear.
+
+**Hard constraints:**
+- Timed never acts on the world — observation only.
+- macOS native: Swift 5.9+, SwiftUI, menu bar presence.
+- Intelligence compounds — Month 6 >> Month 1.
+- Opus 4.6 at max effort for reflection, no cost cap.
+- C-suite executive user who gets hundreds of notifications daily. Alert fatigue is the default enemy.
+
+**The fundamental design tension:** Alerts must be rare enough to be respected and valuable enough to justify the interruption. A system that alerts too often gets muted. A system that never alerts misses the point.
+
+**What I need specified:**
+
+1. **Alert taxonomy and severity levels** — Define every type of alert the system can produce, with concrete examples:
+   - **Avoidance escalation:** "You've rescheduled the Board Comp Review for the third time. Your historical pattern shows rescheduling 3x correlates with eventually cancelling."
+   - **Cognitive load warning:** "You've been in continuous meetings for 3.5 hours. Your performance data shows decisions made after this threshold are revised 40% more often."
+   - **Relationship decay:** "You haven't communicated with [key stakeholder] in 22 days. Your average cadence is 8 days. Last gap this long preceded the Q2 tension."
+   - **Deadline risk:** "Based on current progress velocity on Project Atlas, the March 15 deadline has a 30% probability of being met."
+   - **Strategic drift:** "85% of your time this week has been operational. You've allocated 0 hours to Q3 strategy, which you identified as your top priority Monday."
+   - **Pattern emergence:** "This is the third consecutive Monday where your first meeting runs over by 20+ minutes, cascading your entire morning."
+   
+   For each type: what data triggers it, what confidence threshold is required, what's the false positive tolerance.
+
+2. **Triggering logic — what fires vs what stays silent** — Not every detected pattern should become an alert. Research on signal detection theory applied to notification systems. What's the decision function? Factors: severity, confidence, actionability (can the executive do something about it right now?), novelty (have they seen this pattern before?), timing (is now the right moment?). How to avoid "the system that cried wolf."
+
+3. **Maximum alert frequency** — Hard ceiling on alerts per day and per week. Research on executive notification tolerance. What's the maximum number of non-urgent interruptions a senior executive will tolerate before disabling a system? I suspect the answer is 2-3 per day maximum, with most days having zero. Validate this with research.
+
+4. **Alert timing — when to interrupt** — Not during focus sessions. Not during meetings. Not when the executive just received bad news. The system must have a model of "interruptibility" based on current activity, recent cognitive load, and emotional state. Research on optimal interruption timing — Horvitz's work on attention-sensitive alerting, Bailey & Iqbal's research on breakpoints. What does the research say about when people are most receptive to unexpected information?
+
+5. **Dismissal as signal** — When the executive dismisses an alert, that's data. Types of dismissal: (a) swipe away without reading — "not worth my attention", (b) read and dismiss — "acknowledged but not actionable", (c) read and snooze — "relevant but not now", (d) read and engage — "this was valuable." Each dismissal type feeds back differently. Research on implicit feedback from notification interactions.
+
+6. **Alert format in macOS menu bar** — Visual design. How does the menu bar icon change state? Subtle pulse? Badge count? Color change? What appears in the dropdown? How much text? Research on macOS notification design best practices and HIG compliance. The alert should feel like a discreet note from a trusted advisor, not a pop-up.
+
+7. **Alert escalation** — What happens if a high-severity alert is dismissed repeatedly? Does the system escalate? How? At what point does the system accept "the executive has decided to ignore this" and stop? Research on escalation in clinical alert systems (healthcare has studied this extensively — alert fatigue kills people).
+
+8. **Calibration over time** — The alert system must get better. Alerts the executive consistently engages with should lower their firing threshold. Alerts consistently dismissed should raise it. Thompson sampling for alert type effectiveness? Bayesian updating of per-alert-type value? Research on adaptive notification systems.
+
+9. **Research on executive interruption tolerance** — What do C-suite executives actually say about notifications and interruptions? Survey data, interview studies, published accounts. What's the difference between how they SAY they want to be notified vs how they actually respond? How do the best executive assistants decide when to interrupt their boss?
+
+Produce a complete alert specification with taxonomy, triggering logic, frequency caps, timing model, feedback loops, and escalation rules. Every alert type must include a concrete example with the data that would trigger it.
+
+If current research suggests a superior approach to any component, recommend it with evidence.

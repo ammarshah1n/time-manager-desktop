@@ -1,0 +1,57 @@
+I'm building a macOS executive intelligence system called Timed that observes a C-suite executive's digital behaviour and builds a compounding cognitive model of them over months. It never acts on the world — observation and intelligence only.
+
+I need a complete implementation spec for estimating the executive's current cognitive load from digital signals — without wearables, without physiological sensors, purely from what the system can observe on their Mac and through their Microsoft 365 environment.
+
+Architecture context: four decoupled layers — Signal Ingestion, Memory Store, Reflection Engine, Intelligence Delivery. Tech: Swift 5.9+, SwiftUI, CoreData, Supabase, Jina embeddings 1024-dim, Claude Haiku/Sonnet/Opus tiered. Nightly Opus reflection, no cost cap. Intelligence compounds.
+
+Research and spec every dimension:
+
+1. **Digital signals as cognitive load proxies** — Research every signal that correlates with cognitive load from digital behaviour:
+   - **Email open-to-response latency** — Does increased latency indicate higher load, or disengagement? How to distinguish? Baseline calibration per person.
+   - **Draft deletion/revision frequency** — More cognitive load → more revision? Or less load → more perfectionism? What does the research say?
+   - **App-switch rate** — Rapid context switching as a load indicator. Gonzalez & Mark's research on multitasking and attention fragmentation. What switch rate thresholds indicate overload for an individual?
+   - **Meeting density** — Consecutive meetings with no buffer. Research on meeting load and decision quality degradation. Luong & Rogelberg on meeting recovery time.
+   - **Calendar whitespace usage** — When the executive has a free hour, do they immediately fill it? Whitespace consumption rate as a load signal.
+   - **Typing speed and error rate** — Keystroke dynamics as cognitive load proxy. Vizer et al. research. Implementation on macOS via accessibility APIs without keylogging content.
+   - **Communication brevity shift** — Emails getting shorter. Responses becoming terse. Reduced "warmth" tokens (greetings, sign-offs). Load-driven communication compression.
+   - **Decision deferral rate** — How many decisions are being pushed to "later"? Increased deferral as a load signal.
+   - **Time-to-first-action after meetings** — How long before the executive does anything productive after a meeting ends? Longer latency = higher residual load.
+   - **Browser/app tab accumulation** — Open tab count as an unfinished-task proxy (Zeigarnik effect in digital form).
+   
+   For each signal: research supporting it as a load proxy, measurement approach on macOS, noise characteristics, individual calibration requirements.
+
+2. **Composite load model** — How to combine 8-12 noisy proxy signals into a single cognitive load estimate. Approaches:
+   - Weighted linear combination (simple, interpretable, fragile)
+   - Bayesian sensor fusion (robust, handles missing signals)
+   - Small neural network trained on individual data (requires labelled data — where does it come from?)
+   - LLM-based reasoning over signal vector (expensive but can incorporate context)
+   Which approach is best for a single-user system with limited initial training data? How to bootstrap?
+
+3. **Real-time vs trailing estimate** — Should the system produce:
+   - A real-time load estimate (updated every 5-15 minutes)?
+   - A trailing estimate (rolling 2-hour average)?
+   - Both, at different granularities?
+   What's the latency requirement for load estimation to be useful for gating intelligence delivery? Research on cognitive load temporal dynamics — how fast does load change?
+
+4. **Load-aware intelligence gating** — The primary use of the cognitive load model: don't deliver strategic insights or complex intelligence when the executive is overloaded. Spec the gating logic:
+   - Load levels: {low, moderate, high, critical}
+   - Per load level: what intelligence is appropriate to surface?
+   - Low: full morning session, strategic insights, pattern callouts
+   - Moderate: essential items only, compressed format
+   - High: urgent-only, one-line alerts
+   - Critical: silence unless emergency
+   How to avoid the trap where the system never delivers intelligence because the executive is always loaded?
+
+5. **Individual calibration** — Every person's baseline is different. A CEO in a turnaround has a permanently higher load baseline than one in steady state. How to calibrate:
+   - Personal baseline establishment (first 2 weeks)
+   - Relative vs absolute load measurement
+   - Baseline drift detection (new normal vs temporary spike)
+   - Day-of-week baseline variation (Monday vs Friday)
+
+6. **Load trend analysis for reflection engine** — Beyond real-time estimation, the nightly reflection engine should analyse load trends: "This week's average cognitive load was 23% higher than the trailing 4-week average. Primary drivers: 3 additional board-related meetings and the product launch." Load trends as input to longer-term pattern analysis.
+
+7. **Research on digital phenotyping for cognitive state** — What exists? Murnane et al. on phone usage as cognitive state proxy. Mark et al. on stress and computer interaction patterns. Zuger et al. on interruptibility estimation. Kaur et al. on digital indicators of focus. Any production systems using digital phenotyping for cognitive load estimation?
+
+If current research suggests a superior approach to anything I've described, recommend it with evidence.
+
+Deliver a complete implementation-ready spec with: signal collection pipeline, composite model architecture, calibration protocol, load-level definitions, intelligence gating rules, integration with all four layers, and expected accuracy trajectory (1 week, 1 month, 3 months).

@@ -1,0 +1,72 @@
+I'm building a macOS executive intelligence system called Timed that observes a C-suite executive's digital behaviour and builds a compounding cognitive model of them over months. It never acts on the world — observation and intelligence only.
+
+I need a complete implementation spec for the procedural rule generation system — the component that converts second-order insights into operational rules that constrain and guide the system's future behaviour. This is Stage 4 of the nightly Reflection Engine pipeline. Rules are the system's procedural memory — they encode what the system has LEARNED about how to serve this specific executive.
+
+Architecture context: four decoupled layers — Signal Ingestion, Memory Store, Reflection Engine, Intelligence Delivery. Tech: Swift 5.9+, Supabase, Claude Opus 4.6 at max effort for rule generation, Jina embeddings 1024-dim. Memory: episodic (events), semantic (facts), procedural (RULES — this spec). Intelligence compounds.
+
+Critical constraint: Timed NEVER acts on the world. Rules constrain what the SYSTEM does (what intelligence it surfaces, when, how, what it prioritises), not what the EXECUTIVE does. The system recommends; the human decides.
+
+Research and spec every dimension:
+
+1. **Rule schema** — The complete data model for a procedural rule:
+   - Rule ID (stable, unique)
+   - Title (human-readable): "Post-Board Protection Rule", "Friday Decision Warning"
+   - Trigger condition (when does this rule activate?): formal condition specification — time-based, event-based, signal-threshold-based, or compound conditions
+   - Recommended system action: what the system should do differently when this rule fires — surface a warning, suppress non-urgent intelligence, prioritise certain content, adjust tone of morning session, flag a decision for review
+   - Evidence source: which insight(s) generated this rule, with confidence scores
+   - Evidence count: how many observations support this rule
+   - Confidence score: overall rule confidence
+   - Last applied: when was this rule last triggered
+   - Times applied: total trigger count
+   - Effectiveness score: did applying this rule lead to better outcomes?
+   - Created date
+   - Status: {candidate, active, suspended, deprecated}
+   - Override history: has the executive ever overridden this rule? How many times?
+
+2. **Rule lifecycle** — 
+   - **Candidate:** Generated from a second-order insight. Not yet active. Awaiting confirmation or executive approval. How does the system present candidate rules? "I've noticed a pattern that suggests I should [action] when [condition]. Should I start doing this?"
+   - **Active:** The rule is live and affects system behaviour. Active rules fire automatically when trigger conditions are met.
+   - **Suspended:** The executive or the system has temporarily disabled this rule. Reasons: executive override, contradicting evidence, conflict with another rule.
+   - **Deprecated:** The rule is no longer supported by evidence. Moved to archive. Reasons: underlying pattern changed, effectiveness score dropped below threshold, executive explicitly rejected it.
+   Transition conditions between states. How long before a candidate becomes active (auto-promote after N confirmations, or always require executive approval?).
+
+3. **Rule types** — Categories of rules the system can generate:
+   - **Timing rules:** "Don't surface strategic decisions after 3pm on meeting-heavy days"
+   - **Protection rules:** "Block non-urgent intelligence for 3 days after board meetings"
+   - **Warning rules:** "When this executive is about to make a people decision they've deferred 3+ times, surface the avoidance pattern"
+   - **Prioritisation rules:** "This executive engages most with relationship intelligence in morning sessions — prioritise it"
+   - **Tone rules:** "This executive responds negatively to hedged language — be direct"
+   - **Escalation rules:** "If cognitive load has been critical for 3+ consecutive days, surface a burnout warning"
+   5-8 additional rule types with examples.
+
+4. **Conflict resolution** — Rules will inevitably contradict each other:
+   - Rule A says "surface strategic insights in the morning" but Rule B says "suppress non-urgent content when cognitive load is high" — and the executive is overloaded but has a strategic decision due tomorrow.
+   - How to detect conflicts. Priority hierarchy. Specificity trumps generality? Recency? Confidence score? Executive preference history?
+   - Research on rule conflict resolution in expert systems, production rule systems (Rete algorithm), and modern AI systems.
+
+5. **Effectiveness tracking** — The most critical component. How to know if a rule is actually helping:
+   - Proxy metrics: did the executive engage with the intelligence the rule shaped? Did outcomes improve when the rule was active vs inactive?
+   - A/B testing at the individual level: occasionally don't apply the rule and compare outcomes. Ethical considerations of withholding intelligence.
+   - Executive feedback: explicit thumbs up/down on rule-influenced outputs.
+   - Temporal comparison: executive's performance metrics before rule activation vs after.
+   How to compute an effectiveness score. How to decay effectiveness when evidence is stale.
+
+6. **Rule deprecation** — When should a rule die?
+   - Underlying pattern no longer detected (the executive changed their behaviour)
+   - Effectiveness score drops below threshold for N consecutive measurement periods
+   - Executive overrides the rule more than N times
+   - Conflicting rule with higher confidence supersedes it
+   - Evidence count stops growing (the pattern that generated the rule has stabilised or disappeared)
+   Deprecation is important for compounding — stale rules degrade intelligence quality.
+
+7. **Rule generation prompt for Opus** — The LLM prompt that takes a second-order insight and generates candidate rules:
+   - Input: the insight (with full evidence chain), existing active rules (to avoid duplicates and conflicts), the executive's override history (to learn their preferences)
+   - Output: 0-N candidate rules in the schema above
+   - Calibration: "Only generate a rule if you are confident it would improve the system's service to this executive based on the evidence provided"
+   - Include negative examples: "Do NOT generate rules that constrain the executive's behaviour — only rules that constrain the system's behaviour"
+
+8. **Research** — Production rule systems (OPS5, CLIPS, Drools) adapted for personal AI. Reinforcement learning for rule effectiveness. Expert systems and their failure modes. How modern AI systems handle procedural learning. Any personal AI systems that generate and maintain operational rules?
+
+If current research suggests a superior approach to anything I've described, recommend it with evidence.
+
+Deliver a complete implementation-ready spec with: rule schema, lifecycle state machine, rule type taxonomy with examples, conflict resolution algorithm, effectiveness tracking methodology, deprecation criteria, Opus prompt template for generation, storage model, and integration contracts with the Reflection Engine and Intelligence Delivery layer.

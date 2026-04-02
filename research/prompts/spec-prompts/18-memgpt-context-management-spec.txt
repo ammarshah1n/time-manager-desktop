@@ -1,0 +1,51 @@
+I'm building a cognitive intelligence system called Timed for C-suite executives. The system uses multiple AI models (Claude Haiku for classification, Sonnet for estimation, Opus at max effort for nightly reflection and morning briefings). Each AI call has a finite context window. The system has thousands of memories accumulating over months. The fundamental challenge: **how to get the RIGHT information into the context window for each AI call.**
+
+macOS native (Swift 5.9+, CoreData), Supabase + Edge Functions, Jina AI embeddings (1024-dim). Observation and intelligence only — never acts on the world.
+
+The system is inspired by **MemGPT** (Packer et al. 2023) — an operating-system-inspired approach to LLM memory management with three tiers: main context (always loaded), recall storage (searchable), and archival storage (long-term vector store).
+
+**I need a complete specification for how Timed manages context across its three operational memory tiers.**
+
+Research and specify:
+
+1. **Core memory: what's always loaded.** Core memory is the subset of knowledge that goes into EVERY AI call's system prompt. It must be compact (target: under 2000 tokens) but maximally informative. Contents:
+   - Executive's identity: name, role, company, reporting structure
+   - Current top priorities (updated weekly by reflection engine)
+   - Key relationships (top 10 people with relationship context)
+   - Active procedural rules (highest-confidence, most-applied rules)
+   - Current state: today's schedule, pending decisions, active projects
+   Research: how does MemGPT decide what goes in main context? How do other systems (ChatGPT memory, Anthropic artifacts) manage persistent context? What's the optimal size for "always-on" context before diminishing returns? How to compress maximum signal into minimum tokens?
+
+2. **Core memory write-back.** Core memory must be updated when important things change. Triggers:
+   - Reflection engine produces new high-priority insights
+   - User's schedule changes significantly
+   - A new procedural rule is promoted to active
+   - User explicitly corrects something
+   Research: MemGPT's "interrupt-driven write-back" mechanism — when the LLM decides it needs to update its own memory. How should Timed handle this? Should the LLM have self-modification capability over core memory (like MemGPT), or should only the reflection engine modify core memory (safer but less adaptive)?
+
+3. **Recall memory: searchable episodic history.** When the AI needs more context than core memory provides, it searches recall memory. This is the searchable index of episodic memories — recent events, conversations, task interactions. How should recall memory be structured for fast retrieval? Search mechanisms: keyword search, temporal search (last N hours/days), entity search (events involving person X), and vector similarity. How large should the recall window be (last 7 days? 30 days?)? How to index recall memory for sub-500ms retrieval?
+
+4. **Archival memory: long-term vector store.** Patterns, insights, summarised histories, and rarely-accessed but potentially valuable knowledge. Stored in Supabase vector store with Jina AI 1024-dim embeddings. When to query archival: the AI recognises it needs historical context that isn't in recall. Archival contains: semantic facts, procedural rules, summarised episode clusters, monthly/quarterly reflection outputs. How to structure archival for efficient vector search? How to handle the growing size over months/years?
+
+5. **Context assembly for each AI consumer.** Different AI calls need different context compositions:
+   - **Morning briefing (Opus)**: core memory + today's schedule + last 24h significant episodes + relevant semantic facts + active procedural rules + week-level patterns. Target: fit in 100K context window with room for generation.
+   - **Email classification (Haiku)**: core memory (minimal) + email content + relevant email rules + recent email interaction history. Target: fit in 200K context window, <200ms per classification.
+   - **Proactive alert (Sonnet)**: core memory + the triggering event + relevant procedural rules + similar historical episodes. Target: fit in 200K context window, <2s response.
+   - **Nightly reflection (Opus)**: core memory + ALL today's episodes + relevant historical patterns + current semantic model + current procedural rules. Target: fit in 200K window, can take 30-60 seconds.
+   For each: the exact context assembly algorithm, what gets included, what gets truncated if context pressure is high, priority ordering for what to cut first.
+
+6. **Context pressure management.** What happens when there's too much relevant information for the context window? MemGPT's approach: interrupt when context is getting full, summarise older context, write summaries to archival, free up space. For Timed: how to detect context pressure before it causes truncation? Summarisation strategy: what to summarise, how to summarise without losing critical details, how to store summaries. Research: context window management strategies in long-running AI systems, progressive summarisation, hierarchical summarisation.
+
+7. **Morning session context assembly — detailed walkthrough.** The morning session is the flagship experience. Walk through exactly how context is assembled:
+   - Start with core memory (executive identity, priorities, rules)
+   - Pull today's calendar from recall
+   - Retrieve last 24h significant episodes from recall
+   - Use vector search on archival to find patterns relevant to today's context
+   - Pull active procedural rules that apply to today's task types
+   - Check semantic facts for energy patterns (time of day optimization)
+   - Assemble all into a structured prompt for Opus
+   - If total exceeds context budget: what gets cut and why?
+
+8. **Memory tier synchronisation.** Core memory on device (CoreData) vs recall and archival on Supabase. How to keep them in sync? What happens when the device is offline? Conflict resolution when device and server have divergent state. How to handle the latency between Supabase vector search and local CoreData queries. Research: CRDT or other conflict-free approaches for distributed memory state.
+
+For every specification: exact schemas, algorithms with pseudocode, token budgets per context component, latency requirements, and failure modes (Supabase down, context window exceeded, empty memory on cold start). If current research suggests a superior approach to MemGPT's architecture, recommend it with evidence.

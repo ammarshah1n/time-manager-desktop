@@ -1,0 +1,65 @@
+I'm building a macOS executive intelligence system called Timed that observes a C-suite executive's digital behaviour and builds a compounding cognitive model of them over months. It never acts on the world — observation and intelligence only.
+
+I need a complete Named Pattern Library — the 25-35 pattern archetypes that Timed can detect, each one a named, defined behavioural phenomenon. This is the vocabulary of the system's intelligence — the set of things it can recognise and name in an executive's behaviour. The library should be exhaustive enough to cover the major dimensions of executive cognition and behaviour, while being specific enough that each pattern has clear detection criteria.
+
+Architecture context: four decoupled layers — Signal Ingestion, Memory Store, Reflection Engine, Intelligence Delivery. Tech: Swift 5.9+, Supabase, Claude Haiku/Sonnet/Opus tiered, Jina embeddings 1024-dim. Memory: episodic, semantic, procedural. Intelligence compounds.
+
+For EACH pattern archetype in the library, provide:
+
+1. **Pattern name** — A memorable, specific name (not generic). Examples: "The Monday Reset Surge", "Post-Board Fatigue", "Conflict Approach-Retreat Cycle". The name should be something the executive would recognise and say "yes, that's me."
+
+2. **Category** — Which pattern family:
+   - Avoidance patterns
+   - Chronotype / energy patterns
+   - Relationship / communication patterns
+   - Cognitive load patterns
+   - Strategic vs tactical imbalance patterns
+   - Decision quality patterns
+   - Communication style patterns
+   - Energy and recovery patterns
+   - Attention and focus patterns
+   - Meeting behaviour patterns
+
+3. **Definition** — What this pattern is, in 2-3 sentences. What it reveals about the executive.
+
+4. **Detection signals** — The specific observable signals that evidence this pattern. Which data sources. What thresholds or comparisons.
+
+5. **Minimum evidence** — How many observations and over what time period before the system declares this pattern with confidence.
+
+6. **Example surface text** — What the morning session would say when this pattern is active. 2-3 example phrasings of different confidence levels.
+
+7. **Connection to memory tier** — Which memory tier stores evidence for this pattern (episodic, semantic, or procedural). How the pattern relates to rules it might generate.
+
+8. **Personalisation dimension** — How this pattern differs between executives. What makes THIS executive's version unique.
+
+Build the library across these categories. Research each archetype:
+
+**Avoidance patterns (4-5 archetypes):**
+- Conflict avoidance, strategic ambiguity avoidance, delegation avoidance, difficult conversation avoidance, admission avoidance
+
+**Chronotype / energy patterns (3-4 archetypes):**
+- Peak performance windows, post-meeting recovery, energy cycles, weekend recharge effects
+
+**Relationship patterns (3-4 archetypes):**
+- Relationship cooling, selective attention allocation, communication formality drift, initiation imbalance
+
+**Cognitive load patterns (3-4 archetypes):**
+- Overload cascade, productive capacity ceiling, meeting saturation, decision fatigue accumulation
+
+**Strategic vs tactical imbalance (2-3 archetypes):**
+- Strategic drift (too much time on operations), tactical neglect (too much time on strategy and things fall apart), priority-action gap
+
+**Decision quality patterns (3-4 archetypes):**
+- Time-of-day decision quality variation, rush-when-tired pattern, consensus-seeking delay, decision reversal cycles
+
+**Communication patterns (2-3 archetypes):**
+- Audience-adaptive communication, stress-compression (emails get shorter under load), channel-switching escalation
+
+**Attention and focus patterns (2-3 archetypes):**
+- Interruptibility cycles, deep work deficit, attention fragmentation trends
+
+Research grounding: for each archetype, cite relevant research on executive behaviour, cognitive psychology, or organisational behaviour that supports the pattern's existence and detectability.
+
+If current research suggests additional important pattern archetypes I've missed, include them with evidence.
+
+Deliver a complete library document with: all 25-35 pattern archetypes fully specified, organised by category, with detection criteria, evidence thresholds, surface text examples, and research grounding. This document becomes the system's pattern vocabulary and should be implementable directly.

@@ -1,0 +1,34 @@
+I need a complete product requirements document for the focus timer in Timed — a macOS cognitive intelligence layer for C-suite executives. The focus timer is not just a Pomodoro clone. It is a data collection instrument that feeds the system's understanding of when, how, and how long this specific person can sustain deep focus.
+
+**Hard constraints:**
+- Timed never acts on the world — observation only.
+- macOS native: Swift 5.9+, SwiftUI, CoreData.
+- Intelligence compounds — Month 6 >> Month 1.
+- Opus 4.6 at max effort for reflection, no cost cap.
+- C-suite executive user. The timer must respect their autonomy — no guilt mechanics.
+
+**What I need specified:**
+
+1. **Start/stop/pause mechanics** — How does the executive start a focus session? Options: (a) from the day plan (tap a task → "Start focus"), (b) from the menu bar, (c) voice command, (d) keyboard shortcut. Can they set a target duration? Should the system suggest a duration based on EMA estimates for this task type? Pause: does pausing count as a break or a distraction? Stop early: how to capture the reason (completed, interrupted, gave up, re-prioritised).
+
+2. **Completion data as EMA training signal** — Every completed focus session feeds the Exponential Moving Average time estimation model. Data captured: task type, estimated duration, actual duration, time of day, day of week, preceding activities (meetings? breaks? other focus?), energy state estimate. How this data updates the EMA model. Research on EMA for personal time estimation — what smoothing factor (alpha) is optimal for learning individual work patterns? How many data points before estimates become reliable?
+
+3. **Distraction logging** — During a focus session, every app switch is logged as a potential distraction event. Data: timestamp, which app was switched to, duration away, whether the switch was "productive" (Slack message from a direct report about the focus task) or "unproductive" (Twitter). How to classify distractions without requiring manual labelling every time. Research on automatic distraction classification from app usage patterns. How distraction frequency correlates with session quality.
+
+4. **Session quality scoring** — After each focus session, the system computes a quality score. Factors: distraction count, distraction total duration, flow state indicators (sustained typing/mouse activity without app switches), task completion percentage, comparison to this person's historical performance on this task type. Research on measuring focus/flow states from computer interaction patterns. Csikszentmihalyi's flow state indicators — which can be detected from digital signals?
+
+5. **Chronotype inference from focus data** — Focus session data is one of the richest signals for learning when this person sustains concentration best. How to extract chronotype curves from focus data: plot session quality scores by time-of-day, day-of-week. Statistical methods for inferring individual chronotype from productivity data. Research on computational chronotype detection from behavioural signals vs self-report questionnaires (which are unreliable).
+
+6. **Connection to proactive alerts** — During a focus session, the system suppresses all non-critical alerts. What qualifies as "critical" enough to interrupt focus? Research on interruption cost — how long does it take to recover deep focus after an interruption? (Mark, Gudith, & Klocke 2008; Bailey & Konstan). The system must protect focus sessions aggressively.
+
+7. **Break recommendations** — When should the system recommend a break? Not on a fixed schedule (Pomodoro's 25-minute intervals don't respect individual variation). Based on: session duration relative to this person's typical sustained focus ceiling, detected quality decline (increasing distraction frequency), ultradian rhythm research (90-120 min cycles). Research on optimal break timing, duration, and activity. What do executives actually do during breaks that restores cognitive capacity vs what depletes it further?
+
+8. **Focus session history and trends** — What analytics does the executive see about their focus patterns? Daily/weekly/monthly focus hours. Quality trends. Best time-of-day for focus (proven by their own data). Improvement over time. How to present this data in a way that motivates without gamifying. Research on self-quantification for knowledge workers — what metrics actually drive behaviour improvement?
+
+9. **Integration with day plan** — Focus sessions should be pre-scheduled in the day plan. When the executive starts a focus session, the system knows which task it's for. When the session ends, task progress is updated. If a scheduled focus block is skipped, that's signal (avoidance? re-prioritisation?). How focus sessions interact with calendar events (what if a meeting starts in 15 minutes — should the system mention it?).
+
+10. **Research on focus and deep work** — Cal Newport's Deep Work framework. What does the research say about how elite performers structure their deep work? How many hours of deep work per day are realistic for a C-suite executive (research suggests 3-4 hours maximum even for full-time researchers)? How does meeting load affect available deep work capacity?
+
+Produce a complete PRD with mechanics, data capture, ML integration points, UX flows, and acceptance criteria. The focus timer must be the primary instrument for learning this person's cognitive rhythm.
+
+If current research suggests a superior approach to any component, recommend it with evidence.

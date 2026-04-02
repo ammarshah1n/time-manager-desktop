@@ -1,0 +1,38 @@
+I'm building a cognitive intelligence system called Timed for C-suite executives. It builds a compounding model of how a specific executive thinks and operates. macOS native (Swift 5.9+, CoreData), Supabase + Edge Functions backend, Claude AI (Haiku/Sonnet/Opus), Jina AI embeddings (1024-dim).
+
+Three-tier memory: episodic (raw events), semantic (learned facts — THIS document), procedural (operating rules). The reflection engine runs nightly using Opus at max effort: reads episodic memories → extracts patterns → updates semantic memory → generates procedural rules. Stanford Generative Agents architecture.
+
+Observation and intelligence only — the system never acts on the world.
+
+**Semantic memory IS the system's understanding of who this person is.** It's not a database of facts — it's a living, evolving model of a specific human being. When the morning session says "You've been avoiding the Meridian deal for 4 days — historically when you avoid financial decisions this long, the anxiety compounds and makes the task feel 3x larger than it actually is" — that intelligence comes from semantic memory.
+
+**I need a complete product requirements document for the semantic memory tier.**
+
+Research and specify:
+
+1. **What kinds of facts constitute semantic memory about an executive?** Taxonomy of fact types. Categories to research and enumerate:
+   - **Identity facts**: role, company, team structure, reporting lines, tenure
+   - **Behavioural patterns**: when they do their best deep work, how they handle email, meeting behaviour, communication style
+   - **Cognitive patterns**: decision-making style, risk tolerance, how they process new information, analysis paralysis triggers
+   - **Avoidance patterns**: what kinds of tasks they defer, what emotional triggers cause avoidance, how avoidance manifests
+   - **Energy patterns**: chronotype, energy curve through the day, post-lunch dip, second wind timing
+   - **Relationship dynamics**: who they respond to fastest, who they avoid, power dynamics, trust levels
+   - **Preference patterns**: preferred work block length, meeting tolerance, communication channel preferences
+   - **Stress indicators**: what behavioural signals correlate with stress, overload patterns, recovery patterns
+   Research: What does cognitive science say about the categories of semantic knowledge humans maintain about other humans? What would a clinical psychologist's patient model look like as a data structure?
+
+2. **Schema for semantic facts.** Each semantic fact needs: fact_id (UUID), fact_type (enum from taxonomy), subject (what/who the fact is about), claim (the actual fact in natural language), confidence_score (float 0-1), evidence_chain (array of episodic memory IDs that support this fact), first_observed (timestamp), last_updated (timestamp), observation_count (int — how many times this pattern has been observed), contradiction_count (int — how many times contradicting evidence has appeared), embedding (1024-dim vector), status (active, uncertain, deprecated). Research what other fields are essential.
+
+3. **How facts are extracted from episodic memory.** The reflection engine reads today's episodic memories and asks: "What does this tell me about who this person is?" Not every episode produces a semantic fact. The extraction process: what triggers a new fact vs an update to an existing fact? Research: how do cognitive architectures (ACT-R, SOAR, CLARION) handle semantic memory formation? How does the Stanford Generative Agents paper handle the transition from observations to character knowledge?
+
+4. **Confidence scoring.** A fact observed once has low confidence. A fact observed 50 times across 3 months has high confidence. But confidence isn't just frequency — it's also recency and consistency. Research: Bayesian approaches to confidence in personal modelling. How to compute confidence from: number of supporting observations, recency of observations, consistency across different contexts, absence of contradictions. Provide the exact formula or algorithm.
+
+5. **Update logic: when does a new observation update vs replace an existing fact?** This is the hardest problem. The executive's behaviour changes over time — new role, new team, life event, gradual drift. When the system observes behaviour that contradicts an existing semantic fact, it could mean: (a) the fact is wrong and needs correction, (b) the fact was right but the person has changed, (c) it's an anomaly/outlier that should be noted but not cause an update. Research: how to distinguish genuine change from noise. Change point detection applied to personal behavioural data. What algorithms or heuristics determine whether to update, flag, or ignore?
+
+6. **Confidence decay over time.** A fact observed 6 months ago with no recent supporting evidence should decay in confidence. But some facts are stable (chronotype doesn't change much) while others are volatile (current project priorities change weekly). Research: different decay functions for different fact types. Exponential decay with type-specific half-lives? How does the brain handle this — semantic memories that haven't been accessed in years?
+
+7. **Contradiction handling.** When new evidence directly contradicts an existing semantic fact. Example: the system believes "user does best deep work in the morning" but recent data shows evening deep work sessions are more productive. Process: log the contradiction, increase contradiction_count, possibly create a competing fact, let the reflection engine resolve. Research: belief revision in AI systems, truth maintenance systems, how to handle contradictory evidence in Bayesian personal models.
+
+8. **The semantic model as the intelligence core.** This model is what makes the morning session intelligent. It's what allows the system to say "you always delay board prep until the night before — should we schedule it differently this quarter?" How to structure the semantic model so it's queryable for the morning session builder, the proactive alert system, and the reflection engine? What query patterns does each consumer need?
+
+For every specification: exact schemas, algorithms with pseudocode, edge cases, and how the system degrades gracefully when data is sparse (first week of use). If current research suggests a superior approach, recommend it with evidence.

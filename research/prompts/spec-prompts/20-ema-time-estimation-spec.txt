@@ -1,0 +1,84 @@
+I'm building a cognitive intelligence system called Timed for C-suite executives. One core capability: learning how long tasks ACTUALLY take this specific person — not generic estimates, not what they think, but ground truth from observed behaviour.
+
+macOS native (Swift 5.9+), Supabase + Edge Functions, Claude AI. Observation and intelligence only — suggests time estimates, never acts.
+
+The system uses an **Exponential Moving Average (EMA)** model that learns from focus timer completion data. When the executive uses the focus timer and completes a task, the system records: estimated duration vs actual duration. Over weeks, this builds an increasingly accurate model of how long things actually take THIS person.
+
+This is already partially shipped. The focus timer records completions. EMA updates happen in `PlanningEngine.swift`.
+
+**I need a complete specification for the EMA time estimation model.**
+
+Research and specify:
+
+1. **EMA fundamentals for this use case.** The exponential moving average gives more weight to recent observations while still considering history. For time estimation:
+   - `new_estimate = α × actual_duration + (1 - α) × previous_estimate`
+   - Where α (smoothing factor) controls how fast the model adapts
+   - What is the optimal α for personal task duration learning? Research: standard EMA smoothing factors for time series with the characteristics of human task completion (noisy, non-stationary, occasional outliers, regime changes). Should α be fixed or adaptive?
+   - **Window size**: how many historical observations should influence the current estimate? In a pure EMA, all observations influence it (with exponential decay). But should there be an explicit window (last 20 observations)? Research: truncated vs infinite EMA for personal time estimation.
+
+2. **Per-task-type calibration.** Different task types have different duration characteristics. Separate EMA models for:
+   - **Email processing**: batch email triage sessions (how long to process N emails)
+   - **Document writing**: reports, memos, strategic documents
+   - **Financial analysis**: spreadsheets, budgets, financial review
+   - **Meetings**: actual meeting duration vs scheduled (meetings often run over)
+   - **Deep thinking/strategy**: unstructured problem-solving, planning
+   - **Administrative**: expenses, approvals, form-filling
+   - **Communication**: composing important emails/messages, phone calls
+   How to define task categories? Should the system learn new categories automatically (cluster task durations by characteristics)? How many observations per category before the estimate is useful? Research: minimum sample sizes for EMA convergence.
+
+3. **Confidence intervals that narrow over time.** The system shouldn't just say "45 minutes" — it should say "45 minutes (±10 minutes, 85% confidence)." Early estimates have wide intervals. After 20+ observations, intervals narrow.
+   - How to compute confidence intervals from EMA? (EMA alone doesn't produce intervals — need a variance estimate.)
+   - Research: EMA with variance tracking — `variance = α × (actual - estimate)² + (1 - α) × previous_variance`. Then confidence interval = estimate ± z × √variance.
+   - How to display confidence to the user: explicit range? Colour coding? How do executives prefer to see uncertainty?
+   - Research: calibration — ensuring the stated confidence level matches actual hit rate. If the system says "85% confidence" it should be right 85% of the time.
+
+4. **Focus timer completion data as ground truth.** The primary data source: user starts focus timer for a task → works → completes. Data captured:
+   - estimated_duration (user's initial estimate or system's suggested estimate)
+   - actual_duration (timer value at completion)
+   - number_of_pauses (interruptions during focus session)
+   - pause_total_duration (total time paused)
+   - time_of_day
+   - day_of_week
+   - task_type
+   - completion_status (completed normally, abandoned, timer expired)
+   How should paused time be handled? Include in actual_duration or exclude? How to handle abandoned sessions (started but never completed)? How to handle tasks completed across multiple focus sessions?
+
+5. **Handling missing data.** Not all tasks are completed via the focus timer. Many are just marked "done" with no duration data. Options:
+   - Ignore tasks without timer data (lose signal, keep quality)
+   - Infer duration from timestamps (task moved to "in progress" at 2pm, marked done at 3:15pm — but the user might have done other things in between)
+   - Use calendar blocking as a proxy (if the user blocked 1 hour for "quarterly report" and marked it done after, assume ~1 hour)
+   Research: handling missing data in time series estimation, imputation strategies that don't introduce systematic bias.
+
+6. **Outlier handling.** Sometimes a task that normally takes 30 minutes takes 4 hours (interrupted by crisis, meetings, went down a rabbit hole). If the EMA incorporates this outlier naively, the estimate jumps. Strategies:
+   - **Winsorisation**: cap observations at some percentile (e.g., values above 95th percentile are capped)
+   - **Robust EMA**: use median-based updating instead of mean-based
+   - **Outlier detection**: identify outliers (e.g., >3σ from current estimate) and reduce their weight
+   - **Contextual filtering**: if the task took 4 hours because the user paused 15 times, the active time might still be 45 minutes — should paused time be excluded?
+   Research: robust time series estimation, outlier handling in EMA, what approach produces the best estimates for noisy human behaviour data.
+
+7. **Bias correction.** Executives systematically underestimate how long tasks take (planning fallacy). Research says people underestimate by 25-50% on average. The system should:
+   - Track the user's estimation bias (ratio of actual/estimated across all tasks)
+   - Apply a bias correction factor when presenting estimates
+   - Show the bias explicitly: "You estimated 1 hour, but your history suggests this will take about 1.5 hours"
+   - Learn if bias differs by task type (some people are accurate at estimating meetings but terrible at estimating writing time)
+   Research: planning fallacy, debiasing strategies, reference class forecasting applied to personal task estimation.
+
+8. **Regime changes.** What happens when the person's patterns change? New role = new task types. New project = different work patterns. Post-vacation = adjustment period. The EMA needs to detect and adapt:
+   - **Change point detection**: statistical methods to detect when the underlying distribution has shifted
+   - **Adaptive α**: increase α (learn faster) when a change point is detected, decrease α (smooth more) during stable periods
+   - Research: Bayesian Online Changepoint Detection for personal time series, adaptive EMA algorithms
+   - What triggers a reset vs a gradual adaptation? If someone moves from CFO to CEO, all their task patterns change — should the model partially reset?
+
+9. **The estimation-scheduling feedback loop.** The EMA estimate feeds into the calendar allocator (how much time to block for a task). If the allocator blocks too little time, the user can't finish and the task spills over. If it blocks too much, the schedule has waste. How should estimates feed into scheduling:
+   - Use the confidence interval, not just the point estimate (block for the 75th percentile duration?)
+   - Buffer time between tasks based on context switching cost
+   - Adjust based on time of day (same task takes longer in the afternoon for this person?)
+   Research: optimal scheduling under uncertain task durations, stochastic scheduling algorithms.
+
+For every specification: exact mathematical formulas, algorithm pseudocode, recommended parameter values with justification, convergence analysis (how many observations before estimates are useful?), and failure modes (too few observations, extreme outliers, category with only 1 observation). If current research suggests a superior approach to EMA for personal time estimation, recommend it with evidence.
+
+---
+
+# Research Pack 05 — Reflection Engine, Pattern Intelligence, and Cognitive Modelling
+
+> Give all 10 prompts to Perplexity Deep Research, one at a time. Save each result. Bring them all back.

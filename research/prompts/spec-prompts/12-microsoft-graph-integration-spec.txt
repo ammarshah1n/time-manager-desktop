@@ -1,0 +1,29 @@
+I'm building a macOS native application (Swift 5.9+, SwiftUI) called Timed — a cognitive intelligence layer for C-suite executives. It connects to Microsoft 365 to observe email and calendar as input signals for building a compounding model of how the executive operates. The system is observation and intelligence only — it NEVER acts on the world. It reads data from Microsoft Graph. It never writes, sends, modifies, or deletes anything. This is a non-negotiable architectural constraint.
+
+The system has four strict layers: Signal Ingestion → Memory Store → Reflection Engine → Intelligence Delivery. Microsoft Graph is a signal source for Layer 1 only. No cross-layer coupling.
+
+Backend: Supabase + Edge Functions. Auth: MSAL (Microsoft Authentication Library) on macOS. Distribution: direct DMG (not App Store).
+
+**I need a complete, implementation-ready specification for integrating Microsoft Graph into this macOS application.**
+
+Research and specify:
+
+1. **OAuth 2.0 via MSAL on macOS.** The exact MSAL library to use for a native macOS Swift app (MSAL for macOS — `MSAL` via SPM). The OAuth 2.0 authorization code flow with PKCE for public clients. Redirect URI configuration for a macOS app (custom URI scheme vs localhost). Azure App Registration setup: what to configure, what permissions to request. Consent flow for organizational vs personal accounts. How to handle the first-time login experience for a C-suite executive (it must be seamless — they will not tolerate friction).
+
+2. **Scopes: Mail.Read, Calendars.Read, offline_access.** Why these specific scopes and nothing more. What data each scope grants access to. What the system explicitly CANNOT do with these scopes (cannot send email, cannot modify calendar, cannot access other users' data). How to enforce the read-only constraint ARCHITECTURALLY — not just "we don't call write endpoints" but how to make it impossible for a code bug or future developer to accidentally write. Suggestions: wrapper layer that only exposes GET methods, compile-time enforcement, scope validation on every request.
+
+3. **Token lifecycle management.** Access token acquisition, caching, refresh, and expiry handling. How MSAL handles token caching on macOS (Keychain). Refresh token lifetime and what happens when it expires (re-authentication flow). How to handle token refresh in background sync (no UI available). Error handling: what happens when tokens are revoked by IT admin, when the user changes their password, when MFA is required. Graceful degradation: what the app does when Graph access is temporarily lost.
+
+4. **Delta sync for email.** Microsoft Graph delta queries (`/me/messages/delta`) for incremental mail sync. How delta tokens work, how to store them, what happens when a delta token expires (full resync). What fields to request per message (subject, from, receivedDateTime, importance, categories, bodyPreview — NOT full body unless needed). Pagination handling for large mailboxes. How to handle the initial sync (could be thousands of emails — what's the right window? Last 30 days? Last 90 days? Strategy for executives with 500+ emails/day).
+
+5. **Delta sync for calendar.** Microsoft Graph calendar view (`/me/calendarView/delta`) for incremental calendar sync. Event fields needed: subject, start, end, organizer, attendees, location, isAllDay, isCancelled, responseStatus. How to handle recurring events (expand or track the series?). Time zone handling. How to detect calendar changes that matter (new meeting, cancelled meeting, moved meeting) vs noise (tentative → accepted).
+
+6. **Rate limits and throttling.** Microsoft Graph rate limits per app, per user, per tenant. What the actual numbers are (requests per second, per 10-minute window). How throttling manifests (429 responses, Retry-After headers). Backoff strategy: exponential backoff with jitter. How to design the sync cadence to stay well within limits while keeping data fresh. What's the right polling interval for a single-user app? (This is NOT a multi-tenant SaaS — it's one user on one machine.)
+
+7. **Webhook vs polling tradeoffs.** Microsoft Graph change notifications (webhooks) vs periodic polling. Webhook setup: subscription creation, renewal (max 4230 minutes for mail), notification URL (needs a public endpoint — implications for a macOS app that may not have a server). If using Supabase Edge Functions as the webhook receiver: the architecture. If polling is simpler for a single-user app: the polling architecture. Recommendation with evidence for which approach is better for this specific use case.
+
+8. **Error handling and retry.** Every Graph API error code and the correct response. Network failures, timeouts, 401 (re-auth), 403 (permission denied), 404 (resource not found), 429 (throttled), 500/502/503 (service error). Retry policy for each. Circuit breaker pattern: when to stop retrying and alert the user. How to log Graph errors for debugging without logging sensitive email content.
+
+9. **Security and privacy.** How to store tokens securely (macOS Keychain). How to handle email content in transit and at rest. What to log vs what never to log (never log email bodies in plaintext, never log attachments). GDPR/privacy considerations for storing email metadata. How to handle the executive's IT department potentially auditing Graph access.
+
+For every specification: provide exact API endpoints, request/response schemas, Swift code patterns where relevant, and failure mode handling. If current research or Microsoft documentation suggests a superior approach, recommend it with evidence.

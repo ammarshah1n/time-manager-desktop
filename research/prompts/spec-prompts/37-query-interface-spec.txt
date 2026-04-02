@@ -1,0 +1,57 @@
+I need a complete specification for the free-form query interface in Timed — a macOS cognitive intelligence layer for C-suite executives. This is the moment when the system demonstrates the depth of its knowledge. The executive asks a question, and the answer proves the system truly knows them.
+
+**Hard constraints:**
+- Timed never acts on the world — observation only.
+- macOS native: Swift 5.9+, SwiftUI.
+- Four layers: Signal Ingestion → Memory Store → Reflection Engine → Intelligence Delivery. No cross-layer coupling.
+- Intelligence compounds — Month 6 >> Month 1.
+- Opus 4.6 at max effort for query responses, no cost cap.
+- C-suite executive user.
+
+**Memory architecture context:**
+- **Episodic memory:** Timestamped records of what happened (meetings, emails, decisions, conversations, observations). Stored as vector embeddings (Jina 1024-dim) + raw text in Supabase.
+- **Semantic memory:** Learned facts about the executive (preferences, relationships, rules, patterns). Updated by the reflection engine.
+- **Procedural memory:** Learned rules for how the executive operates ("Always reviews financials before board meetings", "Delegates technical decisions to CTO but keeps product decisions").
+- **MemGPT-style context management:** Active context window + archival memory with retrieval.
+
+**What I need specified:**
+
+1. **Query types and examples** — Exhaustively categorise what an executive might ask:
+   - **Temporal recall:** "When did I last talk to Sarah about the pipeline?" "What did I decide about the Jakarta expansion?"
+   - **Pattern queries:** "Show me my decision pattern on hiring." "Do I procrastinate on financial reviews?"
+   - **Relationship queries:** "What's my communication history with the board chair?" "Who have I been neglecting?"
+   - **Behavioral self-inquiry:** "Am I spending more time on operations this quarter?" "What's my average focus time per day this month?"
+   - **Predictive queries:** "If I skip the Henderson prep, what's likely to happen based on my past patterns?"
+   - **Comparative queries:** "How does this week compare to my best week last month?"
+   - **Strategic queries:** "What are the three things I've been avoiding the longest?"
+   
+   For each type: what memory tiers are searched, what retrieval strategy is used, what computation is required.
+
+2. **Retrieval pipeline** — Step-by-step process from natural language query to composed response:
+   - Query understanding: intent classification, entity extraction, temporal parsing
+   - Memory search: which tiers to search (episodic, semantic, procedural), in what order, with what relevance thresholds
+   - Vector retrieval: embedding the query, searching against episodic memory vectors, re-ranking results
+   - Semantic memory consultation: checking learned facts that contextualize episodic results
+   - Procedural memory check: are there relevant rules that apply?
+   - Response composition: how retrieved memories + semantic facts + rules are synthesized into a coherent answer
+   
+   Research on retrieval-augmented generation (RAG) best practices for personal memory systems. What's different about RAG when the corpus is a single person's life data vs a general knowledge base? Hybrid search (vector + keyword + temporal filtering).
+
+3. **Response quality criteria** — What makes a good query response?
+   - **Specificity:** Dates, names, exact quotes when available. Not "you discussed this recently" but "on March 3rd at 2:15pm, during your 1:1 with Sarah, you said 'the pipeline won't close until we fix the pricing model.'"
+   - **Context:** Not just the answer but the surrounding intelligence. "You asked about Sarah and the pipeline — it's worth noting you've discussed this 4 times in the last 6 weeks with declining urgency, which matches your avoidance pattern on pricing decisions."
+   - **Honesty about gaps:** If the system doesn't have enough data, say so. "I don't have visibility into that conversation — it may have happened outside my observation window."
+
+4. **Response latency targets** — How fast must the answer arrive? Research on acceptable wait times for complex queries in professional tools. What expectations do executives have? Can the system provide an immediate partial answer ("I'm searching 6 months of our interactions...") followed by the complete response?
+
+5. **What the system cannot answer** — Define the boundaries clearly. It cannot answer about events outside its observation window. It cannot answer about other people's motivations. It cannot predict market outcomes. It should never fabricate memories. Research on hallucination prevention in RAG systems — how to ensure the system only returns information it actually has.
+
+6. **Query interface UX** — How does the executive ask questions? Options: (a) voice query from morning session, (b) text query from menu bar popover, (c) text query from full app, (d) keyboard shortcut → query bar. For each: input method, response display format (text? voice? both?), conversation threading (can they ask follow-ups?).
+
+7. **Query-driven learning** — Every query teaches the system what the executive cares about. If they repeatedly ask about a specific project, that project's importance score should increase. If they ask "who have I been neglecting?" — that question reveals they value relationship maintenance. Research on learning user interests from query patterns.
+
+8. **Privacy and sensitivity** — Some queries will touch sensitive information (personnel issues, M&A, personal struggles). The system must handle sensitive data with appropriate care. On-device processing where possible. No sensitive data in logs. Research on privacy-preserving retrieval in personal AI systems.
+
+Produce a complete query interface specification with query taxonomy, retrieval pipeline, response composition logic, latency budgets, UX design, and the boundary between what the system can and cannot answer. The spec must be implementable.
+
+If current research suggests a superior approach to any component, recommend it with evidence.

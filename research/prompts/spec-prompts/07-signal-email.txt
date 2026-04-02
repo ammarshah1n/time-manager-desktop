@@ -1,0 +1,121 @@
+I am building **Timed**, a macOS-native cognitive intelligence layer for C-suite executives. It is NOT a productivity app, task manager, or personal assistant. It builds a deep, compounding model of how a specific executive thinks, decides, avoids, prioritises, and operates — then uses that model to return cognitive bandwidth.
+
+**Hard constraints:**
+- Timed never acts on the world — observation and intelligence only. It never sends emails, never modifies calendars, never takes any action.
+- macOS native: Swift 5.9+, SwiftUI, CoreData, on-device voice only.
+- Four strict layers: Signal Ingestion → Memory Store → Reflection Engine → Intelligence Delivery. No cross-layer coupling.
+- Intelligence compounds over time — Month 6 must be qualitatively smarter than Month 1.
+- No cost cap on intelligence quality — uses Claude Opus for nightly reflection.
+- User is a C-suite executive who has tried everything. Impressed by understanding, not features.
+
+**Tech stack:** Supabase backend + Edge Functions. AI models: Haiku 3.5 (classification), Sonnet (estimation), Opus 4.6 (reflection + morning director). Embeddings: Jina AI jina-embeddings-v3 (1024-dim). Auth: Microsoft OAuth via MSAL (Mail.Read, Calendars.Read, offline_access). Voice: Apple Speech (on-device only).
+
+**Architecture context:**
+- This spec is for **Layer 1 — Signal Ingestion**, specifically the **Email Signal Agent**.
+- Layer 1's job: observe, record, timestamp, tag modality. It does NOT interpret, classify, or make judgments.
+- The Email Signal Agent writes raw email signals to a unified signal queue, which Layer 2 (Memory Store) picks up and stores as episodic memory.
+- Classification (inbox triage, importance scoring) happens later — either at the Layer 1→2 boundary via Haiku, or within Layer 2's processing pipeline. NOT within the signal agent itself.
+
+**Auth context:** Microsoft OAuth via MSAL with `Mail.Read` scope (read-only — this is critical, never `Mail.ReadWrite` or `Mail.Send`). Token acquired at app launch, refreshed via `offline_access`. Tokens stored in macOS Keychain.
+
+**Shipped context:** Email triage (Graph → buckets) is already built. This spec defines the proper, architecture-aligned email signal ingestion that replaces or wraps the existing implementation.
+
+---
+
+**Your task:** Produce a comprehensive, implementation-ready **Email Signal Ingestion Spec** for Timed.
+
+**The document must cover:**
+
+1. **Microsoft Graph Mail.Read API — Exact Endpoints:**
+   - Which Graph API endpoints are used (list messages, get message, delta query).
+   - Exact API versions and query parameters.
+   - Which fields are requested via `$select` (minimize data transfer).
+   - Pagination handling (`@odata.nextLink`).
+   - Delta sync mechanism (`/messages/delta`) — how it works, how delta tokens are stored and refreshed, what happens when a delta token expires.
+
+2. **What Metadata is Captured (per email):**
+   - Sender (email, display name)
+   - Recipients (to, cc — email + display name, count)
+   - Subject line
+   - Thread ID / Conversation ID (for threading)
+   - Timestamp: sent datetime, received datetime
+   - Read/Unread state (isRead)
+   - Importance flag (low/normal/high)
+   - Categories / labels (user-applied Outlook categories)
+   - Folder (inbox, sent, archive, etc.)
+   - Is-reply flag (inferred from subject prefix or conversationIndex)
+   - Has-attachments flag (boolean only — attachments themselves are NOT captured)
+   - Internet message headers (selected: In-Reply-To, References — for threading accuracy)
+
+3. **What Content is Captured:**
+   - Body text: plain text preferred, HTML stripped if only HTML available.
+   - Body preview (first 255 chars from API).
+   - Purpose: body text is captured so downstream LLM classification can determine email type, urgency, and required response — but the signal agent stores it raw, without interpretation.
+   - Size limit: if body exceeds N characters, truncate with marker. Define N based on research into typical executive email body sizes and LLM context efficiency.
+
+4. **What is NOT Captured (explicit exclusions):**
+   - Attachment content (binary files, images, PDFs — only the has-attachments boolean).
+   - Inline images.
+   - Calendar invites embedded in email (these come through the Calendar signal agent).
+   - Emails in Junk/Spam folders (configurable).
+   - Emails from blocked senders (user-configurable blocklist).
+
+5. **Computed Metadata (calculated at ingestion, not interpretation):**
+   - Response latency: time between receiving an email and the user's reply in the same thread (requires matching conversation IDs). This is a factual measurement, not an interpretation.
+   - Thread depth: position in conversation thread.
+   - Thread velocity: messages per hour/day in thread.
+   - Sender frequency: how often this sender emails the user (requires historical query or running count).
+
+6. **Write Path to Signal Queue:**
+   - Exact data structure of the email signal envelope.
+   - How it maps to the unified signal format (timestamp, source=.email, modality tag, raw payload).
+   - How the signal queue processes it into Layer 2 (episodic memory creation).
+   - Deduplication: how to detect and handle duplicate signals (delta sync can sometimes re-deliver).
+
+7. **Delta Sync Mechanism — Deep Dive:**
+   - Initial full sync (first run): how many messages to sync (last 30 days? all time?), pagination strategy, rate limit awareness.
+   - Subsequent delta syncs: poll interval (research optimal frequency for a C-suite executive's email volume — 100-300 emails/day), delta token management, handling delta token expiration (full re-sync).
+   - Sync state persistence: where the delta token and last sync timestamp are stored (UserDefaults? CoreData? Keychain?).
+   - Conflict handling: what if the app was offline for days?
+
+8. **Rate Limit Handling:**
+   - Microsoft Graph rate limits for Mail.Read (per-user, per-tenant).
+   - Retry strategy: exponential backoff with jitter.
+   - How to detect and handle 429 responses.
+   - How to stay well under rate limits during normal operation.
+   - Throttle strategy during initial full sync.
+
+9. **How Email Signals Feed Higher-Order Intelligence:**
+   - This section describes what DOWNSTREAM systems (Layer 2 and 3, not this agent) do with email signals. It's included here so the signal agent captures the right data.
+   - **Response patterns:** Which emails get fast replies vs slow replies vs no reply? (Requires response latency data.)
+   - **Relationship health:** Is the executive's communication with a specific person increasing or decreasing in frequency and responsiveness? (Requires sender frequency + response latency over time.)
+   - **Avoidance detection:** Which threads or senders consistently receive delayed or no response? (Requires response latency + thread tracking.)
+   - **Communication rhythm:** What time of day does the executive process email? How long are email processing sessions? (Requires timestamps + read state change timing.)
+   - **Decision patterns:** Do certain types of emails (from certain senders, with certain subjects) get faster responses? (Requires sender + subject + response latency correlation.)
+   - For each downstream use case, state exactly which captured fields are required and why.
+
+10. **Error Handling:**
+    - Graph API unavailable: queue locally, retry on reconnection.
+    - Token expired: trigger MSAL refresh, retry.
+    - Malformed response: log error, skip message, continue sync.
+    - Network timeout: configurable timeout, retry with backoff.
+    - Partial sync failure: resume from last successful delta token.
+
+11. **Privacy Considerations:**
+    - Email body text is stored locally (CoreData) and may be sent to Anthropic API for classification. User must consent.
+    - Per-sender opt-out: user can exclude specific senders from body text capture (metadata still captured).
+    - No email content is ever sent to Supabase or any third party other than Anthropic (for LLM processing).
+    - Body text is not included in embeddings (only metadata is embedded for vector search — research whether this is optimal or if body embeddings are necessary).
+
+12. **Acceptance Criteria:**
+    - Agent correctly syncs all new emails via delta query on a configurable interval.
+    - All specified metadata fields are captured and written to the signal queue.
+    - Response latency is correctly computed for reply threads.
+    - Rate limits are never exceeded.
+    - Agent recovers gracefully from network failures, token expiry, and delta token expiry.
+    - No write API calls are made to Microsoft Graph (observation only).
+    - Performance: sync completes in < 5 seconds for typical delta (< 50 new emails).
+
+Research the Microsoft Graph Mail API thoroughly — exact endpoint URLs, response schemas, delta query mechanics, rate limit specifics, and best practices for macOS desktop apps (not web apps). Research how other email analytics tools (Superhuman, Spark, SaneBox) handle email metadata extraction.
+
+If current research suggests a superior approach to what is described here, recommend it with evidence and explain the tradeoff.

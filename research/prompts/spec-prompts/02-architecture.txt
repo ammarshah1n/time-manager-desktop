@@ -1,0 +1,87 @@
+I am building **Timed**, a macOS-native cognitive intelligence layer for C-suite executives. It is NOT a productivity app, task manager, or personal assistant. It builds a deep, compounding model of how a specific executive thinks, decides, avoids, prioritises, and operates — then uses that model to return cognitive bandwidth.
+
+**Hard constraints:**
+- Timed never acts on the world — observation and intelligence only. It never sends emails, never modifies calendars, never takes any action.
+- macOS native: Swift 5.9+, SwiftUI, CoreData, on-device voice only.
+- Four strict layers: Signal Ingestion → Memory Store → Reflection Engine → Intelligence Delivery. No cross-layer coupling.
+- Intelligence compounds over time — Month 6 must be qualitatively smarter than Month 1.
+- No cost cap on intelligence quality — uses Claude Opus for nightly reflection.
+- User is a C-suite executive who has tried everything. Impressed by understanding, not features.
+
+**Tech stack:** Supabase backend + Edge Functions. AI models: Haiku 3.5 (classification), Sonnet (estimation), Opus 4.6 (reflection + morning director). Embeddings: Jina AI jina-embeddings-v3 (1024-dim). Auth: Microsoft OAuth via MSAL (Mail.Read, Calendars.Read, offline_access). Voice: Apple Speech (on-device only). Distribution: Direct DMG + Sparkle.
+
+**Shipped features (already built):** Voice morning session, email triage (Graph → buckets), Thompson sampling task scoring, EMA time estimation, calendar-aware slot allocator, focus timer, menu bar widget, command palette.
+
+---
+
+**Your task:** Produce a comprehensive, implementation-ready **System Architecture Overview** for Timed. This is the canonical architecture document — every other spec references it. A senior Swift developer should be able to understand the entire system from this document alone.
+
+**The document must cover:**
+
+1. **Four-Layer Architecture — Full Definition:**
+   - **Layer 1 — Signal Ingestion** (continuous, passive): Background agents observe calendar (Microsoft Graph Calendars.Read), email (Microsoft Graph Mail.Read), voice (Apple Speech on-device), app focus (NSWorkspace/Accessibility APIs), and task behaviour. Records raw signals without interpretation. Everything timestamped and modality-tagged. Agents run on configurable polling intervals. Each agent writes to a unified signal queue.
+   - **Layer 2 — Memory Store** (persistent, tiered): Three memory types — Episodic (raw events), Semantic (learned facts about the user), Procedural (operating rules the system learns). MemGPT-inspired architecture with three access tiers: core memory (always loaded into LLM context, fixed-size), recall memory (searchable by the system on demand), archival memory (vector store for long-term retrieval). Retrieval scoring: recency × importance × relevance (configurable weights). Memory consolidation runs periodically to promote/demote/merge entries.
+   - **Layer 3 — Reflection Engine** (periodic, nightly): Claude Opus 4.6 at maximum reasoning effort runs recursive reflection. Process: raw observations → first-order pattern detection → second-order synthesis (patterns about patterns) → rule generation → memory updates. Inspired by Stanford Generative Agents (Park et al. 2023). Named patterns (e.g., "Tuesday afternoon energy crash", "avoids replying to Board emails before noon") are the primary output. Patterns are fed back into Layer 2 as semantic and procedural memory.
+   - **Layer 4 — Intelligence Delivery** (on-demand + scheduled): Morning session (voice-driven, opens with named patterns and cognitive observations — never a task list), menu bar widget (glanceable intelligence nuggets), proactive alerts (very low frequency, only when a confirmed pattern is violated or a significant insight emerges), command palette (on-demand queries).
+
+2. **Layer Contracts — Interface Definitions:**
+   - Define Swift protocols for each layer boundary.
+   - What data types cross each boundary (and what does NOT).
+   - Layer 1 → Layer 2: Signal writes (raw, uninterpreted).
+   - Layer 2 → Layer 3: Memory reads (filtered by time window, importance threshold).
+   - Layer 3 → Layer 2: Memory writes (new patterns, updated rules, reinforced semantic facts).
+   - Layer 3 → Layer 4: Intelligence payloads (pattern summaries, alerts, morning session scripts).
+   - Layer 4 → Layer 1: User interaction signals (what they asked, what they dismissed — this closes the feedback loop).
+   - No layer may import another layer's internal types.
+
+3. **Data Flow Diagrams:**
+   - Primary loop: Signal → Memory → Reflection → Delivery → (user interaction becomes new Signal).
+   - Real-time path: Signal Ingestion → Memory Store → Intelligence Delivery (for immediate context, no reflection needed).
+   - Nightly path: Memory Store → Reflection Engine → Memory Store + Intelligence Delivery (morning session preparation).
+   - Consolidation path: Memory Store internal (episodic → semantic promotion, semantic reinforcement, procedural rule updates).
+
+4. **The Compounding Intelligence Loop:**
+   - Explain exactly how intelligence compounds. Week 1: raw observations, no patterns. Week 4: first-order patterns emerging. Month 3: second-order patterns (patterns about patterns). Month 6: executive operating model — the system can predict decisions before they're made.
+   - What data structures enable this? How does the memory tier system support it? What prevents regression (losing learned intelligence)?
+   - How is compounding measured? What metrics prove the system is getting smarter?
+
+5. **Concurrency Model:**
+   - How do background signal agents run on macOS? (App Nap, background processing entitlements, XPC services, LaunchAgents).
+   - How do multiple signal agents coordinate without conflicts?
+   - CoreData concurrency: main context vs background contexts, merge policies.
+   - How does the nightly reflection engine run without blocking the UI?
+
+6. **Supabase Integration Architecture:**
+   - What lives on-device vs what lives in Supabase?
+   - Edge Functions: what they do (reflection engine orchestration? embedding generation? sync?).
+   - Sync strategy: what syncs, how often, conflict resolution.
+   - Auth flow: Microsoft OAuth → MSAL → token storage → Graph API access.
+
+7. **AI Model Routing:**
+   - When does the system call Haiku 3.5? (signal classification, quick categorisation)
+   - When does it call Sonnet? (time estimation, medium-complexity reasoning)
+   - When does it call Opus 4.6? (nightly reflection, morning session direction, deep pattern analysis)
+   - Token budget management. Cost estimation per day/month for a typical executive.
+   - Fallback chain if a model is unavailable.
+
+8. **Privacy Architecture:**
+   - What is stored locally vs remotely.
+   - What is sent to LLMs (and what is NEVER sent).
+   - Voice: on-device only, raw audio never stored.
+   - Email: body text sent to LLM for classification, but user can opt out per-sender.
+   - App focus: bundle IDs logged, window titles opt-in only.
+
+9. **Error Handling and Resilience:**
+   - What happens when Microsoft Graph is unreachable?
+   - What happens when Anthropic API is down on reflection night?
+   - What happens when CoreData migration fails?
+   - Graceful degradation: the app must always function, even if intelligence features are temporarily unavailable.
+
+10. **Extension Points:**
+    - How new signal sources are added (protocol conformance, registration).
+    - How new delivery channels are added.
+    - How the reflection engine's prompt chain is modified without code changes.
+
+Include Swift protocol definitions for all layer boundaries. Include ASCII or text-based architecture diagrams.
+
+If current research suggests a superior approach to what is described here, recommend it with evidence and explain the tradeoff.

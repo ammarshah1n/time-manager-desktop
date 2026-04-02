@@ -1,0 +1,29 @@
+I'm building a macOS cognitive intelligence system called Timed for C-suite executives. It builds a deep, compounding model of how a specific executive thinks, decides, avoids, prioritises, and operates — then uses that model to give them their cognitive bandwidth back. It is observation and intelligence only — it never acts on the world. The user decides and executes. This is non-negotiable.
+
+The system has four strict layers with no cross-layer coupling:
+1. **Signal Ingestion** — background agents observe and record. Timestamped + modality-tagged.
+2. **Memory Store** — episodic (raw events), semantic (learned facts about the person), procedural (operating rules). MemGPT-inspired tiers: core memory (always in context), recall (searchable), archival (vector store). Retrieval scored by recency × importance × relevance.
+3. **Reflection Engine** — nightly Opus recursive reflection: observations → first-order patterns → second-order synthesis → rule generation. Stanford Generative Agents architecture. Named patterns fed back to memory.
+4. **Intelligence Delivery** — morning session (opens with patterns), menu bar (glanceable), proactive alerts.
+
+Tech stack: macOS native (Swift 5.9+, SwiftUI, CoreData), Supabase + Edge Functions backend, Claude Haiku/Sonnet/Opus AI tiers, Jina AI embeddings (1024-dim), Apple Speech for on-device voice.
+
+What's already shipped: voice morning session, AI email triage, Thompson sampling task scoring, EMA time estimation, calendar-aware slot allocator, focus timer, menu bar, command palette.
+
+**I need a complete specification for what the system should log when a user interacts with a task, and how those interaction signals become training data for the intelligence engine.**
+
+Research and specify:
+
+1. **Every task interaction event that should be logged.** A task can be: created, opened/viewed, edited, deferred (pushed to later today or another day), rescheduled (moved to a different time slot), reordered (priority changed by drag or manual override), started (focus timer begun), paused, resumed, completed, abandoned (focus timer stopped without completion), deleted, and archived. For each event type: what exact data should be captured (timestamp, task ID, prior state, new state, context at time of action — what else was on the screen, what time of day, energy state if known, how long since last interaction with this task).
+
+2. **Deferral patterns as avoidance proxy.** This is critical intelligence. When someone repeatedly defers a specific task, that's a signal about avoidance, not just scheduling. Research: How many deferrals before the system should flag avoidance? Does the pattern differ by task type (deep work vs admin vs communication)? What about partial deferrals (reducing estimated time, moving to end of day)? How should deferral chains be represented in episodic memory so the reflection engine can detect the pattern? What research exists on procrastination detection from behavioural signals?
+
+3. **Completion timing as EMA input.** When a task is completed via the focus timer, the system gets: estimated duration, actual duration, number of pauses, time of day, day of week. How should this feed into the exponential moving average model? What about tasks completed without the focus timer (marked done manually) — how to handle missing duration data? What about tasks completed across multiple focus sessions? Research on how task completion data should be preprocessed before feeding into time estimation models.
+
+4. **User corrections as explicit training signal.** When the user reorders tasks (overriding the Thompson sampling ranking), that's an explicit signal that the scoring was wrong. When they manually change a time estimate, that's a correction to EMA. Spec: How should each type of user correction be logged? How should corrections be weighted relative to organic behaviour (corrections are higher-signal but rarer)? How to distinguish "I'm correcting because you're wrong" from "my priorities just changed"?
+
+5. **Write path to episodic memory.** For each event type: the exact schema of the episodic memory record that gets written. Fields: event_id, task_id, event_type, timestamp, user_id, prior_state (JSON), new_state (JSON), context (JSON — time of day, day of week, concurrent tasks, energy proxy, screen context), derived_signals (JSON — is this a deferral chain? correction? anomaly?). How should these records be indexed for efficient retrieval by the reflection engine? Retention policy: how long to keep raw interaction events vs aggregated summaries?
+
+6. **Signal-to-intelligence pipeline.** How do raw task interaction events flow through the four layers? Signal Ingestion writes the episodic record. The reflection engine reads today's task interactions and extracts: avoidance patterns, time estimation accuracy, energy-task alignment, decision quality (did the user follow the suggested order? did deviating produce better outcomes?). Those insights update semantic memory (facts about the person) and procedural memory (rules about how they operate). Give me the specific processing chain.
+
+For every specification: include the exact data schema, validation rules, edge cases, and how the signal degrades gracefully when data is incomplete (e.g., no focus timer used, no energy state available). If current research suggests a superior approach to any of this, recommend it with evidence.

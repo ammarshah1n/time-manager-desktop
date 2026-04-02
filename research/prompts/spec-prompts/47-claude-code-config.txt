@@ -1,0 +1,76 @@
+I'm building a macOS application called Timed — a cognitive intelligence layer for C-suite executives. It builds a compounding model of how a specific person thinks, decides, avoids, and operates. Observation and intelligence only — it never acts on the world.
+
+**Hard constraints:**
+- macOS native: Swift 5.9+, SwiftUI, CoreData, on-device voice
+- Four layers: Signal Ingestion → Memory Store → Reflection Engine → Intelligence Delivery. No cross-layer coupling.
+- Dev environment: Claude Code (Claude Max 20x) as the primary and only coding tool
+- Comet MCP for browser automation when needed
+- Single developer using AI-pair-programming for 100% of development
+
+Claude Code uses three configuration files in the project:
+1. **CLAUDE.md** — Project instructions that Claude reads at the start of every session. Equivalent to .cursorrules but more powerful. This is where architecture rules, conventions, anti-patterns, and project context live.
+2. **.claude/settings.json** — Permission configuration for what Claude Code can do (which commands it can run, which files it can edit, etc.)
+3. **.claude/mcp.json** — MCP server configuration for external tools (Comet browser automation, potentially others)
+
+**What I need:**
+
+1. **The complete CLAUDE.md for the Timed project.** This must include:
+
+   **Architecture rules:**
+   - Layer definitions with explicit boundaries (what belongs in each layer, what doesn't)
+   - The interface protocol between layers (Layer 1 emits events → Layer 2 consumes, Layer 2 provides retrieval → Layer 3 queries, etc.)
+   - No cross-layer coupling rule with examples of violations to avoid
+   - The observation-only invariant — Claude must never generate code that takes actions on the user's behalf
+
+   **File structure conventions:**
+   - Directory layout (Sources/Timed/Layer1/, Sources/Timed/Layer2/, etc.)
+   - File naming conventions (PascalCase for types, one type per file, agent files named *Agent.swift, memory types named *Memory.swift)
+   - Where tests live (Tests/TimedTests/Layer1/, etc.)
+   - Where specs and docs live (docs/)
+
+   **Code conventions:**
+   - Swift style rules (actor isolation for agents, @Observable for ViewModels, structured concurrency, no completion handlers)
+   - Error handling patterns (typed errors per layer, never force unwrap, Result for expected failures)
+   - CoreData patterns (managed object context threading rules, background context usage)
+   - API call patterns (abstraction pipeline runs before every Claude API call)
+   - Logging conventions (OSLog categories per layer)
+
+   **Testing rules:**
+   - Every public interface must have tests
+   - Memory layer must have migration tests
+   - Agent tests must verify event emission
+   - Reflection engine tests must verify pattern quality, not just execution
+   - Use Swift Testing framework, not XCTest
+
+   **Commit rules:**
+   - Commit after every single logical change (not batched)
+   - Conventional commits (feat:, fix:, refactor:, test:, docs:)
+   - Never commit secrets, API keys, or user data
+
+   **What Claude must NOT do:**
+   - Never generate code that acts on the world (sends emails, modifies calendars, writes files outside the app sandbox)
+   - Never skip the privacy abstraction pipeline when making API calls
+   - Never add dependencies without explicit approval
+   - Never modify the layer boundary protocols without discussion
+   - Never use SwiftUI previews that require real API calls
+
+   **Session workflow:**
+   - Start by reading CLAUDE.md and the relevant spec doc for the current task
+   - Run tests before and after changes
+   - Commit working increments, not big-bang changes
+
+2. **The .claude/settings.json configuration.** What permissions Claude Code needs:
+   - Which shell commands are allowed (swift build, swift test, git, etc.)
+   - Which directories are writable
+   - Any file patterns to exclude from editing
+   - MCP tool permissions
+
+3. **The .claude/mcp.json configuration.** MCP servers to configure:
+   - Comet for browser automation (testing OAuth flows, viewing Supabase dashboard)
+   - Any other MCP servers useful for macOS Swift development
+
+4. **How this configuration evolves as the project grows.** CLAUDE.md will need updates as patterns emerge. How to structure it so new rules can be added without the file becoming unwieldy. Sections that should be split into separate files as they grow. How to handle per-layer context files.
+
+Research the current Claude Code documentation (claude.ai/code, docs.anthropic.com) for the latest CLAUDE.md best practices, settings.json schema, and MCP configuration format. Provide complete, copy-paste-ready configuration files.
+
+If current research suggests additional configuration or tools that would improve AI-assisted macOS development, recommend them with evidence.

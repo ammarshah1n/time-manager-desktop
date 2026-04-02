@@ -1,0 +1,77 @@
+I'm building a macOS application called Timed — a cognitive intelligence layer for C-suite executives. It builds a compounding model of how a specific person thinks, decides, avoids, and operates. Observation and intelligence only — it never acts on the world.
+
+**Hard constraints:**
+- macOS native: Swift 5.9+, SwiftUI, CoreData, on-device voice
+- Four layers: Signal Ingestion → Memory Store → Reflection Engine → Intelligence Delivery. No cross-layer coupling.
+- Intelligence compounds — Month 6 >> Month 1
+- The observation-only constraint is NOT configurable — it is a product invariant
+- C-suite executive user
+
+Most of the system is designed to be invisible — it runs in the background, observes, reflects, and surfaces intelligence at the right moment. But some things must be configurable, and more importantly, every user interaction with settings is itself a signal that feeds back into the intelligence model.
+
+**What I need:**
+
+1. **What is configurable and what is not.** Exhaustive list for both categories.
+
+   Configurable:
+   - Morning session time (default: contextual based on first calendar event)
+   - Morning session format (voice-first vs text summary vs both)
+   - Alert/notification frequency (aggressive, balanced, minimal, off)
+   - Which signal sources are enabled (calendar, email, app focus, voice — each independently toggleable)
+   - Data retention period (6 months, 1 year, 2 years, unlimited)
+   - Focus timer default durations
+   - Menu bar density (full, compact, icon-only)
+   - Which pattern types surface as proactive alerts
+   - AI model tier preferences (if the user wants to limit cost by using lower tiers)
+   - Keyboard shortcuts
+   - Excluded apps (apps that should not be tracked by the focus agent)
+   - Excluded contacts/relationships (people whose patterns should not be analysed)
+   - Export/backup schedule
+
+   NOT configurable (product invariants):
+   - The observation-only constraint
+   - The four-layer architecture
+   - The compounding intelligence model
+   - The reflection engine running (it always runs — you can't disable the brain)
+   - Privacy tier classification (what stays local vs what's abstracted)
+   - The nightly reflection cycle (always happens)
+
+   For each configurable item: default value, valid range, storage mechanism, and what happens when it changes.
+
+2. **User corrections as model signals.** Every interaction with the system is a learning opportunity:
+   - Re-ranking a task manually → Thompson sampling reward signal (the user is telling you your priority model was wrong)
+   - Dismissing a proactive alert → negative feedback on that pattern type
+   - Snoozing the morning session → energy/schedule signal
+   - Extending a focus timer → flow state signal
+   - Marking an email classification as wrong → classification model correction
+   - Editing a time estimate → EMA correction signal
+   - Deleting a semantic memory → "you got this wrong about me" signal
+   - Challenging a procedural rule → rule confidence adjustment
+
+   For each correction type: how to capture it, what model it feeds, how to weight it (explicit corrections should be weighted heavily), and how to avoid over-fitting to a single correction.
+
+3. **The settings UI.** Design principles:
+   - The executive should spend less than 2 minutes in settings, ever
+   - Most settings should be inferrable from behaviour (e.g., the system should learn the right alert frequency, not ask the user to configure it)
+   - Settings should be grouped by concern (Signal Sources, Intelligence Delivery, Privacy & Data, System)
+   - Each setting should explain what it affects in one sentence
+   - Advanced settings should exist but be hidden by default
+
+   Provide the complete settings view hierarchy, grouped sections, and the SwiftUI layout approach.
+
+4. **Preference storage architecture.** UserDefaults vs CoreData vs a dedicated preferences entity. Which settings need to sync to Supabase (for multi-device, if ever) and which are purely local. How to handle preference migrations when new settings are added in updates. How to export/import preferences. How to reset to defaults without losing learned model data.
+
+5. **Implicit preferences — settings the system learns without asking.** The system should learn:
+   - Preferred morning session time (from when the user actually engages)
+   - Optimal alert frequency (from dismissal rate)
+   - Which pattern types the user finds valuable (from engagement)
+   - Preferred task categories and vocabulary
+   - Communication style preferences for how the AI speaks to them
+
+   How to learn these. How to surface them as "learned preferences" that the user can see and override. The feedback loop between explicit settings and implicit learning.
+
+6. **The "About My Model" section.** A settings panel where the executive can see what the system has learned about them. Not raw data — synthesised knowledge: "You tend to avoid financial planning tasks. Your most productive hours are 9-11am. You have 3 high-trust relationships that drive 40% of your meeting time." This is the transparency mechanism. How to present it. How to let the user correct it. How corrections propagate through the model.
+
+Provide concrete Swift code: the settings data model, the UserDefaults wrapper with observation (SwiftUI @AppStorage patterns), the correction signal pipeline, and the settings view hierarchy.
+
+If current research suggests a superior approach, recommend it with evidence.

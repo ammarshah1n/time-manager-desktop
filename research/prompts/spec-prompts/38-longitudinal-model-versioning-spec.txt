@@ -1,0 +1,55 @@
+I need a complete specification for how the cognitive model in Timed evolves over time and how historical states are preserved. Timed is a macOS cognitive intelligence layer that builds a compounding model of a C-suite executive. The model must get smarter over months, and the system must be able to prove it.
+
+**Hard constraints:**
+- Timed never acts on the world — observation only.
+- macOS native. Supabase backend. Jina 1024-dim embeddings.
+- Intelligence compounds — Month 6 >> Month 1.
+- Opus 4.6 at max effort for reflection, no cost cap.
+- C-suite executive user who needs to see evidence that the system is getting smarter.
+
+**Architecture context:**
+- The cognitive model lives across three memory types: episodic (what happened), semantic (what's been learned about the person), and procedural (rules for how they operate).
+- The reflection engine (Opus-powered, runs nightly) processes episodic memories, extracts patterns, updates semantic memory, and generates/modifies procedural rules.
+- Semantic memory consists of facts with confidence scores (e.g., "Prefers written communication with board members" — confidence: 0.82, last updated: March 15, evidence count: 7).
+- Procedural rules have activation history (when they were triggered, whether they were useful).
+
+**What I need specified:**
+
+1. **What constitutes a "model version"** — Define precisely what is snapshot when a model version is created:
+   - Complete semantic memory state (all facts + confidence scores + evidence counts)
+   - Active procedural rules with effectiveness scores
+   - Thompson sampling priors for task scoring
+   - EMA time estimates per task type
+   - Chronotype curve parameters
+   - Relationship importance scores
+   - Pattern library (named patterns with activation history)
+   - Model metadata: total episodic memories processed, total reflection cycles completed, total corrections received
+   
+   Research on cognitive model serialization — how do computational cognitive architectures (ACT-R, SOAR, LIDA) save and restore model states? What can be borrowed?
+
+2. **Snapshot cadence** — How often should full model snapshots be taken? Options: nightly (high storage, granular), weekly (balanced), monthly (low storage, coarse), event-triggered (after significant model changes). Research on optimal snapshot frequency for systems that need to detect gradual change. What cadence allows meaningful diff computation without excessive storage?
+
+3. **Diff computation** — Given model version N and N-1, what changed? New semantic facts added, facts with increased/decreased confidence, new procedural rules, deprecated rules, chronotype curve shift, relationship score changes. How to compute a meaningful "model diff" that a human can understand. Research on model differencing and interpretable model change detection.
+
+4. **Detecting model drift vs genuine person change** — The executive changes over time (new role, new priorities, life events). The model should track this person's evolution, not fight it. But the model can also drift due to noisy data, seasonal variation, or reflection engine errors. How to distinguish: (a) the person genuinely changed, (b) the model drifted due to data noise, (c) the model is correctly detecting a temporary state (stress, travel, illness) vs permanent change. Research on concept drift detection in machine learning applied to personal modelling.
+
+5. **Model rollback capability** — If the model goes wrong (bad data corrupts it, reflection engine makes incorrect inferences), can it be rolled back to a previous version? Technical requirements for safe rollback. What happens to episodic memories generated between versions? Research on model versioning and rollback in production ML systems.
+
+6. **Storage architecture** — How are model snapshots stored? Full snapshots vs incremental deltas? Compression of semantic memory states. Supabase storage considerations (row limits, JSON column sizes). Estimated storage per snapshot. Storage growth projection over 6/12/24 months. Research on efficient storage of evolving knowledge graphs.
+
+7. **The "Month 6 vs Month 1" comparison** — This is the killer proof point. After 6 months, the system should be able to show:
+   - Model specificity growth (from 50 semantic facts at month 1 to 500+ at month 6)
+   - Confidence distribution shift (from mostly low-confidence to a substantial high-confidence base)
+   - Rule effectiveness (what % of generated rules proved useful over time)
+   - Prediction accuracy improvement (time estimates getting closer to actual)
+   - New capabilities unlocked (queries the system can answer at month 6 that it couldn't at month 1)
+   
+   How to compute and present each of these metrics. Research on measuring growing expertise in knowledge systems.
+
+8. **Version comparison for executive review** — How to present model evolution to the executive in a way that's meaningful and not technical. "In January, I had moderate confidence about your work patterns. Now I know that you make your best strategic decisions on Tuesday mornings after your weekly leadership meeting, and that your avoidance pattern on financial reviews costs you approximately 3 hours of catch-up per incident." Research on interpretable AI model evolution visualization.
+
+9. **Temporal query with version context** — When the executive asks "What was I like in January?", the system should be able to answer from the January model snapshot, not from current knowledge projected backwards. This requires querying against specific model versions. Research on temporal knowledge base querying.
+
+Produce a complete model versioning specification with schema definitions, snapshot logic, diff algorithms, drift detection approach, storage projections, and the metrics that prove compounding intelligence. This spec must make the "Month 6 >> Month 1" claim demonstrably provable.
+
+If current research suggests a superior approach to any component, recommend it with evidence.

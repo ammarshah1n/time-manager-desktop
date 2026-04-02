@@ -1,0 +1,38 @@
+I'm building a cognitive intelligence system called Timed for C-suite executives. It has a three-tier memory system (episodic, semantic, procedural) with thousands of records accumulating over months. When the reflection engine runs, when the morning session is generated, when a proactive alert fires — each needs to retrieve the RIGHT memories from the store. Not all of them. Not random ones. The ones that are most relevant, most important, and most timely for the current context.
+
+System: macOS native (Swift 5.9+, CoreData), Supabase + Edge Functions backend, Claude AI (Haiku/Sonnet/Opus), Jina AI embeddings (1024-dim via Jina AI API). Observation and intelligence only — never acts on the world.
+
+The retrieval scoring architecture is inspired by the Stanford Generative Agents paper (Park et al. 2023): **recency × importance × relevance.** But I need to go deeper than what the paper specifies.
+
+**I need a complete specification for the memory retrieval engine — the system that decides which memories surface in any given context.**
+
+Research and specify:
+
+1. **The three scoring dimensions and how to compute each.**
+
+   **Recency:** How recently was this memory created or last accessed? Research: what decay function? Exponential decay is standard but what's the right decay rate? The paper uses an exponential decay with a tunable parameter — what values have been tested? Should the decay function differ by memory type (episodic events decay faster than semantic facts)? How to handle "bursty" recency — a memory accessed 3 times today vs once a month ago?
+
+   **Importance:** How significant is this memory regardless of context? Computed at write time (significance_score on episodic memories, confidence on semantic facts, priority on procedural rules). But importance should also evolve — a memory that keeps being retrieved gains importance. Research: PageRank-like importance propagation in memory systems. The Stanford paper assigns importance via LLM rating — is this the best approach? Alternatives: frequency of retrieval, number of connections to other memories, involvement of high-importance entities (board members, key clients).
+
+   **Relevance:** How related is this memory to the current query context? This is the vector similarity search. Jina AI 1024-dim embeddings for both the query and all memories. Cosine similarity. But raw cosine similarity has known limitations — research: what preprocessing, normalization, or reranking improves relevance scoring for personal memory retrieval? Should the system use hybrid search (keyword + vector)?
+
+2. **Score combination.** The paper multiplies the three scores: `final_score = recency × importance × relevance`. Is multiplication the right combination? Research: alternatives — weighted sum, learned combination weights, attention-based combination. What happens when one dimension dominates (a very recent but irrelevant memory vs an old but highly relevant one)? How to calibrate the weights?
+
+3. **Dynamic weighting based on context.** Different consumers need different retrieval profiles:
+   - **Morning briefing**: weights recency high (what happened yesterday), importance high (major patterns), relevance moderate
+   - **Proactive alert**: weights relevance very high (is this memory relevant to what's happening right now?), recency moderate, importance high
+   - **Nightly reflection**: weights recency high (today's episodes), but also needs relevant historical context for pattern matching — so relevance matters for the historical retrieval
+   - **Monthly review**: weights importance very high (what are the biggest patterns?), recency low (looking across the whole month)
+   How to parameterise the retrieval engine so each consumer can specify its weighting profile?
+
+4. **ACAN (Adaptive Cross-Attention Network) as potential enhancement.** Recent research on ACAN proposes using cross-attention mechanisms to dynamically weight memory retrieval based on the current context. Research: what is ACAN specifically, how does it work, is it applicable to this kind of personal memory retrieval? What other attention-based memory retrieval mechanisms exist? How would this integrate with or replace the recency × importance × relevance scoring? Is it worth the added complexity for a single-user system?
+
+5. **Retrieval latency targets.** The morning session is assembled once — latency can be 2-5 seconds. A proactive alert needs to retrieve memories in under 500ms. The reflection engine can take its time. For each consumer: what's the acceptable latency? How does this constrain the retrieval architecture? When should retrieval happen in the Supabase vector store vs locally on device (CoreData)?
+
+6. **How many memories to surface per query.** Too few and the system misses important context. Too many and the LLM's context window is wasted or overwhelmed. Research: optimal retrieval counts for different context window sizes. The Stanford paper retrieves a fixed number — is dynamic retrieval count better? Should the system retrieve until a quality threshold is met rather than a fixed count? Research on retrieval-augmented generation (RAG) — what's the state of the art for determining optimal retrieval count?
+
+7. **Multi-hop retrieval.** Sometimes the relevant memory isn't directly similar to the query — it's connected through a chain. "Why is the user avoiding this task?" → retrieves deferral episodes → those link to a semantic fact about avoidance → that links to a procedural rule about how to handle it. Research: multi-hop retrieval in knowledge-grounded systems. How to implement retrieval chains without unbounded expansion?
+
+8. **Retrieval feedback loop.** When a retrieved memory is actually used by the LLM (mentioned in the morning briefing, triggered an alert), that's a signal that the retrieval was good. When a retrieved memory is ignored, that's a signal it wasn't useful. How to use this feedback to improve future retrieval? Research: relevance feedback in information retrieval, online learning for retrieval scoring.
+
+For every specification: exact algorithms with pseudocode, parameter values with justification, latency benchmarks, and failure modes (what happens when the vector store is slow, when there are too few memories to retrieve, when all memories score similarly). If current research suggests a superior approach, recommend it with evidence.

@@ -1,0 +1,58 @@
+I'm building a cognitive intelligence system called Timed for C-suite executives with three memory tiers: episodic (raw timestamped events), semantic (learned facts about the person), and procedural (operating rules). The system runs a nightly reflection engine (Claude Opus at max effort) that processes the day's episodic memories into higher-order understanding.
+
+macOS native (Swift 5.9+, CoreData), Supabase + Edge Functions, Jina AI embeddings (1024-dim). Observation and intelligence only — never acts on the world.
+
+**The memory consolidation pipeline is how raw experience becomes intelligence.** An executive defers a task → episodic memory. They defer similar tasks 8 times over 2 weeks → the reflection engine detects a pattern → semantic fact: "this person avoids financial analysis tasks." The semantic fact persists and compounds → eventually → procedural rule: "when financial analysis appears, schedule it in the morning when willpower is highest, and name the avoidance pattern in the briefing."
+
+This is how intelligence compounds. This is what makes month 6 smarter than month 1.
+
+**I need a complete specification for when and how memories promote between tiers.**
+
+Research and specify:
+
+1. **Episodic → Semantic promotion triggers.** When should a pattern in episodic memories become a semantic fact? Research trigger conditions:
+   - **Frequency threshold**: the same pattern observed N times — what should N be? Does it vary by pattern type? (Behavioural patterns may need 5 observations, identity facts may need 1.)
+   - **Confidence threshold**: the pattern must have a minimum confidence level to promote — how to compute confidence from episodic evidence?
+   - **Reflection engine output**: the nightly Opus run explicitly identifies a pattern as significant enough to become a semantic fact — is this the primary trigger?
+   - **Temporal spread**: observations must be spread across multiple days/weeks to avoid overfitting to one unusual day
+   - **Anomaly vs pattern**: how to distinguish a genuine repeating pattern from a cluster of anomalies
+   Research: memory consolidation in cognitive science (hippocampal replay, sleep consolidation), computational models of when episodic memories become semantic knowledge. How does the brain decide "this is worth remembering as a general fact"?
+
+2. **Merge logic when new evidence updates existing semantic facts.** New episodic evidence is observed that relates to an existing semantic fact. Scenarios:
+   - **Reinforcing**: new evidence supports the existing fact → increase confidence, add to evidence chain, update last_updated
+   - **Refining**: new evidence adds nuance → update the fact's claim text, not replace
+   - **Contradicting**: new evidence contradicts → see contradiction handling below
+   - **Extending**: new evidence reveals the fact applies in a context not previously observed → expand scope
+   For each scenario: the exact algorithm, how to detect which scenario applies, how the semantic fact is modified. Research: belief update algorithms, Bayesian knowledge base maintenance.
+
+3. **Contradiction resolution when new observations conflict with existing semantic memory.** This is the hardest problem. The system believes "user does deep work best in the morning" but the last 2 weeks show more evening deep work. Options:
+   - **Weighted evidence**: new evidence is weighted against accumulated evidence — doesn't flip easily
+   - **Change point detection**: statistical test for whether the person's behaviour has genuinely shifted
+   - **Competing hypotheses**: maintain both facts with different confidence scores until one wins
+   - **Contextual resolution**: maybe both are true in different contexts (morning deep work when in office, evening when working from home)
+   - **Reflection engine arbitration**: Opus explicitly reasons about the contradiction and decides
+   Research: truth maintenance systems (TMS), belief revision (AGM postulates), change point detection algorithms (CUSUM, Bayesian Online Changepoint Detection). What's the right approach for personal behavioural data?
+
+4. **Semantic → Procedural promotion.** When does a semantic fact become an actionable procedural rule? Not all facts should become rules. "User's favourite colour is blue" is a semantic fact that's never a rule. "User avoids financial tasks" is a semantic fact that should become the rule: "surface financial tasks early in the morning briefing and name the avoidance pattern." Research:
+   - What makes a fact "actionable"? (It relates to scheduling, alerting, briefing, or planning)
+   - What confidence threshold before generating a rule? (Higher than semantic fact threshold — rules have consequences)
+   - How does the reflection engine decide to generate a rule? (The prompt architecture for Opus)
+   - Can rules be generated incrementally (start as weak suggestions, strengthen as evidence grows)?
+
+5. **The reflection engine's role in promotion.** The nightly Opus run is the primary mechanism for memory promotion. Specify:
+   - What goes INTO the reflection prompt: today's episodic memories, relevant historical episodes, existing semantic facts, existing procedural rules
+   - What comes OUT: new semantic facts (proposed), updated semantic facts, new procedural rules (proposed), updated rules, deprecated rules
+   - The structured output format Opus must follow (JSON schema for each output type)
+   - How to validate Opus output (it's an LLM — it can hallucinate, be inconsistent, or generate low-quality rules)
+   - Research: prompt engineering for structured knowledge extraction from LLMs, output validation for LLM-generated knowledge base updates
+
+6. **Demotion and deprecation.** Semantic facts that are no longer true should be deprecated, not deleted (historical record matters). Procedural rules that no longer apply should be deprecated. Triggers for demotion:
+   - Sustained contradicting evidence over weeks
+   - Reflection engine explicitly deprecates
+   - No supporting evidence for N months (staleness)
+   - User explicitly overrides (says "this isn't true about me")
+   How to handle deprecated knowledge: keep in archival, mark as deprecated with timestamp and reason, exclude from active retrieval, include in historical analysis.
+
+7. **Cold start: first days with empty memory.** When the system is new, there are no semantic facts or procedural rules. How do episodic memories accumulate until the first promotion can happen? What's the minimum data needed before the reflection engine should attempt its first semantic extraction? Research: cold start problems in recommendation systems, bootstrapping personal models from limited data.
+
+For every specification: exact algorithms with pseudocode, threshold values with justification (backed by research where possible), state machine diagrams for fact/rule lifecycle, edge cases (first week, contradictory evidence, radical behaviour change, 1 year of accumulated knowledge). If current research suggests a superior approach, recommend it with evidence.

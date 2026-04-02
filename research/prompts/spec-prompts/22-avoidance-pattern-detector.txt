@@ -1,0 +1,44 @@
+I'm building a macOS executive intelligence system called Timed that observes a C-suite executive's digital behaviour and builds a compounding cognitive model of them over months. It never acts on the world — observation and intelligence only.
+
+I need a complete implementation spec for detecting avoidance patterns — the things an executive repeatedly dodges, defers, or abandons without completing. This is one of the highest-value intelligence outputs: telling someone what they're avoiding before they consciously recognise it.
+
+Architecture context: four decoupled layers — Signal Ingestion, Memory Store, Reflection Engine, Intelligence Delivery. Tech: Swift 5.9+, SwiftUI, CoreData, Supabase, Jina embeddings 1024-dim, Claude Haiku/Sonnet/Opus tiered processing. Nightly Opus reflection at max effort, no cost cap. The system stores episodic memories (raw events), semantic memories (learned facts), and procedural memories (operating rules). Intelligence compounds over months.
+
+Research and spec every dimension:
+
+1. **The fundamental distinction: avoidance vs rational deprioritisation** — This is the hardest problem. An executive who defers a task three times might be avoiding it or might be correctly prioritising higher-value work. What signals distinguish the two? Research on computational procrastination detection. The role of emotional valence: avoidance often has an emotional signature (the task is uncomfortable, politically sensitive, involves conflict, requires admitting a mistake). How to infer emotional valence from digital signals without direct self-report.
+
+2. **Avoidance signal taxonomy** — Every observable signal that suggests avoidance:
+   - **Repeated deferral** — Task appears on the plan, gets moved to next day, then next week, then disappears. Deferral count and pattern.
+   - **Draft-then-delete** — Email started, worked on, then abandoned. Document opened, edited minimally, closed without saving. The "approach-retreat" pattern.
+   - **Rescheduling without context change** — Meeting moved 3 times but nothing in the environment changed to justify it. Calendar avoidance.
+   - **Substitution behaviour** — Doing lower-priority tasks instead of the avoided task. The "productive procrastination" pattern. Cleaning email inbox instead of writing the board memo.
+   - **Topic avoidance in communication** — Threads where the executive responds to everything except the hard question. Selective non-response.
+   - **Phantom tasks** — Tasks that appear on lists, get mentioned in morning sessions, but never accumulate any work evidence. They exist in intention but not in action.
+   - **Temporal displacement** — "I'll do this next week" repeated for 3 consecutive weeks with no structural change.
+   - **Context-switching away** — Starting the avoided task, then switching to something else within minutes. Short contact time as a signal.
+   
+   For each signal: reliability, false positive rate, minimum observation count before it's meaningful.
+
+3. **Classification model** — How to combine these signals into a classification: {not avoidance, possible avoidance, probable avoidance, confirmed avoidance pattern}. Confidence thresholds for each level. Should this be rule-based, statistical, or LLM-based? Trade-offs. How to handle cases where the system is genuinely uncertain.
+
+4. **Avoidance pattern categories** — Research on what executives typically avoid and why:
+   - Difficult conversations (people decisions, firing, confrontation)
+   - Strategic ambiguity (decisions with no clear right answer)
+   - Political risk (actions that might upset powerful stakeholders)
+   - Admitting mistakes or reversing previous decisions
+   - Long-term important but not urgent work (classic Eisenhower Q2)
+   - Technical/domain work they've outgrown but haven't delegated
+   Can the system learn THIS executive's specific avoidance categories over time?
+
+5. **Connection to procedural memory** — When a confirmed avoidance pattern is detected, it should generate a procedural rule: "This executive avoids people-related decisions involving conflict. Average deferral: 11 days. Historical outcome when finally addressed: resolution time increases proportionally to deferral time." How avoidance patterns become system knowledge that persists and compounds.
+
+6. **Surfacing in the morning session** — How to tell an executive they're avoiding something without triggering defensiveness. Research on behavioural nudging and feedback delivery. Tone, framing, evidence presentation. Example: "The [project name] staffing decision has appeared on your plan 4 times in 12 days without progress. The last time you deferred a people decision this long was [X] — it took 3x longer to resolve. Would you like to address this today?" How to calibrate assertiveness based on how the executive has responded to past avoidance callouts.
+
+7. **Privacy and sensitivity** — Avoidance detection is deeply personal. The system is essentially telling someone about their psychological patterns. What are the ethical boundaries? Should certain avoidance patterns never be surfaced (e.g., avoiding a task because of a personal/family issue)? How to detect when avoidance is health-related vs work-related.
+
+8. **Research on procrastination detection** — What exists in the literature? Computational approaches to detecting procrastination (Steel, 2007 temporal motivation theory implemented computationally; Pychyl's research on task aversiveness). Digital phenotyping for procrastination. Any deployed systems that detect avoidance from behavioural data?
+
+If current research suggests a superior approach to anything I've described, recommend it with evidence.
+
+Deliver a complete implementation-ready spec with: signal schemas, classification pipeline, confidence thresholds, procedural rule generation format, morning session surface templates, integration with the four-layer architecture, and expected detection accuracy at 1 week, 1 month, 3 months.

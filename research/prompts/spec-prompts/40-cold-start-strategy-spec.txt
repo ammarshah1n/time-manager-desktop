@@ -1,0 +1,96 @@
+I need a complete specification for the cold start strategy in Timed — a macOS cognitive intelligence layer for C-suite executives. The cold start problem is existential: the system's value proposition is compounding intelligence, but on Day 1 it knows nothing. How to deliver enough value in week 1 to earn the right to reach month 6.
+
+**Hard constraints:**
+- Timed never acts on the world — observation only.
+- macOS native: Swift 5.9+, SwiftUI, CoreData, MSAL OAuth for Microsoft 365.
+- Supabase backend, Jina 1024-dim embeddings.
+- Opus 4.6 at max effort for reflection, no cost cap.
+- C-suite executive user who is impatient and has tried everything.
+
+**The fundamental challenge:** A system that needs 3 months of data to deliver its best intelligence must still deliver meaningful intelligence on Day 1. How?
+
+**What I need specified:**
+
+1. **Onboarding flow — archetype picker** — Present 4-6 executive archetypes at onboarding, each with pre-loaded scoring weights and behavioral priors:
+   - The Operator: High meeting load, operational focus, delegates reluctantly
+   - The Strategist: Protected thinking time, fewer meetings, long-horizon planning
+   - The Networker: Relationship-centric, high email/meeting volume, political awareness
+   - The Builder: Product/engineering focus, hands-on, resists delegation of technical decisions
+   - The Turnaround: Crisis mode, high urgency, short time horizons, everything is priority 1
+   
+   Research on executive typologies — are there validated frameworks for categorizing executive operating styles? Big Five personality mapping to work patterns? How accurate are archetype-based priors vs starting from zero? What does research on user onboarding in adaptive systems say about initial preference elicitation?
+
+2. **Calendar history bootstrap** — On first connection to Microsoft 365 via MSAL, pull 90 days of Outlook calendar history. From this data alone, infer:
+   - Meeting density patterns (which days are meeting-heavy)
+   - Recurring meeting identification (weekly 1:1s, leadership meetings, board meetings)
+   - Meeting-free blocks (are there protected focus times already?)
+   - Key stakeholders (most frequent meeting participants)
+   - Meeting types (internal vs external, large vs small)
+   - Day structure (when do meetings start, when do they end, lunch patterns)
+   
+   Research on what can be reliably inferred from calendar metadata alone. What studies exist on using calendar data for personality/behavior modelling? How much can you learn from 90 days of calendar history without content?
+
+3. **Email history bootstrap** — Pull 90 days of email metadata (not content initially — subject lines, senders, timestamps, response times). From this:
+   - Response time distribution (fast responder? slow? varies by sender?)
+   - Email volume patterns (time of day, day of week)
+   - Key contacts by email frequency
+   - Thread engagement depth (do they write long emails or short?)
+   - Working hours inference
+   
+   Technical: Microsoft Graph API capabilities and rate limits for historical email pull. Privacy: only metadata initially, content access as a later opt-in. Research on behavioral inference from email metadata.
+
+4. **Communicating uncertainty honestly** — The system must never pretend to know more than it does. Week 1 language:
+   - "Based on your calendar patterns, I think your analytical peak is mid-morning — but I have low confidence. I'll learn your actual rhythm over the next 2 weeks."
+   - "I'm placing this task at 10am based on typical executive patterns. After a few days, I'll use YOUR data instead."
+   - Confidence indicators: visual treatment for low-confidence vs high-confidence recommendations.
+   
+   Research on communicating AI uncertainty to users. What does HCI research say about transparency in adaptive systems? Does expressing uncertainty increase or decrease trust? (Research suggests it increases trust — cite the evidence.)
+
+5. **Active preference elicitation** — One targeted question per morning session in the first 2 weeks. Not a survey — a single, high-information question:
+   - Day 1: "What's the one thing that would make today feel successful?"
+   - Day 2: "When do you do your best thinking — morning or late afternoon?"
+   - Day 3: "Is there anyone you've been meaning to talk to but haven't?"
+   - Day 4: "What's the task you keep pushing to tomorrow?"
+   
+   Each question is chosen to maximally reduce uncertainty about the person's cognitive model. Research on active learning in user modelling — information-theoretic approaches to question selection. How to maximize information gain per question.
+
+6. **Time-to-first-value target** — What "value" looks like at each milestone:
+   - **Day 1:** Calendar-aware day plan with sensible defaults. "You have 6 meetings today. I've identified two gaps: 10-11am and 3-4pm. Would you like to allocate your highest-priority task to one of these?"
+   - **Day 3:** Email triage with basic classification. Calendar patterns detected. First time estimates.
+   - **Week 1:** First named pattern: "You have 4 hours of meetings every Tuesday, making it your least available day for deep work."
+   - **Week 2:** First scheduling recommendation based on actual data: "Based on your first week, you complete analytical tasks 20% faster before 11am."
+   - **Month 1:** First reflection-driven insight: "I've noticed you reschedule financial reviews when they're scheduled on the same day as client calls."
+   
+   Research on time-to-value in enterprise SaaS. What's the acceptable window before an impatient executive gives up? How do the best onboarding experiences create early wins?
+
+7. **Transition from cold to warm model** — How the system progressively shifts from archetype priors to personal data:
+   - Bayesian framework: archetype = prior, personal observations = likelihood, posterior = blended model
+   - Transition speed: how many observations before personal data dominates the prior?
+   - Per-feature transition: some features (chronotype) take weeks to learn; others (meeting patterns) can be inferred from Day 1 calendar data
+   - Visual indicator: can the executive see the model warming up? A confidence/maturity indicator?
+   
+   Research on Bayesian personalization — prior elicitation techniques, appropriate prior strengths, convergence rates. How Thompson sampling handles cold start (it's designed for exactly this — exploration-heavy early, exploitation-heavy later).
+
+8. **What NOT to do during cold start** — Common cold start mistakes that destroy trust:
+   - Making confident recommendations with no data to back them
+   - Generic insights that feel like fortune cookies
+   - Over-asking (turning onboarding into a survey)
+   - Showing empty states ("No patterns detected yet" — useless)
+   - Comparing to other users without consent
+   
+   Research on cold start failures in adaptive/personalization systems. What killed early recommendation system adoption? What destroyed trust in personal AI assistants?
+
+9. **A/B testable cold start variations** — Define 2-3 cold start strategies that can be compared:
+   - Strategy A: Rich archetype + calendar bootstrap + 1 question/day
+   - Strategy B: Minimal archetype + aggressive calendar/email bootstrap + 0 questions
+   - Strategy C: No archetype + full 90-day data pull + system self-narrates what it's learning
+   
+   What metrics determine which strategy wins? Time to first positive user reaction? Day-7 retention? Model accuracy at day 14?
+
+Produce a complete cold start specification with onboarding flow, data bootstrap pipelines, uncertainty communication framework, preference elicitation schedule, time-to-value milestones, and Bayesian prior-to-posterior transition logic. The cold start must be good enough that a skeptical executive says "OK, this might actually be worth my time" within 48 hours.
+
+If current research suggests a superior approach to any component, recommend it with evidence.
+
+# Research Pack 05 — Engineering, Build Plan, and Dev Tooling
+
+> Give each prompt to Perplexity Deep Research. Save the result. Bring it back.

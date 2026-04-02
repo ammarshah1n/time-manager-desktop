@@ -1,0 +1,93 @@
+I have generated 49 specification documents for a macOS application called Timed — a cognitive intelligence layer for C-suite executives. These documents collectively define the complete system architecture, from vision to implementation plan.
+
+**The system:**
+- macOS native: Swift 5.9+, SwiftUI, CoreData, on-device voice
+- Four layers: Signal Ingestion → Memory Store → Reflection Engine → Intelligence Delivery. No cross-layer coupling.
+- Intelligence compounds — Month 6 >> Month 1
+- Observation only — never acts on the world
+- Opus 4.6 for reflection, Sonnet for analysis, Haiku for classification
+- Supabase + Edge Functions backend
+- Microsoft Graph OAuth for calendar and email
+- Apple Speech on-device for voice
+- C-suite executive user
+
+**The documents cover:**
+
+1. Vision and product philosophy (what Timed is, what it isn't, competitive landscape)
+2. Intelligence architecture (four-layer system, how layers interact, what flows between them)
+3. Human science foundations (cognitive models, executive performance research, chronotype, decision fatigue)
+4. Signal ingestion (what signals to observe, how to capture them, classification taxonomy)
+5. Memory architecture (episodic/semantic/procedural, embeddings, MemGPT context management, vector retrieval)
+6. Reflection engine (nightly cycle, pattern detection, rule generation, contradiction resolution, model versioning)
+7. Morning session design (voice-first briefing, pattern presentation, task planning, query handling)
+8. Menu bar and always-on presence (glanceable state, quick capture, focus timer integration)
+9. ML model specifications (Thompson sampling, EMA, chronotype, avoidance, cognitive load, relationship health)
+10. Microsoft Graph integration (OAuth, delta queries, email/calendar observation, error handling)
+11. Voice system (Apple Speech, on-device transcription, voice session flow, ambient capture)
+12. Cold start and bootstrap (90-day calendar import, archetype priors, first-week experience)
+13. Proactive intelligence (alert triggers, pattern-based notifications, delivery timing, interruption budget)
+14. Query interface (natural language questions about patterns, explainability, "why did you rank this?")
+15. CoreData schema and migration strategy
+16. Background agent architecture (lifecycle, resource budget, sleep/wake, health monitoring)
+17. Privacy and data handling (data classification tiers, abstraction pipeline, deletion, transparency)
+18. Onboarding flow (install to first session, OAuth, permissions, archetype selection)
+19. Settings and user preferences (configurable vs invariant, corrections as signals, implicit learning)
+20. Phase-by-phase build sequence (ordered phases, dependencies, session estimates, milestones)
+21. Claude Code project configuration (CLAUDE.md, settings.json, MCP config)
+22. AI coding session skills (plan-feature, checkpoint, debug-swift, memory-layer, reflect)
+23. Session log and knowledge base templates (SESSION_LOG.md, Obsidian vault, development reflection)
+
+**Your task: Read every document and produce a comprehensive consistency audit.**
+
+Specifically, identify:
+
+1. **Schema conflicts.** Do different documents define the same entity differently? Does the memory architecture spec define episodic memory one way while the reflection engine spec assumes a different structure? Does the CoreData migration strategy reference entities that don't appear in the memory architecture? Are there field names, types, or relationships that are inconsistent across documents?
+
+2. **Interface mismatches.** Do the layer boundaries match? Does Layer 1's output format match what Layer 2 expects to receive? Does Layer 2's retrieval interface match what Layer 3 calls? Does Layer 3's reflection output match what Layer 4 needs to present? For every inter-layer interface: verify that both sides agree on the data contract.
+
+3. **Undefined terms.** Terms used in one document that are never defined. Concepts referenced but never specified. Acronyms without expansion. Entity types mentioned in one spec but absent from the schema.
+
+4. **Circular dependencies.** Components that depend on each other in ways that create cycles. Build phases that reference incomplete predecessors. Features that require features that require the first feature.
+
+5. **Missing acceptance criteria.** Specs that describe what to build but not how to verify it works. ML models without quality thresholds. UI components without interaction specs. Agents without health check definitions. Integration points without error handling specs.
+
+6. **Contradictions.** Direct conflicts between documents. One spec says data stays local, another implies it's synced. One spec says Haiku classifies emails, another says Sonnet. One spec says the reflection runs nightly, another implies on-demand. Find every contradiction.
+
+7. **Gaps.** Things that aren't covered by any document but are obviously needed. Error handling that's unspecified. Edge cases not addressed. Platform requirements not documented. Performance targets not defined.
+
+8. **Specification quality.** For each document, rate:
+   - Completeness (does it cover everything it claims to?)
+   - Implementability (could a developer build from this spec alone?)
+   - Testability (are acceptance criteria concrete and measurable?)
+   - Consistency with the overall architecture
+
+**Output format:**
+
+```
+# Timed Specification Audit Report
+
+## Critical Issues (must fix before coding)
+[Numbered list, each with: the issue, which documents conflict, and the recommended resolution]
+
+## High Priority Issues (fix in phase 1)
+[Same format]
+
+## Medium Priority Issues (fix when encountered)
+[Same format]
+
+## Low Priority Issues (nice to resolve)
+[Same format]
+
+## Document Quality Ratings
+[Table: document name | completeness | implementability | testability | consistency | notes]
+
+## Unresolved Design Questions
+[Decisions that no document has made, which someone needs to decide]
+
+## Recommended Consolidation
+[Where multiple documents overlap and should be merged or cross-referenced]
+```
+
+Be ruthless. This is the final quality gate before coding begins. Every issue found here saves hours of debugging later. Do not be polite about document quality — be precise about what's wrong and what needs to happen to fix it.
+
+If the audit reveals systemic issues (e.g., a layer boundary that's fundamentally unclear across all documents), call it out as a top-level finding with a recommended resolution approach.

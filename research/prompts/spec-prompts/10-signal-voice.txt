@@ -1,0 +1,133 @@
+I am building **Timed**, a macOS-native cognitive intelligence layer for C-suite executives. It is NOT a productivity app, task manager, or personal assistant. It builds a deep, compounding model of how a specific executive thinks, decides, avoids, prioritises, and operates — then uses that model to return cognitive bandwidth.
+
+**Hard constraints:**
+- Timed never acts on the world — observation and intelligence only. It never sends emails, never modifies calendars, never takes any action.
+- macOS native: Swift 5.9+, SwiftUI, CoreData, on-device voice only.
+- Four strict layers: Signal Ingestion → Memory Store → Reflection Engine → Intelligence Delivery. No cross-layer coupling.
+- Intelligence compounds over time — Month 6 must be qualitatively smarter than Month 1.
+- No cost cap on intelligence quality — uses Claude Opus for nightly reflection.
+- User is a C-suite executive who has tried everything. Impressed by understanding, not features.
+- **Voice is on-device ONLY.** Audio never leaves the device. Transcription uses Apple's on-device speech recognition. This is NON-NEGOTIABLE due to the sensitivity of executive conversations.
+
+**Tech stack:** Swift 5.9+, SwiftUI, CoreData, macOS 14+. Apple Speech framework for on-device recognition. AVFoundation for audio capture.
+
+**Architecture context:**
+- This spec is for **Layer 1 — Signal Ingestion**, specifically the **Voice Input Signal Agent**.
+- Layer 1's job: observe, record, timestamp, tag modality. It does NOT interpret.
+- The Voice Signal Agent captures transcripts from voice input sessions and writes raw voice signals to a unified signal queue.
+- Sentiment analysis, topic extraction, and cognitive state assessment happen in Layer 2/3.
+
+**Shipped context:** Voice morning session is already built. This spec defines the full voice signal architecture, including all voice interaction types beyond the morning session.
+
+---
+
+**Your task:** Produce a comprehensive, implementation-ready **Voice Input Signal Spec** for Timed.
+
+**The document must cover:**
+
+1. **Apple Speech Framework (on-device) — Technical Deep Dive:**
+   - `SFSpeechRecognizer` — configuration for on-device recognition (`requiresOnDeviceRecognition = true`).
+   - Supported languages and quality difference between on-device and cloud recognition. What is the current accuracy for conversational English on Apple Silicon Macs?
+   - `SFSpeechAudioBufferRecognitionRequest` vs `SFSpeechURLRecognitionRequest` — which to use for real-time vs file-based recognition.
+   - On-device model: what macOS versions support it, what hardware requirements (Apple Silicon required?), model download mechanism.
+   - Recognition task lifecycle: start, partial results, final result, error handling.
+   - Simultaneous recognition sessions: can multiple sessions run? (For overlapping voice inputs.)
+   - Duration limits: Apple imposes a ~1 minute limit per recognition task for on-device recognition (research the exact current limit on macOS 14+). How to handle longer sessions (chunking, sequential tasks, continuous recognition).
+
+2. **AVFoundation Audio Capture:**
+   - `AVAudioEngine` setup for microphone input on macOS.
+   - Audio format: sample rate, bit depth, channels. Recommended format for speech recognition input.
+   - Audio routing: handling external microphones, AirPods, built-in mic, USB audio interfaces.
+   - Audio session configuration for macOS (differs from iOS — research macOS-specific AVAudioSession equivalents or lack thereof).
+   - Audio buffer management: feeding audio buffers from AVAudioEngine to SFSpeechAudioBufferRecognitionRequest.
+   - **Critical: raw audio is NEVER stored to disk.** Audio flows from microphone → AVAudioEngine buffer → Speech framework → transcript. The buffer is discarded. Only the transcript persists.
+
+3. **Voice Session Types:**
+   - **Morning session:** Structured voice interaction. User speaks in response to system prompts. Already built — define how it maps to the signal model.
+   - **Ad-hoc voice note:** User presses a hotkey/button, speaks freely, releases. Quick capture of thoughts, observations, decisions.
+   - **Focus debrief:** After a focus session ends, optional voice prompt: "How did that go?" Captures post-focus reflection.
+   - **Meeting pre-brief:** Before a calendar event, optional voice prompt: "What do you want from this meeting?" Captures intent.
+   - Each session type has different metadata (purpose, linked entities like calendar events or tasks).
+
+4. **What is Captured Per Voice Signal:**
+   - Full transcript text (final, not partial results — unless partial results are needed for real-time display).
+   - Session start timestamp
+   - Session end timestamp
+   - Total duration
+   - Session type (morning_session, ad_hoc, focus_debrief, meeting_prebrief)
+   - Word count (computed from transcript)
+   - Speaking pace (words per minute — computed from word count and duration)
+   - Confidence score (from SFSpeechRecognizer — research what confidence data Apple provides)
+   - Linked entity: task ID, calendar event ID, or nil (for ad-hoc)
+   - Segments with timestamps (if available from Apple Speech — research `SFTranscriptionSegment` and what timing data it provides)
+
+5. **What is NOT Captured (explicit exclusions):**
+   - Raw audio files — NEVER stored.
+   - Audio waveform data.
+   - Speaker identification / diarisation (not needed — Timed is single-user).
+   - Background audio or system sounds.
+   - Audio from other applications (Timed only captures from its own microphone session).
+
+6. **Metadata Extraction (computed at signal level, not interpretive):**
+   - **Word count and pace:** Factual computation from transcript length and duration.
+   - **First topics:** The first N meaningful words/phrases from the transcript. (This is a lightweight extraction, not NLP — just the opening content. Deep topic analysis happens in Layer 3.)
+   - **Silence ratio:** Ratio of silence to speech within the session (if detectable from audio buffer amplitude — research feasibility without storing audio).
+   - **Session energy indicator:** Speaking pace relative to user's historical baseline (faster = higher energy, slower = lower). This is a factual comparison, not a sentiment judgment.
+
+7. **Privacy Architecture — Deep Dive:**
+   - **Raw audio lifecycle:** Microphone → AVAudioEngine tap → speech recognition buffer → discard. At no point is audio written to the filesystem, UserDefaults, CoreData, Supabase, or any temporary file. Verify this is architecturally guaranteed, not just policy.
+   - **Transcript storage:** Stored in CoreData locally. Transcripts may be sent to Anthropic API as part of reflection engine input (Layer 3) — user must consent.
+   - **Microphone access:** macOS microphone permission. How to request gracefully. How to handle denial. How to detect if permission is revoked mid-session.
+   - **Recording indicator:** macOS shows an orange dot when microphone is active. This is expected and should be explained to the user during onboarding.
+   - **What if the user discusses extremely sensitive information?** Transcripts are stored locally and optionally sent to Anthropic. The user must understand this. Provide a "sensitive mode" option that excludes specific sessions from LLM processing.
+
+8. **Write Path to Signal Queue:**
+   - Voice signal envelope structure.
+   - Mapping to unified signal format (timestamp, source=.voice, modality tag).
+   - When to write: on session completion (not during — partial transcripts are for UI display only).
+   - How to handle failed recognition (partial transcript with error flag).
+
+9. **Handling Long Sessions:**
+   - Apple's on-device recognition has duration limits. Research the exact limits on macOS 14+.
+   - Strategy for sessions longer than the limit: chunked recognition (sequential tasks with seamless transition), or continuous recognition with task recycling.
+   - How to merge transcripts from multiple recognition tasks into a single coherent session transcript.
+   - How to handle the gap between recognition tasks (potential word loss at chunk boundaries).
+
+10. **How Voice Signals Feed Higher-Order Intelligence:**
+    - **Cognitive state assessment:** (Layer 3) Speaking pace, word choice richness, session length patterns over time. A rushed, short morning session may indicate high stress. A verbose, slow session may indicate reflective mode.
+    - **Decision articulation:** When executives voice-note decisions, the reflection engine can track decision patterns — what triggers a verbal note vs a typed note vs no note.
+    - **Priority revelation:** What the executive talks about first in morning sessions reveals what's top of mind — which may differ from their explicit priority list.
+    - **Avoidance detection:** Topics that appear in voice notes but never get actioned in tasks or email responses.
+    - **Emotional state tracking:** (Layer 3, via LLM) The transcript text (not audio) can be analysed for emotional indicators — urgency, frustration, excitement, uncertainty. This is done by the reflection engine, not the signal agent.
+    - For each use case, state which captured fields are required.
+
+11. **Error Handling:**
+    - Microphone permission denied: graceful UI, functionality disabled, no crash.
+    - Speech recognition unavailable (model not downloaded): prompt user to download, degrade gracefully.
+    - Recognition error mid-session: save partial transcript with error flag, attempt to resume.
+    - Network interruption: not relevant — everything is on-device.
+    - Mic disconnected mid-session: detect via AVAudioEngine interruption notification, save partial, notify user.
+
+12. **Acceptance Criteria:**
+    - Voice input correctly transcribed using on-device recognition only (never cloud).
+    - Raw audio is NEVER persisted to any storage.
+    - All four session types (morning, ad-hoc, focus debrief, meeting pre-brief) correctly captured with appropriate metadata.
+    - Word count and speaking pace correctly computed.
+    - Confidence scores correctly captured from Apple Speech.
+    - Long sessions (> 1 minute) correctly handled via chunked recognition with seamless transcript merging.
+    - Microphone permission handled gracefully (request, denial, revocation).
+    - Session data correctly written to signal queue on completion.
+    - Sensitive mode correctly excludes marked sessions from LLM processing.
+    - Transcription latency: final transcript available within 2 seconds of session end.
+
+Research Apple's Speech framework thoroughly for macOS 14+ (Sonoma) and macOS 15 (Sequoia) — on-device recognition capabilities, accuracy benchmarks, duration limits, API changes. Research AVFoundation audio capture best practices for macOS (not iOS). Study how other macOS voice-input tools (Whisper Transcription, Otter.ai desktop, macOS Dictation) handle on-device transcription, long sessions, and privacy.
+
+If current research suggests a superior approach to what is described here, recommend it with evidence and explain the tradeoff.
+
+---
+
+*End of Batch 1. 10 prompts, all self-contained, ready for Perplexity Deep Research.*
+
+# Research Pack — Batch 2: Memory Architecture, Scoring Models & Signal Design
+
+> Give all 10 prompts to Perplexity Deep Research, one at a time. Save each result. Bring them all back.

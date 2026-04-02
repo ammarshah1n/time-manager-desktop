@@ -1,0 +1,42 @@
+I'm building a macOS executive intelligence system called Timed that observes a C-suite executive's digital behaviour and builds a compounding cognitive model of them over months. It never acts on the world — observation and intelligence only.
+
+I need a complete implementation spec for a per-contact relationship health model that tracks the health of the executive's professional relationships from their digital communication patterns. This should detect improving, stable, and deteriorating relationships — and surface actionable intelligence in the morning session.
+
+Architecture context: four decoupled layers — Signal Ingestion, Memory Store, Reflection Engine, Intelligence Delivery. Tech: Swift 5.9+, SwiftUI, CoreData, Supabase, Jina embeddings 1024-dim, Claude Haiku/Sonnet/Opus tiered. Nightly Opus reflection, no cost cap. Three-tier memory: episodic (events), semantic (learned facts), procedural (rules). Intelligence compounds.
+
+Research and spec every dimension:
+
+1. **Per-contact signal extraction** — For every contact the executive communicates with, what signals can be extracted?
+   - **Response latency trends** — The executive's response time to this person over time. Is it increasing (cooling) or decreasing (warming/prioritising)? AND the reverse: the contact's response time to the executive.
+   - **Email length trends** — Are emails getting shorter (efficiency or disengagement)? Are they getting more formal (distancing)?
+   - **Thread depth** — How many back-and-forth exchanges per thread? Declining depth = declining engagement.
+   - **Meeting frequency changes** — Increasing 1:1s = escalation or relationship building? Decreasing = stable delegation or growing distance?
+   - **Tone and sentiment drift** — LLM-based sentiment analysis on email content (with privacy constraints). Formal vs informal language shifts. "Warmth token" tracking (greetings, personal references, humour).
+   - **CC/BCC patterns** — Adding more people to threads (escalation, CYA behaviour, loss of trust in direct resolution). BCC usage spikes.
+   - **Channel switching** — Moving from email to chat to phone (escalation or intimacy) or vice versa.
+   - **Initiation ratio** — Who initiates contact more often? Shifts in the initiation balance.
+   - **Response completeness** — Does the executive address all points in the contact's email, or selectively ignore? (Requires LLM analysis.)
+   
+   For each signal: measurement methodology, baseline period needed, noise characteristics, which relationship types it's most diagnostic for.
+
+2. **Relationship health scoring model** — How to combine these signals into a continuous health score per contact. Scale design: -1 to +1? 0-100? Categorical (thriving, stable, at-risk, deteriorating, critical)? Should the model output both a point estimate and a trend direction? Bayesian approach with relationship-type priors (board member relationships have different baselines than direct reports).
+
+3. **Trend detection** — Detecting when a relationship is changing trajectory. Simple approaches (linear regression on rolling window) vs sophisticated (change-point detection, CUSUM). How to distinguish a genuine trend from noise. Minimum observation period before declaring a trend. How to handle relationships with infrequent communication (the executive emails this board member once a month — is that enough signal?).
+
+4. **Relationship categorisation** — The system should learn relationship categories: direct reports, peers, board members, external partners, clients, mentors. Different health models per category (you don't evaluate a board relationship the same as a direct report relationship). How to infer categories from communication patterns without explicit labelling. Research on automatic role inference from email metadata.
+
+5. **Surfacing in morning intelligence** — How to present relationship intelligence:
+   - Pattern: "Your response latency to [CTO name] has increased 3x in 30 days — from 2-hour average to 6-hour average."
+   - Trend: "Your communication with [board chair] has shifted from informal to formal over the past 6 weeks. Thread depth has decreased 40%."
+   - Risk: "Three relationships are showing simultaneous deterioration signals: [names]. The last time this pattern occurred was [date] — it preceded the Q3 reorg conflict."
+   Calibrate assertiveness. Don't surface noise. What confidence threshold justifies a morning session mention?
+
+6. **Relationship network effects** — Relationships don't exist in isolation. If the executive's relationship with Person A deteriorates, does that predict changes with Person B (who reports to A)? Network-level health indicators. Research on organisational network analysis (Aral, Cross, Parker).
+
+7. **Privacy and ethical constraints** — The system is reading email content to assess relationship health. What should it NEVER do? Never store raw email content in the relationship model — only derived scores and anonymised signals. Never compare the executive's relationships to other users. Never surface relationship intelligence about the contact's personal life inferred from work email. What other ethical boundaries apply?
+
+8. **Research on computational relationship assessment** — What exists? Organisational network analysis literature (Aral & Van Alstyne, Cross & Parker). Email-based social network analysis. Sentiment trend detection in longitudinal communication data. CRM relationship scoring approaches and their applicability to personal relationships. Dunbar's number and relationship maintenance bandwidth research.
+
+If current research suggests a superior approach to anything I've described, recommend it with evidence.
+
+Deliver a complete implementation-ready spec with: per-contact data model, signal extraction pipeline, scoring algorithm, trend detection method, relationship category inference, morning session surface templates, privacy guardrails, integration with all four layers, and expected model quality at 2 weeks, 1 month, 3 months, 6 months.

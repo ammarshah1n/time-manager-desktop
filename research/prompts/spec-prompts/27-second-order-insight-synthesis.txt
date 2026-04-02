@@ -1,0 +1,72 @@
+I'm building a macOS executive intelligence system called Timed that observes a C-suite executive's digital behaviour and builds a compounding cognitive model of them over months. It never acts on the world — observation and intelligence only.
+
+I need a complete implementation spec for second-order insight synthesis — the component that takes first-order patterns (observable regularities) and combines them into named, cross-domain insights about the executive. This is Stage 3 of the nightly Reflection Engine pipeline and represents the core of the compounding intelligence claim. This is where the system moves from "I see patterns" to "I understand you."
+
+Architecture context: four decoupled layers — Signal Ingestion, Memory Store, Reflection Engine, Intelligence Delivery. Tech: Swift 5.9+, Supabase, Claude Opus 4.6 at maximum effort for this stage (this is where intelligence lives), Jina embeddings 1024-dim. Memory: episodic, semantic, procedural. Intelligence compounds.
+
+Research and spec every dimension:
+
+1. **What is a second-order insight?** — A first-order pattern is an observed regularity: "Response time to board members increases 2x on Fridays." A second-order insight is a causal or correlational synthesis across multiple first-order patterns: "Post-board fatigue reduces strategic output for 72 hours — correlating meeting density, email latency spike, and document avoidance." The insight names a phenomenon, chains evidence from multiple domains, and has explanatory power that no individual pattern provides. Research on meta-cognitive insight generation. How the Stanford Generative Agents paper handles higher-order reflection.
+
+2. **Cross-domain correlation** — The power of second-order insights comes from connecting patterns across different signal domains:
+   - Calendar pattern + email pattern → behavioural insight
+   - Cognitive load pattern + decision quality pattern → performance insight
+   - Relationship pattern + avoidance pattern → interpersonal insight
+   - Chronotype pattern + meeting scheduling → energy management insight
+   How to systematically search for cross-domain correlations. Brute force (check all pattern pairs) vs guided (LLM-directed hypothesis generation). Computational cost of each approach. False discovery rate management when testing many correlations.
+
+3. **Confidence gating** — Not every pattern combination is a real insight. Spec the confidence requirements:
+   - Minimum number of first-order patterns that must contribute (at least 2, preferably 3+)
+   - Minimum time span of evidence (insight must be supported across at least N weeks)
+   - Minimum individual pattern confidence (don't build insights on shaky patterns)
+   - Statistical correction for multiple comparisons (Bonferroni or Bayesian alternative)
+   - How to represent "this insight is interesting but not yet confident" vs "this insight is actionable"
+
+4. **Named insight format** — Schema for a second-order insight:
+   - Insight ID (stable identifier)
+   - Title (human-readable, memorable name): "Post-Board Fatigue Effect", "Friday Afternoon Decision Drift", "Conflict Avoidance Cascade"
+   - Description (2-3 sentences explaining the insight)
+   - Evidence chain (ordered list of first-order pattern IDs with their contributions)
+   - Cross-domain span (which signal domains are involved)
+   - Confidence score (with methodology)
+   - Actionability score (how much can the executive do about this?)
+   - First synthesised date
+   - Last confirmed date
+   - Embedding (for retrieval and similarity)
+   How to generate good titles that the executive will remember and reference.
+
+5. **Example insights** — Provide 10-15 concrete second-order insight examples:
+   - "Post-Board Fatigue" — board meetings + email latency spike + document avoidance + shortened focus sessions = 72-hour recovery period
+   - "Friday Afternoon Decision Drift" — meeting density + time of day + decision quality metrics = decisions made after 3pm Friday are revised 3x more often
+   - "Conflict Avoidance Cascade" — people-decision deferral + increasing formal tone with specific contacts + calendar avoidance of 1:1s = brewing interpersonal issue
+   - 7-12 more examples across different insight types
+   For each: the contributing first-order patterns, the synthesis logic, and the morning session surface text.
+
+6. **Insight lifecycle** — Similar to patterns:
+   - Hypothesis (first generated, needs confirmation)
+   - Confirmed (validated across multiple reflection cycles)
+   - Active (consistently supported by incoming evidence)
+   - Evolving (the insight is changing — perhaps the fatigue period shortened)
+   - Deprecated (no longer supported)
+   How insights become candidate procedural rules (handoff to Stage 4).
+
+7. **Opus prompt engineering for synthesis** — This is the highest-value LLM call in the entire system. The prompt must:
+   - Provide the relevant first-order patterns with evidence
+   - Provide the existing insight library (to avoid rediscovery and to build on existing insights)
+   - Provide the executive's current semantic model (for context)
+   - Ask for specific output format (JSON with evidence chains)
+   - Include calibration instructions: "Only generate insights you can support with evidence from at least 3 independent pattern observations spanning at least 2 signal domains"
+   - Include self-critique: "For each generated insight, provide the strongest counter-argument"
+   How to evaluate whether the Opus call produced good insights. Quality rubric.
+
+8. **Compounding dynamics** — This is where compounding becomes real. Early insights are simple. Later insights build on earlier ones:
+   - Month 1: "You avoid people decisions" (simple avoidance pattern)
+   - Month 3: "You avoid people decisions specifically when the person is someone you personally hired" (refined with relationship data)
+   - Month 6: "Your people-decision avoidance correlates with the magnitude of the original hiring decision — the more senior the hire, the longer the avoidance" (deep cross-referencing)
+   How does the system architecture support this deepening? How to prompt Opus to build on existing insights rather than regenerating surface-level ones?
+
+9. **Research** — What exists in the literature on automated insight generation from longitudinal personal data? Meta-learning approaches. Causal discovery algorithms (PC algorithm, FCI) applied to personal time series. Any systems that generate named behavioural insights from observation?
+
+If current research suggests a superior approach to anything I've described, recommend it with evidence.
+
+Deliver a complete implementation-ready spec with: insight definition and taxonomy, cross-domain correlation methodology, confidence framework, output schema, 10-15 concrete examples, lifecycle management, Opus prompt template, compounding architecture, and quality evaluation criteria.

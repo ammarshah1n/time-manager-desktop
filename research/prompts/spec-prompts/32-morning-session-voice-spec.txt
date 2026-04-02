@@ -1,0 +1,34 @@
+I need a complete voice interaction specification for the morning intelligence session in Timed — a macOS cognitive intelligence layer for C-suite executives.
+
+**Hard constraints:**
+- Timed never acts on the world — observation only.
+- macOS native: Swift 5.9+, SwiftUI, on-device voice via Apple Speech framework.
+- Intelligence compounds — Month 6 >> Month 1.
+- Opus 4.6 at max effort for reflection, no cost cap on intelligence quality.
+- The user is a C-suite executive. The interaction must feel like a brilliant chief of staff who has been watching for months, not a chatbot.
+
+**What I need specified:**
+
+1. **Session trigger mechanisms** — Three modes: (a) Scheduled — fires at user-configured time with a subtle notification, (b) App open — session begins when the user opens the Timed app, (c) Manual — user says "Brief me" or clicks a menu bar button. For each: what happens if the user is in a meeting? What if they ignore the scheduled trigger? How many retries before the system gives up for the day?
+
+2. **Response latency targets** — From the moment the session is triggered, how fast must the first word of spoken output arrive? Research on perceived responsiveness in voice interfaces. What's the threshold where it feels "instant" vs "loading"? Factor in: the system needs to compose the briefing from memory + ML scores + overnight reflection results. Can the briefing be pre-composed and cached? If so, when does pre-composition run?
+
+3. **On-device speech recognition** — Apple's Speech framework (SFSpeechRecognizer) for real-time transcription. What are its current capabilities and limitations on macOS? Accuracy for executive speech patterns (fast, clipped, domain-specific vocabulary). Streaming vs batch recognition. How to handle: interruptions, corrections ("No, I said Henderson not Anderson"), crosstalk, ambient noise. Privacy implications of on-device vs cloud recognition.
+
+4. **Corrections as training signal** — When the executive corrects the system ("That's wrong", "No, the real issue is...", "I already dealt with that"), how to capture the correction, classify its type (factual correction, priority override, pattern disagreement, emotional pushback), and route it to the appropriate memory/learning layer. Research on learning from user corrections in dialogue systems. How to distinguish between "the system was wrong" vs "the user doesn't want to hear this right now."
+
+5. **Adaptive conversation flow** — The system must adjust questions and depth based on what it already knows. Week 1: more questions, less assertion. Month 3: fewer questions, more pattern confrontation. How to model the system's confidence in its knowledge of the user and adjust interaction style accordingly. Research on adaptive dialogue systems that change their communication style based on relationship depth.
+
+6. **Voice output specification** — How AI-generated text is spoken to the executive. Options: (a) macOS system TTS (AVSpeechSynthesizer), (b) higher-quality TTS API (ElevenLabs, OpenAI TTS), (c) hybrid (on-device for low-latency, API for rich content). Voice selection criteria: authoritative, calm, gender-neutral or user-selectable, not "assistant-y." Research on voice characteristics that build trust with high-status professionals. Pacing, emphasis, and pause placement for information-dense content.
+
+7. **The "chief of staff" interaction model** — In real executive operations, a chief of staff briefs the CEO each morning. Research on how this interaction actually works in practice (interview data, published accounts from White House chiefs of staff, corporate chiefs of staff). What is the tone? How much deference vs directness? When does the chief of staff push back? How does this translate to a voice AI interaction model? The goal: the executive feels like they have a brilliant person who knows them deeply, not a voice assistant reading a script.
+
+8. **Multi-turn conversation within the session** — The session is not a monologue. The system speaks, the executive responds, the system adapts. How to handle: the executive going off-script, asking a question the system didn't anticipate, wanting to skip ahead, wanting to go deeper on one topic, expressing frustration, being in a rush ("Just give me the top 3"). Research on flexible multi-turn dialogue management for time-constrained users.
+
+9. **Session recording and memory extraction** — Everything said during the morning session (by both parties) is valuable signal. How to: transcribe in real time, extract key intents and decisions, tag emotional valence, identify commitments ("I'll call Sarah today"), and write all of this back to episodic memory. The morning session itself is one of the richest signal sources.
+
+10. **Failure modes and graceful degradation** — What if speech recognition fails? What if the AI response generation is slow? What if the network is down (affecting Opus API calls)? What if the executive's environment is noisy? Fallback modes: text-only session, abbreviated session, cached session from overnight preparation. The session must never feel broken.
+
+Produce a complete voice interaction specification with latency budgets, API choices, fallback chains, and interaction state machine. The spec must be implementable by a Swift developer.
+
+If current research suggests a superior approach to any component, recommend it with evidence.

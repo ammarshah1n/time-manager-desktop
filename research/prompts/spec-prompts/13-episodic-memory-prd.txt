@@ -1,0 +1,37 @@
+I'm building a cognitive intelligence system called Timed for C-suite executives. It builds a compounding model of how a specific executive thinks and operates. The system is macOS native (Swift 5.9+, SwiftUI, CoreData) with a Supabase + Edge Functions backend. It uses Claude AI models (Haiku for classification, Sonnet for estimation, Opus at max effort for nightly reflection) and Jina AI embeddings (1024-dim) for vector search.
+
+The system has a three-tier memory architecture inspired by both cognitive science and MemGPT:
+- **Episodic memory** — raw timestamped records of what happened (THIS document)
+- **Semantic memory** — learned facts about the person (separate spec)
+- **Procedural memory** — operating rules for how they work (separate spec)
+
+And three operational tiers (MemGPT-inspired):
+- **Core memory** — always loaded in context (executive's role, current priorities, key relationships, active rules)
+- **Recall memory** — searchable episodic history
+- **Archival memory** — long-term vector store for patterns and insights
+
+The reflection engine runs nightly using Opus: reads today's episodic memories → extracts first-order patterns → synthesises second-order insights → updates semantic memory → generates procedural rules. Based on Stanford Generative Agents architecture (Park et al. 2023).
+
+Observation and intelligence only — the system never acts on the world. The user decides and executes.
+
+**I need a complete product requirements document for the episodic memory tier.**
+
+Research and specify:
+
+1. **What constitutes an "episode."** An episode is NOT simply "an event happened." It's a bounded unit of experience with a trigger, a duration, context, and significance. Research: cognitive science definitions of episodic memory — Tulving's original formulation, modern computational models. For Timed specifically: what are the episode types? Examples: "user deferred Task X for the third time at 2:47 PM while in a meeting-heavy afternoon" — that's one episode. "User completed a 45-minute deep work session on the quarterly report with zero interruptions" — that's another. "Three emails arrived from the board chair in 10 minutes and the user opened all of them immediately" — that's a third. Define the taxonomy of episode types this system needs.
+
+2. **Episode schema.** The exact data structure for an episodic memory record. Required fields: episode_id (UUID), timestamp_start, timestamp_end (nullable for point events), episode_type (enum), source_modality (enum: email, calendar, task, voice, focus_timer, app_usage, user_correction), raw_data (JSON — the actual event data), context (JSON — time of day, day of week, concurrent activities, energy proxy, calendar density, recent episodes), significance_score (float 0-1 — how important is this episode?), embedding (vector 1024-dim for semantic search), metadata (JSON — derived signals, flags). Research what other fields are needed based on episodic memory literature and production personal AI systems.
+
+3. **Significance scoring.** Not all episodes are equally important. A routine email check is low significance. The CEO calling an emergency board meeting is high significance. How to score significance at write time? Heuristics: involves high-importance contacts, breaks routine patterns, triggers emotional signals (voice tone, rapid task switching), involves repeated behaviour patterns (third deferral), user explicitly flagged something. Research: importance scoring in the Stanford Generative Agents paper, other approaches to event importance scoring in personal AI systems.
+
+4. **Write protocol.** Who writes episodic memories and when? Each signal source (email observer, calendar observer, task interaction logger, voice session recorder, focus timer, app usage tracker) writes episodes independently. Validation rules: no duplicate episodes, required fields enforced, significance score computed at write time, embedding generated at write time (or async?). Write ordering: what happens when multiple observers write simultaneously? Conflict resolution. Batch writes vs immediate writes. The write path must be non-blocking — the UI must never stutter because an episode is being written.
+
+5. **Episode boundaries.** When does one episode end and another begin? A 45-minute focus session is one episode. But what about a 3-hour morning of varied work? Is that one episode or many? Research: event segmentation theory (Zacks & Tversky), computational approaches to activity boundary detection. For Timed: define clear boundary rules for each episode type. Some are event-triggered (email arrived), some are duration-based (focus session), some are state-change-based (switched from deep work to meetings).
+
+6. **Retention policy.** How long to keep raw episodic records. Options: keep everything forever (storage is cheap), keep recent episodes in full + summarise older ones, compress older episodes into aggregated summaries. Research: how the brain handles episodic memory consolidation and forgetting. What does the Stanford Generative Agents paper say about memory management at scale? Recommendation with evidence. Consider: executives use the system for years — what's the storage/retrieval cost profile at 2 years of continuous observation?
+
+7. **Query interface for the reflection engine.** The nightly reflection engine needs to retrieve today's episodes, but also needs to find relevant historical episodes for pattern matching. Query types: "all episodes from today" (simple), "all task deferral episodes in the last 30 days" (filtered), "episodes similar to this one" (vector search), "episodes involving person X" (entity search), "episodes where significance > 0.8 in the last week" (scored retrieval). For each query type: the interface, expected latency, and how it maps to the underlying storage (CoreData for structured queries, Supabase vector store for similarity search).
+
+8. **Relationship to semantic and procedural memory.** Episodic memory is the raw material. The reflection engine reads episodic memories and produces semantic facts and procedural rules. But the relationship is bidirectional: semantic memory (knowing the user avoids financial tasks) changes how new episodic memories are interpreted and scored. How to model this bidirectional relationship without creating circular dependencies? What's the clean interface between episodic writes and semantic/procedural reads?
+
+For every specification: provide exact schemas (as SQL or Swift structs), validation rules, edge cases, storage estimates, and performance requirements. If current research suggests a superior approach, recommend it with evidence.

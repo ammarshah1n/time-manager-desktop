@@ -1,0 +1,53 @@
+I need a complete specification for the monthly intelligence report in Timed — a macOS cognitive intelligence layer for C-suite executives. This report is the system's proof of value. It must demonstrate, with evidence, that the system is getting measurably smarter about this specific person.
+
+**Hard constraints:**
+- Timed never acts on the world — observation only.
+- macOS native: Swift 5.9+, SwiftUI.
+- Intelligence compounds — Month 6 >> Month 1.
+- Opus 4.6 at max effort for report generation, no cost cap.
+- C-suite executive user who is paying $500+/month. This report must justify the investment.
+
+**The fundamental question this report answers:** "Is Timed getting smarter about me, and is that intelligence making me more effective?"
+
+**What I need specified:**
+
+1. **Model specificity metrics** — How many semantic facts does the system hold about the executive? What's the confidence distribution? How many new facts were learned this month vs last month? How many facts were revised (confidence changed)? How many were deprecated (proven wrong)? Growth trajectory: at current rate, where will model specificity be in 3/6/12 months? Research on measuring knowledge base completeness and growth in personal modelling systems.
+
+2. **Rule effectiveness tracking** — The reflection engine generates procedural rules. What percentage of generated rules proved useful (triggered and led to good outcomes)? What percentage were never triggered? What percentage were triggered but led to bad recommendations (and were therefore deprecated)? Rule churn rate: how stable is the rule base? Research on measuring rule effectiveness in expert systems — how do RETE-based systems track rule utility?
+
+3. **Prediction accuracy trends** — Concrete, measurable predictions the system makes and their accuracy:
+   - **Time estimation accuracy:** Predicted task duration vs actual (EMA improving over time)
+   - **Priority prediction accuracy:** Did Thompson sampling rank the right tasks highest? (measured by: did the executive actually do them, and were the outcomes good?)
+   - **Schedule adherence prediction:** Did the executive follow the generated plan? Is adherence improving?
+   - **Pattern prediction:** When the system identified a pattern and made a prediction ("you'll reschedule this"), was it right?
+   
+   For each: how to compute accuracy, what's a good score, how to show improvement trend. Research on calibration and accuracy metrics for personal prediction systems.
+
+4. **Pattern detection depth** — How deep are the patterns the system is detecting?
+   - Month 1: Surface patterns ("you tend to work late on Wednesdays")
+   - Month 3: Behavioral patterns ("you avoid financial reviews when the board meeting is more than 2 weeks away")
+   - Month 6: Cognitive patterns ("your risk tolerance decreases for 48 hours after receiving critical stakeholder feedback")
+   
+   How to quantify pattern depth. Research on levels of behavioural pattern abstraction — from descriptive to explanatory to predictive.
+
+5. **Intelligence moments** — Specific instances where the system provided intelligence the executive couldn't have gotten elsewhere. "On March 12, I alerted you that you were in a scope creep spiral on Project Atlas. You subsequently reduced scope in the March 14 meeting." Track these moments. How many per month? How impactful? Can the executive rate them retrospectively? Research on measuring AI advisory value — how do consulting firms measure the value of their advice?
+
+6. **Behavioral change attribution** — If the executive's behaviour has changed (more focus time, better meeting preparation, less avoidance), can the system attribute any of it to its intelligence? This is treacherous — correlation is not causation. How to make credible claims. Before/after metrics with appropriate caveats. Research on measuring the impact of AI coaching and advisory systems on executive behavior.
+
+7. **Comparison across time horizons** — What the report looks like at different stages:
+   - **30-day report:** "Here's what I've learned about you. Here's where I'm still uncertain."
+   - **60-day report:** "Here's how my understanding deepened. Here's evidence I'm getting better."
+   - **90-day report:** "Here's a pattern I detected that took 3 months of data. You couldn't have gotten this from any other tool."
+   - **180-day report:** "Here's a longitudinal view of how you've evolved as a leader. Here's the cognitive model I've built of you."
+   
+   How the report format and content evolve at each milestone.
+
+8. **Report format and delivery** — How is the report delivered? In-app? Email? PDF? During a special monthly morning session? How long should it take to consume? Should it be interactive (drill into specific metrics) or a polished document? Research on executive report design — what formats do C-suite leaders actually read? McKinsey one-pager style? Dashboard?
+
+9. **Executive benchmark context** — Without revealing other users' data, can the system provide context? "Your focus time this month was 3.2 hours/day — research suggests top-performing executives average 2.8-3.5 hours." Population benchmarks from research to contextualize individual metrics. Research on executive performance benchmarks — what published data exists on how executives allocate time?
+
+10. **The retention proof point** — This report must make the executive think "I cannot go back to not having this." What specific content creates that feeling? Research on switching cost creation in SaaS products, but applied ethically — not through lock-in but through genuine irreplaceable value.
+
+Produce a complete intelligence report specification with every metric defined, computation methods, visualization recommendations, report templates for 30/60/90/180-day milestones, and delivery mechanism. The report must be the irrefutable proof that intelligence compounds.
+
+If current research suggests a superior approach to any component, recommend it with evidence.

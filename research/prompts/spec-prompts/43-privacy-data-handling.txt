@@ -1,0 +1,36 @@
+I'm building a macOS application called Timed — a cognitive intelligence layer for C-suite executives. It builds a compounding model of how a specific person thinks, decides, avoids, and operates. Observation and intelligence only — it never acts on the world.
+
+**Hard constraints:**
+- macOS native: Swift 5.9+, SwiftUI, CoreData, on-device voice
+- Four layers: Signal Ingestion → Memory Store → Reflection Engine → Intelligence Delivery. No cross-layer coupling.
+- The user is a C-suite executive who handles material non-public information (MNPI), board-level strategy, M&A discussions, personnel decisions, and legally privileged communications
+- This system observes their emails, calendar, voice, app usage, and decision patterns
+- Intelligence compounds — Month 6 >> Month 1
+
+This is a system that knows more about how an executive thinks and operates than any tool they've ever used. The privacy architecture is existential — one breach, one surprise about what data leaves the device, one unexplained API call, and the product is dead.
+
+**What I need:**
+
+1. **Data classification and residency map.** Every data type the system handles, classified into tiers:
+   - **Tier 1 — Never leaves device:** Raw email bodies, calendar event details with attendee names, voice recordings, raw text from meetings, anything that could contain MNPI. Where exactly is this stored? How is it encrypted at rest?
+   - **Tier 2 — Abstracted before API transmission:** What gets sent to Claude API for classification/reflection. How is it abstracted? What does the abstraction look like concretely? (e.g., "Email from [CONTACT_ID_47] regarding [TOPIC: financial_planning], sentiment: urgent, response_delay: 3.2 hours" — never the actual content)
+   - **Tier 3 — Metadata only to Supabase:** What syncs to the cloud backend. Authentication tokens, anonymised usage metrics, subscription state. Nothing cognitive, nothing personal.
+   - For each tier: storage mechanism, encryption method, access controls, retention policy.
+
+2. **What exactly gets sent to Claude API and in what form.** For every API call the system makes (Haiku classification, Sonnet analysis, Opus reflection): the exact prompt template showing what data is included and what is abstracted. How to ensure that even if the prompt is intercepted, no MNPI is recoverable. How to handle the case where the reflection engine needs to reason about specific relationships or decisions — how much context can be provided without exposing sensitive content?
+
+3. **Abstraction and anonymisation pipeline.** The technical architecture for transforming raw signals into privacy-safe representations before any API call. Entity replacement (names → stable pseudonyms that maintain relationship tracking). Topic classification without transmitting topic content. Sentiment and pattern extraction on-device before API calls. What on-device models can handle this pre-processing?
+
+4. **Transparent model inspection.** The executive must be able to see exactly what the system knows about them at any time. A "knowledge audit" view: every semantic memory, every procedural rule, every pattern the system has detected. Presented in plain language. The executive can challenge or delete any piece of knowledge. How to design this UI. What does the data export look like?
+
+5. **Data deletion — complete and verifiable.** When the executive requests deletion: what "complete deletion" means for CoreData + vector store + Supabase + any cached data. How to verify deletion is complete. How to handle the fact that semantic memories and procedural rules are derived from episodic memories — do you delete the derivatives too? Selective deletion: "forget everything about my relationship with [person]" — is this technically feasible with the memory architecture?
+
+6. **macOS security integration.** FileVault reliance vs application-level encryption. Keychain for API keys and OAuth tokens. Hardened runtime. App Sandbox implications for the signals the app can observe. Notarisation requirements. How the app's permissions model works (Accessibility, Full Disk Access, microphone) and how to explain each permission to a sceptical executive.
+
+7. **Regulatory considerations.** GDPR, Australian Privacy Act, California CCPA — what applies when the tool is used by executives in different jurisdictions? Data processing agreement requirements. Whether the Claude API's data retention policies are compatible with the privacy promises. How to handle the "right to explanation" when the system makes a recommendation based on patterns in sensitive data.
+
+8. **The trust narrative.** How to explain the privacy model to a C-suite executive in 60 seconds. What the first-run privacy briefing looks like. How to make the privacy architecture a competitive advantage rather than a compliance checkbox. What privacy certifications or audits would matter to enterprise buyers.
+
+Provide concrete architecture: the abstraction pipeline code pattern, the data classification enum, the deletion coordinator, and the knowledge audit view data model. Include the exact Keychain wrapper pattern for secure credential storage on macOS.
+
+If current research suggests a superior approach, recommend it with evidence.

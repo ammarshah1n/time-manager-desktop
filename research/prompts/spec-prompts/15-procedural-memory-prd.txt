@@ -1,0 +1,40 @@
+I'm building a cognitive intelligence system called Timed for C-suite executives. It builds a compounding model of how a specific executive thinks and operates. macOS native (Swift 5.9+, CoreData), Supabase + Edge Functions backend, Claude AI (Haiku/Sonnet/Opus), Jina AI embeddings (1024-dim).
+
+Three-tier memory: episodic (raw events), semantic (learned facts about the person), procedural (operating rules — THIS document). The reflection engine runs nightly using Opus at max effort: reads episodic memories → synthesises patterns → generates and updates procedural rules. Stanford Generative Agents architecture.
+
+Observation and intelligence only — the system never acts on the world. It suggests and explains. The user decides.
+
+**Procedural memory is the system's playbook for THIS specific executive.** Not generic productivity rules — rules learned from observing this person. "Don't schedule deep work after 3pm for this person — completion rates drop 40%." "When this person defers a task twice, surface it in the morning briefing with the avoidance pattern named." "This person responds to board emails within 15 minutes — if they haven't after 30, flag it."
+
+**I need a complete product requirements document for the procedural memory tier.**
+
+Research and specify:
+
+1. **What constitutes a procedural rule in this system?** Not code — natural language rules with structured metadata. A rule is a learned operating principle about how this specific person works best. Examples across categories:
+   - **Scheduling rules**: "Schedule deep work sessions before 11am — completion rate is 85% vs 45% after 3pm"
+   - **Alert rules**: "If user hasn't responded to board-level emails within 30 minutes, surface a gentle reminder"
+   - **Avoidance rules**: "When financial analysis tasks are deferred twice, name the avoidance pattern in morning briefing"
+   - **Energy rules**: "Post-lunch (1-2pm) is low-energy — schedule only admin/routine tasks"
+   - **Communication rules**: "User responds to [specific person] within 5 minutes — high priority relationship"
+   - **Planning rules**: "User underestimates document writing by 40% — apply 1.4x multiplier to estimates"
+   Research: How do cognitive architectures (ACT-R, SOAR) represent procedural knowledge? How do production rule systems work? What's the right representation for rules that an LLM will consume and apply?
+
+2. **Rule schema.** Each rule needs: rule_id (UUID), rule_text (natural language), category (enum from taxonomy above), trigger_conditions (JSON — when should this rule activate?), confidence (float 0-1), evidence_count (int — how many observations support this), evidence_ids (array of episodic memory IDs), first_generated (timestamp), last_applied (timestamp), last_validated (timestamp — when was it last confirmed by new evidence?), contradiction_history (array of timestamped contradicting observations), status (proposed → active → deprecated), generated_by (which reflection session produced this), priority (float — when rules conflict, which wins?). Research what other fields are essential for a production system.
+
+3. **Rule lifecycle: proposed → active → deprecated.** A rule starts as "proposed" when the reflection engine first generates it from observed patterns. It becomes "active" after sufficient evidence (what threshold?). It becomes "deprecated" when contradicting evidence overwhelms supporting evidence OR when the person's behaviour has clearly changed. Research: What is the right evidence threshold for each transition? How many observations before a proposed rule should be promoted? How much contradiction before deprecation? Should there be a "suspended" state for rules that might still be valid but haven't been triggered recently?
+
+4. **How rules are generated from reflection.** The nightly reflection engine identifies patterns in episodic memory, validates them against semantic memory, and generates procedural rules. What's the prompt architecture for rule generation? How does Opus decide "this pattern is strong enough to become a rule" vs "this is interesting but not yet a rule"? What's the minimum evidence threshold for proposing a rule? How to avoid overfitting to recent behaviour (recency bias)?
+
+5. **How rules are applied.** Rules constrain and inform three systems:
+   - **Scheduling/planning**: Rules about optimal time blocks, energy alignment, task ordering
+   - **Morning briefing**: Rules about what to surface, what patterns to name, what avoidance to interrogate
+   - **Proactive alerts**: Rules about when to nudge, what thresholds to watch
+   For each consumer: how are relevant rules retrieved? How are they formatted for the AI that generates the output? How many rules can be active simultaneously without overwhelming the system? Research: production rule engine scaling — what happens with 200 active rules?
+
+6. **Rule conflict resolution.** What happens when two active rules contradict? "Schedule deep work in the morning" vs "User's calendar is blocked with meetings every morning this week." Priority scoring? Recency weighting? Context-dependent resolution? Research: conflict resolution in production rule systems (Rete algorithm, CLIPS, Drools). How to adapt these approaches for a natural language rule system consumed by an LLM?
+
+7. **Rule deprecation and evolution.** People change. A rule that was true 6 months ago may not be true now (new role, new team, life event). How to detect that a rule is no longer valid? Approaches: track rule application outcomes, monitor contradiction frequency, time-based confidence decay, reflection engine periodic review of all active rules. Research: belief revision, truth maintenance systems, how to gracefully retire rules without losing the historical insight.
+
+8. **Rule transparency.** The user should be able to understand why the system is making suggestions. "I'm suggesting this because I've observed that you..." The rule text must be human-readable. The evidence chain must be traceable. Research: explainable AI applied to personal behavioural rules. How to present rules and their evidence to a busy executive who has 10 seconds of patience?
+
+For every specification: exact schemas, lifecycle state machines, algorithms with pseudocode, edge cases (first week with no rules, 500 rules after a year, contradictory rules). If current research suggests a superior approach, recommend it with evidence.

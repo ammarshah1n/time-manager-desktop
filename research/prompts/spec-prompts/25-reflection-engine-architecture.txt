@@ -1,0 +1,66 @@
+I'm building a macOS executive intelligence system called Timed that observes a C-suite executive's digital behaviour and builds a compounding cognitive model of them over months. It never acts on the world — observation and intelligence only.
+
+I need the COMPLETE architecture spec for the nightly Reflection Engine — the heart of the system. This is Layer 3 of four decoupled layers (Signal Ingestion → Memory Store → Reflection Engine → Intelligence Delivery). The Reflection Engine is what makes intelligence compound. It is inspired by the Stanford Generative Agents paper (Park et al. 2023) and MemGPT's memory management architecture.
+
+Tech: Swift 5.9+ frontend, Supabase backend, Claude Opus 4.6 at maximum effort for reflection (no cost cap — this is where the intelligence lives), Claude Haiku/Sonnet for preprocessing, Jina embeddings 1024-dim. Memory Store has three tiers: episodic (raw timestamped events), semantic (learned facts about the executive), procedural (operating rules the system has generated). Retrieval scoring: recency × importance × relevance.
+
+Research and spec every dimension:
+
+1. **Trigger conditions** — When does the reflection engine run?
+   - Time-based: nightly at a configured hour (e.g., 2am local time)
+   - Event-based: after significant events (a cluster of anomalous signals, a major calendar event completion, end of a particularly dense day)
+   - Manual: executive requests a reflection ("What have you learned about me this week?")
+   - Should there be different reflection depths? Quick daily reflection vs deep weekly synthesis vs monthly model review?
+   How to handle: executive crosses timezones, system is offline, reflection fails mid-run, previous reflection is still processing.
+
+2. **Input assembly** — What data does the reflection engine receive?
+   - Today's episodic memories (all signals from the past 24 hours)
+   - The current semantic model (learned facts, last updated version)
+   - Active procedural rules (current operating rules with effectiveness scores)
+   - Active pattern library (named patterns with evidence counts)
+   - Previous reflection outputs (to maintain continuity)
+   - Any flagged anomalies from real-time processing
+   How is this context assembled? Token budgeting — Opus has a large context window but it's not infinite. How to select the most relevant subset of episodic memories when a busy day generates thousands of events? Retrieval strategy: use embedding similarity + recency + importance scoring to select the top-N most relevant episodic memories for each reflection task.
+
+3. **Processing pipeline — the exact sequence** — What happens in what order:
+   - **Stage 1: Episodic Summarisation** — Compress raw episodic events into meaningful day-level summaries. Group by context (meeting cluster, email thread, focus session). This is Haiku/Sonnet-tier work.
+   - **Stage 2: First-Order Pattern Extraction** — From today's summarised events + recent episodic history, extract observable patterns. "The executive deferred the board memo for the 4th consecutive day." Statistical and LLM-based extraction. This is Sonnet-tier.
+   - **Stage 3: Second-Order Insight Synthesis** — Cross-reference today's patterns with the existing semantic model and pattern library. Generate named insights that connect multiple first-order patterns. "Post-board fatigue correlates with 72 hours of reduced strategic output." This is Opus-tier.
+   - **Stage 4: Rule Generation and Update** — From new insights, propose new procedural rules or update existing ones. "When board meeting occurs, protect the following 3 days from strategic decisions." This is Opus-tier.
+   - **Stage 5: Model Update** — Update the semantic memory store with new facts. Update procedural rules with new effectiveness scores. Update pattern library with new evidence. Version the model.
+   - **Stage 6: Intelligence Preparation** — Prepare outputs for the next morning's intelligence delivery. Select which insights, patterns, and alerts are worth surfacing. Priority ranking.
+   For each stage: input, output, model tier, estimated token cost, error handling if it fails.
+
+4. **Output types** — What does the reflection engine produce?
+   - New semantic facts (e.g., "Executive's average focus session has shortened from 45min to 28min over 3 weeks")
+   - Updated procedural rules (with effectiveness scores)
+   - New or updated named patterns (with evidence chains)
+   - Model version snapshot (for rollback and comparison)
+   - Morning session brief (pre-compiled intelligence package)
+   - Confidence scores on every output
+   - Self-assessment: "Reflection quality was limited by sparse signal data today" or "High-confidence reflection — rich signal day"
+   Output schema for each type.
+
+5. **Model versioning and rollback** — Every reflection produces a new version of the executive's cognitive model. Schema for version tracking. How to compare versions ("Your patience-under-pressure score increased from 0.6 to 0.7 this month based on 12 new evidence points"). How to rollback if a reflection produces a bad update (based on executive feedback).
+
+6. **Resource requirements and cost modelling** — For a single user:
+   - Estimated nightly token consumption across all stages (Haiku + Sonnet + Opus)
+   - Dollar cost per night (at current API pricing)
+   - Processing time estimate
+   - How cost scales with accumulated memory (month 1 vs month 6 vs month 12)
+   - Optimisation strategies: what can be cached, what can be skipped on low-signal days
+
+7. **Error handling and resilience** — What if reflection fails at Stage 3? Does it save Stage 1-2 outputs? Retry logic. Partial reflection value. What if the API is down? Queue and retry next night? What if the executive was offline/travelling and there's minimal signal data — skip or run a shallow reflection?
+
+8. **Quality measurement** — How do you know if a reflection was good? Proxy metrics:
+   - Did the morning session intelligence get positive engagement from the executive?
+   - Were any generated rules later contradicted by evidence?
+   - Did pattern confidence scores align with subsequent observations?
+   - Self-consistency: does today's reflection contradict yesterday's without new evidence?
+   Long-term quality metric: compounding test — is the model producing qualitatively different (better) intelligence at month 6 vs month 1?
+
+9. **Research grounding** — Stanford Generative Agents reflection mechanism in detail. MemGPT's memory consolidation approach. Cognitive science of memory consolidation during sleep (Stickgold & Walker). Any other systems that implement periodic deep reflection over accumulated personal data. What works, what doesn't, what's been tried and abandoned.
+
+If current research suggests a superior approach to anything I've described, recommend it with evidence.
+
+Deliver a complete implementation-ready architecture spec with: trigger logic, input assembly algorithm, full pipeline specification (6 stages with schemas), output types and schemas, model versioning protocol, cost model, error handling matrix, quality measurement framework, and integration contracts with Layers 1, 2, and 4.

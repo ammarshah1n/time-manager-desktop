@@ -1,0 +1,70 @@
+I'm building a macOS application called Timed — a cognitive intelligence layer for C-suite executives. It builds a compounding model of how a specific person thinks, decides, avoids, and operates. Observation and intelligence only — it never acts on the world.
+
+**Hard constraints:**
+- macOS native: Swift 5.9+, SwiftUI, CoreData, on-device voice
+- Four layers: Signal Ingestion → Memory Store → Reflection Engine → Intelligence Delivery. No cross-layer coupling.
+- Dev environment: Claude Code (Claude Max 20x) as the primary coding tool
+- Single developer using AI-pair-programming for 100% of development
+
+Claude Code supports a "skills" system — reusable instruction sets stored in `~/.claude/skills/` or `.claude/skills/` that can be invoked during sessions to give Claude specialised behaviour for specific task types. Each skill is a markdown file with a specific structure.
+
+**What I need:**
+
+Design and write 5 complete skills for the Timed development workflow:
+
+**Skill 1 — plan-feature**
+- **Trigger:** When starting work on a new feature or component
+- **Purpose:** Takes a feature name, reads all relevant spec docs, reads the current codebase state, and produces a detailed implementation plan before any code is written
+- **Context it loads:** The relevant spec doc from docs/, the layer's current source files, the CLAUDE.md architecture rules, the current test coverage for the affected layer
+- **Steps:** (1) Read spec, (2) Identify affected files and interfaces, (3) List all new types/protocols/views needed, (4) Identify dependencies and order of implementation, (5) Estimate session count, (6) List risks and unknowns, (7) Produce the plan as a checklist
+- **Output:** A structured implementation plan in markdown, saved to docs/plans/[feature-name].md
+- **Anti-patterns to avoid:** Starting to code before the plan is complete. Missing cross-layer impacts. Forgetting test requirements.
+
+**Skill 2 — checkpoint**
+- **Trigger:** At natural stopping points during development, or explicitly requested
+- **Purpose:** Snapshots current progress — runs tests, commits working code, updates session log
+- **Steps:** (1) Run swift build to verify compilation, (2) Run swift test for the affected layer, (3) If tests pass: stage changes and commit with conventional commit message, (4) Update SESSION_LOG.md with what was accomplished, (5) If tests fail: report failures, do NOT commit
+- **Output:** A commit hash and session log entry, or a failure report
+- **Anti-patterns:** Committing code that doesn't compile. Committing without running tests. Batch-committing multiple logical changes.
+
+**Skill 3 — debug-swift**
+- **Trigger:** When a build error, test failure, or runtime issue is encountered
+- **Purpose:** Structured debugging workflow that doesn't waste tokens on random guessing
+- **Steps:** (1) Read the exact error message, (2) Identify the file and line, (3) Read surrounding context (50 lines above and below), (4) Classify the error type (type mismatch, missing import, concurrency violation, CoreData threading, API contract violation, SwiftUI state issue), (5) For each error class, follow a specific diagnostic tree, (6) Propose a fix with explanation, (7) Apply fix and re-run build/tests, (8) If fix fails, expand context and re-diagnose — max 3 cycles before escalating
+- **Output:** The fix applied, with a one-line explanation of root cause
+- **Anti-patterns:** Shotgun debugging (changing multiple things hoping something works). Suppressing errors instead of fixing root cause. Adding force unwraps or try! to silence errors.
+
+**Skill 4 — memory-layer**
+- **Trigger:** When working on Layer 2 (Memory Store) components
+- **Purpose:** Specialised context for the memory architecture — episodic/semantic/procedural memories, embedding generation, retrieval, MemGPT context management
+- **Context it loads:** docs/memory-architecture.md (or equivalent spec), all files in Sources/Timed/Layer2/, the CoreData model, the embedding pipeline code
+- **Additional rules when this skill is active:**
+  - Every memory write must generate an embedding
+  - Every memory query must use vector similarity + recency + importance scoring
+  - Semantic memories must have confidence scores and decay functions
+  - Procedural rules must have source attribution (which reflection cycle generated them)
+  - All CoreData operations on background contexts
+  - Migration tests must exist for every schema change
+- **Output:** Layer 2 code that conforms to the memory architecture spec
+
+**Skill 5 — reflect**
+- **Trigger:** When working on Layer 3 (Reflection Engine) components
+- **Purpose:** Specialised context for the reflection engine — the Opus nightly cycle, pattern detection, rule generation, model updates
+- **Context it loads:** docs/reflection-engine.md (or equivalent spec), all files in Sources/Timed/Layer3/, the prompt templates, the memory retrieval interface from Layer 2
+- **Additional rules when this skill is active:**
+  - Reflection prompts sent to Opus must go through the privacy abstraction pipeline first
+  - Every reflection cycle must produce: (1) first-order observations, (2) second-order patterns, (3) updated rules, (4) model delta
+  - Pattern quality must be testable — provide test fixtures for known-good reflection outputs
+  - The reflection engine must never modify Layer 2 directly — it emits reflection results that Layer 2 consumes
+  - Contradiction detection: if a new pattern contradicts an existing rule, flag it, don't silently override
+- **Output:** Layer 3 code that conforms to the reflection engine spec
+
+For each skill, provide:
+- The complete markdown file content, ready to save to `.claude/skills/[skill-name]/SKILL.md`
+- The trigger conditions in natural language
+- Example invocation showing how to use the skill in a Claude Code session
+- How the skill interacts with CLAUDE.md (skills add constraints, never relax them)
+
+Research the current Claude Code skills documentation for the latest format and best practices. Provide complete, ready-to-use skill files.
+
+If current research suggests additional skills that would improve AI-assisted macOS development, recommend them with evidence.

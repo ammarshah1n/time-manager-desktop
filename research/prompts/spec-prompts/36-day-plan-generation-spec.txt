@@ -1,0 +1,61 @@
+I need a complete specification for the day plan generation engine in Timed — a macOS cognitive intelligence layer for C-suite executives. The day plan is the system's primary output: an ordered, time-slotted schedule that reflects everything the system knows about this specific person.
+
+**Hard constraints:**
+- Timed never acts on the world — observation only. The plan is a recommendation. The executive decides.
+- macOS native. AI tiers: Haiku for fast scoring, Sonnet for plan composition, Opus for reflection.
+- Intelligence compounds — Month 6 >> Month 1.
+- C-suite executive user. The plan must be obviously better than what a PA or calendar app produces.
+
+**Architecture context:**
+- Thompson sampling provides task priority scores (exploration-exploitation balance)
+- EMA provides per-task-type time estimates learned from this person's actual data
+- Chronotype model provides a cognitive performance curve (when is this person sharpest for analytical work, creative work, relational work, admin)
+- Calendar integration provides fixed commitments (meetings, events) that constrain available slots
+- Procedural memory provides learned rules ("Never schedule Board prep after 3pm — I always feel rushed")
+- Overnight reflection provides current cognitive model state (active patterns, risk flags)
+
+**What I need specified:**
+
+1. **Input assembly — what feeds the plan** — Enumerate every input and its data format:
+   - Task list with Thompson sampling scores (priority ranking under uncertainty)
+   - Per-task EMA time estimates with confidence intervals
+   - Today's chronotype curve (peak/trough windows) adjusted for yesterday's sleep/exercise if available
+   - Calendar events (fixed, non-movable time blocks)
+   - Procedural rules from memory (learned scheduling preferences)
+   - Current cognitive load estimate (meetings yesterday, sleep quality, stress signals)
+   - Active patterns from reflection engine (avoidance flags, strategic drift warnings)
+   - User overrides from previous sessions ("I must do X today")
+
+2. **Slot assignment algorithm** — How tasks are placed into time windows. The core logic:
+   - Highest Thompson sampling score + matching cognitive demand → peak chronotype window
+   - Creative/generative tasks → secondary peak (often afternoon for most chronotypes)
+   - Administrative/shallow tasks → trough windows
+   - Relational tasks (1:1s, calls) → moderate windows
+   - How to handle conflicts (two high-priority tasks competing for the same peak window)
+   - Research on constraint satisfaction approaches to personal scheduling. Integer linear programming? Greedy heuristic? What's tractable for daily re-planning?
+
+3. **The 75% utilization cap** — The plan must never fill more than 75% of available time. Why: executives need buffer for emergencies, spontaneous conversations, and cognitive recovery. Research on optimal utilization rates for knowledge workers. What happens to performance when scheduled time exceeds 80%? 90%? What do operations research and queuing theory say about the cost of high utilization in systems with variable task duration?
+
+4. **Re-planning triggers** — What events cause the plan to be regenerated mid-day?
+   - New high-priority email
+   - Calendar change (meeting added, cancelled, moved)
+   - User override ("Move this to tomorrow")
+   - Task completion (ahead of schedule)
+   - Task overrun (behind schedule)
+   - Cognitive state change detected (energy crash, stress spike)
+   
+   For each trigger: does it cause full re-plan or incremental adjustment? How to avoid plan instability (constant re-shuffling is worse than a slightly suboptimal static plan). Research on re-planning strategies in dynamic scheduling.
+
+5. **Plan explanation and reasoning** — The plan must come with reasoning. Not "Do X at 9:30" but "X is in your 9:30 slot because it's your highest-priority analytical task and your data shows your analytical peak is 9:00-11:00." How much explanation is optimal? Research on explainable AI for scheduling recommendations — does explanation increase adherence?
+
+6. **Output format for morning session delivery** — The plan must be composable into a 30-second verbal summary for the morning session AND a visual layout for the menu bar / app. Verbal: prioritised, highlights only the non-obvious placements. Visual: timeline with task blocks, color-coded by type, with chronotype curve overlay. Research on visual schedule design for executives.
+
+7. **Learning from plan adherence** — Did the executive follow the plan? What was modified? What was skipped? Adherence patterns feed back into: Thompson sampling (tasks that get skipped get their scores adjusted), time estimates (tasks that always overrun), scheduling rules (if the executive always moves creative work to evening, the system should learn that). Research on learning from user schedule deviations.
+
+8. **Cold start plan generation** — Week 1: no personal data yet. What does the plan look like? Population-average chronotype curves + stated preferences from onboarding. How the plan quality visibly improves as data accumulates. The executive should be able to see the system getting smarter at scheduling over weeks.
+
+9. **Comparison to existing scheduling AI** — What do Motion, Reclaim, Clockwise, and Trevor AI do for plan generation? What are their architectural approaches? Where do they plateau? What can a system with deep personal memory do that they structurally cannot?
+
+Produce a complete day plan generation specification with input schema, algorithm pseudocode, utilization constraints, re-planning logic, explanation templates, and acceptance criteria. The plan must demonstrably outperform any scheduling tool by leveraging personal intelligence.
+
+If current research suggests a superior approach to any component, recommend it with evidence.

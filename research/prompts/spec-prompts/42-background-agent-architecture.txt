@@ -1,0 +1,39 @@
+I'm building a macOS application called Timed — a cognitive intelligence layer for C-suite executives. It builds a compounding model of how a specific person thinks, decides, avoids, and operates. Observation and intelligence only — it never acts on the world.
+
+**Hard constraints:**
+- macOS native: Swift 5.9+, SwiftUI, CoreData, on-device voice
+- Four layers: Signal Ingestion → Memory Store → Reflection Engine → Intelligence Delivery. No cross-layer coupling.
+- Intelligence compounds — Month 6 >> Month 1
+- Haiku-tier AI (Claude 3.5 Haiku) for real-time signal classification, Opus for reflection
+- C-suite executive user who will not tolerate battery drain, fan noise, or sluggishness
+
+Layer 1 is a fleet of background signal agents that continuously observe the executive's digital environment:
+- **Calendar agent**: watches Outlook calendar via Microsoft Graph, detects new/changed/cancelled events, classifies meeting types
+- **Email agent**: monitors Outlook inbox via Microsoft Graph, classifies incoming emails, detects response patterns and delays
+- **Voice agent**: on-device speech capture during morning sessions and optional voice notes throughout the day
+- **App focus agent**: observes which applications are in the foreground, tracks context switches, infers focus/distraction patterns
+- **Task completion agent**: monitors the internal task system for completions, deferrals, and re-prioritisations
+
+Each agent must: observe its signal source, classify the signal (using Haiku API calls where needed), create an episodic memory record, and emit an event for downstream consumption. No agent should know about or depend on any other agent.
+
+**What I need:**
+
+1. **macOS background execution architecture.** What are the actual options for running persistent background work on macOS? Compare: XPC services, LaunchAgents/LaunchDaemons, NSBackgroundActivityScheduler, BGTaskScheduler (if available on macOS), simple background threads in the main app process, and a helper app approach. For each: capabilities, limitations, lifecycle management, sandboxing implications, and whether it survives app termination. Which approach is correct for each agent type?
+
+2. **Event-driven vs polling for each signal source.** Calendar/email via Microsoft Graph: polling with delta queries vs webhooks vs Graph change notifications — what actually works for a desktop app? App focus: NSWorkspace notifications vs Accessibility API polling vs CGWindowListCopyWindowInfo. For each signal source, specify the exact observation mechanism, its latency, and its resource cost.
+
+3. **Haiku classification budget.** Each signal event that needs AI classification makes an API call to Claude 3.5 Haiku. For a typical executive day (50-80 emails, 8-12 meetings, 200+ app switches, 3-5 voice notes): estimate the daily API call volume, latency impact, and cost. How to batch classify where possible. How to cache classifications. How to degrade gracefully when the API is unreachable (queue and retry vs local heuristic fallback).
+
+4. **Resource budget and enforcement.** CPU usage target: <2% average, <10% peak. Memory: <150MB RSS for all agents combined. Network: minimise polling frequency. How to enforce these budgets. How to detect when an agent is misbehaving. Circuit breaker patterns for runaway agents. How to present resource usage transparently to the user in settings.
+
+5. **Sleep/wake handling.** What happens to each agent when the Mac sleeps? What state needs to be persisted? What happens on wake — how to reconcile the gap (e.g., emails received during sleep, calendar changes during sleep)? How to handle the "opened laptop Monday morning after a weekend" scenario where there's 48 hours of signals to catch up on without spiking CPU.
+
+6. **Agent coordination without coupling.** Agents must not know about each other, but some downstream intelligence requires correlated signals (e.g., "was distracted during the meeting" = app focus agent + calendar agent). How to achieve this without agents communicating directly. Event bus architecture. How the Memory Store layer handles correlation after the fact.
+
+7. **Health monitoring and observability.** How to know if an agent has silently failed. Heartbeat patterns. How to surface agent health to the user without being noisy. How to log agent activity for debugging without filling the disk. Log rotation strategy for a system that runs for months.
+
+8. **Startup, shutdown, and crash recovery.** Agent initialisation order. Graceful shutdown with in-flight event draining. What happens when an agent crashes — restart policy, backoff, maximum retry limits. How to avoid data duplication on restart (idempotent event processing).
+
+Provide concrete Swift architecture: protocols, actor-based isolation patterns, the event emission interface, and the coordination layer. Include the NSWorkspace and Accessibility API code patterns for app focus tracking.
+
+If current research suggests a superior approach, recommend it with evidence.

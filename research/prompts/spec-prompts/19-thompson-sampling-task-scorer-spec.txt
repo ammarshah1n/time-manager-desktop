@@ -1,0 +1,56 @@
+I'm building a cognitive intelligence system called Timed for C-suite executives. One core capability: intelligently scoring and ranking the executive's tasks — not by simple priority labels, but by a learned model of what THIS person should do next given everything the system knows about them.
+
+macOS native (Swift 5.9+), Supabase + Edge Functions, Claude AI (Haiku/Sonnet/Opus). Observation and intelligence only — the system suggests task ordering, the user decides. Never acts autonomously.
+
+The scoring engine uses **Thompson sampling** — a Bayesian approach that balances exploitation (ranking tasks by predicted value) with exploration (occasionally promoting uncertain tasks to learn more about user preferences). This is already partially shipped in the codebase as `PlanningEngine.swift`.
+
+**I need a complete specification for the Thompson sampling task scoring system.**
+
+Research and specify:
+
+1. **State representation per task.** Each task has a feature vector that the scorer uses. Define every feature and how it's computed:
+   - **Urgency**: derived from deadline proximity, importance of requester, explicit priority label. How to normalise urgency to 0-1?
+   - **Deadline proximity**: time remaining / estimated duration. Non-linear transformation — a task due in 2 hours with 1 hour of work is more urgent than a task due in 2 days with 1 day of work, even though both ratios are 2:1.
+   - **Estimated duration**: from EMA model (see Prompt 20). Confidence interval matters — a task with uncertain duration should be treated differently.
+   - **Energy required**: categorical (deep focus, moderate, low/admin). Mapped to current energy level based on time of day and learned energy curve.
+   - **Avoidance history**: number of times deferred, days since first created, deferral acceleration (increasing deferral frequency). This is a critical signal.
+   - **Historical completion patterns**: for this task TYPE, what's the user's completion rate, average time-to-start, and typical time of day?
+   - **Context switching cost**: how different is this task from what the user just finished? (Same project = low cost, different domain = high cost)
+   - **Dependency state**: does this task block others? Is it blocked?
+   Research: what other features improve task scoring for executive workflows? What does the research on task prioritization, work scheduling, and cognitive load say about relevant features?
+
+2. **Reward signal definition.** Thompson sampling needs a reward signal — what constitutes a positive vs negative outcome? Define the reward function:
+   - **Positive signals**: task completed, completed within estimated time, completed in the suggested time slot, user accepted the ranking
+   - **Negative signals**: task deferred, task ignored (still in suggested slot but never started), task took much longer than estimated, user explicitly reranked away from suggested position
+   - **Ambiguous signals**: task completed but much later than suggested, task deleted (was it unimportant or was it avoidance?)
+   How to map each signal to a numerical reward? Continuous reward vs binary? Delayed reward (the "right" task to work on might only be apparent in retrospect).
+
+3. **Thompson sampling mechanics.** For each task, maintain a Beta distribution (Beta(α, β)) representing the system's belief about the probability that suggesting this task is the "right" suggestion:
+   - How α and β are initialised (prior)
+   - How α and β are updated from reward signals
+   - How to sample from Beta(α, β) to produce a score
+   - Why Thompson sampling over alternatives (UCB, epsilon-greedy, softmax). Research: when is Thompson sampling provably better? What are its failure modes?
+   But tasks aren't identical — the system needs per-TASK-TYPE distributions, not per-individual-task. A new "financial analysis" task should inherit the priors from all previous financial analysis tasks. Research: contextual Thompson sampling, bandits with features, how to share learning across similar tasks.
+
+4. **Exploration vs exploitation balance.** Early in the system's life, it should explore more (try different rankings to learn). After months of data, it should exploit more (rank by what it's learned). How does the Beta distribution naturally balance this? Can/should the exploration rate be explicitly controlled? Research: Thompson sampling convergence rates, when exploration becomes wasteful, how to handle non-stationary rewards (user preferences change over time).
+
+5. **User corrections as explicit updates.** When the user manually reorders tasks (dragging task B above task A), that's an explicit signal: "B is more important than A right now." How to incorporate this:
+   - Update the Beta distributions for both tasks?
+   - Or maintain a separate "user preference" signal that overrides Thompson sampling?
+   - How to distinguish "I'm correcting a bad ranking" (system was wrong) from "my priorities changed" (system was right based on what it knew)?
+   - How much weight should explicit corrections get vs organic behaviour? (A correction is worth N organic observations — what should N be?)
+   Research: human-in-the-loop bandits, preference learning from interventions.
+
+6. **Cold start strategy.** Day 1: no data. The system still needs to rank tasks. Approach:
+   - **Archetype priors**: at onboarding, user selects a work archetype (CEO, CFO, CTO, COO, etc.). Each archetype has pre-set Beta distributions for different task types. Research: what reasonable priors exist for executive task prioritisation by role?
+   - **Calendar bootstrap**: import 90 days of calendar history, infer patterns (when they schedule what type of work, meeting density, time allocation). Use this to set initial priors.
+   - **Rapid personalisation**: in the first 2 weeks, increase exploration rate. Every user correction updates priors more aggressively (higher learning rate).
+   How quickly should the system transition from archetype priors to fully personalised distributions? Research: warm-start Thompson sampling, Bayesian prior selection.
+
+7. **Per-task-type beta distributions.** Not every task is scored the same way. Maintain separate Beta distributions for:
+   - Deep work, administrative, communication/email, meetings, financial, creative, planning/strategy
+   Each task type has its own learned α, β for each feature's influence on success. How to define task types? Auto-classification or user-defined? How many types before the system fragments too much? Research: hierarchical Bayesian bandits, sharing information across related task types.
+
+8. **Scoring formula synthesis.** The final score for each task combines: Thompson sample from Beta(α, β) for the task type, weighted by the feature vector (urgency, deadline, energy match, avoidance, etc.), adjusted by procedural rules from memory ("don't schedule deep work after 3pm for this person"). Specify the exact formula. How to combine a probabilistic sample with deterministic feature weights? Research: contextual bandits with side information, linear Thompson sampling.
+
+For every specification: exact mathematical formulations, algorithms with pseudocode, initialisation values, update rules, convergence analysis, and failure modes (what happens with only 3 tasks? with 100 tasks? with tasks that are never completed?). If current research suggests a superior approach to Thompson sampling for this use case, recommend it with evidence.

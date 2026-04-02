@@ -1,0 +1,78 @@
+I'm building a macOS executive intelligence system called Timed that observes a C-suite executive's digital behaviour and builds a compounding cognitive model of them over months. It never acts on the world — observation and intelligence only.
+
+I need a complete implementation spec for the first-order pattern extraction system — the component that takes raw episodic data (timestamped observations of what the executive did) and extracts observable, evidence-backed patterns. This is Stage 2 of the nightly Reflection Engine pipeline.
+
+Architecture context: four decoupled layers — Signal Ingestion, Memory Store, Reflection Engine, Intelligence Delivery. Tech: Swift 5.9+, Supabase, Claude Sonnet for this stage (Opus reserved for higher-order synthesis), Jina embeddings 1024-dim. Memory: episodic (raw events), semantic (learned facts), procedural (rules). Intelligence compounds.
+
+Research and spec every dimension:
+
+1. **Pattern taxonomy** — What categories of first-order patterns are extractable from raw behavioural data?
+   - **Temporal patterns** — Time-of-day regularities, day-of-week regularities, monthly/quarterly cycles. "Executive writes strategic documents exclusively between 9-11am." "Email volume spikes 3x on Mondays."
+   - **Behavioural patterns** — Repeated action sequences, habitual workflows, routine structures. "After every board meeting, the executive spends 90 minutes on email before doing anything else." "Focus sessions are always interrupted by Slack within 23 minutes."
+   - **Relational patterns** — Communication patterns with specific people or groups. "Response time to board members averages 45 minutes; response time to direct reports averages 4 hours." "The executive initiates contact with the CFO before every major decision."
+   - **Cognitive patterns** — Performance variation signals. "Document quality (as measured by revision count) drops 40% after 3pm." "Decision speed decreases by 60% on days with 5+ hours of meetings."
+   - **Avoidance patterns** — Repeated deferral, draft-then-abandon, topic evasion. (Detailed in the Avoidance Pattern Detector spec, but basic detection happens here.)
+   - **Energy/recovery patterns** — Post-meeting recovery time, weekend recharge patterns, vacation effects on subsequent performance.
+   - **Communication patterns** — Email length variation, formality shifts, response completeness patterns, channel preferences per topic type.
+   
+   For each category: 5-10 specific pattern examples with the exact signals that evidence them.
+
+2. **Minimum evidence thresholds** — When is a pattern real vs noise? For each pattern category:
+   - Minimum number of observations required
+   - Minimum time span required (don't declare a weekly pattern from 2 weeks of data)
+   - Statistical significance threshold (or Bayesian confidence threshold)
+   - How to handle irregular patterns (happens 70% of the time, not 100%)
+   Research on minimum sample sizes for behavioural pattern detection in individual time series.
+
+3. **Statistical vs LLM-based extraction** — Two approaches:
+   - **Statistical:** Time series analysis, frequency detection, correlation analysis, anomaly detection. Precise, reproducible, limited to predefined pattern types.
+   - **LLM-based:** Give Sonnet a structured summary of the day's events and ask it to identify patterns. Flexible, can detect novel patterns, but noisy and non-reproducible.
+   - **Hybrid:** Statistical detection for known pattern types + LLM detection for novel patterns. How to reconcile outputs.
+   Which approach for which pattern type? Research on statistical vs LLM-based pattern detection in personal data.
+
+4. **Pattern storage format** — Schema for a first-order pattern:
+   - Pattern ID (stable identifier for tracking over time)
+   - Category (from taxonomy)
+   - Natural language description (human-readable)
+   - Evidence chain (list of episodic memory IDs that support this pattern)
+   - Statistical support (p-value, confidence interval, effect size, or Bayesian posterior)
+   - First detected date
+   - Last confirmed date
+   - Evidence count
+   - Stability score (how consistent is this pattern over time?)
+   - Embedding (for similarity search and deduplication)
+   
+   How to handle pattern evolution — a pattern that was "focus sessions last 45 minutes" becomes "focus sessions last 28 minutes" — is that an updated pattern or a new one?
+
+5. **Deduplication and merging** — Over weeks, the system will detect similar patterns repeatedly. How to:
+   - Detect that two patterns are about the same underlying behaviour
+   - Merge evidence chains
+   - Update confidence scores
+   - Handle contradictory patterns (morning extraction says one thing, evening says another)
+   Embedding similarity for deduplication. Threshold for "same pattern."
+
+6. **Pattern lifecycle** — Patterns should have states:
+   - Emerging (first detected, low confidence)
+   - Established (confirmed across multiple reflection cycles)
+   - Strengthening / weakening (trend in evidence)
+   - Deprecated (no longer supported by recent evidence)
+   How to deprecate patterns when behaviour changes. Exponential decay on evidence weight? Active disconfirmation detection?
+
+7. **Computational pipeline** — The exact processing steps:
+   - Input: summarised episodic events from Stage 1 + existing pattern library
+   - Step 1: Run statistical detectors for each pattern category
+   - Step 2: Run LLM extraction for novel patterns
+   - Step 3: Merge and deduplicate against existing pattern library
+   - Step 4: Update confidence scores, evidence chains, lifecycle states
+   - Output: updated pattern library + list of new/changed patterns for Stage 3
+   Token cost estimate. Processing time estimate.
+
+8. **Examples** — Provide 15-20 concrete pattern examples across all categories, with:
+   - The raw signals that evidence them
+   - The natural language description the system would generate
+   - The minimum evidence required before the system would declare this pattern
+   - How it would be surfaced to the executive (in the morning session or proactive alert)
+
+If current research suggests a superior approach to anything I've described, recommend it with evidence.
+
+Deliver a complete implementation-ready spec with: pattern taxonomy, evidence threshold tables, statistical detector specifications, LLM prompt structure for novel detection, storage schema, deduplication algorithm, lifecycle management, processing pipeline, and 15-20 concrete examples.

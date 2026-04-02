@@ -1,0 +1,86 @@
+I'm building a macOS executive intelligence system called Timed that observes a C-suite executive's digital behaviour and builds a compounding cognitive model of them over months. It never acts on the world — observation and intelligence only.
+
+I need the complete prompt template specifications for every LLM call inside the nightly Reflection Engine. The Reflection Engine is the heart of Timed — it runs nightly, processes the day's observations, extracts patterns, synthesises insights, generates rules, and updates the executive's cognitive model. Each stage uses different LLM prompts at different model tiers.
+
+Architecture context: four decoupled layers — Signal Ingestion, Memory Store, Reflection Engine, Intelligence Delivery. Tech: Swift 5.9+, Supabase, Claude Haiku for lightweight tasks, Claude Sonnet for pattern work, Claude Opus 4.6 at maximum effort for synthesis and rule generation (no cost cap). Jina embeddings 1024-dim. Memory: episodic (raw events), semantic (learned facts), procedural (operating rules). Retrieval: recency × importance × relevance scoring.
+
+Spec every prompt template used in the 6-stage reflection pipeline:
+
+**Template 1: Episodic Summarisation Prompt (Haiku/Sonnet)**
+- Purpose: compress raw episodic events into meaningful day-level summaries grouped by context
+- Input structure: how raw events are formatted for the LLM (timestamp, signal type, content, importance score)
+- System prompt: set the role, constraints, output format
+- User prompt: the actual event data injection format
+- Output schema: structured JSON with summary blocks, key events, anomaly flags
+- Few-shot examples: 2-3 examples of input events → summarised output
+- Quality criteria: what makes a good vs bad summarisation
+- Failure modes: what goes wrong and how to detect it
+- Token budget: estimated input/output tokens per call
+
+**Template 2: First-Order Pattern Extraction Prompt (Sonnet)**
+- Purpose: identify observable patterns from today's summarised events + recent history
+- Input structure: today's episode summary + recent episode summaries (7 days) + existing pattern library
+- System prompt: define what a first-order pattern is, provide the pattern taxonomy, calibrate confidence
+- Memory injection format: how existing patterns are provided for deduplication and update
+- Output schema: JSON array of detected patterns with evidence chains, confidence scores, category tags
+- Few-shot examples: 2-3 examples showing pattern detection from episode summaries
+- Calibration instructions: "Only report patterns supported by at least N observations" — what is N per category?
+- How to handle novel patterns (ones not in the taxonomy)
+- Token budget
+
+**Template 3: Second-Order Insight Synthesis Prompt (Opus)**
+- Purpose: cross-reference first-order patterns to generate named insights
+- Input structure: today's detected patterns + full pattern library + current semantic model + existing insight library
+- System prompt: define what a second-order insight is, provide examples of the depth expected, set confidence requirements
+- Memory injection format: how the executive's semantic model is presented (key facts, trait scores, historical context)
+- Output schema: JSON with insight objects (title, description, evidence chain, confidence, actionability, counter-argument)
+- Few-shot examples: 2-3 examples showing pattern combination → insight generation at the quality level expected
+- Self-critique requirement: every insight must include the strongest argument against it
+- Compounding instruction: "Build on existing insights rather than regenerating surface-level observations. Reference and deepen insights from previous reflections."
+- Token budget
+
+**Template 4: Rule Generation Prompt (Opus)**
+- Purpose: convert insights into procedural rules that constrain system behaviour
+- Input structure: new and updated insights + existing active rules + executive override history + rule effectiveness scores
+- System prompt: define what a rule is, emphasise that rules constrain the SYSTEM not the executive, provide the rule schema, include conflict detection instructions
+- Output schema: JSON with candidate rules (trigger condition, recommended action, evidence source, confidence)
+- Few-shot examples: 2-3 examples showing insight → rule generation
+- Negative examples: 2-3 examples of rules that should NOT be generated (rules that try to control the executive, rules without sufficient evidence, vague rules)
+- Conflict detection: "Check each candidate rule against the existing rule set and flag potential conflicts"
+- Token budget
+
+**Template 5: Model Update Prompt (Sonnet)**
+- Purpose: update the semantic memory store with new facts derived from tonight's reflection
+- Input structure: current semantic model + tonight's insights and patterns + proposed changes
+- System prompt: conservative update policy — only update facts with sufficient evidence, never overwrite high-confidence facts with low-confidence updates
+- Output schema: JSON diff of semantic model (additions, updates with old/new values and confidence, no deletions without strong counter-evidence)
+- Version control: output includes a model version number and change summary
+- Token budget
+
+**Template 6: Morning Intelligence Preparation Prompt (Sonnet)**
+- Purpose: compile tonight's reflection outputs into a morning session brief
+- Input structure: new insights, updated patterns, active rules, calendar for tomorrow, pending tasks, relationship alerts
+- System prompt: prioritise ruthlessly — the executive has 90 seconds. Lead with the most important intelligence. Adapt tone based on procedural rules about this executive's preferences.
+- Output schema: structured brief with priority-ordered intelligence items, each with a one-line summary and optional detail expansion
+- Personalisation: how to inject the executive's communication preferences (direct vs diplomatic, data-heavy vs narrative, etc.)
+- Token budget
+
+For EACH template also provide:
+
+- **Evaluation rubric:** How to score the output quality (1-5 scale with criteria)
+- **Iteration protocol:** When output quality scores low, how to adjust the prompt. Temperature settings. Retry strategy.
+- **Version management:** How prompt templates evolve over time as the system learns what works for this executive.
+
+Research grounding:
+- Stanford Generative Agents reflection prompts — what did they use and what can we learn?
+- MemGPT prompt structures for memory management
+- Best practices in structured LLM output generation (JSON mode, function calling, schema enforcement)
+- Research on prompt engineering for consistent, high-quality analytical outputs
+- Chain-of-thought vs direct extraction for pattern work — which produces better results?
+
+If current research suggests a superior approach to anything I've described, recommend it with evidence.
+
+Deliver a complete spec with: all 6 prompt templates (system prompt, user prompt structure, output schema, few-shot examples), evaluation rubrics, iteration protocols, token budgets, and a prompt versioning system. This document should be directly implementable — an engineer should be able to build the reflection engine's LLM calls from this spec alone.
+# Research Pack 05 — Intelligence Delivery & Longitudinal Proof
+
+> Give all 10 prompts to Perplexity Deep Research, one at a time. Save each result. Bring them all back.

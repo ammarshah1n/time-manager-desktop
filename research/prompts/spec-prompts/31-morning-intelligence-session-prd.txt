@@ -1,0 +1,43 @@
+I'm building the morning intelligence session for a macOS cognitive intelligence layer called Timed. This is the flagship interaction — the moment where the system proves it understands the executive better than any PA, coach, or calendar app ever could.
+
+**Hard constraints:**
+- Timed never acts on the world — observation only. The executive decides and executes.
+- macOS native: Swift 5.9+, SwiftUI, CoreData, on-device voice.
+- Four layers: Signal Ingestion → Memory Store → Reflection Engine → Intelligence Delivery. No cross-layer coupling.
+- Intelligence compounds — Month 6 >> Month 1.
+- Opus 4.6 at max effort for reflection, no cost cap.
+- The user is a C-suite executive who has tried everything. Not impressed by features.
+
+**What the morning session IS:**
+
+It is NOT a task list readout. It is an intelligence briefing from a system that has spent the night thinking about this specific person. The structure:
+
+1. **Pattern headline (10 seconds):** The session opens with a single named pattern the system has detected since the last session. Example: "You're in a Scope Creep Spiral on Project Atlas — three meetings this week expanded scope and none narrowed it." This is what hits first. Not "Good morning, here are your tasks."
+
+2. **Cognitive state assessment (15 seconds):** Based on voice analysis of the executive's initial response + historical comparison. "You sound more energised than yesterday — your voice pace is up 15% and your pitch variability matches your high-performance days." Or: "You sound flat. Last time you sounded like this was the week before the board rejected the Meridian proposal."
+
+3. **Day plan (30 seconds):** Tasks ranked by Thompson sampling ML scores, placed into chronotype-optimal time windows. Not just "do X at 9am" but "I'm putting the Henderson negotiation in your 9:30 analytical peak because your pattern shows you concede more after 2pm" — the system EXPLAINS its reasoning using what it knows about the person.
+
+4. **One question:** "What's the thing you most need to think about today that isn't on the list?" This captures the executive's actual priority, which often diverges from the scheduled one. The answer becomes high-signal episodic memory.
+
+**What I need researched:**
+
+1. **CIA President's Daily Brief (PDB) design principles** — The PDB is the most refined intelligence briefing format in the world, delivered to one person daily. What are its design principles? Prioritisation logic (what makes the cut vs what doesn't). Brevity requirements. How it opens (lead item selection). How it changed from a newspaper format to a conversational brief under different administrations. What the intelligence community has published about what makes a brief effective vs ignored. Declassified PDB design guidance documents if they exist.
+
+2. **Executive coaching session structure** — How do the best executive coaches structure a check-in? Marshall Goldsmith's stakeholder-centred coaching. The first 2 minutes of a coaching session — what do coaches prioritise? How coaches use pattern confrontation ("You said last week you'd delegate this — you didn't. What happened?"). Research on coaching session structure and executive receptivity.
+
+3. **Intelligence briefing formats beyond CIA** — Military intelligence briefings (SALUTE, INTSUM). Business intelligence briefing formats used by consulting firms (McKinsey's "situation-complication-resolution"). How hedge funds brief portfolio managers each morning. News briefing structures (The Daily Brief, The Economist Espresso). What's common across all effective brief formats?
+
+4. **Interaction flow engineering** — Second-by-second flow from trigger to completion. How does the session start (scheduled alarm? app open? user says "brief me"?)? What if the executive interrupts? What if they disagree with the pattern ("That's not a scope creep spiral, that was intentional")? How does disagreement feed back as corrective signal? What if they want to go deeper on one item? Branching conversation logic.
+
+5. **Corrections and reactions as training signal** — Every executive response during the morning session is data. Agreement, disagreement, emotional reaction, follow-up question, dismissal, elaboration. How to capture these micro-signals and feed them back into the memory and reflection layers. Research on implicit feedback in conversational AI systems — what can you learn from how someone responds vs what they explicitly say?
+
+6. **The "no PA can do this" threshold** — What specific capabilities cross the line from "a good PA could do this" to "no human could produce this"? Cross-referencing 6 months of behavioural data with today's calendar to predict outcomes. Detecting patterns the executive is blind to. Remembering every conversation and surfacing connections. Define the acceptance criteria: what must this session deliver that proves it's not just a fancy briefing script?
+
+7. **Session duration and frequency research** — How long should this session be? Research on optimal briefing length for executives. Daily vs weekday-only. Should weekend sessions exist? Should the format change on Monday (week preview) vs Friday (week reflection)?
+
+8. **Progressive disclosure and information density** — How to pack maximum intelligence into minimum time. The executive should feel like every second was valuable. Research on information density in verbal communication. What broadcast journalists and intelligence officers know about compressing insight into seconds.
+
+Produce a complete PRD for the morning intelligence session: interaction flow, content generation pipeline, feedback capture mechanisms, edge cases, and acceptance criteria that guarantee the session delivers intelligence no PA, coach, or calendar app can produce.
+
+If current research suggests a superior approach to any component, recommend it with evidence.
