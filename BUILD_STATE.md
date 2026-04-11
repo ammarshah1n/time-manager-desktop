@@ -1,4 +1,4 @@
-# BUILD_STATE.md — Last updated: 2026-04-02 (initial audit)
+# BUILD_STATE.md — Last updated: 2026-04-11 (Phases 0-12 complete)
 
 ## What Exists and Works
 
@@ -11,25 +11,32 @@
 - [x] NetworkMonitor.swift — NWPathMonitor wrapper (21 lines)
 - [x] EmailClassifier.swift — Protocol + stub, real classification via Edge Function (🔄 placeholder)
 
-### Memory Store ✅ (partial — no intelligence memory)
+### Memory Store ✅ (5-tier intelligence memory COMPLETE)
 - [x] DataStore.swift — Local JSON persistence actor, ~/Library/Application Support/Timed/ (113 lines)
 - [x] SupabaseClient.swift — 11 row types, 20+ operations, full CRUD (764 lines)
 - [x] Domain models — TimedTask, TaskBucket, TriageItem, WOOItem, CaptureItem, CalendarBlock, etc.
-- [ ] ~~CoreData~~ — NOT USED. Persistence is JSON local + Supabase remote.
-- [ ] Episodic memory tier — NOT STARTED
-- [ ] Semantic memory tier — NOT STARTED
-- [ ] Procedural memory tier — NOT STARTED
+- [x] Tier 0 — tier0_observations table + Tier0Writer actor + Tier0Observation DTO
+- [x] Tier 1 — tier1_daily_summaries table + nightly Opus generation
+- [x] Tier 2 — tier2_behavioural_signatures table + weekly pattern detection + 4-gate validation
+- [x] Tier 3 — tier3_personality_traits table + monthly Opus synthesis
+- [x] ACB — active_context_buffer (dual: ACB-FULL 10-12K + ACB-LIGHT 500-800 tokens)
+- [x] MemoryStore protocol + 5-dimension retrieval engine (RetrievalEngine.swift)
+- [x] LocalVectorStore (USearch HNSW) + EmbeddingService (dual-provider: Voyage + OpenAI)
+- [x] DataBridge actor + GRDB offline queue (OfflineSyncQueue.swift)
 
-### Reflection Engine ✅ (scoring only — no intelligence engine)
+### Reflection Engine ✅ (COMPLETE — 4-cron nightly pipeline)
 - [x] PlanningEngine.swift — Composite scoring, Thompson sampling, behavioural rules, mood modifiers (501 lines)
 - [x] TimeSlotAllocator.swift — Calendar-aware slot allocation, energy tiers, incremental repair (612 lines)
 - [x] InsightsEngine.swift — Estimated vs actual time comparison (28 lines, minimal)
 - [x] TaskExtractionService.swift — Thread grouping, bucket detection, time estimation (178 lines)
-- [ ] Nightly Opus reflection engine — NOT STARTED
-- [ ] Pattern extraction (first-order) — NOT STARTED
-- [ ] Insight synthesis (second-order) — NOT STARTED
-- [ ] Rule generation (procedural memory writes) — NOT STARTED
-- [ ] Memory retrieval (recency × importance × relevance) — NOT STARTED
+- [x] Nightly consolidation (2 AM) — importance scoring (Haiku+Sonnet), conflict detection, Opus daily summary, ACB gen, self-improvement loop
+- [x] Morning refresh (5:15 AM) — overnight importance audit, summary addendum, ACB refresh
+- [x] Morning briefing (5:30 AM) — Opus two-pass with adversarial review, engagement self-correction
+- [x] Weekly pruning (Sunday 3 AM) — Tier 0 archival/tombstone, Tier 2 fading
+- [x] Weekly pattern detection — Opus cross-domain analysis, Tier 2 candidate generation
+- [x] Monthly trait synthesis — Opus Stage A (traits) + Stage B (predictions)
+- [x] BOCPD change detection — student-t predictive, CDI computation
+- [x] 5-dimension retrieval — recency × importance × relevance × temporal × tier_boost
 
 ### Delivery ✅ (UI complete — intelligence delivery not started)
 - [x] TimedRootView.swift — Root nav, all state management (489 lines, 🔄 god-view)
@@ -49,9 +56,10 @@
 - [x] PrefsPane.swift — Settings tabs (414 lines)
 - [x] WaitingPane.swift — WOO tracker (456 lines)
 - [x] SharingPane.swift — Workspace sharing (260 lines)
-- [ ] Morning intelligence briefing (pattern headlines, cognitive state) — NOT STARTED
-- [ ] Proactive intelligence alerts — NOT STARTED
-- [ ] Named pattern delivery — NOT STARTED
+- [x] MorningBriefingPane.swift — 7-section CIA PDB format, confidence badges, engagement tracking
+- [x] AlertDeliveryView.swift — Menu bar alerts, 5-dim scoring, feedback loop
+- [x] AlertEngine.swift — Multiplicative scoring, 3/day cap, adaptive threshold
+- [x] CoachingTrustCalibrator — 4-stage trust progression, rupture protocol
 
 ### Infrastructure ✅
 - [x] AuthService.swift — Supabase Auth, Microsoft OAuth, workspace bootstrap (310 lines, 🔄 violates DI)
@@ -76,10 +84,11 @@
 - [ ] Reflection engine tests — NOT STARTED
 
 ### Backend (Supabase)
-- [x] 15 SQL migrations deployed
-- [x] 9 Edge Functions active (classify-email, detect-reply, estimate-time, generate-daily-plan, generate-profile-card, graph-webhook, parse-voice-capture, renew-graph-subscriptions)
-- [x] Jina AI embeddings configured (1024-dim)
+- [x] 30 SQL migrations deployed (15 original + 15 intelligence infrastructure)
+- [x] 21 Edge Functions active (9 original + 12 intelligence pipeline)
+- [x] Dual-provider embeddings: Voyage (Tier 0, 1024-dim) + OpenAI (Tier 1-3, 3072-dim)
 - [x] Microsoft OAuth app registration (Azure)
+- [x] Shared Anthropic API helper (_shared/anthropic.ts) with Batch API + extended thinking
 
 ## Known Issues / Landmines
 - PreviewData.swift contains ALL domain models (587 lines) — should split into Core/Models/
@@ -90,13 +99,19 @@
 - No CoreData/SwiftData — persistence is JSON local + Supabase remote
 - Legacy/ folder (41 files) excluded from build, kept as reference
 
-## Architecture Gap: The Intelligence Core
-> **Updated 2026-04-03** — research ingested, architecture synthesised. Full specs in `research/ARCHITECTURE-*.md`.
+## Architecture Status: Intelligence Core BUILT
+> **Updated 2026-04-11** — Phases 0-12 implemented. ~95/120 deliverables complete.
 
-The entire intelligence infrastructure is designed but unbuilt:
-- No 5-tier memory (Tier 0-3 + ACB) — schema designed in ARCHITECTURE-MEMORY.md §1,7
-- No nightly 6-phase pipeline — designed in ARCHITECTURE-MEMORY.md §2
-- No signal extraction beyond email/calendar — 30+ signals designed in ARCHITECTURE-SIGNALS.md §1
+The intelligence infrastructure is **structurally complete**:
+- [x] 5-tier memory (Tier 0-3 + ACB) — deployed to Supabase, Swift actors implemented
+- [x] 4-cron nightly pipeline — Edge Functions deployed with real Anthropic API calls
+- [x] 9 signal agents (email, calendar, app usage, idle, first/last activity, keystroke, HealthKit stub, Oura stub, voice)
+- [x] ONA relationship graph — centrality metrics, health scoring, disengagement detection
+- [x] Prediction layer — avoidance, burnout, decision reversal, engagement-gated delivery
+- [x] Alert system — 5-dim scoring, interrupt windows, coaching trust, multi-agent council
+- [x] Privacy — consent state machine, KEK/DEK encryption, data export + deletion
+
+**Remaining**: verification tasks (blocked on live data), UI integration (5.01, 4.08, 11.02), Whisper.cpp (research gap), Phase 13 (Month 11+)
 - No 5-dimension retrieval engine — designed in ARCHITECTURE-MEMORY.md §3
 - No ONA/relationship graph — designed in ARCHITECTURE-SIGNALS.md §2
 - No chronobiology/energy model — designed in ARCHITECTURE-SIGNALS.md §5
