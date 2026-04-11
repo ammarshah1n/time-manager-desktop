@@ -1,5 +1,5 @@
 {
-  "originHash" : "0bb8a952dd222a7deaeb7823e96f7cfa7b328390c9ef8c6a559e4c9cfcfda590",
+  "originHash" : "107cd476cb75baf39b7692e9766bc9a94ac5e169066645b10f22c7ac13a32713",
   "pins" : [
     {
       "identity" : "combine-schedulers",
@@ -8,6 +8,15 @@
       "state" : {
         "revision" : "fd16d76fd8b9a976d88bfb6cacc05ca8d19c91b6",
         "version" : "1.1.0"
+      }
+    },
+    {
+      "identity" : "grdb.swift",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/groue/GRDB.swift",
+      "state" : {
+        "revision" : "36e30a6f1ef10e4194f6af0cff90888526f0c115",
+        "version" : "7.10.0"
       }
     },
     {
@@ -170,6 +179,15 @@
       "state" : {
         "revision" : "399f76dcd91e4c688ca2301fa24a8cc6d9927211",
         "version" : "0.99.0"
+      }
+    },
+    {
+      "identity" : "usearch",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/unum-cloud/usearch",
+      "state" : {
+        "revision" : "40d127f472e9073875566f0e9308c0302b89100a",
+        "version" : "2.24.0"
       }
     },
     {

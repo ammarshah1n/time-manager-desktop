@@ -13,6 +13,10 @@ let package = Package(
         .package(url: "https://github.com/supabase/supabase-swift", from: "2.5.0"),
         // Microsoft Authentication Library — Graph API OAuth2
         .package(url: "https://github.com/AzureAD/microsoft-authentication-library-for-objc", from: "1.4.0"),
+        // GRDB.swift — SQLite for offline operation queue
+        .package(url: "https://github.com/groue/GRDB.swift", from: "7.0.0"),
+        // USearch — local HNSW vector search
+        .package(url: "https://github.com/unum-cloud/usearch", from: "2.16.0"),
         // Swift Testing framework (for CLT environments without Xcode)
         .package(url: "https://github.com/swiftlang/swift-testing", from: "0.12.0"),
     ],
@@ -23,6 +27,8 @@ let package = Package(
                 .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
                 .product(name: "Supabase",               package: "supabase-swift"),
                 .product(name: "MSAL",                   package: "microsoft-authentication-library-for-objc"),
+                .product(name: "GRDB",                   package: "GRDB.swift"),
+                .product(name: "USearch",                package: "usearch"),
             ],
             path: "Sources",
             exclude: ["Legacy"],

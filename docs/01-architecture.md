@@ -1,5 +1,8 @@
 # 01 — System Architecture
 
+> **Updated 2026-04-03** from 14-report Deep Research synthesis.
+> Detailed specs: `research/ARCHITECTURE-MEMORY.md`, `research/ARCHITECTURE-SIGNALS.md`, `research/ARCHITECTURE-DELIVERY.md`
+
 ## Mental Model: OS, Not App
 
 Timed's architecture is an operating system for a person. Just as an OS manages
@@ -10,179 +13,215 @@ processes on a human.
 ## Four Functional Layers
 
 ```
-┌─────────────────────────────────────────────────┐
-│  Layer 4: DELIVERY                              │
-│  Morning session, menu bar, proactive alerts    │
-│  Cadence: on-demand + scheduled                 │
-├─────────────────────────────────────────────────┤
-│  Layer 3: REFLECTION ENGINE                     │
-│  Pattern extraction, synthesis, rule generation │
-│  Cadence: periodic (nightly + event-triggered)  │
-├─────────────────────────────────────────────────┤
-│  Layer 2: MEMORY STORE                          │
-│  Episodic / Semantic / Procedural tiers         │
-│  Cadence: persistent, always available          │
-├─────────────────────────────────────────────────┤
-│  Layer 1: SIGNAL INGESTION                      │
-│  Email, calendar, voice, behaviour signals      │
-│  Cadence: continuous, passive                   │
-└─────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│  Layer 4: DELIVERY                                          │
+│  7-section morning briefing, real-time alerts (3/day cap),  │
+│  voice interaction, adaptive format learning                │
+│  Detail: research/ARCHITECTURE-DELIVERY.md §1-3             │
+│  Cadence: on-demand + scheduled                             │
+├─────────────────────────────────────────────────────────────┤
+│  Layer 3: REFLECTION ENGINE + PREDICTION                    │
+│  6-phase nightly pipeline (Haiku→Sonnet→Opus),              │
+│  4-gate pattern validation, BOCPD change detection,         │
+│  avoidance/burnout/reversal prediction, CCR evaluation      │
+│  Detail: research/ARCHITECTURE-MEMORY.md §2-6               │
+│  Cadence: periodic (nightly + event-triggered)              │
+├─────────────────────────────────────────────────────────────┤
+│  Layer 2: MEMORY STORE (5-tier)                             │
+│  Tier 0: Raw Observation → Tier 1: Daily Summary →          │
+│  Tier 2: Behavioural Signature → Tier 3: Personality Trait  │
+│  + ACB (Active Context Buffer, always in LLM context)       │
+│  Detail: research/ARCHITECTURE-MEMORY.md §1,3,7             │
+│  Cadence: persistent, always available                      │
+├─────────────────────────────────────────────────────────────┤
+│  Layer 1: SIGNAL INGESTION (30+ signals, 3 tiers)           │
+│  Tier 1: Email + Calendar + App usage (weeks 1-4)           │
+│  Tier 2: Keystrokes + Basic voice (weeks 5-10)              │
+│  Tier 3: Neural voice + Multi-modal fusion (weeks 11+)      │
+│  Detail: research/ARCHITECTURE-SIGNALS.md §1-8              │
+│  Cadence: continuous, passive                               │
+└─────────────────────────────────────────────────────────────┘
 ```
+
+## Cross-Cutting Concerns
+
+| Concern | Detail Location |
+|---------|----------------|
+| Privacy & Trust Architecture | `research/ARCHITECTURE-DELIVERY.md §5` |
+| Cold Start Pipeline | `research/ARCHITECTURE-DELIVERY.md §6` |
+| Cognitive Science Framework | `research/ARCHITECTURE-SIGNALS.md §6` |
+| Swift/macOS Implementation | `research/ARCHITECTURE-DELIVERY.md §7` |
+| Go-to-Market & Positioning | `research/ARCHITECTURE-DELIVERY.md §8` |
 
 ## The Compounding Feedback Loop
 
-Signal Ingestion → feeds Episodic Memory →
-Reflection Engine processes Episodic into Semantic + Procedural →
-Delivery draws from all three tiers →
+Signal Ingestion (30+ signals) → feeds Tier 0 Raw Observations →
+Nightly 6-phase pipeline consolidates: Tier 0 → Tier 1 → Tier 2 → Tier 3 →
+ACB updated with current executive model →
+Delivery draws from ACB + retrieval across all tiers →
 Human interaction (corrections, reactions) generates new signal →
 Re-enters Layer 1.
 
-**The intelligence is not in any single component; it is in the cycle running
-continuously and feeding on itself.**
+**Intelligence compounds because higher memory tiers contain representations
+that are structurally impossible without lower tiers having been built and
+validated first. Month 6 is not month 1 with more data — it is a qualitatively
+different system.**
 
 ## Layer 1: Signal Ingestion
 
-**Purpose:** Passively monitor and record all available data streams.
-Does not interpret; only records. Everything timestamped and tagged by modality.
+> Full spec: `research/ARCHITECTURE-SIGNALS.md`
 
-**Inputs:**
-- Outlook email (metadata + content via Microsoft Graph delta sync)
-- Outlook calendar (events, changes, cancellations)
-- Voice input (morning session transcripts)
-- Task behaviour (completion times, deferrals, re-rankings)
-- App focus duration (via NSWorkspace notifications)
-- Meeting outcomes (post-meeting task creation, follow-up patterns)
+**Purpose:** Passively monitor and record 30+ signals across 5 modalities.
+Does not interpret; only extracts features and writes Tier 0 observations.
 
-**Outputs:** Raw SignalEvent records written to episodic memory
+**Signal Tiers (implementation order):**
 
-**Existing code:**
-- GraphClient.swift — email + calendar ingestion
-- EmailSyncService.swift — delta sync, folder-move detection, reply latency
-- CalendarSyncService.swift — Outlook events → CalendarBlocks
-- VoiceCaptureService.swift — Apple Speech live transcription
-- VoiceResponseParser.swift — spoken command parsing
+| Tier | Signals | macOS APIs | Permissions | Timeline |
+|------|---------|-----------|-------------|----------|
+| 1 | Email metadata, calendar, app usage, idle time, first/last activity | Graph API, NSWorkspace, IOKit, CGEvent | OAuth (Mail.Read, Calendars.Read) | Weeks 1-4 |
+| 2 | Keystroke dynamics (IKI, dwell, error rate, pauses, bigraphs), voice acoustics (F0, jitter, shimmer, HNR, MFCCs, speech rate, disfluency) | Accessibility API, AVAudioEngine + eGeMAPS/openSMILE | Accessibility, Microphone | Weeks 5-10 |
+| 3 | Neural voice embeddings (WavLM), multi-modal fusion (CCLI, BEWI, RDS, DQEI) | Core ML, Bottleneck Transformer | Same as Tier 2 | Weeks 11+ |
+
+**Key intelligence from signals:**
+- 4 composite indices: Cognitive Load (CCLI), Burnout Early Warning (BEWI), Relationship Deterioration (RDS), Decision Quality (DQEI)
+- ONA from email metadata (relationship graph, centrality, disengagement detection)
+- Chronotype + energy model from activity timing + keystroke patterns
+- 8 cognitive biases detectable from digital behaviour
+
+**Existing code:** GraphClient, EmailSyncService, CalendarSyncService, VoiceCaptureService, VoiceResponseParser
+**To build:** Keystroke dynamics service, voice feature extraction pipeline, ONA graph builder, energy model, multi-modal fusion
 
 **Interface contract:**
 ```swift
 protocol SignalIngestionService {
-    func recordSignal(_ signal: SignalEvent) async
+    func recordObservation(_ observation: Tier0Observation) async
 }
 ```
 
-## Layer 2: Memory Store
+## Layer 2: Memory Store (5-Tier)
 
-**Purpose:** Three-tier persistent memory, inspired by MemGPT + Stanford
-Generative Agents.
+> Full spec: `research/ARCHITECTURE-MEMORY.md §1, §3, §7`
 
-### Tier 2a: Episodic Memory
-Raw timestamped records of what happened.
-- "Spent 47 minutes on email before 9am"
-- "Avoided the strategic document for 3 days"
-- "Responded to CFO email in 45 seconds"
+**Purpose:** 5-tier persistent memory. Intelligence compounds because each tier
+contains representations that are structurally impossible without the tier below.
 
-### Tier 2b: Semantic Memory
-Distilled facts about the person, extracted by the Reflection Engine.
-- "Best strategic thinking happens between 10am-12pm"
-- "Responds fastest to emails from CFO"
-- "Average meeting recovery time is 22 minutes"
+| Tier | Name | Token Budget | Generated By | Embedding |
+|------|------|-------------|-------------|-----------|
+| 0 | Raw Observation | ~50 | Client (ingestion) | voyage-context-3 |
+| 1 | Daily Summary | 200-400 | Haiku 3.5 | voyage-context-3 |
+| 2 | Behavioural Signature | 500-1000 | Sonnet 4 | voyage-3-large |
+| 3 | Personality Trait | 1000-2000 | Opus 4.6 | voyage-3-large |
+| ACB | Active Context Buffer | ~2000 | Opus 4.6 | N/A (injected) |
 
-### Tier 2c: Procedural Memory
-Operating rules extracted from patterns, generated by the Reflection Engine.
-- "If a task involves confrontational conversation, defer average 6.2 days"
-- "Avoid scheduling strategic work in 72 hours post-board"
-- "Thursday afternoon decisions are revised 60% more often"
+**Key upgrades from v1 spec:**
+- 5 tiers (was 3) — adds Raw Observation and Behavioural Signature as distinct levels
+- Voyage AI embeddings (was Jina v3) — dual-model strategy for contextual vs factual
+- HNSW indexes (was IVFFlat) — tier-tuned m parameters (16/24/32/48)
+- 5-dimension retrieval (was 3-axis) — adds intent-awareness and temporal reasoning
+- Bi-temporal trait model — `valid_from`/`valid_to` + `recorded_at` for contradiction handling
+- Precision scalars on traits — cathartic update formula for 3 contradiction cases
 
-**Existing code:**
-- DataStore.swift — local JSON persistence (tasks, triage, blocks, captures)
-- SupabaseClient.swift — remote CRUD for all domain objects
+**Retrieval:** 5-dimension composite scoring (recency, importance, relevance, recurrence, temporal_proximity) with intent-aware weight profiles per query type. Floor of 0.15 prevents stale-but-critical memories from disappearing.
 
-**To build:** Memory tier stores (episodic, semantic, procedural) with:
-- Three-axis retrieval scoring (recency × importance × relevance)
-- ACAN-style dynamic weight adjustment based on query context
-- Memory decay and consolidation (episodic → semantic promotion)
-- Core memory (always-in-context essentials about the executive)
+**Existing code:** DataStore.swift, SupabaseClient.swift
+**To build:** All 5 memory tier stores, retrieval engine, embedding pipeline
 
 **Interface contract:**
 ```swift
 protocol MemoryStore {
-    func write(_ memory: EpisodicMemory) async
-    func retrieve(query: RetrievalQuery, limit: Int) async -> [ScoredMemory]
-    func promote(episodic: EpisodicMemory, to semantic: SemanticFact) async
-    func addRule(_ rule: ProceduralRule) async
-    func coreMemory() async -> CoreMemorySnapshot
+    func writeObservation(_ obs: Tier0Observation) async
+    func retrieve(query: RetrievalQuery, intent: QueryIntent, limit: Int) async -> [ScoredMemory]
+    func activeContextBuffer() async -> ACBSnapshot
 }
 ```
 
-## Layer 3: Reflection Engine
+## Layer 3: Reflection Engine + Prediction
 
-**Purpose:** The intelligence core. Processes episodic memories into semantic
-facts and procedural rules. This is what makes the system genuinely smarter
-over time.
+> Full spec: `research/ARCHITECTURE-MEMORY.md §2, §4, §5, §6`
 
-**Three-stage cycle (adapted from Park et al., 2023):**
+**Purpose:** The intelligence core. 6-phase nightly pipeline that consolidates
+observations into compounding intelligence. Plus a prediction layer for
+avoidance, burnout, and decision reversal forecasting.
 
-1. First-order pattern extraction:
-   "In the last 14 days, 7 of 9 strategic documents opened but not edited."
+**6-Phase Nightly Pipeline:**
 
-2. Second-order insight synthesis:
-   "Pattern correlates with weeks following board meetings. Inference: post-board
-   fatigue reduces capacity for independent strategic work."
+| Phase | Model | Input | Output |
+|-------|-------|-------|--------|
+| 1. Importance Scoring | Haiku 3.5 | Unprocessed Tier 0 observations | importance_score + baseline_deviation |
+| 2. Conflict Detection | Haiku 3.5 | New observations vs existing Tier 2/3 | Conflict tags (SUPPORTS / CONTRADICTS / NOVEL) |
+| 3. Daily Summary | Sonnet 4 | Day's Tier 0 observations | Tier 1 daily summary with anomalies |
+| 4. Pattern Detection | Sonnet 4 | Rolling Tier 1 summaries (14-day window) | Candidate Tier 2 behavioural signatures |
+| 5. Deep Synthesis | Opus 4.6 (64K extended thinking) | Validated Tier 2 patterns + existing Tier 3 traits | Updated Tier 3 traits + ACB + predictions |
+| 6. Pruning & Cleanup | Haiku 3.5 | All tiers | Archive low-value Tier 0, compress Tier 1 |
 
-3. Rule generation:
-   "Avoid scheduling strategic document work in 72 hours post-board. Flag this
-   pattern in next morning session."
+**Pattern Validation (4-gate protocol):**
+1. Statistical significance (ARIMA-corrected Cohen's d_z ≥ 0.5)
+2. Temporal stability (persists ≥ 14 days)
+3. Contextual validity (not explained by external factors)
+4. Psychological coherence (LLM judgment: does this make sense as a human pattern?)
 
-**Processing architecture (to be validated by Research Pack 02):**
-- Real-time: Haiku-tier for event classification, signal extraction, anomaly detection
-- Periodic (nightly): Opus at max effort for deep reflection, personality model
-  updates, strategic insight generation
-- Event-driven: triggered by significant events (anomalous behaviour, high-importance
-  signals)
+**Prediction Layer:**
+- Avoidance detection: 3-stream analysis + strategic delay discriminator
+- Burnout forecasting: LSTM+XGBoost ensemble with triple gate (8-12 week lead time)
+- Decision reversal: Cox hazards + 4-state HMM (T+4 to T+14 window)
+- Evaluation: CCR (Compounding Capability Ratio) proves genuine compounding
 
-**Existing code:**
-- PlanningEngine.swift — composite scoring, Thompson sampling (pure, testable)
-- TimeSlotAllocator.swift — calendar-aware slot allocation, energy tiers
-- InsightsEngine.swift — estimated vs actual comparison (minimal)
+**Change Detection:** BOCPD (Bayesian Online Change Point Detection) with 14-day quarantine before trait model updates.
 
-**To build:** The entire reflection pipeline — this is the primary build target.
+**Existing code:** PlanningEngine, TimeSlotAllocator, InsightsEngine
+**To build:** The entire 6-phase pipeline, prediction layer, evaluation framework
 
 **Interface contract:**
 ```swift
 protocol ReflectionEngine {
-    func runReflectionCycle(since: Date) async -> ReflectionResult
-    func extractPatterns(from memories: [EpisodicMemory]) async -> [Pattern]
-    func synthesiseInsights(from patterns: [Pattern]) async -> [Insight]
-    func generateRules(from insights: [Insight]) async -> [ProceduralRule]
+    func runNightlyPipeline() async -> NightlyResult
+    func predictAvoidance(for profile: UUID) async -> [AvoidanceAssessment]
+    func predictBurnout(for profile: UUID) async -> BurnoutAssessment
+    func evaluateCompounding(for profile: UUID) async -> CompoundingMetrics
 }
 ```
 
 ## Layer 4: Delivery
 
-**Purpose:** Convert intelligence into language the executive can use.
+> Full spec: `research/ARCHITECTURE-DELIVERY.md §1-4`
 
-**Morning Session Structure (from CIA PDB research):**
-1. Pattern headline (10s) — one named pattern detected since last session
-2. Cognitive state assessment (15s) — based on voice + historical comparison
-3. Day plan (30s) — tasks ranked by Thompson sampling, chronotype-optimised
-4. One question — "What's the thing you most need to think about today?"
+**Purpose:** Convert intelligence into language and format the executive engages
+with, acts on, and never ignores. Three delivery modes with distinct design rules.
 
-**Existing code:**
-- MorningInterviewPane.swift — 5-step voice interview (delivers tasks, not intelligence)
-- MenuBarManager.swift — NSStatusItem with current/next/remaining
-- CommandPalette.swift — Cmd+K palette
-- All feature panes (Today, Triage, Tasks, Plan, Focus, Calendar, etc.)
+**Morning Briefing (7 sections, ~610 words, CIA PDB design):**
+1. Lead Insight (BLUF) — single highest-salience item
+2. Calendar Intelligence — today's schedule risks and opportunities
+3. Email Pattern Analysis — overnight shifts, relationship signals
+4. Decision Quality Observations — yesterday's patterns (optional)
+5. Cognitive Load Forecast — energy curve + chronotype-aware scheduling
+6. Emerging Patterns — multi-week trends, avoidance, relationship dynamics
+7. Recency Anchor — forward-looking question that travels with the executive
 
-**To build:**
-- Morning intelligence briefing (pattern headlines, cognitive state assessment)
-- Proactive intelligence alerts (low-frequency, high-signal)
-- Named pattern delivery with historical context
+**Real-Time Alerts:**
+- 5-dimension scoring: salience × confidence × time-sensitivity × actionability × cognitive state
+- Hard cap: 3 alerts/day (above this → alarm fatigue, trust erosion)
+- 23m15s recovery cost per interruption — only interrupt when value exceeds this
+
+**Voice Interaction:**
+- Routine briefings: measured pace, formal-conversational tone
+- Uncomfortable insights: Motivational Interviewing framing, text beats voice for hardest truths
+- TTS: OpenAI TTS-HD primary, AVSpeechSynthesizer offline fallback
+
+**Coaching Integration:**
+- Trust calibration: 4 stages (Days 1-30 through 180+)
+- No challenging insights before Day 90
+- Max 1 uncomfortable observation per briefing
+- 3-attempt cap on acknowledged-but-unchanged patterns
+
+**Existing code:** MorningInterviewPane, MenuBarManager, CommandPalette, all feature panes
+**To build:** Intelligence briefing engine, alert system, voice delivery, coaching layer
 
 **Interface contract:**
 ```swift
 protocol IntelligenceDelivery {
     func prepareMorningBriefing() async -> MorningBriefing
-    func checkForProactiveAlerts() async -> [ProactiveAlert]
-    func respondToQuery(_ query: String) async -> IntelligenceResponse
+    func evaluateAlertCandidates() async -> [AlertDecision]
+    func respondToQuery(_ query: String, mode: DeliveryMode) async -> IntelligenceResponse
 }
 ```
 

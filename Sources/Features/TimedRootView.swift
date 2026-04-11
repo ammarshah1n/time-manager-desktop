@@ -35,11 +35,11 @@ struct TimedRootView: View {
         rootSplitView
     }
 
-    private func saveTasks(_ v: [TimedTask])      { Task { try? await DataStore.shared.saveTasks(v) } }
-    private func saveTriage(_ v: [TriageItem])    { Task { try? await DataStore.shared.saveTriageItems(v) } }
-    private func saveWOO(_ v: [WOOItem])          { Task { try? await DataStore.shared.saveWOOItems(v) } }
-    private func saveBlocks(_ v: [CalendarBlock])   { Task { try? await DataStore.shared.saveBlocks(v) } }
-    private func saveCaptures(_ v: [CaptureItem])   { Task { try? await DataStore.shared.saveCaptureItems(v) } }
+    private func saveTasks(_ v: [TimedTask])      { Task { try? await DataBridge.shared.saveTasks(v) } }
+    private func saveTriage(_ v: [TriageItem])    { Task { try? await DataBridge.shared.saveTriageItems(v) } }
+    private func saveWOO(_ v: [WOOItem])          { Task { try? await DataBridge.shared.saveWOOItems(v) } }
+    private func saveBlocks(_ v: [CalendarBlock])   { Task { try? await DataBridge.shared.saveBlocks(v) } }
+    private func saveCaptures(_ v: [CaptureItem])   { Task { try? await DataBridge.shared.saveCaptureItems(v) } }
 
     private var rootSplitView: some View {
         NavigationSplitView(columnVisibility: .constant(.all)) {
@@ -137,7 +137,7 @@ struct TimedRootView: View {
 
     private func loadData() {
         Task {
-            let store = DataStore.shared
+            let store = DataBridge.shared
 
             // Load from local DataStore first (offline-first)
             if let v = try? await store.loadTasks(),        !v.isEmpty { tasks       = v }

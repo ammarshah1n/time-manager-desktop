@@ -107,7 +107,13 @@ No action needed:
 
 ## Phase 4: Update State Files
 
-### Update PLAN.md
+### Write HANDOFF.md (session-handoff protocol)
+1. Run the session-close protocol from `.claude/skills/session-handoff/SKILL.md`
+2. This writes `HANDOFF.md` to the active vault root with Done/Open Decisions/Deferred/Next
+3. Updates `Working-Context/{project}-brain-state.md`
+4. Updates MASTER-PLAN.md STATUS section (if deliverables completed)
+
+### Update PLAN.md (legacy — skip if MASTER-PLAN.md exists)
 1. Mark completed tasks as `[x]`
 2. Update "What's In Progress" with current state
 3. Update "Files Touched This Session" with every file created/modified

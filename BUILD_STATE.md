@@ -91,16 +91,38 @@
 - Legacy/ folder (41 files) excluded from build, kept as reference
 
 ## Architecture Gap: The Intelligence Core
-The entire intelligence infrastructure is missing:
-- No three-tier memory (episodic/semantic/procedural)
-- No reflection engine (nightly Opus analysis)
-- No observation pipeline (behavioural signal capture)
-- No memory retrieval system (recency × importance × relevance scoring)
-- No intelligence delivery (morning session opens with tasks, not patterns)
-- No compounding — the system does not get smarter over time
+> **Updated 2026-04-03** — research ingested, architecture synthesised. Full specs in `research/ARCHITECTURE-*.md`.
 
-This is the primary build target. Everything else is foundation.
+The entire intelligence infrastructure is designed but unbuilt:
+- No 5-tier memory (Tier 0-3 + ACB) — schema designed in ARCHITECTURE-MEMORY.md §1,7
+- No nightly 6-phase pipeline — designed in ARCHITECTURE-MEMORY.md §2
+- No signal extraction beyond email/calendar — 30+ signals designed in ARCHITECTURE-SIGNALS.md §1
+- No 5-dimension retrieval engine — designed in ARCHITECTURE-MEMORY.md §3
+- No ONA/relationship graph — designed in ARCHITECTURE-SIGNALS.md §2
+- No chronobiology/energy model — designed in ARCHITECTURE-SIGNALS.md §5
+- No intelligence delivery (morning briefing) — designed in ARCHITECTURE-DELIVERY.md §1-3
+- No privacy/trust architecture — designed in ARCHITECTURE-DELIVERY.md §5
+- No cold start pipeline — designed in ARCHITECTURE-DELIVERY.md §6
+- No behavioural prediction (avoidance, burnout, reversal) — designed in ARCHITECTURE-MEMORY.md §5
+- No compounding evaluation (CCR metric) — designed in ARCHITECTURE-MEMORY.md §6
 
-## Next Phase
-Phase 0 — Complete documentation architecture (docs/, skills, commands)
-Then: Phase 1 — Data Layer (memory store schema, episodic/semantic/procedural)
+This is the primary build target. All architecture decisions are made. Ready to build.
+
+## Build Phases (Intelligence Core)
+
+| Phase | Focus | Key Deliverables | Depends On |
+|-------|-------|-----------------|------------|
+| 1 | Data Layer | Supabase schema (14 tables), Tier 0 write path, Voyage AI embeddings, HNSW indexes | — |
+| 2 | Signal Expansion | Keystroke dynamics service, voice feature extraction, ONA graph builder, energy model | Phase 1 |
+| 3 | Nightly Pipeline | 6-phase consolidation (Haiku→Sonnet→Opus), pattern validation, ACB generation | Phase 1 |
+| 4 | Retrieval & Prediction | 5-dimension retrieval, avoidance detection, burnout forecasting, decision reversal | Phase 1, 3 |
+| 5 | Intelligence Delivery | Morning briefing engine, alert system, voice delivery, coaching layer | Phase 3, 4 |
+| 6 | Privacy & Cold Start | Trust-earning sequence, progressive permissions, default intelligence library, onboarding | Phase 1, 5 |
+
+## Research Library
+- **14 Deep Research reports:** `research/perplexity-outputs/v2/v2-01` through `v2-14`
+- **14 decision extractions:** `research/extractions/extract-01` through `extract-14`
+- **3 architecture syntheses:** `research/ARCHITECTURE-MEMORY.md`, `ARCHITECTURE-SIGNALS.md`, `ARCHITECTURE-DELIVERY.md`
+
+Any future build session should read `CLAUDE.md` → `BUILD_STATE.md` → relevant `ARCHITECTURE-*.md` → build.
+Last Session: 2026-04-11 15:38

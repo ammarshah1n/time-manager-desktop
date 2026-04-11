@@ -3,6 +3,7 @@
 // upserts them to Supabase, and triggers the classify-email Edge Function.
 
 import Foundation
+import CryptoKit
 import Dependencies
 import Network
 import os
@@ -89,6 +90,9 @@ actor EmailSyncService {
     /// conversationId → (fromAddress, receivedDateTime) of the most recent inbound message.
     /// Used to compute reply latency when an outbound message appears in the same thread.
     private var inboundMessagesByThread: [String: (fromAddress: String, receivedAt: Date)] = [:]
+
+    /// conversationId → number of messages seen during this app session.
+    private var observedThreadDepths: [String: Int] = [:]
 
     // MARK: - Dependencies
 
@@ -296,6 +300,11 @@ actor EmailSyncService {
                         emailAccountId: emailAccountId
                     )
                     try await upsertMessage(row)
+                    await emitEmailObservationsIfPossible(
+                        for: message,
+                        emailMessageId: row.id,
+                        explicitProfileId: profileId
+                    )
 
                     // Compute sender importance from reply latency before classifying
                     let senderAddress = message.from?.emailAddress.address ?? "unknown"
@@ -357,6 +366,225 @@ actor EmailSyncService {
         try await supabaseClient.upsertEmailMessage(row)
     }
 
+    // MARK: - Tier 0 observation emission
+
+    private func emitEmailObservationsIfPossible(
+        for message: GraphEmailMessage,
+        emailMessageId: UUID,
+        explicitProfileId: UUID?
+    ) async {
+        guard let profileId = await resolvedExecutiveId(explicitProfileId) else { return }
+        let occurredAt = Self.parseGraphTimestamp(message.receivedDateTime) ?? Date()
+        let eventType = emailEventType(for: message)
+        let threadDepth = recordThreadDepth(for: message.conversationId)
+        let recipientCount = message.toRecipients.count + message.ccRecipients.count
+        let responseLatencySeconds = responseLatencySeconds(for: message, occurredAt: occurredAt)
+        let senderCategory = senderCategory(for: message)
+        let senderAddress = message.from?.emailAddress.address
+        let senderName = message.from?.emailAddress.name
+        let summary = emailSummary(
+            for: message,
+            eventType: eventType,
+            senderName: senderName,
+            senderAddress: senderAddress,
+            recipientCount: recipientCount
+        )
+        let rawData = makeEmailRawData(
+            senderCategory: senderCategory,
+            responseLatencySeconds: responseLatencySeconds,
+            threadDepth: threadDepth,
+            recipientCount: recipientCount
+        )
+
+        let observation = Tier0Observation(
+            profileId: profileId,
+            occurredAt: occurredAt,
+            source: .email,
+            eventType: eventType,
+            entityId: emailMessageId,
+            entityType: "email_message",
+            summary: summary,
+            rawData: rawData,
+            importanceScore: 0.5
+        )
+        try? await Tier0Writer.shared.recordObservation(observation)
+
+        let counterpartyAddress = observationCounterpartyAddress(for: message)
+        let importance = importanceLabel(for: senderImportanceScore(counterpartyAddress ?? senderAddress ?? ""))
+        let emailObservation = EmailObservationRow(
+            id: UUID(),
+            executiveId: profileId,
+            observedAt: occurredAt,
+            graphMessageId: message.id,
+            senderAddress: senderAddress,
+            senderName: senderName,
+            recipientCount: recipientCount,
+            subjectHash: subjectHash(for: message.subject),
+            folder: folderName(for: message.parentFolderId),
+            importance: importance,
+            isReply: isReply(message.subject),
+            isForward: isForward(message.subject),
+            responseLatencySeconds: responseLatencySeconds,
+            threadDepth: threadDepth,
+            categories: [senderCategory]
+        )
+        try? await persistEmailObservation(emailObservation)
+    }
+
+    private func resolvedExecutiveId(_ explicitProfileId: UUID?) async -> UUID? {
+        if let explicitProfileId {
+            return explicitProfileId
+        }
+        return await MainActor.run { AuthService.shared.executiveId }
+    }
+
+    private func emailEventType(for message: GraphEmailMessage) -> String {
+        let userEmail = OnboardingUserPrefs.email.lowercased()
+        let fromAddress = message.from?.emailAddress.address.lowercased() ?? ""
+        let isSent = !userEmail.isEmpty && fromAddress == userEmail
+        if isSent {
+            return isReply(message.subject) ? "email.response_sent" : "email.sent"
+        }
+        return "email.received"
+    }
+
+    private func emailSummary(
+        for message: GraphEmailMessage,
+        eventType: String,
+        senderName: String?,
+        senderAddress: String?,
+        recipientCount: Int
+    ) -> String {
+        if eventType == "email.sent" {
+            if recipientCount > 0 {
+                let label = recipientCount == 1 ? "recipient" : "recipients"
+                return "Email sent to \(recipientCount) \(label)"
+            }
+            return "Email sent"
+        }
+        let senderLabel = senderName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let senderLabel, !senderLabel.isEmpty {
+            return "Email received from \(senderLabel)"
+        }
+        if let senderAddress, !senderAddress.isEmpty {
+            return "Email received from \(senderAddress)"
+        }
+        return "Email received"
+    }
+
+    private func makeEmailRawData(
+        senderCategory: String,
+        responseLatencySeconds: Int?,
+        threadDepth: Int?,
+        recipientCount: Int
+    ) -> [String: AnyCodable] {
+        var rawData: [String: AnyCodable] = [
+            "sender_category": AnyCodable(senderCategory),
+            "recipient_count": AnyCodable(recipientCount)
+        ]
+
+        if let responseLatencySeconds {
+            rawData["response_time_sec"] = AnyCodable(responseLatencySeconds)
+        }
+        if let threadDepth {
+            rawData["thread_depth"] = AnyCodable(threadDepth)
+        }
+
+        return rawData
+    }
+
+    private func recordThreadDepth(for conversationId: String?) -> Int? {
+        guard let conversationId, !conversationId.isEmpty else { return nil }
+        observedThreadDepths[conversationId, default: 0] += 1
+        return observedThreadDepths[conversationId]
+    }
+
+    private func responseLatencySeconds(for message: GraphEmailMessage, occurredAt: Date) -> Int? {
+        guard emailEventType(for: message) == "email.sent",
+              let conversationId = message.conversationId,
+              let inbound = inboundMessagesByThread[conversationId] else {
+            return nil
+        }
+
+        let latency = Int(occurredAt.timeIntervalSince(inbound.receivedAt))
+        return latency > 0 ? latency : nil
+    }
+
+    private func senderCategory(for message: GraphEmailMessage) -> String {
+        let userEmail = OnboardingUserPrefs.email.lowercased()
+        let address = message.from?.emailAddress.address.lowercased() ?? ""
+        let name = message.from?.emailAddress.name ?? ""
+
+        if !userEmail.isEmpty, address == userEmail {
+            return "self"
+        }
+        if name.isFamilyMember(surname: OnboardingUserPrefs.familySurname) {
+            return "family"
+        }
+
+        let addressDomain = address.split(separator: "@").last.map(String.init)
+        let userDomain = userEmail.split(separator: "@").last.map(String.init)
+        if let addressDomain, let userDomain, !addressDomain.isEmpty, addressDomain == userDomain {
+            return "internal"
+        }
+
+        return "external"
+    }
+
+    private func observationCounterpartyAddress(for message: GraphEmailMessage) -> String? {
+        if emailEventType(for: message) == "email.sent" {
+            return message.toRecipients.first?.emailAddress.address
+        }
+        return message.from?.emailAddress.address
+    }
+
+    private func importanceLabel(for score: Double) -> String {
+        if score >= 0.8 { return "high" }
+        if score <= 0.2 { return "low" }
+        return "normal"
+    }
+
+    private func folderName(for folderId: String?) -> String? {
+        guard let folderId else { return nil }
+        return folderNameCache[folderId] ?? folderId
+    }
+
+    private func isReply(_ subject: String?) -> Bool {
+        guard let subject else { return false }
+        return subject.lowercased().hasPrefix("re:")
+    }
+
+    private func isForward(_ subject: String?) -> Bool {
+        guard let subject else { return false }
+        return subject.lowercased().hasPrefix("fw:") || subject.lowercased().hasPrefix("fwd:")
+    }
+
+    private func subjectHash(for subject: String?) -> String? {
+        guard let subject, !subject.isEmpty else { return nil }
+        let digest = SHA256.hash(data: Data(subject.utf8))
+        return digest.map { String(format: "%02x", $0) }.joined()
+    }
+
+    private func persistEmailObservation(_ observation: EmailObservationRow) async throws {
+        let isConnected = await NetworkMonitor.shared.isConnected
+        guard isConnected, supabaseClient.rawClient != nil else {
+            try await enqueueEmailObservationOffline(observation)
+            return
+        }
+
+        try await supabaseClient.insertEmailObservation(observation)
+    }
+
+    private func enqueueEmailObservationOffline(_ observation: EmailObservationRow) async throws {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let payload = try encoder.encode(observation)
+        try await OfflineSyncQueue.shared.enqueue(
+            operationType: "email_observations.insert",
+            payload: payload
+        )
+    }
+
     // MARK: - Edge Function: classify-email
 
     private func triggerClassification(messageId: UUID, workspaceId: UUID, senderImportance: Double = 0.5) async {
@@ -403,14 +631,7 @@ actor EmailSyncService {
         guard !fromAddress.isEmpty, !userEmail.isEmpty else { return }
         guard let conversationId = message.conversationId, !conversationId.isEmpty else { return }
 
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let fallbackFormatter = ISO8601DateFormatter()
-
-        let messageDate: Date? = {
-            guard let raw = message.receivedDateTime else { return nil }
-            return formatter.date(from: raw) ?? fallbackFormatter.date(from: raw)
-        }()
+        let messageDate = Self.parseGraphTimestamp(message.receivedDateTime)
 
         if fromAddress == userEmail {
             // Outbound message — check if we have an inbound in this thread
@@ -602,5 +823,15 @@ actor EmailSyncService {
             parsedPriority: isFamilySender ? 10 : nil,
             parsedEstimateMinutes: nil
         )
+    }
+
+    private static func parseGraphTimestamp(_ raw: String?) -> Date? {
+        guard let raw else { return nil }
+
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let fallbackFormatter = ISO8601DateFormatter()
+
+        return formatter.date(from: raw) ?? fallbackFormatter.date(from: raw)
     }
 }

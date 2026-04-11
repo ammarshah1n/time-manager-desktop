@@ -93,6 +93,70 @@ struct EmailMessageRow: Codable, Identifiable, Sendable {
     }
 }
 
+struct EmailObservationRow: Codable, Identifiable, Sendable {
+    let id: UUID
+    let executiveId: UUID
+    let observedAt: Date
+    let graphMessageId: String?
+    let senderAddress: String?
+    let senderName: String?
+    let recipientCount: Int?
+    let subjectHash: String?
+    let folder: String?
+    let importance: String?
+    let isReply: Bool
+    let isForward: Bool
+    let responseLatencySeconds: Int?
+    let threadDepth: Int?
+    let categories: [String]?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case executiveId = "executive_id"
+        case observedAt = "observed_at"
+        case graphMessageId = "graph_message_id"
+        case senderAddress = "sender_address"
+        case senderName = "sender_name"
+        case recipientCount = "recipient_count"
+        case subjectHash = "subject_hash"
+        case folder
+        case importance
+        case isReply = "is_reply"
+        case isForward = "is_forward"
+        case responseLatencySeconds = "response_latency_seconds"
+        case threadDepth = "thread_depth"
+        case categories
+    }
+}
+
+struct CalendarObservationRow: Codable, Identifiable, Sendable {
+    let id: UUID
+    let executiveId: UUID
+    let observedAt: Date
+    let eventStart: Date?
+    let eventEnd: Date?
+    let attendeeCount: Int?
+    let organiserIsSelf: Bool
+    let responseStatus: String?
+    let wasCancelled: Bool
+    let wasRescheduled: Bool
+    let originalStart: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case executiveId = "executive_id"
+        case observedAt = "observed_at"
+        case eventStart = "event_start"
+        case eventEnd = "event_end"
+        case attendeeCount = "attendee_count"
+        case organiserIsSelf = "organiser_is_self"
+        case responseStatus = "response_status"
+        case wasCancelled = "was_cancelled"
+        case wasRescheduled = "was_rescheduled"
+        case originalStart = "original_start"
+    }
+}
+
 struct TriageCorrectionRow: Codable, Identifiable, Sendable {
     let id: UUID
     let workspaceId: UUID
@@ -353,6 +417,10 @@ struct WorkspaceMemberRow: Codable, Identifiable, Sendable {
 }
 
 struct SupabaseClientDependency: Sendable {
+    /// Raw Supabase client for auth operations and Edge Function calls.
+    /// nil when running in local-only mode (no Supabase configured).
+    var rawClient: SupabaseClient?
+
     var fetchTasks: @Sendable (UUID, UUID, [String]) async throws -> [TaskDBRow] = { _, _, _ in [] }
     var upsertTask: @Sendable (TaskDBRow) async throws -> Void = { _ in }
     var updateTaskStatus: @Sendable (UUID, String, Int?) async throws -> Void = { _, _, _ in }
@@ -368,6 +436,8 @@ struct SupabaseClientDependency: Sendable {
     var fetchWaitingItems: @Sendable (UUID, UUID) async throws -> [WaitingItemRow] = { _, _ in [] }
     var logPipelineRun: @Sendable (PipelineRunRow) async throws -> Void = { _ in }
     var upsertEmailMessage: @Sendable (EmailMessageRow) async throws -> Void = { _ in }
+    var insertEmailObservation: @Sendable (EmailObservationRow) async throws -> Void = { _ in }
+    var insertCalendarObservation: @Sendable (CalendarObservationRow) async throws -> Void = { _ in }
 
     /// Fetches bucket completion stats for Thompson sampling (workspaceId, profileId).
     var fetchBucketStats: @Sendable (UUID, UUID) async throws -> [BucketCompletionStat] = { _, _ in [] }
@@ -433,6 +503,7 @@ extension SupabaseClientDependency {
         let client = SupabaseClient(supabaseURL: url, supabaseKey: anonKey)
 
         return SupabaseClientDependency(
+            rawClient: client,
             fetchTasks: { workspaceId, profileId, status in
                 let rows: [TaskDBRow] = try await client
                     .from("tasks")
@@ -590,6 +661,18 @@ extension SupabaseClientDependency {
                 try await client
                     .from("email_messages")
                     .upsert(message, onConflict: "graph_message_id")
+                    .execute()
+            },
+            insertEmailObservation: { observation in
+                try await client
+                    .from("email_observations")
+                    .insert(observation)
+                    .execute()
+            },
+            insertCalendarObservation: { observation in
+                try await client
+                    .from("calendar_observations")
+                    .insert(observation)
                     .execute()
             },
             fetchBucketStats: { workspaceId, profileId in

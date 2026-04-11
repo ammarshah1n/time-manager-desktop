@@ -74,6 +74,9 @@ struct GraphCalendarEvent: Codable, Identifiable, Sendable {
     let isAllDay: Bool
     let isCancelled: Bool
     let location: GraphLocation?
+    let attendees: [GraphCalendarAttendee]?
+    let isOrganizer: Bool?
+    let responseStatus: GraphResponseStatus?
 }
 
 struct GraphDateTimeTimeZone: Codable, Sendable {
@@ -83,6 +86,15 @@ struct GraphDateTimeTimeZone: Codable, Sendable {
 
 struct GraphLocation: Codable, Sendable {
     let displayName: String?
+}
+
+struct GraphCalendarAttendee: Codable, Sendable {
+    let emailAddress: GraphRecipient?
+}
+
+struct GraphResponseStatus: Codable, Sendable {
+    let response: String?
+    let time: String?
 }
 
 // MARK: - Error Types
@@ -400,7 +412,7 @@ extension GraphClientDependency {
                 let raw = "\(graphBaseURL)/me/calendarView"
                     + "?startDateTime=\(start)"
                     + "&endDateTime=\(end)"
-                    + "&$select=id,subject,start,end,isAllDay,isCancelled,location"
+                    + "&$select=id,subject,start,end,isAllDay,isCancelled,location,attendees,isOrganizer,responseStatus"
                     + "&$top=100"
                 guard let url = URL(string: raw.addingPercentEncoding(
                     withAllowedCharacters: .urlQueryAllowed) ?? raw

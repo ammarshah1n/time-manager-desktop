@@ -1,66 +1,77 @@
-# Timed — Project Brain
+# Timed
 
-## What This Is
-macOS application: the most intelligent executive operating system ever built.
-Builds a deep, compounding cognitive model of how a specific C-suite executive
-thinks, decides, avoids, prioritises, communicates, and operates — then uses
-that model to give them their cognitive bandwidth back, permanently.
+## Quick Start
+- Repo: `/Users/integrale/time-manager-desktop`
+- Branch: `ui/apple-v1-restore`
+- Primary user: Yasser Shahin (C-suite executive, Ammar's dad)
+- Backend: Supabase project `fpmjuufefhtlwbfinxlx`, 8 Edge Functions ALL ACTIVE
+- THE GAP: No Supabase Auth. UI still uses local `DataStore`. `SupabaseClient` + `GraphClient` are implemented but not yet called from UI.
+- Read order: `CLAUDE.md` → `BUILD_STATE.md` → `MASTER-PLAN.md` (see `.claude/rules/session-protocol.md` for full protocol)
 
-**HARD CONSTRAINT: observation and intelligence only.** Never sends emails,
-modifies calendars, or takes any action on the world. The human always decides
-and executes. Never negotiate this boundary.
+## What Timed Is
+Timed is the most intelligent executive operating system ever built. NOT a productivity app. NOT competing with Motion/Sunsama.
+It builds a deep, compounding model of how a specific C-suite executive (Yasser Shahin) thinks and operates, giving him cognitive bandwidth back permanently.
 
-## Mission (non-negotiable)
-1. No cost cap on intelligence — Opus 4.6 at max effort for the reflection engine
-2. Intelligence compounds over time — month 6 incomparably smarter than month 1
-3. The reflection engine is the heart — recursive reflection, not summaries
-4. Morning session delivers intelligence, not a task list
-5. Cognitive layer only — observe, reflect, recommend. Never act.
-6. The user is a C-suite executive — impressed by depth, not features
+<important>
+## Design Principles
+1. No cost cap on intelligence. Opus 4.6 at max effort for the nightly analysis engine.
+2. Intelligence compounds over time. Every night Opus synthesises deeper understanding. Month 6 >> Month 1. This is the moat.
+3. Nightly engine is the heart. Recursive reflection: raw observations -> first-order patterns -> second-order synthesis -> semantic model updates -> procedural rule generation (Stanford Generative Agents architecture, Park et al. 2023).
+4. Morning session delivers intelligence, not a task list. Cognitive briefing, not features.
+5. Cognitive layer only. Timed observes, reflects, recommends. NEVER acts on the world unilaterally.
+6. User is a C-suite executive. Impressed only by a system that understands them, not features.
+</important>
 
-## Tech Stack
-- Language: Swift 6.1, SwiftUI, macOS 14+, StrictConcurrency enabled
-- State: Vanilla SwiftUI (@State, @Binding, @StateObject) + TCA Dependencies for DI
-- Storage: Local JSON (DataStore actor) + Supabase Postgres (remote)
-- API: Microsoft Graph (Outlook email + calendar, read-only via MSAL)
-- AI: Claude Opus 4.6 (reflection engine), Haiku 3.5 (classification), Sonnet (estimation)
-- Embeddings: Jina AI jina-embeddings-v3 (1024-dim)
-- Voice: Apple Speech framework (local, on-device, no cloud)
-- Backend: Supabase (ref: fpmjuufefhtlwbfinxlx), 9 Edge Functions (TypeScript)
+## AI Stack
+| Layer | Model | Purpose |
+|-------|-------|---------|
+| Classification | Claude Haiku 3.5 | Email/task triage |
+| Estimation | Claude Sonnet | Time/effort estimation |
+| Nightly engine | Claude Opus 4.6 (max effort) | Recursive reflection, profile synthesis |
+| Morning director | Claude Opus 4.6 (max effort) | Cognitive briefing generation |
+| Profile cards | Claude Opus 4.6 (max effort) | Deep contact intelligence |
+| Embeddings | Jina AI `jina-embeddings-v3` (1024-dim) | Semantic search |
 
-## Architecture — Four Layers
-See docs/01-architecture.md for full definitions.
+## Infrastructure
+- Auth: Microsoft OAuth (`Mail.Read` + `Calendars.Read` + `offline_access`)
+- Graph API methods are implemented
+- Supabase queries for 12 operations are implemented
+- Distribution: Direct DMG + Sparkle, not App Store
 
-| Layer | Purpose | Cadence |
-|-------|---------|---------|
-| Signal Ingestion | Reads external data (email, calendar, voice, behaviour) | Continuous, passive |
-| Memory Store | Three-tier persistence (episodic/semantic/procedural) | Persistent |
-| Reflection Engine | Pattern extraction, synthesis, rule generation | Periodic (nightly + triggered) |
-| Delivery | Morning session, menu bar, proactive alerts | On-demand + scheduled |
+## File Map
+| What | Path |
+|------|------|
+| Codebase root | `~/time-manager-desktop/` |
+| Swift sources | `~/time-manager-desktop/Sources/` |
+| Architecture docs | `~/time-manager-desktop/docs/` (01-10) |
+| Feature specs | `~/time-manager-desktop/specs/` (56 specs) |
+| Implementation plan | `~/time-manager-desktop/specs/IMPLEMENTATION_PLAN.md` |
+| Build state | `~/time-manager-desktop/BUILD_STATE.md` |
+| v1 research | `~/time-manager-desktop/research/perplexity-outputs/` |
+| v2 research (intelligence core) | `~/time-manager-desktop/research/perplexity-outputs/v2/` (14 reports) |
+| Obsidian vault | `~/Timed-Brain/` |
 
-**Key rule:** These four layers have defined interfaces. Do not couple them.
+## Vault & Search
+- Obsidian vault: `~/Timed-Brain/` (144 notes)
+- Session start: `~/Timed-Brain/VAULT-INDEX.md` -> `HANDOFF.md` -> `Working-Context/timed-brain-state.md`
+- Navigate: Use folder `index.md` files, not raw folder scans
+- Search: `qmd search "keyword" -c timed-brain`; `qmd query "natural language question" -c timed-brain`; `obsidian search query="term" vault="Timed-Brain"`; `obsidian backlinks file="NoteName" vault="Timed-Brain"`
+- Cross-vault: `qmd search "term"` (no `-c` flag) searches all vaults
+- Session close: Update `Working-Context/timed-brain-state.md`, extract decisions to `06 - Context/`
+- Typed links: Use `supersedes::`, `implements::`, `caused-by::`, `learned-from::` in notes
 
-## Coding Conventions
-- Swift strict concurrency (async/await, actors for stores)
-- Unit tests for all ML model components and memory operations
-- Log all memory read/write operations via TimedLogger
-- NEVER use UserDefaults for anything beyond UI preferences
-- File naming: [Layer][Component].swift (e.g., MemoryEpisodicStore.swift)
-- Domain models belong in Sources/Core/Models/, not PreviewData.swift
+## Build & Test Tools
+See `.claude/rules/coding-standards.md` and `.claude/rules/testing-rules.md`.
 
-## Current Build State
-See BUILD_STATE.md — read this before every task.
+## Next Priorities
+1. Supabase Auth (Microsoft provider) + workspace/profile bootstrap
+2. Bridge UI -> Supabase (dual-write with `DataStore`)
+3. `EmailSyncService` (background Graph delta sync)
+4. Realtime subscriptions
+5. `FR-03` task extraction, `FR-06` calendar, `FR-07` PA sharing, `FR-08` aging
 
-## Key Decisions
-See docs/08-decisions-log.md for why specific choices were made.
-
-## Repo
-- Owner: ammarshah1n/time-manager-desktop
-- Branch: ui/apple-v1-restore
-- Backend: Supabase project fpmjuufefhtlwbfinxlx
-- Azure: App Registration for Microsoft OAuth
-
-## Commands
-- /new-session — runs session orientation protocol
-- /handoff — creates session handoff doc before ending
-- /sync-docs — updates BUILD_STATE.md from current conversation
+- See `.claude/rules/coding-standards.md` for code conventions.
+- See `.claude/rules/testing-rules.md` for testing workflow and framework rules.
+- See `.claude/rules/session-protocol.md` for session start, close, and compaction rules.
+- See `.claude/rules/ai-assistant-rules.md` for anti-patterns and tool dispatch rules.
+- See `.claude/rules/naming-conventions.md` for the naming examples referenced here.

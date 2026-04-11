@@ -48,3 +48,10 @@
 - Graph: `Sources/Core/Clients/GraphClient.swift`
 - Edge functions: `supabase/functions/` (8 deployed)
 - Migrations: `supabase/migrations/` (7 total)
+
+## DB MIGRATION STATUS (2026-04-11)
+- Created 5 new migration files: `20260411030000_tier1_daily_summaries.sql` through `20260411030004_predictions_tracking.sql`
+- Ran `supabase db push` against linked project `fpmjuufefhtlwbfinxlx`
+- Push failed on `20260411030000_tier1_daily_summaries.sql`
+- Remote error: `column cannot have more than 2000 dimensions for hnsw index (SQLSTATE 54000)`
+- Next step: replace or remove the HNSW indexes on `VECTOR(3072)` columns before retrying deploy
