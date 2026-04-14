@@ -110,7 +110,6 @@ async function runImportanceScoring(client: SupabaseClient, executiveId: string)
     const pass2Response = await callAnthropic({
       model: "claude-sonnet-4-6",
       max_tokens: 4096,
-      temperature: 0,
       thinking: { type: "enabled", budget_tokens: 4096 },
       messages: [{
         role: "user",
@@ -194,7 +193,6 @@ async function runConflictDetection(client: SupabaseClient, executiveId: string)
   const response = await callAnthropic({
     model: "claude-sonnet-4-6",
     max_tokens: 4096,
-    temperature: 0,
     thinking: { type: "enabled", budget_tokens: 8192 },
     messages: [{
       role: "user",
@@ -287,7 +285,6 @@ async function runDailySummary(client: SupabaseClient, executiveId: string): Pro
   const response = await callAnthropic({
     model: "claude-opus-4-6",
     max_tokens: 8192,
-    temperature: 0,
     thinking: { type: "enabled", budget_tokens: 16384 },
     system: `You are the nightly intelligence engine for a C-suite executive's cognitive system. Your task is to generate a daily summary that captures what happened today — descriptively, not interpretively. Flag anomalies that deviate >1.5σ from baselines. Note cross-signal co-occurrences (e.g., high email volume + calendar cancellation + idle period).\n\nACTIVE CONTEXT BUFFER:\n${acbContext}`,
     messages: [{
@@ -463,7 +460,7 @@ async function runSelfImprovement(client: SupabaseClient, executiveId: string): 
     // Log batch submission
     await client.from("self_improvement_log").insert({
       profile_id: executiveId,
-      run_date: new Date().toISOString().slice(0, 10),
+      log_date: new Date().toISOString().slice(0, 10),
       proposed_changes: { batch_id: batchId, status: "submitted" },
       accepted_changes: {},
       rejected_reasons: {},

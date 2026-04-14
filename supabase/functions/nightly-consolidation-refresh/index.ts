@@ -56,7 +56,6 @@ serve(async (req: Request) => {
       const auditResponse = await callAnthropic({
         model: "claude-sonnet-4-6",
         max_tokens: 2048,
-        temperature: 0,
         thinking: { type: "enabled", budget_tokens: 4096 },
         messages: [{
           role: "user",

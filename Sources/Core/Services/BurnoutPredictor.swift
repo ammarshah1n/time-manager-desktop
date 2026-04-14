@@ -206,24 +206,32 @@ actor BurnoutPredictor {
     // MARK: - Modality Count
 
     private func countElevatedModalities(client: SupabaseClient, executiveId: UUID) async -> Int {
-        // Count how many signal types show elevated patterns
+        // Count how many signal types show genuinely elevated patterns (not mere existence)
         var count = 0
         let threeWeeksAgo = Calendar.current.date(byAdding: .weekOfYear, value: -3, to: Date())!
+        let formatter = ISO8601DateFormatter()
 
         do {
-            // Check email volume trend
-            let emailRows: [CountRow] = try await client
+            // Email: after-hours ratio > 0.33 (aligned with computeExhaustion threshold)
+            let emailRows: [ObsRow] = try await client
                 .from("tier0_observations")
-                .select("id")
+                .select("occurred_at")
                 .eq("profile_id", value: executiveId.uuidString)
                 .eq("source", value: "email")
                 .gte("occurred_at", value: threeWeeksAgo.ISO8601Format())
                 .execute()
                 .value
-            if emailRows.count > 0 { count += 1 }
+            if emailRows.count >= 10 {
+                let afterHoursCount = emailRows.filter { row in
+                    guard let date = formatter.date(from: row.occurredAt) else { return false }
+                    let hour = Calendar.current.component(.hour, from: date)
+                    return hour >= 21 || hour < 6
+                }.count
+                if Double(afterHoursCount) / Double(emailRows.count) > 0.33 { count += 1 }
+            }
 
-            // Check calendar density
-            let calRows: [CountRow] = try await client
+            // Calendar: cancellation rate > 0.20 (aligned with computeReducedAccomplishment)
+            let totalCalRows: [CountRow] = try await client
                 .from("tier0_observations")
                 .select("id")
                 .eq("profile_id", value: executiveId.uuidString)
@@ -231,18 +239,36 @@ actor BurnoutPredictor {
                 .gte("occurred_at", value: threeWeeksAgo.ISO8601Format())
                 .execute()
                 .value
-            if calRows.count > 0 { count += 1 }
+            if totalCalRows.count >= 10 {
+                let cancelledRows: [CountRow] = try await client
+                    .from("tier0_observations")
+                    .select("id")
+                    .eq("profile_id", value: executiveId.uuidString)
+                    .eq("source", value: "calendar")
+                    .eq("event_type", value: "calendar.cancelled")
+                    .gte("occurred_at", value: threeWeeksAgo.ISO8601Format())
+                    .execute()
+                    .value
+                if Double(cancelledRows.count) / Double(totalCalRows.count) > 0.20 { count += 1 }
+            }
 
-            // Check app usage patterns
-            let appRows: [CountRow] = try await client
+            // App usage: late-night ratio > 0.25
+            let appRows: [ObsRow] = try await client
                 .from("tier0_observations")
-                .select("id")
+                .select("occurred_at")
                 .eq("profile_id", value: executiveId.uuidString)
                 .eq("source", value: "app_usage")
                 .gte("occurred_at", value: threeWeeksAgo.ISO8601Format())
                 .execute()
                 .value
-            if appRows.count > 0 { count += 1 }
+            if appRows.count >= 10 {
+                let lateNightCount = appRows.filter { row in
+                    guard let date = formatter.date(from: row.occurredAt) else { return false }
+                    let hour = Calendar.current.component(.hour, from: date)
+                    return hour >= 22 || hour < 5
+                }.count
+                if Double(lateNightCount) / Double(appRows.count) > 0.25 { count += 1 }
+            }
         } catch {
             // Non-fatal
         }

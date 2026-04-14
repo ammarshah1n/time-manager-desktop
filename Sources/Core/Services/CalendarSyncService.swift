@@ -30,6 +30,36 @@ actor CalendarSyncService {
     private var emittedCancelledEvents: Set<String> = []
     private var emittedAttendedEvents: Set<String> = []
 
+    // MARK: - Background Sync Loop
+
+    private var syncTask: Task<Void, Never>?
+    private var isRunning = false
+    var pollInterval: TimeInterval = 300 // 5 minutes — calendar changes less frequently than email
+
+    /// Starts a background sync loop that periodically fetches calendar events and emits Tier 0 observations.
+    func start(tokenProvider: @escaping @Sendable () async throws -> String) {
+        guard !isRunning else { return }
+        isRunning = true
+        syncTask = Task { [weak self] in
+            guard let self else { return }
+            while !Task.isCancelled {
+                do {
+                    _ = try await self.autoSync(tokenProvider: tokenProvider)
+                } catch {
+                    TimedLogger.calendar.error("CalendarSyncService background sync error: \(error.localizedDescription, privacy: .public)")
+                }
+                try? await Task.sleep(for: .seconds(self.pollInterval))
+            }
+        }
+    }
+
+    /// Stops the background sync loop.
+    func stop() {
+        syncTask?.cancel()
+        syncTask = nil
+        isRunning = false
+    }
+
     // MARK: - Fetch Today's Events
 
     /// Fetches today's calendar events from Outlook and returns CalendarBlocks.
