@@ -1,5 +1,7 @@
 > **INSTRUCTIONS FOR COMET ASSISTANT**
 > This file contains 3 Perplexity Deep Research prompts for the Timed Intelligence Maximisation project.
+> This file is located at: `github.com/ammarshah1n/time-manager-desktop/blob/ui/apple-v1-restore/research/perplexity-outputs/v3/timed-intelligence-maximisation-prompts-01.md`
+> The second prompt file is at: `github.com/ammarshah1n/time-manager-desktop/blob/ui/apple-v1-restore/research/perplexity-outputs/v3/timed-intelligence-maximisation-prompts-02.md`
 > For each prompt below:
 > 1. Navigate to perplexity.ai in a new browser tab
 > 2. Select **Deep Research** mode (not standard search)
