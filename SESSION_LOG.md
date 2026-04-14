@@ -137,3 +137,210 @@ logs/watchdog.log
 .build/checkouts/GRDB.swift/Documentation/Images/Associations2/BelongsToSchema.svg
 .build/checkouts/GRDB.swift/Documentation/Images/Associations2/HasManyThroughSchema.svg
 .build/checkouts/GRDB.swift/Documentation/Images/Associations2/HasOneThroughSchema.svg
+
+---
+## Session: 2026-04-11 15:50
+
+### Commits This Session
+017b44e docs: update BUILD_STATE.md to reflect Phases 0-12 completion
+b60d783 feat: implement Phases 0-12 of intelligence engine — 95/120 deliverables complete
+
+### Modified Files
+.build/.lock
+.build/debug.yaml
+.build/plugin-tools.yaml
+.build/arm64-apple-macosx/debug/Crypto.build/output-file-map.json
+.build/arm64-apple-macosx/debug/USearch.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftOperators.build/output-file-map.json
+.build/arm64-apple-macosx/debug/Supabase.build/output-file-map.json
+.build/arm64-apple-macosx/debug/CasePathsCore.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftParser-tool.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftCompilerPluginMessageHandling-tool.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftUINavigation.build/output-file-map.json
+.build/arm64-apple-macosx/debug/time-manager-desktop
+.build/arm64-apple-macosx/debug/Functions.build/output-file-map.json
+.build/arm64-apple-macosx/debug/HTTPTypes.build/output-file-map.json
+.build/arm64-apple-macosx/debug/Dependencies.build/output-file-map.json
+
+---
+## Session: 2026-04-11 16:10
+
+### Commits This Session
+017b44e docs: update BUILD_STATE.md to reflect Phases 0-12 completion
+b60d783 feat: implement Phases 0-12 of intelligence engine — 95/120 deliverables complete
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-13 09:39
+
+### Commits This Session
+(no recent commits)
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+HANDOFF.md
+
+---
+## Session: 2026-04-13 17:41
+
+### Commits This Session
+(no recent commits)
+
+### Modified Files
+research/perplexity-outputs/v3/timed-v3-code-review-prompt-01.md
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-13 17:52
+
+### Commits This Session
+(no recent commits)
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-13 18:21
+
+### Commits This Session
+(no recent commits)
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-13 18:32
+
+### Commits This Session
+(no recent commits)
+
+### Modified Files
+supabase/migrations/20260413000000_service_role_rls_bypass.sql
+supabase/functions/nightly-consolidation-full/index.ts
+supabase/functions/nightly-consolidation-refresh/index.ts
+logs/watchdog-launchd.log
+logs/watchdog.log
+Sources/Core/Services/BurnoutPredictor.swift
+
+---
+## Session: 2026-04-13 17:40 — Bedrock Confidentiality & PFF Legal Architecture
+
+**Done:**
+- Researched Claude + AWS Bedrock confidentiality (data handling, training opt-out, encryption)
+- Confirmed AWS eu-central-2 (Zurich) has Bedrock with Claude models
+- Created Comet prompt to enable Bedrock model access + playground in Zurich
+- Reviewed PFF Legal repo architecture — recommended Claude Code + Bedrock as interface (no CLI wrapper or custom app)
+- Confirmed AWS $100 credits apply to Bedrock usage
+
+**Discovered:**
+- AWS eu-central-2 (Zurich) is live with Bedrock — Claude 3 Haiku, Sonnet 3.5/4.5 available
+- Cross-region inference must be disabled for Swiss data residency
+- pff-legal-brain CLAUDE.md says eu-central-1 but should be eu-central-2
+
+**Next:**
+- Update pff-legal-brain CLAUDE.md to reflect eu-central-2 (Zurich) instead of eu-central-1
+- Run Comet prompt to enable Bedrock models in Zurich
+- PFF Legal: cybersecurity approval still blocking all build work
+
+---
+## Session: 2026-04-14 09:48
+
+### Commits This Session
+(no recent commits)
+
+### Modified Files
+research/perplexity-outputs/.DS_Store
+research/perplexity-outputs/v3/timed-intelligence-maximisation-prompts-02.md
+research/perplexity-outputs/v3/timed-intelligence-maximisation-prompts-01.md
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-14 10:26
+
+### Commits This Session
+4b584aa docs: add GitHub file paths to research prompt instructions
+f282c7b docs: add 6 Perplexity Deep Research prompts for intelligence maximisation
+
+### Modified Files
+research/perplexity-outputs/.DS_Store
+research/perplexity-outputs/v3/v3-03-relationship-intelligence-cards.md
+research/perplexity-outputs/v3/v3-02-thinking-budget-quality.md
+research/perplexity-outputs/v3/v3-05-dual-scoring-architecture.md
+research/perplexity-outputs/v3/v3-01-cognitive-bias-detection.md
+research/perplexity-outputs/v3/timed-intelligence-maximisation-prompts-02.md
+research/perplexity-outputs/v3/timed-intelligence-maximisation-prompts-01.md
+research/perplexity-outputs/v3/v3-04-adversarial-review.md
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-14 10:56
+
+### Commits This Session
+149aeda feat: steps 6+8+10+11 — alert engine dual-scoring, avoidance stream 3, relationship cards, ACB refresh
+9dd9226 feat: steps 7+9 — weekly strategic synthesis + executive bias detection
+3ac651f feat: steps 4-5 — adversarial CCR briefing review + real-time dual-scoring
+33e7468 feat: intelligence maximisation steps 0-3 — fix compilation bugs, effort routing, batch caps, Opus conflict detection
+4b584aa docs: add GitHub file paths to research prompt instructions
+
+### Modified Files
+.build/.lock
+.build/debug.yaml
+.build/plugin-tools.yaml
+.build/arm64-apple-macosx/debug/Crypto.build/output-file-map.json
+.build/arm64-apple-macosx/debug/USearch.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftOperators.build/output-file-map.json
+.build/arm64-apple-macosx/debug/Supabase.build/output-file-map.json
+.build/arm64-apple-macosx/debug/CasePathsCore.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftParser-tool.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftCompilerPluginMessageHandling-tool.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftUINavigation.build/output-file-map.json
+.build/arm64-apple-macosx/debug/time-manager-desktop
+.build/arm64-apple-macosx/debug/Functions.build/output-file-map.json
+.build/arm64-apple-macosx/debug/HTTPTypes.build/output-file-map.json
+.build/arm64-apple-macosx/debug/Dependencies.build/output-file-map.json
+
+---
+## Session: 2026-04-14 10:56–12:05 — Intelligence Maximisation + Auth Bridge
+
+**Done:**
+- All 12 steps of Intelligence Maximisation Plan implemented and committed
+- Fixed 3 critical auth/sync bugs: anon key "", OnboardingFlow hiding buttons, DataBridge local-only
+- Azure AD app verified via `az` CLI — Supabase callback + MSAL redirect + client secret all configured
+- DataBridge wired for dual-write (local first, Supabase fire-and-forget)
+- VoiceFeatureService + GracefulDegradation anon key/URL fallbacks fixed
+
+**Commits:**
+740581f fix: unstaged Phase 0-12 changes — BurnoutPredictor thresholds, CalendarSync loop, RLS bypass migration
+c1d52b6 fix: wire Supabase auth + anon key + DataBridge dual-write for production readiness
+149aeda feat: steps 6+8+10+11 — alert engine dual-scoring, avoidance stream 3, relationship cards, ACB refresh
+9dd9226 feat: steps 7+9 — weekly strategic synthesis + executive bias detection
+3ac651f feat: steps 4-5 — adversarial CCR briefing review + real-time dual-scoring
+33e7468 feat: intelligence maximisation steps 0-3 — fix compilation bugs, effort routing, batch caps, Opus conflict detection
+
+**Next:** Build as .app bundle (Xcode or dist/) to enable `timed://` URL scheme → test end-to-end sign-in → onboard Yasser
+
+### Modified Files
+.build/.lock
+.build/arm64-apple-macosx/debug/time-manager-desktop
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/OnboardingFlow.dia
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/SupabaseClient.d
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/DataBridge.swift.o
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/time_manager_desktop.emit-module.d
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/SupabaseClient.dia
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/OnboardingFlow.swift.o
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/GracefulDegradation.swiftdeps
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/VoiceFeatureService.swift.o
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/EmailSyncService.dia
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/GracefulDegradation.d
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/DataBridge.d
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/EmailSyncService.swiftdeps
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/GracefulDegradation.swift.o

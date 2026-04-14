@@ -1,4 +1,4 @@
-# BUILD_STATE.md — Last updated: 2026-04-11 (Phases 0-12 complete)
+# BUILD_STATE.md — Last updated: 2026-04-14 (Intelligence Maximisation + Auth Bridge)
 
 ## What Exists and Works
 
@@ -84,11 +84,12 @@
 - [ ] Reflection engine tests — NOT STARTED
 
 ### Backend (Supabase)
-- [x] 30 SQL migrations deployed (15 original + 15 intelligence infrastructure)
-- [x] 21 Edge Functions active (9 original + 12 intelligence pipeline)
+- [x] 36 SQL migrations deployed (15 original + 15 intelligence + 6 intelligence maximisation)
+- [x] 28 Edge Functions active (9 original + 12 intelligence + 7 intelligence maximisation)
 - [x] Dual-provider embeddings: Voyage (Tier 0, 1024-dim) + OpenAI (Tier 1-3, 3072-dim)
-- [x] Microsoft OAuth app registration (Azure)
-- [x] Shared Anthropic API helper (_shared/anthropic.ts) with Batch API + extended thinking
+- [x] Microsoft OAuth app registration (Azure) — client secret expires 2028-04-11
+- [x] Azure provider enabled in Supabase Auth dashboard, redirect URLs configured
+- [x] Shared Anthropic API helper (_shared/anthropic.ts) with Batch API + effort parameter routing
 
 ## Known Issues / Landmines
 - PreviewData.swift contains ALL domain models (587 lines) — should split into Core/Models/
@@ -99,29 +100,32 @@
 - No CoreData/SwiftData — persistence is JSON local + Supabase remote
 - Legacy/ folder (41 files) excluded from build, kept as reference
 
-## Architecture Status: Intelligence Core BUILT
-> **Updated 2026-04-11** — Phases 0-12 implemented. ~95/120 deliverables complete.
+## Architecture Status: Intelligence Engine + Auth Bridge COMPLETE
+> **Updated 2026-04-14** — Intelligence Maximisation Plan (12 steps) implemented. Auth bridge wired. App ready for first sign-in.
 
-The intelligence infrastructure is **structurally complete**:
-- [x] 5-tier memory (Tier 0-3 + ACB) — deployed to Supabase, Swift actors implemented
-- [x] 4-cron nightly pipeline — Edge Functions deployed with real Anthropic API calls
-- [x] 9 signal agents (email, calendar, app usage, idle, first/last activity, keystroke, HealthKit stub, Oura stub, voice)
-- [x] ONA relationship graph — centrality metrics, health scoring, disengagement detection
-- [x] Prediction layer — avoidance, burnout, decision reversal, engagement-gated delivery
-- [x] Alert system — 5-dim scoring, interrupt windows, coaching trust, multi-agent council
+### Intelligence Engine (complete)
+- [x] 5-tier memory (Tier 0-3 + ACB) — deployed, Swift actors, continuous ACB refresh (3x daily)
+- [x] 4-cron nightly pipeline + effort parameter routing (replaces fixed thinking budgets)
+- [x] 9 signal agents + real-time dual-scoring (Haiku RT at ingestion + Sonnet batch nightly)
+- [x] ONA relationship graph + relationship intelligence cards (15-field, 3-layer disclosure)
+- [x] Prediction layer — avoidance (3-stream), burnout, decision reversal, executive bias detection (6 biases)
+- [x] Alert system — dual-scoring thresholds (0.90/0.80/0.75), deadline modifier, never-retract rule
+- [x] Adversarial CCR briefing review — 10-check template, cross-context architecture
+- [x] Weekly strategic synthesis (Opus max effort, Sunday 3 AM)
 - [x] Privacy — consent state machine, KEK/DEK encryption, data export + deletion
 
-**Remaining**: verification tasks (blocked on live data), UI integration (5.01, 4.08, 11.02), Whisper.cpp (research gap), Phase 13 (Month 11+)
-- No 5-dimension retrieval engine — designed in ARCHITECTURE-MEMORY.md §3
-- No ONA/relationship graph — designed in ARCHITECTURE-SIGNALS.md §2
-- No chronobiology/energy model — designed in ARCHITECTURE-SIGNALS.md §5
-- No intelligence delivery (morning briefing) — designed in ARCHITECTURE-DELIVERY.md §1-3
-- No privacy/trust architecture — designed in ARCHITECTURE-DELIVERY.md §5
-- No cold start pipeline — designed in ARCHITECTURE-DELIVERY.md §6
-- No behavioural prediction (avoidance, burnout, reversal) — designed in ARCHITECTURE-MEMORY.md §5
-- No compounding evaluation (CCR metric) — designed in ARCHITECTURE-MEMORY.md §6
+### Auth & Sync Bridge (complete)
+- [x] Supabase anon key hardcoded (was "" → client null)
+- [x] OnboardingFlow shows Sign In buttons (was checking env vars with no fallback)
+- [x] DataBridge dual-write: local first, fire-and-forget Supabase sync
+- [x] URL scheme `timed://auth/callback` registered in dist/ Info.plist
+- [x] Azure AD app registration fully configured (Supabase callback + MSAL redirect)
 
-This is the primary build target. All architecture decisions are made. Ready to build.
+### Remaining
+- Verification tasks (blocked on live data + first sign-in)
+- URL scheme needs .app bundle (`swift build` creates bare executable)
+- Whisper.cpp (research gap)
+- Phase 13 (Month 11+ — requires accumulated data)
 
 ## Build Phases (Intelligence Core)
 
@@ -140,4 +144,4 @@ This is the primary build target. All architecture decisions are made. Ready to 
 - **3 architecture syntheses:** `research/ARCHITECTURE-MEMORY.md`, `ARCHITECTURE-SIGNALS.md`, `ARCHITECTURE-DELIVERY.md`
 
 Any future build session should read `CLAUDE.md` → `BUILD_STATE.md` → relevant `ARCHITECTURE-*.md` → build.
-Last Session: 2026-04-11 16:10
+Last Session: 2026-04-14 12:05
