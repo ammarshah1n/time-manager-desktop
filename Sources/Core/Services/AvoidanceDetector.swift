@@ -38,11 +38,15 @@ actor AvoidanceDetector {
         // Stream 2: Calendar rescheduling (>2σ, 2+ weeks)
         let calendarFlags = await detectCalendarReschedulingAvoidance(client: client, executiveId: executiveId)
 
+        // Stream 3: Document/task engagement — repeated deferrals correlating with calendar + email
+        let documentFlags = await detectDocumentEngagementAvoidance(client: client, executiveId: executiveId)
+
         // Cross-stream check: >= 2 streams for same domain → declare avoidance
         // Group by contact/domain
         var domainSignals: [String: [AvoidanceStream]] = [:]
         for stream in emailFlags { domainSignals[streamDomain(stream), default: []].append(stream) }
         for stream in calendarFlags { domainSignals[streamDomain(stream), default: []].append(stream) }
+        for stream in documentFlags { domainSignals[streamDomain(stream), default: []].append(stream) }
 
         for (domain, streams) in domainSignals {
             guard streams.count >= 2 else { continue }
@@ -137,6 +141,53 @@ actor AvoidanceDetector {
         }
     }
 
+    // MARK: - Stream 3: Document/Task Engagement
+
+    private func detectDocumentEngagementAvoidance(client: SupabaseClient, executiveId: UUID) async -> [AvoidanceStream] {
+        do {
+            // Find tasks deferred 3+ times — signals topic avoidance
+            let fourWeeksAgo = Calendar.current.date(byAdding: .weekOfYear, value: -4, to: Date())!
+            let rows: [DeferralRow] = try await client
+                .from("behaviour_events")
+                .select("task_id, bucket_type")
+                .eq("profile_id", value: executiveId.uuidString)
+                .eq("event_type", value: "task_deferred")
+                .gte("occurred_at", value: fourWeeksAgo.ISO8601Format())
+                .execute()
+                .value
+
+            // Group by task_id and count deferrals
+            var deferralsByTask: [String: (count: Int, bucket: String)] = [:]
+            for row in rows {
+                guard let taskId = row.taskId else { continue }
+                let bucket = row.bucketType ?? "unknown"
+                let key = taskId.uuidString
+                if let existing = deferralsByTask[key] {
+                    deferralsByTask[key] = (existing.count + 1, bucket)
+                } else {
+                    deferralsByTask[key] = (1, bucket)
+                }
+            }
+
+            // Tasks deferred 3+ times → avoidance signal, grouped by bucket/topic
+            var bucketDeferrals: [String: (opens: Int, defers: Int)] = [:]
+            for (_, info) in deferralsByTask where info.count >= 3 {
+                let existing = bucketDeferrals[info.bucket, default: (0, 0)]
+                bucketDeferrals[info.bucket] = (existing.opens + 1, existing.defers + info.count)
+            }
+
+            return bucketDeferrals.map { bucket, counts in
+                AvoidanceStream.documentEngagement(
+                    topic: bucket,
+                    openCount: counts.opens,
+                    editCount: counts.defers
+                )
+            }
+        } catch {
+            return []
+        }
+    }
+
     // MARK: - Strategic Delay Discriminator
 
     /// If the contact's network is expanding (new sources), this is strategic delay, NOT avoidance
@@ -203,5 +254,15 @@ actor AvoidanceDetector {
 
     private struct NodeCountRow: Decodable, Sendable {
         let id: UUID
+    }
+
+    private struct DeferralRow: Decodable, Sendable {
+        let taskId: UUID?
+        let bucketType: String?
+
+        enum CodingKeys: String, CodingKey {
+            case taskId = "task_id"
+            case bucketType = "bucket_type"
+        }
     }
 }

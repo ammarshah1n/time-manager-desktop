@@ -143,4 +143,54 @@ actor AlertEngine {
         let todayCount = alertsDeliveredToday.filter { $0 >= startOfDay }.count
         return max(0, maxAlertsPerDay - todayCount)
     }
+
+    // MARK: - Dual-Scoring Integration (v3-05 research)
+
+    /// RT score thresholds from research:
+    /// >= 0.90: alert immediately, no batch gate
+    /// 0.80-0.89: alert with "Preliminary" label
+    /// 0.75-0.79: queue for batch confirmation only
+    /// < 0.75: no alert
+    static let rtAlertImmediate = 0.90
+    static let rtAlertPreliminary = 0.80
+    static let rtAlertBatchGate = 0.75
+
+    /// Evaluate an observation's RT score and determine alert action.
+    /// Called by Tier0Writer after RT scoring completes.
+    func evaluateRTScore(
+        observationId: UUID,
+        rtScore: Double,
+        source: String,
+        summary: String?,
+        hasUpcomingDeadline: Bool = false
+    ) -> AlertDecision {
+        // Deadline modifier: lower threshold by 0.10 within 48h of deadline
+        let effectiveScore = hasUpcomingDeadline ? rtScore + 0.10 : rtScore
+
+        if effectiveScore >= Self.rtAlertImmediate {
+            let candidate = AlertCandidate(
+                source: source,
+                title: "High-importance signal detected",
+                body: summary ?? "An observation scored \(String(format: "%.0f%%", rtScore * 100)) importance",
+                rawSalience: rtScore,
+                rawConfidence: 0.85,
+                timeSensitivity: 0.9,
+                rawActionability: 0.7
+            )
+            return scoreAlert(candidate, cognitivePermit: 1.0)
+        } else if effectiveScore >= Self.rtAlertPreliminary {
+            let candidate = AlertCandidate(
+                source: source,
+                title: "Signal flagged (preliminary)",
+                body: (summary ?? "Observation") + " — awaiting batch confirmation",
+                rawSalience: rtScore,
+                rawConfidence: 0.7,
+                timeSensitivity: 0.7,
+                rawActionability: 0.6
+            )
+            return scoreAlert(candidate, cognitivePermit: 1.0)
+        }
+        // Below preliminary threshold: no alert, batch scoring will handle
+        return .discard
+    }
 }
