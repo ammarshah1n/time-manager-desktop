@@ -45,7 +45,7 @@ async function runImportanceScoring(client: SupabaseClient, executiveId: string)
 
   const { data: unscored } = await client
     .from("tier0_observations")
-    .select("id, summary, source, event_type, raw_data")
+    .select("id, profile_id, summary, source, event_type, raw_data, rt_score")
     .eq("profile_id", executiveId)
     .eq("importance_score", 0.5)
     .eq("is_processed", false)
@@ -84,14 +84,36 @@ async function runImportanceScoring(client: SupabaseClient, executiveId: string)
     const score = Math.max(1, Math.min(10, scores[i])) / 10.0;
     await client
       .from("tier0_observations")
-      .update({ importance_score: score })
+      .update({
+        importance_score: score,
+        batch_score: score,
+        batch_scored_at: new Date().toISOString(),
+        batch_model: "claude-haiku-4-5-20251001",
+      })
       .eq("id", unscored[i].id);
+
+    // Log score conflict if RT score exists and delta is significant
+    const obs = unscored[i];
+    if (obs.rt_score !== undefined && obs.rt_score !== null) {
+      const delta = score - obs.rt_score;
+      if (Math.abs(delta) >= 0.15) {
+        await client.from("score_audit_log").insert({
+          workspace_id: obs.profile_id,
+          observation_id: obs.id,
+          event_type: "conflict_detected",
+          rt_score: obs.rt_score,
+          batch_score: score,
+          score_delta: delta,
+          details: { pass: "haiku_batch", source: obs.source },
+        });
+      }
+    }
   }
 
   // Pass 2: Sonnet re-scores uncertain band (0.55-0.75)
   const { data: uncertain } = await client
     .from("tier0_observations")
-    .select("id, summary, source, event_type, raw_data")
+    .select("id, profile_id, summary, source, event_type, raw_data, rt_score")
     .eq("profile_id", executiveId)
     .gte("importance_score", 0.55)
     .lte("importance_score", 0.75)
@@ -125,10 +147,58 @@ async function runImportanceScoring(client: SupabaseClient, executiveId: string)
 
     for (let i = 0; i < Math.min(pass2Scores.length, uncertain.length); i++) {
       const score = Math.max(1, Math.min(10, pass2Scores[i])) / 10.0;
+      const obs = uncertain[i];
       await client
         .from("tier0_observations")
-        .update({ importance_score: score })
-        .eq("id", uncertain[i].id);
+        .update({
+          importance_score: score,
+          batch_score: score,
+          batch_scored_at: new Date().toISOString(),
+          batch_model: "claude-sonnet-4-6",
+        })
+        .eq("id", obs.id);
+
+      // Reconcile with RT score
+      if (obs.rt_score !== undefined && obs.rt_score !== null) {
+        const delta = score - obs.rt_score;
+        if (Math.abs(delta) >= 0.15) {
+          await client.from("score_audit_log").insert({
+            workspace_id: obs.profile_id,
+            observation_id: obs.id,
+            event_type: "conflict_detected",
+            rt_score: obs.rt_score,
+            batch_score: score,
+            score_delta: delta,
+            details: { pass: "sonnet_rescore", source: obs.source },
+          });
+
+          // If alert was fired and batch significantly downgrades, annotate (never retract)
+          if (delta <= -0.30) {
+            await client
+              .from("alert_states")
+              .update({
+                status: "annotated",
+                batch_score: score,
+                reconciliation_action: "batch_downgrade",
+                annotation_text: "Context updated: importance revised after full-day review.",
+                updated_at: new Date().toISOString(),
+              })
+              .eq("observation_id", obs.id)
+              .in("status", ["fired", "pending"]);
+          } else if (delta > 0) {
+            await client
+              .from("alert_states")
+              .update({
+                status: "confirmed",
+                batch_score: score,
+                reconciliation_action: "batch_confirmed",
+                updated_at: new Date().toISOString(),
+              })
+              .eq("observation_id", obs.id)
+              .in("status", ["fired", "pending"]);
+          }
+        }
+      }
     }
   }
 

@@ -82,11 +82,31 @@ actor Tier0Writer: SignalIngestionPort {
 
             buffer.removeFirst(batch.count)
             TimedLogger.dataStore.info("Tier0Writer wrote \(batch.count) observation(s) to Supabase")
+
+            // Fire real-time importance scoring (non-blocking)
+            let ids = batch.map { $0.id.uuidString }
+            Task {
+                await self.requestRealtimeScoring(client: client, observationIds: ids)
+            }
         } catch {
             TimedLogger.dataStore.error(
                 "Tier0Writer failed Supabase write for \(batch.count) observation(s): \(error.localizedDescription, privacy: .public)"
             )
             throw error
+        }
+    }
+
+    private func requestRealtimeScoring(client: SupabaseClient, observationIds: [String]) async {
+        do {
+            try await client.functions.invoke("score-observation-realtime", options: .init(
+                body: ["observation_ids": observationIds]
+            ))
+            TimedLogger.dataStore.info("RT scoring requested for \(observationIds.count) observation(s)")
+        } catch {
+            // RT scoring failure is non-fatal — batch scoring catches up nightly
+            TimedLogger.dataStore.warning(
+                "RT scoring request failed (non-fatal): \(error.localizedDescription, privacy: .public)"
+            )
         }
     }
 
