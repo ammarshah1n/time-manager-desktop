@@ -2,7 +2,8 @@
 
 <important>
 ## Session Start
-- **Start:** Run `/session-handoff` or follow `.claude/skills/session-handoff/SKILL.md` read protocol: `VAULT-INDEX.md` -> `HANDOFF.md` -> `Working-Context/timed-brain-state.md` -> `CLAUDE.md` -> `MASTER-PLAN.md` (STATUS section)
+- **Auto-loaded via SessionStart hook** (`.claude/hooks/session-start-context.sh`): `HANDOFF.md` + last `SESSION_LOG.md` entry + `BUILD_STATE.md` architecture summary (~85 lines)
+- Manual deep-dive if needed: `/session-handoff` or read protocol: `VAULT-INDEX.md` -> `HANDOFF.md` -> `Working-Context/timed-brain-state.md` -> `CLAUDE.md` -> `MASTER-PLAN.md` (STATUS section)
 </important>
 
 ## Session Read Order
