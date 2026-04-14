@@ -1,11 +1,8 @@
 // DataBridge.swift — Timed Core
 // Single interface for all data reads/writes.
 // Routes to Supabase when authenticated + online, falls back to DataStore (local JSON).
-// Write path: local first (instant), then Supabase sync.
-// Read path: Supabase when available, local cache when not.
-//
-// Phase 0.04: initial implementation — all types delegate to local DataStore.
-// Supabase sync for each type will be wired incrementally as schemas align.
+// Write path: local first (instant), then Supabase sync (fire-and-forget).
+// Read path: local cache first, overlaid with Supabase data when available.
 
 import Foundation
 import Dependencies
@@ -26,6 +23,40 @@ actor DataBridge {
 
     func saveTasks(_ tasks: [TimedTask]) async throws {
         try await local.saveTasks(tasks)
+        // Dual-write to Supabase when authenticated
+        guard await isAuthenticated, await isOnline else { return }
+        guard let wsId = await authWorkspaceId, let profileId = await authProfileId else { return }
+        Task.detached(priority: .utility) { [supabaseClient] in
+            for task in tasks {
+                let row = TaskDBRow(
+                    id: task.id,
+                    workspaceId: wsId,
+                    profileId: profileId,
+                    sourceType: "manual",
+                    bucketType: task.bucket.rawValue,
+                    title: task.title,
+                    description: nil,
+                    status: task.isDone ? "done" : "pending",
+                    priority: task.isDoFirst ? 10 : 5,
+                    dueAt: task.dueToday ? Calendar.current.startOfDay(for: Date()) : nil,
+                    estimatedMinutesAi: nil,
+                    estimatedMinutesManual: task.estimatedMinutes,
+                    actualMinutes: nil,
+                    estimateSource: "manual",
+                    isDoFirst: task.isDoFirst,
+                    isTransitSafe: task.isTransitSafe,
+                    isOverdue: false,
+                    completedAt: task.isDone ? Date() : nil,
+                    createdAt: task.receivedAt,
+                    updatedAt: Date()
+                )
+                do {
+                    try await supabaseClient.upsertTask(row)
+                } catch {
+                    TimedLogger.supabase.error("DataBridge: task sync failed for \(task.id): \(error.localizedDescription, privacy: .public)")
+                }
+            }
+        }
     }
 
     // MARK: - Triage Items
@@ -106,13 +137,21 @@ actor DataBridge {
         try await local.saveActiveFocusSession(session)
     }
 
-    // MARK: - Network status
+    // MARK: - Network & Auth status
 
     private var isOnline: Bool {
         get async { await NetworkMonitor.shared.isConnected }
     }
 
     private var isAuthenticated: Bool {
-        get async { await AuthService.shared.executiveId != nil }
+        get async { await MainActor.run { AuthService.shared.executiveId != nil } }
+    }
+
+    private var authWorkspaceId: UUID? {
+        get async { await MainActor.run { AuthService.shared.workspaceId } }
+    }
+
+    private var authProfileId: UUID? {
+        get async { await MainActor.run { AuthService.shared.profileId } }
     }
 }

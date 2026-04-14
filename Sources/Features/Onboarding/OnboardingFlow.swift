@@ -134,11 +134,16 @@ struct OnboardingFlow: View {
     // MARK: - Step 2: Accounts
 
     private var outlookConfigured: Bool {
-        ProcessInfo.processInfo.environment["GRAPH_CLIENT_ID"] != nil
+        // GraphClient has hardcoded client ID fallback — always configured
+        let clientId = ProcessInfo.processInfo.environment["GRAPH_CLIENT_ID"]
+            ?? "89e8f1c6-3cc4-47fb-83ae-f7e0528eb860"
+        return !clientId.isEmpty
     }
 
     private var supabaseConfigured: Bool {
-        guard let url = ProcessInfo.processInfo.environment["SUPABASE_URL"] else { return false }
+        // SupabaseClient has hardcoded URL fallback — always configured
+        let url = ProcessInfo.processInfo.environment["SUPABASE_URL"]
+            ?? "https://fpmjuufefhtlwbfinxlx.supabase.co"
         return !url.contains("fake.supabase.co")
     }
 

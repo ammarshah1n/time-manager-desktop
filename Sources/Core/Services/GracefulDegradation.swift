@@ -90,8 +90,9 @@ actor GracefulDegradation {
 
         lastSupabaseCheck = Date()
 
-        guard let supabaseURL = ProcessInfo.processInfo.environment["SUPABASE_URL"],
-              let url = URL(string: "\(supabaseURL)/rest/v1/") else { return false }
+        let supabaseURL = ProcessInfo.processInfo.environment["SUPABASE_URL"]
+            ?? "https://fpmjuufefhtlwbfinxlx.supabase.co"
+        guard let url = URL(string: "\(supabaseURL)/rest/v1/") else { return false }
 
         var request = URLRequest(url: url)
         request.httpMethod = "HEAD"
