@@ -1,6 +1,12 @@
 -- Dual-scoring architecture: real-time (Haiku) + batch (Sonnet) importance scoring
 -- Research grounding: v3-05 dual-scoring architecture report
 
+-- Ensure zero-arg get_executive_id() exists (needed by RLS policies below)
+CREATE OR REPLACE FUNCTION public.get_executive_id()
+RETURNS uuid LANGUAGE sql STABLE SECURITY DEFINER AS $$
+  SELECT id FROM public.executives WHERE auth_user_id = auth.uid() LIMIT 1
+$$;
+
 -- Add RT and batch score columns to tier0_observations
 ALTER TABLE public.tier0_observations
   ADD COLUMN IF NOT EXISTS rt_score float,

@@ -148,17 +148,34 @@ final class AuthService: ObservableObject {
 
     private func bootstrapExecutive() async {
         guard let client else { return }
-        do {
-            // Call bootstrap-executive Edge Function (idempotent — returns existing or creates new)
-            let executive: ExecutiveResponse = try await client.functions.invoke(
-                "bootstrap-executive",
-                options: .init(method: .post)
-            )
-            executiveId = executive.id
-            TimedLogger.supabase.info("Executive bootstrapped: \(executive.id, privacy: .private)")
-        } catch {
-            TimedLogger.supabase.error("Executive bootstrap failed: \(error.localizedDescription, privacy: .private)")
+        // Retry with exponential backoff — cold-start Edge Functions can fail on first call
+        let delays: [UInt64] = [2_000_000_000, 4_000_000_000, 8_000_000_000] // 2s, 4s, 8s
+        for attempt in 0...2 {
+            do {
+                let executive: ExecutiveResponse = try await client.functions.invoke(
+                    "bootstrap-executive",
+                    options: .init(method: .post)
+                )
+                executiveId = executive.id
+                self.error = nil
+                TimedLogger.supabase.info("Executive bootstrapped: \(executive.id, privacy: .private)")
+                return
+            } catch {
+                TimedLogger.supabase.error("Executive bootstrap attempt \(attempt + 1) failed: \(error.localizedDescription, privacy: .private)")
+                if attempt < 2 {
+                    try? await Task.sleep(nanoseconds: delays[attempt])
+                }
+            }
         }
+        self.error = "Could not reach Timed servers. Check your connection and restart the app."
+    }
+
+    /// Manual retry for bootstrap — callable from Settings or error banner
+    func retryBootstrap() async {
+        isLoading = true
+        error = nil
+        await bootstrapExecutive()
+        isLoading = false
     }
 }
 

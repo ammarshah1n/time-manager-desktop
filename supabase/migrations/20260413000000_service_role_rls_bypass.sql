@@ -90,39 +90,39 @@ DO $$ BEGIN
 END $$;
 
 -- pg_cron schedules for split nightly pipeline + batch polling
-DO $$ BEGIN
+DO $outer$ BEGIN
   IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_cron') THEN
     -- Phase 1: importance scoring + conflict detection at 2:00 AM
     PERFORM cron.schedule('nightly-phase1', '0 2 * * *',
-      $$SELECT net.http_post(
+      $cron$SELECT net.http_post(
         url := current_setting('app.supabase_url') || '/functions/v1/nightly-phase1',
         headers := jsonb_build_object(
           'Authorization', 'Bearer ' || current_setting('app.service_role_key'),
           'Content-Type', 'application/json'
         ),
         body := '{}'::jsonb
-      )$$);
+      )$cron$);
 
     -- Phase 2: daily summary + ACB + self-improvement at 2:05 AM
     PERFORM cron.schedule('nightly-phase2', '5 2 * * *',
-      $$SELECT net.http_post(
+      $cron$SELECT net.http_post(
         url := current_setting('app.supabase_url') || '/functions/v1/nightly-phase2',
         headers := jsonb_build_object(
           'Authorization', 'Bearer ' || current_setting('app.service_role_key'),
           'Content-Type', 'application/json'
         ),
         body := '{}'::jsonb
-      )$$);
+      )$cron$);
 
     -- Batch result polling every 30 minutes
     PERFORM cron.schedule('poll-batch-results', '*/30 * * * *',
-      $$SELECT net.http_post(
+      $cron$SELECT net.http_post(
         url := current_setting('app.supabase_url') || '/functions/v1/poll-batch-results',
         headers := jsonb_build_object(
           'Authorization', 'Bearer ' || current_setting('app.service_role_key'),
           'Content-Type', 'application/json'
         ),
         body := '{}'::jsonb
-      )$$);
+      )$cron$);
   END IF;
-END $$;
+END $outer$;

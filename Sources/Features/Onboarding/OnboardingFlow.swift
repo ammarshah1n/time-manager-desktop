@@ -41,7 +41,7 @@ struct OnboardingFlow: View {
     @AppStorage("onboarding_paEmail") private var paEmail: String = ""
     @AppStorage("onboarding_paEnabled") private var paEnabled: Bool = false
 
-    private let totalSteps = 9
+    private let totalSteps = 8
 
     // Transit checkbox state (derived from transitModes AppStorage)
     @State private var transitChauffeur: Bool = false
@@ -101,13 +101,12 @@ struct OnboardingFlow: View {
             switch currentStep {
             case 0: step1Welcome
             case 1: step2Accounts
-            case 2: step3Email
-            case 3: step4WorkDay
-            case 4: step5Cadence
-            case 5: step6TimeDefaults
-            case 6: step7Transit
-            case 7: step8PA
-            case 8: step9Done
+            case 2: step4WorkDay
+            case 3: step5Cadence
+            case 4: step6TimeDefaults
+            case 5: step7Transit
+            case 6: step8PA
+            case 7: step9Done
             default: EmptyView()
             }
         }
@@ -151,66 +150,80 @@ struct OnboardingFlow: View {
         !outlookConfigured && !supabaseConfigured
     }
 
+    @State private var isConnecting = false
+
     private var step2Accounts: some View {
         StepLayout(
-            icon: "link.badge.plus",
-            iconColor: .indigo,
-            headline: "Connect your accounts",
-            bodyText: "Timed works best with Outlook and cloud sync. Skip if you want local-only."
+            icon: "envelope.badge.fill",
+            iconColor: .blue,
+            headline: "Connect Outlook",
+            bodyText: "Timed reads your email and calendar to build your daily plan. Your data stays on this Mac."
         ) {
-            VStack(alignment: .leading, spacing: 16) {
-                // Outlook row
-                AccountConnectionRow(
-                    icon: "envelope.badge",
-                    iconColor: .blue,
-                    title: "Outlook",
-                    isConfigured: outlookConfigured,
-                    isConnected: outlookConnected,
-                    configuredMessage: "Ready to connect",
-                    notConfiguredMessage: "Not configured — running locally",
-                    onConnect: {
+            VStack(spacing: 20) {
+                if outlookConnected {
+                    // Connected state
+                    HStack(spacing: 12) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 24))
+                            .foregroundStyle(.green)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Outlook connected")
+                                .font(.callout.bold())
+                            Text(emailHint.isEmpty ? "Ready to go" : emailHint)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(.horizontal, 24).padding(.vertical, 16)
+                    .frame(maxWidth: 320)
+                    .background(Color.green.opacity(0.08))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                } else {
+                    // Connect button — single prominent action
+                    Button {
+                        isConnecting = true
                         Task {
                             await auth.signInWithGraph(loginHint: emailHint)
-                            if auth.graphAccessToken != nil { outlookConnected = true }
-                        }
-                    }
-                )
-
-                Divider()
-
-                // Supabase row
-                AccountConnectionRow(
-                    icon: "cloud",
-                    iconColor: .green,
-                    title: "Supabase",
-                    isConfigured: supabaseConfigured,
-                    isConnected: supabaseConnected,
-                    configuredMessage: "Ready to connect",
-                    notConfiguredMessage: "Not configured — local storage only",
-                    onConnect: {
-                        Task {
+                            if auth.graphAccessToken != nil {
+                                outlookConnected = true
+                                // Infer family surname from user's email
+                                if let email = auth.userEmail ?? emailHint.nilIfEmpty {
+                                    let parts = email.components(separatedBy: "@").first?
+                                        .components(separatedBy: ".") ?? []
+                                    if let last = parts.last, last.count > 1 {
+                                        familySurname = last.capitalized
+                                    }
+                                }
+                            }
                             await auth.signInWithMicrosoft()
                             if auth.isSignedIn { supabaseConnected = true }
+                            isConnecting = false
                         }
+                    } label: {
+                        HStack(spacing: 10) {
+                            if isConnecting {
+                                ProgressView()
+                                    .controlSize(.small)
+                            } else {
+                                Image(systemName: "envelope.badge.fill")
+                                    .font(.system(size: 16))
+                            }
+                            Text(isConnecting ? "Connecting..." : "Connect Outlook")
+                                .font(.system(size: 15, weight: .semibold))
+                        }
+                        .frame(maxWidth: 280)
+                        .padding(.vertical, 12)
                     }
-                )
+                    .buttonStyle(.borderedProminent)
+                    .tint(.blue)
+                    .controlSize(.large)
+                    .disabled(isConnecting)
 
-                // Local mode banner
-                if neitherConfigured {
-                    HStack(spacing: 8) {
-                        Image(systemName: "info.circle")
-                            .foregroundStyle(.secondary)
-                        Text("Timed is running in local-only mode. Your data is stored on this Mac. Connect accounts later in Settings.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(10)
-                    .background(Color.secondary.opacity(0.08))
-                    .cornerRadius(8)
-                    .padding(.top, 4)
+                    Text("You can also skip this and connect later in Settings.")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
                 }
             }
-            .frame(maxWidth: 400)
         }
     }
 
@@ -296,10 +309,6 @@ struct OnboardingFlow: View {
                 }
                 .pickerStyle(.segmented)
                 .frame(maxWidth: 360)
-
-                TextField("Family surname for 'Do First' (e.g. Shahin)", text: $familySurname)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(maxWidth: 360)
             }
         }
     }
@@ -357,17 +366,23 @@ struct OnboardingFlow: View {
         StepLayout(
             icon: "person.2.fill",
             iconColor: .teal,
-            headline: "Does someone support you?",
-            bodyText:"Give Karen (or your PA) full read access to your Timed. They'll see everything — tasks, plan, waiting items."
+            headline: "PA sharing",
+            bodyText: "Your assistant will be able to see your plan, tasks, and waiting items — read-only."
         ) {
-            VStack(alignment: .leading, spacing: 14) {
-                TextField("karen@company.com", text: $paEmail)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(maxWidth: 320)
-
-                Toggle("Enable PA access", isOn: $paEnabled)
+            VStack(spacing: 12) {
+                HStack(spacing: 10) {
+                    Image(systemName: "clock.badge.checkmark")
+                        .font(.system(size: 20))
+                        .foregroundStyle(.teal)
+                    Text("Coming in a future update")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 24).padding(.vertical, 16)
+                .frame(maxWidth: 320)
+                .background(Color.teal.opacity(0.06))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
             }
-            .frame(maxWidth: 360, alignment: .leading)
         }
     }
 

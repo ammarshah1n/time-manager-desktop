@@ -4,19 +4,23 @@
 // Persists sessions to DataStore. Fires completion notifications.
 
 import SwiftUI
+import Dependencies
 @preconcurrency import UserNotifications
 
 struct FocusPane: View {
     let task: TimedTask?
     let onComplete: () -> Void
+    /// Called with (taskId, actualMinutes) when a focus session ends — feeds the Bayesian estimation loop
+    var onSessionComplete: ((UUID, Int) -> Void)?
     @State private var session: FocusSession
     @State private var showNextPrompt = false
     @State private var showResumePrompt = false
     @State private var staleRecord: FocusSessionRecord? = nil
 
-    init(task: TimedTask?, onComplete: @escaping () -> Void) {
+    init(task: TimedTask?, onComplete: @escaping () -> Void, onSessionComplete: ((UUID, Int) -> Void)? = nil) {
         self.task = task
         self.onComplete = onComplete
+        self.onSessionComplete = onSessionComplete
         self._session = State(initialValue: FocusSession(minutes: task?.estimatedMinutes ?? 90))
     }
 
@@ -325,6 +329,31 @@ struct FocusPane: View {
 
             // Clear active session
             try? await DataStore.shared.saveActiveFocusSession(nil)
+
+            // Feed actual_minutes back for Bayesian estimation loop
+            if let taskId = record.taskId {
+                let actualMinutes = max(1, record.totalSeconds / 60)
+                onSessionComplete?(taskId, actualMinutes)
+
+                // Update bucket estimates (EMA posterior update)
+                if let task = self.task {
+                    var estimates = (try? await DataStore.shared.loadBucketEstimates()) ?? [:]
+                    let bucketKey = task.bucket.rawValue
+                    var est = estimates[bucketKey] ?? BucketEstimate(
+                        meanMinutes: Double(task.estimatedMinutes), sampleCount: 0, lastUpdatedAt: Date()
+                    )
+                    let alpha = est.sampleCount < 20 ? 1.0 / Double(est.sampleCount + 1) : 0.15
+                    est.meanMinutes = (1 - alpha) * est.meanMinutes + alpha * Double(actualMinutes)
+                    est.sampleCount += 1
+                    est.lastUpdatedAt = Date()
+                    estimates[bucketKey] = est
+                    try? await DataStore.shared.saveBucketEstimates(estimates)
+                }
+
+                // Sync actual_minutes to Supabase (triggers DB estimation_history trigger)
+                @Dependency(\.supabaseClient) var supa
+                try? await supa.updateTaskStatus(taskId, "done", actualMinutes)
+            }
 
             // Update Pomodoro count if completed
             if completed {

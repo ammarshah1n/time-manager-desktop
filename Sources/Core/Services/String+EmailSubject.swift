@@ -24,6 +24,9 @@ extension String {
 
     // MARK: - Subject metadata parsing
 
+    /// Returns nil if the string is empty, otherwise returns self
+    var nilIfEmpty: String? { isEmpty ? nil : self }
+
     /// Extract priority level (1-3) from subject like "P1" or "Priority 2" (case insensitive).
     var extractedPriority: Int? {
         // Match "P1", "P2", "P3" or "Priority 1", "Priority 2", "Priority 3"

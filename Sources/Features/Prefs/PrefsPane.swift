@@ -331,9 +331,9 @@ struct LearningTab: View {
                     ForEach(rules) { rule in
                         VStack(alignment: .leading, spacing: 6) {
                             HStack {
-                                Text(rule.evidence ?? rule.ruleKey).lineLimit(2)
+                                Text(rule.evidence ?? humanReadableRule(rule.ruleKey)).lineLimit(2)
                                 Spacer()
-                                Text(rule.ruleType)
+                                Text(humanReadableRuleType(rule.ruleType))
                                     .font(.caption).bold()
                                     .padding(.horizontal, 6).padding(.vertical, 2)
                                     .background(.quaternary, in: Capsule())
@@ -341,9 +341,9 @@ struct LearningTab: View {
                             HStack(spacing: 12) {
                                 ProgressView(value: Double(rule.confidence))
                                     .frame(maxWidth: 120)
-                                Text("\(Int(rule.confidence * 100))%")
+                                Text("\(Int(rule.confidence * 100))% confidence")
                                     .font(.caption).monospacedDigit()
-                                Text("\(rule.sampleSize) samples")
+                                Text("\(rule.sampleSize) observations")
                                     .font(.caption).foregroundStyle(.secondary)
                             }
                         }
@@ -409,5 +409,25 @@ struct LearningTab: View {
             accuracy = InsightsEngine.accuracyByBucket(records)
             suggestions = InsightsEngine.suggestedAdjustments(records)
         } catch {}
+    }
+
+    private func humanReadableRule(_ key: String) -> String {
+        switch key {
+        case "calls_before_email": return "You prefer handling calls before email"
+        case "email_first": return "You tend to start with email"
+        case "deep_work_morning": return "Deep focus works best in the morning"
+        case "quick_wins_first": return "You often start with quick tasks"
+        default: return key.replacingOccurrences(of: "_", with: " ").capitalized
+        }
+    }
+
+    private func humanReadableRuleType(_ type: String) -> String {
+        switch type {
+        case "ordering": return "Ordering"
+        case "threshold": return "Threshold"
+        case "timing": return "Timing"
+        case "category_pref": return "Preference"
+        default: return type.capitalized
+        }
     }
 }

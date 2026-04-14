@@ -15,4 +15,5 @@ struct CalendarBlock: Codable, Equatable, Identifiable, Sendable {
     var endTime: Date
     var sourceEmailId: UUID?
     var category: BlockCategory
+    var attendeeNames: [String]?
 }

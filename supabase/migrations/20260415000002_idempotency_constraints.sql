@@ -12,8 +12,14 @@ BEGIN
   END IF;
 END $$;
 
+-- Immutable helper for indexing timestamptz by date
+CREATE OR REPLACE FUNCTION public.to_date_utc(ts timestamptz)
+RETURNS date LANGUAGE sql IMMUTABLE AS $$
+  SELECT (ts AT TIME ZONE 'UTC')::date
+$$;
+
 CREATE UNIQUE INDEX IF NOT EXISTS idx_bias_signal_observations_profile_bias_detected_date_unique
-  ON public.bias_signal_observations (profile_id, bias_type, (detected_at::date));
+  ON public.bias_signal_observations (profile_id, bias_type, public.to_date_utc(detected_at));
 
 DO $$
 BEGIN
@@ -30,7 +36,7 @@ BEGIN
 END $$;
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_burnout_assessments_profile_assessed_date_unique
-  ON public.burnout_assessments (profile_id, (assessed_at::date));
+  ON public.burnout_assessments (profile_id, public.to_date_utc(assessed_at));
 
 DO $$
 BEGIN

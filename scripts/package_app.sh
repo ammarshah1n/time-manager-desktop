@@ -16,6 +16,19 @@ rm -rf "$APP_DIR"
 mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
 
 cp "$BUILD_DIR/time-manager-desktop" "$APP_DIR/Contents/MacOS/$EXECUTABLE_NAME"
+# Embed MSAL.framework for OAuth
+MSAL_SRC="$ROOT_DIR/.build/artifacts/microsoft-authentication-library-for-objc/MSAL/MSAL.xcframework/macos-arm64_x86_64/MSAL.framework"
+if [[ ! -d "$MSAL_SRC" ]]; then
+  MSAL_SRC="$ROOT_DIR/.build/arm64-apple-macosx/debug/MSAL.framework"
+fi
+if [[ -d "$MSAL_SRC" ]]; then
+  mkdir -p "$APP_DIR/Contents/Frameworks"
+  cp -R "$MSAL_SRC" "$APP_DIR/Contents/Frameworks/MSAL.framework"
+  install_name_tool -add_rpath @loader_path/../Frameworks "$APP_DIR/Contents/MacOS/$EXECUTABLE_NAME" 2>/dev/null || true
+  echo "Embedded MSAL.framework"
+else
+  echo "WARNING: MSAL.framework not found — OAuth will not work"
+fi
 echo "APPL????" > "$APP_DIR/Contents/PkgInfo"
 
 if [[ -d "$ICONSET_SOURCE" ]]; then
@@ -69,7 +82,7 @@ cat > "$APP_DIR/Contents/Info.plist" <<'PLIST'
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
-  <string>0.1.0</string>
+  <string>0.2.0</string>
   <key>CFBundleVersion</key>
   <string>1</string>
   <key>LSApplicationCategoryType</key>
@@ -84,10 +97,26 @@ cat > "$APP_DIR/Contents/Info.plist" <<'PLIST'
   <string>Timed uses your microphone for voice capture during the morning planning interview.</string>
   <key>NSSpeechRecognitionUsageDescription</key>
   <string>Timed uses speech recognition to convert your voice commands into planning actions.</string>
+  <key>CFBundleURLTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleURLName</key>
+      <string>Timed OAuth Callback</string>
+      <key>CFBundleURLSchemes</key>
+      <array><string>timed</string></array>
+    </dict>
+    <dict>
+      <key>CFBundleURLName</key>
+      <string>MSAL Auth</string>
+      <key>CFBundleURLSchemes</key>
+      <array><string>msauth.com.timed.app</string></array>
+    </dict>
+  </array>
 </dict>
 </plist>
 PLIST
 
+codesign --force --deep --sign - "$APP_DIR/Contents/Frameworks/MSAL.framework" 2>/dev/null || true
 codesign --force --deep --sign - "$APP_DIR"
 
 echo "Packaged $APP_DIR"

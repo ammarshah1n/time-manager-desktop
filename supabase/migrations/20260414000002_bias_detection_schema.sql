@@ -92,10 +92,14 @@ CREATE POLICY "bias_runs_select_own" ON public.bias_analysis_runs
 CREATE POLICY "bias_runs_service_role" ON public.bias_analysis_runs
   FOR ALL USING (auth.role() = 'service_role');
 
--- Extend behavioral_rules with bias type
-ALTER TABLE public.behavioral_rules
-  ADD COLUMN IF NOT EXISTS bias_type text,
-  ADD COLUMN IF NOT EXISTS bias_chain_id uuid REFERENCES public.bias_evidence_chains(id);
+-- Extend behavioral_rules with bias type (table may not exist yet)
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'behavioral_rules') THEN
+    ALTER TABLE public.behavioral_rules
+      ADD COLUMN IF NOT EXISTS bias_type text,
+      ADD COLUMN IF NOT EXISTS bias_chain_id uuid REFERENCES public.bias_evidence_chains(id);
+  END IF;
+END $$;
 
 -- Cron schedule (3 AM daily, after nightly phase2)
 SELECT cron.schedule(

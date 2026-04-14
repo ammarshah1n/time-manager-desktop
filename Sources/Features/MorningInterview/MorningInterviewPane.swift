@@ -37,9 +37,9 @@ struct MorningInterviewPane: View {
     @State private var interruptibility: StateOfDay.Interruptibility = .medium
 
     // Voice mode
-    @AppStorage("prefs.morningInterview.voiceMode") private var voiceMode: Bool = false
+    @AppStorage("prefs.morningInterview.voiceMode") private var voiceMode: Bool = true
     @StateObject private var speechService = SpeechService()
-    @StateObject private var voiceCapture: VoiceCaptureService = VoiceCaptureService()!
+    @StateObject private var voiceCapture: VoiceCaptureService = VoiceCaptureService()
     @State private var isListening: Bool = false
     @State private var voiceProcessing: Bool = false
     @State private var voiceStatusText: String = ""
@@ -69,6 +69,11 @@ struct MorningInterviewPane: View {
 
     // Undo stack — stores (step, action description) for last voice action
     @State private var undoStack: [(step: Int, action: () -> Void)] = []
+
+    // First-time workday question — ask once, remember forever
+    @AppStorage("interview.workHoursConfirmed") private var workHoursConfirmed: Bool = false
+    @State private var lastRawTranscript: String = ""
+    @State private var awaitingWorkHoursAnswer: Bool = false
 
     // Adaptive question skipping — consecutive non-override counts per step
     @AppStorage("interview.skipCount.step0") private var skipCountStep0: Int = 0
@@ -765,42 +770,49 @@ struct MorningInterviewPane: View {
                     .foregroundStyle(.secondary)
             }
 
-            VStack(spacing: 12) {
-                HStack {
-                    Text("Low").font(.system(size: 12)).foregroundStyle(.secondary)
-                    Spacer()
-                    Text("High").font(.system(size: 12)).foregroundStyle(.secondary)
-                }
-
-                Slider(value: Binding(
-                    get: { Double(energyLevel) },
-                    set: { energyLevel = Int($0) }
-                ), in: 1...10, step: 1)
-                .tint(energyLevel <= 3 ? .orange : energyLevel >= 7 ? .green : .blue)
-
-                Text("\(energyLevel)/10")
-                    .font(.system(size: 28, weight: .bold, design: .rounded))
-                    .monospacedDigit()
-                    .frame(maxWidth: .infinity, alignment: .center)
-
-                // Quick descriptors
-                Text(energyDescriptor)
-                    .font(.system(size: 13))
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .center)
+            VStack(spacing: 10) {
+                energyButton(range: 9...10, label: "Peak energy",       desc: "Deep analytical work, big decisions", icon: "bolt.fill",             tint: .green)
+                energyButton(range: 7...8,  label: "Good energy",       desc: "Focused work, meetings, calls",       icon: "sun.max.fill",          tint: .blue)
+                energyButton(range: 5...6,  label: "Moderate",          desc: "Mix of focused and routine tasks",     icon: "cloud.sun.fill",        tint: .indigo)
+                energyButton(range: 3...4,  label: "Low energy",        desc: "Quick replies, light admin, reading",  icon: "moon.fill",             tint: .orange)
+                energyButton(range: 1...2,  label: "Running on empty",  desc: "Only essentials — defer what you can", icon: "battery.25percent",     tint: .red)
             }
-            .padding(.top, 8)
+            .padding(.top, 4)
         }
         .padding(.horizontal, 28).padding(.top, 8)
     }
 
-    private var energyDescriptor: String {
-        switch energyLevel {
-        case 1...3: return "Low energy — quick wins and light tasks recommended"
-        case 4...6: return "Moderate — a mix of focused and routine work"
-        case 7...10: return "High energy — great for deep analytical work"
-        default: return ""
+    private func energyButton(range: ClosedRange<Int>, label: String, desc: String, icon: String, tint: Color) -> some View {
+        let isSelected = range.contains(energyLevel)
+        return Button {
+            energyLevel = (range.lowerBound + range.upperBound) / 2
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: icon)
+                    .font(.system(size: 16))
+                    .foregroundStyle(tint)
+                    .frame(width: 24)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(label).font(.system(size: 14, weight: .medium))
+                    Text(desc).font(.system(size: 11)).foregroundStyle(.secondary)
+                }
+                Spacer()
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.indigo)
+                }
+            }
+            .padding(.horizontal, 16).padding(.vertical, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(isSelected ? Color.indigo.opacity(0.08) : Color(.controlBackgroundColor))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(isSelected ? Color.indigo.opacity(0.3) : .clear, lineWidth: 1.5)
+            )
         }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Step 3: Interruptibility (Q3)
@@ -1153,38 +1165,47 @@ struct MorningInterviewPane: View {
                 return
             }
             let titles = deferredTasks.prefix(3).map(\.title).joined(separator: ", ")
-            text = "Yesterday you deferred \(deferredTasks.count) tasks: \(titles). Want to carry them over?"
+            if deferredTasks.count == 1 {
+                text = "Morning. Before we start — you left one thing unfinished yesterday: \(titles). Carry it over?"
+            } else {
+                text = "Morning. Before we start — you left a few things on the table yesterday. \(titles). Carry those over, or start fresh?"
+            }
         case 1:
-            let hours = effectiveFreeMinutes / 60
-            let mins = effectiveFreeMinutes % 60
-            let timeDesc = mins > 0 ? "\(hours) hours and \(mins) minutes" : "\(hours) hours"
-            let blockDesc = computedGapCount == 1 ? "1 block" : "\(computedGapCount) blocks"
-            let meetingDesc = computedMeetingMinutes > 0 ? ", after \(formatMins(computedMeetingMinutes)) of meetings" : ""
-            text = "Looking at your calendar, you have \(timeDesc) free today across \(blockDesc)\(meetingDesc). Shall I plan around that?"
+            // First-time: ask about usual workday before calendar narration
+            if !workHoursConfirmed {
+                awaitingWorkHoursAnswer = true
+                text = "Quick question before we dive in — what time do you usually start and finish work? Something like nine to six."
+            } else {
+                awaitingWorkHoursAnswer = false
+                text = buildCalendarNarration()
+            }
         case 2:
-            text = "How's your energy today, on a scale of 1 to 10? This helps me match tasks to your cognitive capacity."
+            text = "How are you feeling this morning? Sharp and ready to go, or more of a slow start? Give me a number, one to ten."
         case 3:
-            text = "Will you be interrupted today? Protected time, a few interruptions, or frequent interruptions?"
+            text = "Are you expecting many interruptions today, or is it fairly protected?"
         case 4:
             let count = todayCandidates.count
-            let titles = todayCandidates.prefix(3).map(\.title).joined(separator: ", ")
             if count == 0 {
-                text = "No items due today. You can move on."
+                text = "Nothing flagged for today. Moving on."
+                advanceStep()
+                return
+            }
+            let titles = todayCandidates.prefix(3).map(\.title).joined(separator: ", ")
+            if count == 1 {
+                text = "For today, I've got one thing: \(titles). Keep it?"
             } else {
-                text = "I found \(count) items due today. Here they are: \(titles). Should we keep all of them?"
+                text = "For today, I've pulled in \(count) things. The main ones are \(titles). Look right, or want to drop any?"
             }
         case 5:
             let topAssumptions = assumptions.prefix(3).map { task in
                 let mins = estimates[task.id] ?? task.estimatedMinutes
-                return "\(task.title), \(formatMins(mins))"
-            }.joined(separator: ". ")
-            text = "I'm assuming these time estimates: \(topAssumptions). Sound right?"
+                return "\(task.title) at \(spokenTime(mins))"
+            }.joined(separator: ", ")
+            text = "Time-wise, I've got \(topAssumptions). Any of those feel off?"
         case 6:
-            let topTasks = confirmedTasks.prefix(3).map { task in
-                let mins = estimates[task.id] ?? task.estimatedMinutes
-                return "\(task.title), \(formatMins(mins))"
-            }.joined(separator: ". ")
-            text = "Here's your plan: \(topTasks). Total: \(formatMins(confirmedTotal)). Should I lock this in?"
+            let taskCount = confirmedTasks.count
+            let taskWord = taskCount == 1 ? "task" : "tasks"
+            text = "All right, that's \(taskCount) \(taskWord), about \(spokenTime(confirmedTotal)) of work, fitting into \(spokenTime(effectiveFreeMinutes)) of free time. Shall I lock it in?"
         default:
             return
         }
@@ -1312,6 +1333,7 @@ struct MorningInterviewPane: View {
     private func processTranscript(_ transcript: String) {
         conversationState = .processing
         voiceProcessing = true
+        lastRawTranscript = transcript
         let response = VoiceResponse.parse(transcript)
         handleVoiceResponse(response)
         voiceProcessing = false
@@ -1425,13 +1447,57 @@ struct MorningInterviewPane: View {
     }
 
     private func handleTimeResponse(_ response: VoiceResponse) {
+        // First-time workday question: intercept before normal flow
+        if awaitingWorkHoursAnswer {
+            switch response {
+            case .adjustEndTime(let hour):
+                // "I finish at 5" — set end hour, keep current start
+                UserDefaults.standard.set(hour, forKey: "onboarding_workEndHour")
+                workHoursConfirmed = true
+                awaitingWorkHoursAnswer = false
+                recomputeFreeTime()
+                if voiceMode {
+                    speechService.speak("Got it, finishing at \(hour). " + buildCalendarNarration())
+                }
+                return
+            case .number(let mins):
+                // "8 hours" → infer end = start + hours
+                let hours = mins >= 60 ? mins / 60 : mins
+                let startHour = OnboardingUserPrefs.workStartHour
+                UserDefaults.standard.set(startHour + hours, forKey: "onboarding_workEndHour")
+                workHoursConfirmed = true
+                awaitingWorkHoursAnswer = false
+                recomputeFreeTime()
+                if voiceMode {
+                    speechService.speak("So about \(hours) hours. " + buildCalendarNarration())
+                }
+                return
+            default:
+                // Try parsing "9 to 5" from raw transcript
+                if let (start, end) = parseWorkHoursFromRaw(lastRawTranscript) {
+                    UserDefaults.standard.set(start, forKey: "onboarding_workStartHour")
+                    UserDefaults.standard.set(end, forKey: "onboarding_workEndHour")
+                    workHoursConfirmed = true
+                    awaitingWorkHoursAnswer = false
+                    recomputeFreeTime()
+                    if voiceMode {
+                        speechService.speak("Right, \(start) to \(end). " + buildCalendarNarration())
+                    }
+                    return
+                }
+                // Couldn't parse — re-prompt
+                if voiceMode {
+                    speechService.speak("I didn't catch that. What time do you start and finish? Something like nine to five.")
+                }
+                return
+            }
+        }
+
         switch response {
         case .affirmative:
-            // User confirms computed free time — proceed
             recordNonOverride(forStep: step)
             advanceStep()
         case .adjustEndTime(let hour):
-            // "I'm leaving at 3" → recompute with new work end
             let oldOverride = workEndOverride
             let oldSubtract = manualSubtract
             workEndOverride = hour
@@ -1443,13 +1509,9 @@ struct MorningInterviewPane: View {
             }))
             recordOverride(forStep: step)
             if voiceMode {
-                let hours = effectiveFreeMinutes / 60
-                let mins = effectiveFreeMinutes % 60
-                let timeDesc = mins > 0 ? "\(hours) hours and \(mins) minutes" : "\(hours) hours"
-                speechService.speak("Got it, leaving at \(hour). That gives you \(timeDesc). Shall I plan around that?")
+                speechService.speak("Right, wrapping up at \(hour). That's \(spokenTime(effectiveFreeMinutes)) to play with. Sound right?")
             }
         case .subtractTime(let mins):
-            // "I have a call not on my calendar for 30 minutes"
             let oldSubtract = manualSubtract
             manualSubtract += mins
             availableMinutes = effectiveFreeMinutes
@@ -1459,20 +1521,18 @@ struct MorningInterviewPane: View {
             }))
             recordOverride(forStep: step)
             if voiceMode {
-                speechService.speak("Noted, subtracted \(formatMins(mins)). You now have \(formatMins(effectiveFreeMinutes)) free. Sound good?")
+                speechService.speak("Noted. That brings you down to \(spokenTime(effectiveFreeMinutes)) free. Sound right?")
             }
         case .number(let mins):
-            // Manual override — user wants to set their own total
             let oldMins = availableMinutes
             availableMinutes = mins
             undoStack.append((step: step, action: { [self] in self.availableMinutes = oldMins }))
             recordOverride(forStep: step)
             advanceStep()
         case .negative:
-            // User disagrees — prompt for adjustment
             if voiceMode {
-                conversationState = .ambiguous(step: step, prompt: "How would you like to adjust? You can say a time like 'leaving at 3', or tell me to subtract time.")
-                speechService.speak("No worries. You can say something like 'I'm leaving at 3', or 'subtract 30 minutes', or just tell me how many hours you want.")
+                conversationState = .ambiguous(step: step, prompt: "How would you like to adjust?")
+                speechService.speak("No worries. Tell me when you're finishing, or how much to subtract, or just give me a number of hours.")
             }
         default:
             break
@@ -1685,6 +1745,106 @@ struct MorningInterviewPane: View {
 
     private func formatMins(_ m: Int) -> String {
         m < 60 ? "\(m)m" : (m % 60 == 0 ? "\(m / 60)h" : "\(m / 60)h \(m % 60)m")
+    }
+
+    /// Natural spoken time: "45 minutes", "2 hours", "about 3 and a half hours"
+    private func spokenTime(_ minutes: Int) -> String {
+        if minutes < 60 {
+            return "\(minutes) minutes"
+        }
+        let hours = minutes / 60
+        let remaining = minutes % 60
+        if remaining == 0 {
+            return hours == 1 ? "1 hour" : "\(hours) hours"
+        } else if remaining >= 25 && remaining <= 35 {
+            return "about \(hours) and a half hours"
+        } else if remaining < 25 {
+            return hours == 1 ? "just over an hour" : "about \(hours) hours"
+        } else {
+            return "about \(hours + 1) hours"
+        }
+    }
+
+    /// Build the Step 1 calendar narration with meeting names and free time
+    private func buildCalendarNarration() -> String {
+        let timeDesc = spokenTime(effectiveFreeMinutes)
+
+        if let meetingDesc = meetingNarration() {
+            return "\(meetingDesc) That leaves you about \(timeDesc) to work with. Sound about right?"
+        } else if !blocks.isEmpty || freeTimeComputed {
+            return "Your calendar looks clear today — no meetings. That gives you about \(timeDesc). Shall we plan around that?"
+        } else {
+            return "I can't see your calendar at the moment. How much free time do you reckon you have today?"
+        }
+    }
+
+    /// Narrate today's meetings with names and times
+    private func meetingNarration() -> String? {
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        guard let tomorrow = cal.date(byAdding: .day, value: 1, to: today) else { return nil }
+
+        let meetings = blocks.filter { block in
+            block.category == .meeting &&
+            block.startTime >= today && block.startTime < tomorrow
+        }.sorted { $0.startTime < $1.startTime }
+
+        guard !meetings.isEmpty else { return nil }
+
+        let formatter = DateFormatter()
+        formatter.dateFormat = "h:mm"
+
+        let descriptions = meetings.prefix(4).map { meeting -> String in
+            let time = formatter.string(from: meeting.startTime)
+            if let names = meeting.attendeeNames, let first = names.first, !first.isEmpty {
+                let people = names.prefix(2).joined(separator: " and ")
+                return "\(meeting.title) with \(people) at \(time)"
+            }
+            return "\(meeting.title) at \(time)"
+        }
+
+        if descriptions.count == 1 {
+            return "You've got \(descriptions[0])."
+        }
+        let allButLast = descriptions.dropLast().joined(separator: ", ")
+        return "You've got \(allButLast), and \(descriptions.last!)."
+    }
+
+    /// Parse "9 to 5", "nine to six", "8 until 4" from raw transcript
+    private func parseWorkHoursFromRaw(_ raw: String) -> (start: Int, end: Int)? {
+        let lower = raw.lowercased()
+            .replacingOccurrences(of: "one", with: "1")
+            .replacingOccurrences(of: "two", with: "2")
+            .replacingOccurrences(of: "three", with: "3")
+            .replacingOccurrences(of: "four", with: "4")
+            .replacingOccurrences(of: "five", with: "5")
+            .replacingOccurrences(of: "six", with: "6")
+            .replacingOccurrences(of: "seven", with: "7")
+            .replacingOccurrences(of: "eight", with: "8")
+            .replacingOccurrences(of: "nine", with: "9")
+            .replacingOccurrences(of: "ten", with: "10")
+            .replacingOccurrences(of: "eleven", with: "11")
+            .replacingOccurrences(of: "twelve", with: "12")
+
+        // Match patterns like "9 to 5", "8 until 6", "9 through 5", "9 till 6"
+        let pattern = #"(\d{1,2})\s*(?:to|until|till|through|–|-)\s*(\d{1,2})"#
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(in: lower, range: NSRange(lower.startIndex..., in: lower)),
+              let startRange = Range(match.range(at: 1), in: lower),
+              let endRange = Range(match.range(at: 2), in: lower),
+              let start = Int(lower[startRange]),
+              let end = Int(lower[endRange]) else {
+            return nil
+        }
+
+        // Normalize to 24h: assume start <= 12 means AM, end <= 12 means PM
+        let normalizedStart = start <= 12 && start >= 5 ? start : start
+        let normalizedEnd = end <= 12 && end < normalizedStart ? end + 12 : end
+        guard normalizedStart >= 4 && normalizedStart <= 12,
+              normalizedEnd > normalizedStart && normalizedEnd <= 23 else {
+            return nil
+        }
+        return (normalizedStart, normalizedEnd)
     }
 
     private func applyPlan() {

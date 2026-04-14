@@ -60,11 +60,26 @@ struct TimedRootView: View {
                     .padding(12)
             }
         }
+        .onChange(of: auth.graphAccessToken) { _, newToken in
+            if newToken != nil {
+                startEmailSyncIfReady()
+                startCalendarSyncIfReady()
+            }
+        }
+        .onChange(of: auth.isSignedIn) { _, signedIn in
+            if signedIn {
+                Task { await fetchFromSupabaseIfConnected() }
+            }
+        }
         .sheet(isPresented: onboardingBinding) { onboardingSheet }
         .sheet(isPresented: $showMorningInterview) { morningInterviewSheet }
         .sheet(isPresented: $showDishMeUp) { dishMeUpSheet }
         .sheet(isPresented: $showFocus) {
-            FocusPane(task: focusTask) { showFocus = false; focusTask = nil }
+            FocusPane(task: focusTask, onComplete: { showFocus = false; focusTask = nil }, onSessionComplete: { taskId, actualMinutes in
+                if let idx = tasks.firstIndex(where: { $0.id == taskId }) {
+                    tasks[idx].isDone = true
+                }
+            })
                 .frame(minWidth: 600, minHeight: 680)
         }
         .onKeyPress(keys: [.init("k")], phases: .down) { keyPress in

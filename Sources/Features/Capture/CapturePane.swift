@@ -6,11 +6,12 @@ import SwiftUI
 
 struct CapturePane: View {
     @Binding var tasks: [TimedTask]
-    // en-US is always supported — init? returns nil only for unsupported locales
-    @StateObject private var voice = VoiceCaptureService()!
+    @StateObject private var voice = VoiceCaptureService()
     @Binding var items: [CaptureItem]
     @State private var textInput = ""
     @State private var pulseAnimation = false
+    @State private var showBulkImport = false
+    @State private var bulkText = ""
 
     private var unconverted: [CaptureItem] { items.filter { !$0.isConverted } }
     private var converted: [CaptureItem]   { items.filter { $0.isConverted } }
@@ -61,9 +62,9 @@ struct CapturePane: View {
     private var captureHeader: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text("Capture")
+                Text("Quick Capture")
                     .font(.system(size: 14, weight: .semibold))
-                Text("\(unconverted.count) pending review")
+                Text("Add tasks by voice, text, or paste — review and convert to your task list")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
             }
@@ -153,7 +154,7 @@ struct CapturePane: View {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.system(size: 11))
                         .foregroundStyle(.red)
-                    Text(error.localizedDescription)
+                    Text("Voice capture unavailable. Check microphone permissions in System Settings.")
                         .font(.system(size: 11))
                         .foregroundStyle(.red)
                         .lineLimit(2)
@@ -178,8 +179,88 @@ struct CapturePane: View {
             }
             .padding(.horizontal, 12).padding(.vertical, 8)
             .background(Color(.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 9))
+
+            // Bulk paste import
+            Button {
+                showBulkImport = true
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "doc.on.clipboard")
+                        .font(.system(size: 13))
+                    Text("Paste a task list")
+                        .font(.system(size: 13))
+                }
+                .foregroundStyle(.indigo)
+            }
+            .buttonStyle(.plain)
+            .sheet(isPresented: $showBulkImport) {
+                bulkImportSheet
+            }
         }
         .padding(.horizontal, 20).padding(.vertical, 16)
+    }
+
+    // MARK: - Bulk Import Sheet
+
+    private var bulkImportSheet: some View {
+        VStack(spacing: 16) {
+            HStack {
+                Text("Paste your task list")
+                    .font(.headline)
+                Spacer()
+                Button("Cancel") { showBulkImport = false }
+                    .buttonStyle(.plain)
+            }
+
+            Text("One task per line. Timed will create a draft for each line — you can adjust times and categories after.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            TextEditor(text: $bulkText)
+                .font(.system(size: 13, design: .monospaced))
+                .frame(minHeight: 200)
+                .scrollContentBackground(.hidden)
+                .padding(8)
+                .background(Color(.controlBackgroundColor))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+
+            HStack {
+                let lineCount = bulkText.components(separatedBy: .newlines).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }.count
+                Text("\(lineCount) task\(lineCount == 1 ? "" : "s") detected")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button("Import") {
+                    importBulkTasks()
+                    showBulkImport = false
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.indigo)
+                .disabled(bulkText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+        .padding(24)
+        .frame(width: 480, height: 380)
+    }
+
+    private func importBulkTasks() {
+        let lines = bulkText.components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+
+        let newItems = lines.map { line in
+            CaptureItem(
+                id: UUID(),
+                inputType: .text,
+                rawText: line,
+                parsedTitle: line,
+                suggestedBucket: .action,
+                suggestedMinutes: 15,
+                capturedAt: Date()
+            )
+        }
+        items.insert(contentsOf: newItems, at: 0)
+        bulkText = ""
     }
 
     // MARK: - Section

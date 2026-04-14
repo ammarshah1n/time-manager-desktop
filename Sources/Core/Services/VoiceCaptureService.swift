@@ -61,6 +61,9 @@ final class VoiceCaptureService: NSObject, ObservableObject {
 
     // MARK: - Init
 
+    /// Whether voice capture is available on this system
+    private(set) var isAvailable: Bool = true
+
     init?(locale: Locale = Locale(identifier: "en-US")) {
         guard let recognizer = SFSpeechRecognizer(locale: locale) else {
             TimedLogger.voice.error("Unsupported locale for speech recognition: \(locale.identifier, privacy: .public)")
@@ -70,6 +73,25 @@ final class VoiceCaptureService: NSObject, ObservableObject {
         super.init()
         self.speechRecognizer.delegate = self
         TimedLogger.voice.info("VoiceCaptureService initialised with locale \(locale.identifier, privacy: .public)")
+    }
+
+    /// Non-failable init that creates a degraded instance when speech recognition is unavailable.
+    /// All recording calls become no-ops. UI shows "Voice unavailable" instead of crashing.
+    override init() {
+        // Use en-US as fallback — if even this fails, isAvailable = false and all ops are no-ops
+        if let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US")) {
+            self.speechRecognizer = recognizer
+            self.isAvailable = true
+            super.init()
+            self.speechRecognizer.delegate = self
+        } else {
+            // Truly unavailable — create with a dummy recognizer reference
+            // We use en-AU as last resort
+            self.speechRecognizer = SFSpeechRecognizer()!
+            self.isAvailable = false
+            super.init()
+            TimedLogger.voice.warning("Speech recognition unavailable — voice capture disabled")
+        }
     }
 
     // MARK: - Authorization
