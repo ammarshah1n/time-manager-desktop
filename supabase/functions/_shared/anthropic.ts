@@ -24,7 +24,8 @@ export type AnthropicRequest = {
   temperature?: number;
   thinking?: {
     type: "enabled";
-    budget_tokens: number;
+    budget_tokens?: number;
+    effort?: ThinkingEffort;
   };
 };
 

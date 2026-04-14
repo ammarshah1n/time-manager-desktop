@@ -49,27 +49,39 @@ actor MemoryStoreActor: MemoryStoreProtocol {
         try await Tier0Writer.shared.recordObservation(observation)
     }
 
+    // NOTE: MVP retrieval queries Tier 0 only via pgvector. Tiers 1-3 use 3072-dim vectors
+    // which exceed pgvector's HNSW/IVFFlat cap — full multi-tier retrieval requires dimension
+    // reduction or a different vector store.
     func retrieve(query: String, intent: RetrievalIntent, tier: Int?, limit: Int) async throws -> [RetrievalResult] {
+        guard let client = supabaseClient.rawClient else {
+            throw MemoryStoreError.supabaseUnavailable
+        }
+        guard let executiveId = await MainActor.run(body: { AuthService.shared.executiveId }) else {
+            throw MemoryStoreError.noExecutive
+        }
+
         let searchTier = tier ?? 0
         let embedding = try await embeddingService.embed(text: query, tier: searchTier)
-        let candidates = try await vectorStore.search(vector: embedding, tier: searchTier, count: limit * 3)
-        _ = retrievalEngine
 
-        return candidates.prefix(limit).map { candidate in
-            RetrievalResult(
-                id: UUID(),
-                tier: searchTier,
-                content: "",
-                compositeScore: Double(1.0 - candidate.distance),
-                scores: RetrievalScores(
-                    recency: 0.5,
-                    importance: 0.5,
-                    relevance: Double(1.0 - candidate.distance),
-                    temporalProximity: 0.5,
-                    tierBoost: searchTier == 0 ? 1.0 : Double(searchTier) * 1.5
-                )
-            )
+        let params = MatchTier0Params(
+            query_embedding: embedding,
+            match_profile_id: executiveId.uuidString,
+            match_count: limit * 3
+        )
+        let rows: [MemoryRow] = try await client
+            .rpc("match_tier0_observations", params: params)
+            .execute()
+            .value
+
+        let formatter = ISO8601DateFormatter()
+        let candidates = rows.compactMap { row -> (id: UUID, tier: Int, content: String, occurredAt: Date, importanceScore: Double, cosineSimilarity: Double)? in
+            guard let date = formatter.date(from: row.occurredAt) else { return nil }
+            return (id: row.id, tier: searchTier, content: row.summary ?? "",
+                    occurredAt: date, importanceScore: row.importanceScore,
+                    cosineSimilarity: row.similarity)
         }
+
+        return Array(retrievalEngine.score(candidates: candidates, intent: intent).prefix(limit))
     }
 
     func activeContextBuffer(variant: ACBVariant) async throws -> Data {
@@ -87,6 +99,29 @@ actor MemoryStoreActor: MemoryStoreProtocol {
             .execute()
             .data
         return response
+    }
+}
+
+private struct MatchTier0Params: Encodable, Sendable {
+    let query_embedding: [Float]
+    let match_profile_id: String
+    let match_count: Int
+}
+
+private struct MemoryRow: Decodable, Sendable {
+    let id: UUID
+    let summary: String?
+    let source: String
+    let eventType: String
+    let occurredAt: String
+    let importanceScore: Double
+    let similarity: Double
+
+    enum CodingKeys: String, CodingKey {
+        case id, summary, source, similarity
+        case eventType = "event_type"
+        case occurredAt = "occurred_at"
+        case importanceScore = "importance_score"
     }
 }
 
