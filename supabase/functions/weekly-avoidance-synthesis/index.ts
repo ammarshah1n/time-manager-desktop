@@ -1,6 +1,8 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { callAnthropic, extractText } from "../_shared/anthropic.ts";
+import { createRequestLogger } from "../_shared/logger.ts";
+import { requireEnv } from "../_shared/config.ts";
 
 // Weekly avoidance stream 3 synthesis — Sonnet correlates:
 //   1. Calendar reschedules by contact/domain
@@ -10,10 +12,12 @@ import { callAnthropic, extractText } from "../_shared/anthropic.ts";
 // Cron: Sunday 4 AM (after weekly-strategic-synthesis at 3 AM)
 // Research grounding: v3-05 (dual-scoring for signal quality)
 
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const SUPABASE_URL = requireEnv("SUPABASE_URL");
+const SUPABASE_SERVICE_KEY = requireEnv("SUPABASE_SERVICE_ROLE_KEY");
 
 serve(async (req: Request) => {
+  const log = createRequestLogger("weekly-avoidance-synthesis");
+  try {
   if (req.method === "OPTIONS") {
     return new Response("ok", { status: 200 });
   }
@@ -161,17 +165,36 @@ Output valid JSON:
     ) ?? [];
 
     if (crossStreamPatterns.length > 0) {
-      await client.from("tier0_observations").insert(
-        crossStreamPatterns.map((p: { domain_or_topic: string; evidence_summary: string; confidence: number; streams_involved: string[] }) => ({
-          profile_id: executiveId,
-          occurred_at: new Date().toISOString(),
-          source: "system",
-          event_type: "avoidance.cross_stream",
-          summary: `Avoidance pattern: ${p.domain_or_topic} — ${p.evidence_summary}`,
-          raw_data: p,
-          importance_score: p.confidence,
-        }))
-      );
+      const weekStart = new Date();
+      weekStart.setUTCHours(0, 0, 0, 0);
+      weekStart.setUTCDate(weekStart.getUTCDate() - weekStart.getUTCDay());
+
+      const weekEnd = new Date(weekStart);
+      weekEnd.setUTCDate(weekEnd.getUTCDate() + 7);
+
+      const { data: existingCrossStreamObservations } = await client
+        .from("tier0_observations")
+        .select("id")
+        .eq("profile_id", executiveId)
+        .eq("source", "system")
+        .eq("event_type", "avoidance.cross_stream")
+        .gte("occurred_at", weekStart.toISOString())
+        .lt("occurred_at", weekEnd.toISOString())
+        .limit(1);
+
+      if (!existingCrossStreamObservations?.length) {
+        await client.from("tier0_observations").insert(
+          crossStreamPatterns.map((p: { domain_or_topic: string; evidence_summary: string; confidence: number; streams_involved: string[] }) => ({
+            profile_id: executiveId,
+            occurred_at: new Date().toISOString(),
+            source: "system",
+            event_type: "avoidance.cross_stream",
+            summary: `Avoidance pattern: ${p.domain_or_topic} — ${p.evidence_summary}`,
+            raw_data: p,
+            importance_score: p.confidence,
+          }))
+        );
+      }
     }
 
     results[executiveId] = {
@@ -191,9 +214,14 @@ Output valid JSON:
     details: { results, duration_ms: Date.now() - start },
   });
 
+  log.info("complete", { executives_processed: executives.length, duration_ms: Date.now() - start });
   return new Response(JSON.stringify({
     pipeline: "weekly-avoidance-synthesis",
     duration_ms: Date.now() - start,
     results,
   }), { status: 200, headers: { "Content-Type": "application/json" } });
+  } catch (err) {
+    log.error("unhandled", err);
+    return new Response(JSON.stringify({ error: err instanceof Error ? err.message : "Internal error", request_id: log.request_id }), { status: 500, headers: { "Content-Type": "application/json" } });
+  }
 });

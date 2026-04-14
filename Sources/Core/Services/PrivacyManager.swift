@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import Security
 
@@ -153,24 +154,24 @@ actor PrivacyManager {
         "com.timed.dek.\(dataType.rawValue)"
     }
 
-    // MARK: - Key Wrapping (simplified — production should use CryptoKit)
+    // MARK: - Key Wrapping (AES-GCM via CryptoKit)
 
     private func wrapKey(dek: Data, with kek: Data) throws -> Data {
-        // XOR wrap (simplified — production: use AES-KW via CryptoKit)
-        guard dek.count == kek.count else { throw PrivacyError.wrapFailed }
-        var wrapped = Data(count: dek.count)
-        for i in 0..<dek.count {
-            wrapped[i] = dek[i] ^ kek[i]
+        let symmetricKey = SymmetricKey(data: kek)
+        guard let sealedBox = try? AES.GCM.seal(dek, using: symmetricKey) else {
+            throw PrivacyError.wrapFailed
         }
-        return wrapped
+        guard let combined = sealedBox.combined else {
+            throw PrivacyError.wrapFailed
+        }
+        return combined
     }
 
     private func unwrapKey(wrapped: Data, with kek: Data) throws -> Data {
-        // XOR unwrap
-        guard wrapped.count == kek.count else { throw PrivacyError.unwrapFailed }
-        var dek = Data(count: wrapped.count)
-        for i in 0..<wrapped.count {
-            dek[i] = wrapped[i] ^ kek[i]
+        let symmetricKey = SymmetricKey(data: kek)
+        guard let sealedBox = try? AES.GCM.SealedBox(combined: wrapped),
+              let dek = try? AES.GCM.open(sealedBox, using: symmetricKey) else {
+            throw PrivacyError.unwrapFailed
         }
         return dek
     }

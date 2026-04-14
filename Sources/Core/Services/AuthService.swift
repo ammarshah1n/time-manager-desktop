@@ -41,7 +41,7 @@ final class AuthService: ObservableObject {
             userEmail = session.user.email
             isSignedIn = true
             await bootstrapExecutive()
-            TimedLogger.supabase.info("Session restored for \(session.user.email ?? "unknown", privacy: .public)")
+            TimedLogger.supabase.info("Session restored for \(session.user.email ?? "unknown", privacy: .private)")
         } catch {
             TimedLogger.supabase.debug("No stored session — user needs to sign in")
             isSignedIn = false
@@ -67,7 +67,7 @@ final class AuthService: ObservableObject {
             TimedLogger.supabase.info("OAuth URL opened for Microsoft sign-in")
         } catch {
             self.error = "Sign-in failed: \(error.localizedDescription)"
-            TimedLogger.supabase.error("Microsoft sign-in failed: \(error.localizedDescription, privacy: .public)")
+            TimedLogger.supabase.error("Microsoft sign-in failed: \(error.localizedDescription, privacy: .private)")
         }
         isLoading = false
     }
@@ -82,10 +82,10 @@ final class AuthService: ObservableObject {
             userEmail = session.user.email
             isSignedIn = true
             await bootstrapExecutive()
-            TimedLogger.supabase.info("Signed in as \(session.user.email ?? "unknown", privacy: .public)")
+            TimedLogger.supabase.info("Signed in as \(session.user.email ?? "unknown", privacy: .private)")
         } catch {
             self.error = "Auth callback failed: \(error.localizedDescription)"
-            TimedLogger.supabase.error("Auth callback failed: \(error.localizedDescription, privacy: .public)")
+            TimedLogger.supabase.error("Auth callback failed: \(error.localizedDescription, privacy: .private)")
         }
         isLoading = false
     }
@@ -102,7 +102,7 @@ final class AuthService: ObservableObject {
             TimedLogger.graph.info("Graph OAuth succeeded")
         } catch {
             self.error = "Outlook sign-in failed: \(error.localizedDescription)"
-            TimedLogger.graph.error("Graph OAuth failed: \(error.localizedDescription, privacy: .public)")
+            TimedLogger.graph.error("Graph OAuth failed: \(error.localizedDescription, privacy: .private)")
         }
         isLoading = false
     }
@@ -136,7 +136,7 @@ final class AuthService: ObservableObject {
         do {
             try await client.auth.signOut()
         } catch {
-            TimedLogger.supabase.error("Sign-out error: \(error.localizedDescription, privacy: .public)")
+            TimedLogger.supabase.error("Sign-out error: \(error.localizedDescription, privacy: .private)")
         }
         isSignedIn = false
         executiveId = nil
@@ -155,9 +155,9 @@ final class AuthService: ObservableObject {
                 options: .init(method: .post)
             )
             executiveId = executive.id
-            TimedLogger.supabase.info("Executive bootstrapped: \(executive.id, privacy: .public)")
+            TimedLogger.supabase.info("Executive bootstrapped: \(executive.id, privacy: .private)")
         } catch {
-            TimedLogger.supabase.error("Executive bootstrap failed: \(error.localizedDescription, privacy: .public)")
+            TimedLogger.supabase.error("Executive bootstrap failed: \(error.localizedDescription, privacy: .private)")
         }
     }
 }

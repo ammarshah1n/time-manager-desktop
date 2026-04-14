@@ -49,6 +49,10 @@ function getApiKey(): string {
   return key;
 }
 
+const MAX_RETRIES = 3;
+const RETRY_BASE_MS = 1000;
+const FETCH_TIMEOUT_MS = 55000; // 55s — leave 5s headroom for Edge Function 60s wall clock
+
 export async function callAnthropic(request: AnthropicRequest): Promise<AnthropicResponse> {
   const apiKey = getApiKey();
 
@@ -62,22 +66,56 @@ export async function callAnthropic(request: AnthropicRequest): Promise<Anthropi
   if (request.temperature !== undefined) body.temperature = request.temperature;
   if (request.thinking) body.thinking = request.thinking;
 
-  const response = await fetch(ANTHROPIC_API_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify(body),
-  });
+  let lastError: Error | undefined;
 
-  if (!response.ok) {
-    const detail = await response.text();
-    throw new Error(`Anthropic API ${response.status}: ${detail}`);
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const response = await fetch(ANTHROPIC_API_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      });
+
+      if (response.ok) {
+        return await response.json() as AnthropicResponse;
+      }
+
+      const detail = await response.text();
+      lastError = new Error(`Anthropic API ${response.status} [model=${request.model}]: ${detail}`);
+
+      // Retry on transient errors only
+      if (response.status === 429 || response.status === 529 || response.status >= 500) {
+        const delay = RETRY_BASE_MS * Math.pow(2, attempt - 1);
+        console.warn(`[anthropic] ${response.status} on attempt ${attempt}/${MAX_RETRIES}, retrying in ${delay}ms`);
+        await new Promise((r) => setTimeout(r, delay));
+        continue;
+      }
+
+      // Non-retryable error (400, 401, 403, etc.)
+      throw lastError;
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "TimeoutError") {
+        lastError = new Error(`Anthropic API timeout after ${FETCH_TIMEOUT_MS}ms [model=${request.model}]`);
+        console.warn(`[anthropic] Timeout on attempt ${attempt}/${MAX_RETRIES}`);
+        if (attempt < MAX_RETRIES) {
+          await new Promise((r) => setTimeout(r, RETRY_BASE_MS * Math.pow(2, attempt - 1)));
+          continue;
+        }
+      } else if (lastError && (err as Error).message === lastError.message) {
+        throw err; // Non-retryable error already set above
+      } else {
+        lastError = err instanceof Error ? err : new Error(String(err));
+        throw lastError;
+      }
+    }
   }
 
-  return await response.json() as AnthropicResponse;
+  throw lastError ?? new Error("Anthropic API: max retries exceeded");
 }
 
 export function extractText(response: AnthropicResponse): string {

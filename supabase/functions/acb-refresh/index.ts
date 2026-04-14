@@ -1,6 +1,8 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { callAnthropic, extractText } from "../_shared/anthropic.ts";
+import { createRequestLogger } from "../_shared/logger.ts";
+import { requireEnv } from "../_shared/config.ts";
 
 // Lightweight mid-day ACB refresh — Sonnet for intra-day updates
 // Keeps the executive's working memory current throughout the day.
@@ -8,10 +10,12 @@ import { callAnthropic, extractText } from "../_shared/anthropic.ts";
 // Full Opus rebuild remains at 2am nightly (nightly-phase2).
 // Research grounding: v3-04 (two-call architecture for ACB: generation + adversarial critique)
 
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const SUPABASE_URL = requireEnv("SUPABASE_URL");
+const SUPABASE_SERVICE_KEY = requireEnv("SUPABASE_SERVICE_ROLE_KEY");
 
 serve(async (req: Request) => {
+  const log = createRequestLogger("acb-refresh");
+  try {
   if (req.method === "OPTIONS") {
     return new Response("ok", { status: 200 });
   }
@@ -156,9 +160,14 @@ Output JSON: {"issues_found": N, "issues": [{"type": "over-claim|contradiction|s
     details: { results, duration_ms: Date.now() - start },
   });
 
+  log.info("complete", { executives_processed: executives.length, duration_ms: Date.now() - start });
   return new Response(JSON.stringify({
     pipeline: "acb-refresh",
     duration_ms: Date.now() - start,
     results,
   }), { status: 200, headers: { "Content-Type": "application/json" } });
+  } catch (err) {
+    log.error("unhandled", err);
+    return new Response(JSON.stringify({ error: err instanceof Error ? err.message : "Internal error", request_id: log.request_id }), { status: 500, headers: { "Content-Type": "application/json" } });
+  }
 });

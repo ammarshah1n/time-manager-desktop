@@ -316,13 +316,17 @@ struct DishMeUpSheet: View {
                             .foregroundStyle(task.bucket.color)
 
                         Button {
+                            // Training signal: user skipped a task the algorithm ranked highly
+                            if let idx = tasks.firstIndex(where: { $0.id == task.id }) {
+                                tasks[idx].skipCount += 1
+                            }
                             stack.removeAll { $0.id == task.id }
                         } label: {
                             Image(systemName: "xmark").font(.system(size: 9))
                                 .foregroundStyle(Color(.tertiaryLabelColor))
                         }
                         .buttonStyle(.plain)
-                        .help("Remove from stack")
+                        .help("Remove from plan (trains the algorithm)")
                     }
                     .padding(.horizontal, 12).padding(.vertical, 8)
                     .background(Color(.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 9))
@@ -440,6 +444,23 @@ struct DishMeUpSheet: View {
             break
         }
 
+        // Hard filter: energy mismatch — remove high-energy tasks when user is tired
+        let sod = MorningInterviewState.shared.latestStateOfDay
+        if sod.energyLevel <= 4 {
+            filtered = filtered.filter { $0.energyRequired != "high" }
+        }
+
+        // Hard filter: context mismatch — only show tasks matching current context
+        let contextFilter: String
+        switch context {
+        case .desk:    contextFilter = "desk"
+        case .transit, .flight: contextFilter = "transit"
+        case .noCalls: contextFilter = "anywhere"
+        }
+        if contextFilter != "anywhere" {
+            filtered = filtered.filter { $0.context == contextFilter || $0.context == "anywhere" }
+        }
+
         let planTasks = filtered.map { toPlanTask($0) }
         // Translate bucket estimate keys from TaskBucket.rawValue to PlanTask.bucketType format
         var planEstimates: [String: Double] = [:]
@@ -459,7 +480,8 @@ struct DishMeUpSheet: View {
             bucketEstimates: planEstimates,
             calendarBlocks: blocks,
             workStartHour: OnboardingUserPrefs.workStartHour,
-            workEndHour: OnboardingUserPrefs.workEndHour
+            workEndHour: OnboardingUserPrefs.workEndHour,
+            stateOfDay: sod
         )
         let result = PlanningEngine.generatePlan(request)
 
@@ -516,7 +538,13 @@ struct DishMeUpSheet: View {
             isDailyUpdate: task.title.lowercased().hasPrefix("daily update"),
             isFamilyEmail: task.bucket == .reply && !task.sender.isEmpty && task.isDoFirst,
             deferredCount: min(task.daysInQueue / 7, 10),
-            isTransitSafe: task.isTransitSafe
+            isTransitSafe: task.isTransitSafe,
+            urgency: task.urgency,
+            importance: task.importance,
+            energyRequired: task.energyRequired,
+            context: task.context,
+            skipCount: task.skipCount,
+            createdAt: task.receivedAt
         )
     }
 

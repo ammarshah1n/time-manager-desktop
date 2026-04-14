@@ -1,6 +1,8 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { callAnthropic, extractText } from "../_shared/anthropic.ts";
+import { createRequestLogger } from "../_shared/logger.ts";
+import { requireEnv } from "../_shared/config.ts";
 
 // Weekly strategic synthesis — Opus effort=max, Sunday cron
 // Produces week-over-week strategic analysis personalised to the executive's cognitive model.
@@ -8,10 +10,12 @@ import { callAnthropic, extractText } from "../_shared/anthropic.ts";
 // Cron: 0 3 * * 0 (3 AM every Sunday)
 // Research grounding: v3-02 (effort=max for weekly synthesis, 20K-40K adaptive thinking)
 
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const SUPABASE_URL = requireEnv("SUPABASE_URL");
+const SUPABASE_SERVICE_KEY = requireEnv("SUPABASE_SERVICE_ROLE_KEY");
 
 serve(async (req: Request) => {
+  const log = createRequestLogger("weekly-strategic-synthesis");
+  try {
   if (req.method === "OPTIONS") {
     return new Response("ok", { status: 200 });
   }
@@ -145,9 +149,14 @@ Output valid JSON:
     details: { results, duration_ms: Date.now() - start },
   });
 
+  log.info("complete", { executives_processed: executives.length, duration_ms: Date.now() - start });
   return new Response(JSON.stringify({
     pipeline: "weekly-strategic-synthesis",
     duration_ms: Date.now() - start,
     results,
   }), { status: 200, headers: { "Content-Type": "application/json" } });
+  } catch (err) {
+    log.error("unhandled", err);
+    return new Response(JSON.stringify({ error: err instanceof Error ? err.message : "Internal error", request_id: log.request_id }), { status: 500, headers: { "Content-Type": "application/json" } });
+  }
 });

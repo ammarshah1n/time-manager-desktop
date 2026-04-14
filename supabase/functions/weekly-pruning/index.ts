@@ -1,13 +1,17 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createRequestLogger } from "../_shared/logger.ts";
+import { requireEnv } from "../_shared/config.ts";
 
 // Cron: 0 3 * * 0 (Sunday 3 AM)
 // Prunes old/low-importance data across memory tiers
 
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const SUPABASE_URL = requireEnv("SUPABASE_URL");
+const SUPABASE_SERVICE_KEY = requireEnv("SUPABASE_SERVICE_ROLE_KEY");
 
 serve(async (req: Request) => {
+  const log = createRequestLogger("weekly-pruning");
+  try {
   if (req.method === "OPTIONS") {
     return new Response("ok", { status: 200 });
   }
@@ -81,6 +85,7 @@ serve(async (req: Request) => {
     details: { pipeline: "weekly-pruning", results, duration_ms: Date.now() - start },
   });
 
+  log.info("complete", { executives_processed: executives.length, duration_ms: Date.now() - start });
   return new Response(JSON.stringify({
     pipeline: "weekly-pruning",
     duration_ms: Date.now() - start,
@@ -89,4 +94,8 @@ serve(async (req: Request) => {
     status: 200,
     headers: { "Content-Type": "application/json" },
   });
+  } catch (err) {
+    log.error("unhandled", err);
+    return new Response(JSON.stringify({ error: err instanceof Error ? err.message : "Internal error", request_id: log.request_id }), { status: 500, headers: { "Content-Type": "application/json" } });
+  }
 });

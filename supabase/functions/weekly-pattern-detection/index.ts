@@ -1,16 +1,20 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { callAnthropic, extractText } from "../_shared/anthropic.ts";
+import { createRequestLogger } from "../_shared/logger.ts";
+import { requireEnv } from "../_shared/config.ts";
 
 // Phase 7.01: Weekly Pattern Detection
 // Triggered: end of week OR 5+ daily summaries since last run
 // Opus 4.6 with extended thinking (32K budget), temp 0.3
 // Compares this week's summaries against Tier 2 library + ACB-FULL + last 4 briefings
 
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const SUPABASE_URL = requireEnv("SUPABASE_URL");
+const SUPABASE_SERVICE_KEY = requireEnv("SUPABASE_SERVICE_ROLE_KEY");
 
 serve(async (req: Request) => {
+  const log = createRequestLogger("weekly-pattern-detection");
+  try {
   if (req.method === "OPTIONS") {
     return new Response("ok", { status: 200 });
   }
@@ -169,6 +173,11 @@ Output JSON:
     });
   }
 
+  log.info("complete", {
+    executive_id: executiveId,
+    summaries_analysed: weeklySummaries.length,
+    new_candidates: result.new_candidates?.length ?? 0,
+  });
   return new Response(JSON.stringify({
     status: "ok",
     summaries_analysed: weeklySummaries.length,
@@ -179,4 +188,8 @@ Output JSON:
     tokens_used: response.usage.input_tokens + response.usage.output_tokens,
     duration_ms: Date.now() - start,
   }), { status: 200, headers: { "Content-Type": "application/json" } });
+  } catch (err) {
+    log.error("unhandled", err);
+    return new Response(JSON.stringify({ error: err instanceof Error ? err.message : "Internal error", request_id: log.request_id }), { status: 500, headers: { "Content-Type": "application/json" } });
+  }
 });

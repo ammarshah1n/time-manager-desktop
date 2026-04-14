@@ -1,4 +1,7 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
+import { verifyAuth, AuthError, authErrorResponse } from "../_shared/auth.ts";
+import { createRequestLogger } from "../_shared/logger.ts";
+import { requireEnv } from "../_shared/config.ts";
 
 // Phase 10.01: Voice Feature Extraction via Gemini Audio API
 // Replaces openSMILE C++ bridge — 10-15 lines vs weeks of interop
@@ -8,8 +11,17 @@ import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
 
 serve(async (req: Request) => {
+  const log = createRequestLogger("extract-voice-features");
+  try {
   if (req.method === "OPTIONS") {
     return new Response("ok", { status: 200 });
+  }
+
+  try {
+    await verifyAuth(req);
+  } catch (err) {
+    if (err instanceof AuthError) return authErrorResponse(err);
+    throw err;
   }
 
   if (!GEMINI_API_KEY) {
@@ -103,10 +115,15 @@ serve(async (req: Request) => {
     }
   }
 
+  log.info("complete", { executive_id: body.executive_id, duration_seconds: body.duration_seconds });
   return new Response(JSON.stringify({
     status: "ok",
     executive_id: body.executive_id,
     duration_seconds: body.duration_seconds,
     features,
   }), { status: 200, headers: { "Content-Type": "application/json" } });
+  } catch (err) {
+    log.error("unhandled", err);
+    return new Response(JSON.stringify({ error: err instanceof Error ? err.message : "Internal error", request_id: log.request_id }), { status: 500, headers: { "Content-Type": "application/json" } });
+  }
 });

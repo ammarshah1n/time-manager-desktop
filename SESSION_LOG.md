@@ -344,3 +344,89 @@ c1d52b6 fix: wire Supabase auth + anon key + DataBridge dual-write for productio
 .build/arm64-apple-macosx/debug/time_manager_desktop.build/DataBridge.d
 .build/arm64-apple-macosx/debug/time_manager_desktop.build/EmailSyncService.swiftdeps
 .build/arm64-apple-macosx/debug/time_manager_desktop.build/GracefulDegradation.swift.o
+
+---
+## Session: 2026-04-14 11:43
+
+### Commits This Session
+9de58d9 feat: add SessionStart hook for automatic session context loading
+364721a docs: update BUILD_STATE.md and SESSION_LOG.md for intelligence maximisation + auth bridge session
+740581f fix: unstaged Phase 0-12 changes — BurnoutPredictor thresholds, CalendarSync loop, RLS bypass migration
+c1d52b6 fix: wire Supabase auth + anon key + DataBridge dual-write for production readiness
+149aeda feat: steps 6+8+10+11 — alert engine dual-scoring, avoidance stream 3, relationship cards, ACB refresh
+
+### Modified Files
+.claude/settings.json
+.claude/hooks/session-start-context.sh
+.claude/rules/session-protocol.md
+.claude/skills/full-claude/SKILL.md
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-14 11:54
+
+### Commits This Session
+9de58d9 feat: add SessionStart hook for automatic session context loading
+364721a docs: update BUILD_STATE.md and SESSION_LOG.md for intelligence maximisation + auth bridge session
+740581f fix: unstaged Phase 0-12 changes — BurnoutPredictor thresholds, CalendarSync loop, RLS bypass migration
+c1d52b6 fix: wire Supabase auth + anon key + DataBridge dual-write for production readiness
+149aeda feat: steps 6+8+10+11 — alert engine dual-scoring, avoidance stream 3, relationship cards, ACB refresh
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-14 12:23
+
+### Commits This Session
+9de58d9 feat: add SessionStart hook for automatic session context loading
+364721a docs: update BUILD_STATE.md and SESSION_LOG.md for intelligence maximisation + auth bridge session
+740581f fix: unstaged Phase 0-12 changes — BurnoutPredictor thresholds, CalendarSync loop, RLS bypass migration
+c1d52b6 fix: wire Supabase auth + anon key + DataBridge dual-write for production readiness
+149aeda feat: steps 6+8+10+11 — alert engine dual-scoring, avoidance stream 3, relationship cards, ACB refresh
+
+### Modified Files
+supabase/migrations/20260415100000_production_readiness_fixes.sql
+supabase/migrations/20260415100001_idempotency_and_column_fixes.sql
+supabase/migrations/20260415000002_idempotency_constraints.sql
+supabase/functions/generate-embedding/index.ts
+supabase/functions/extract-voice-features/index.ts
+supabase/functions/nightly-phase2/index.ts
+supabase/functions/score-observation-realtime/index.ts
+supabase/functions/weekly-pruning/index.ts
+supabase/functions/generate-daily-plan/index.ts
+supabase/functions/generate-relationship-card/index.ts
+supabase/functions/nightly-phase1/index.ts
+supabase/functions/graph-webhook/index.ts
+supabase/functions/weekly-avoidance-synthesis/index.ts
+supabase/functions/detect-reply/index.ts
+supabase/functions/weekly-pattern-detection/index.ts
+
+---
+## Session: 2026-04-14 12:58
+
+### Commits This Session
+9de58d9 feat: add SessionStart hook for automatic session context loading
+364721a docs: update BUILD_STATE.md and SESSION_LOG.md for intelligence maximisation + auth bridge session
+740581f fix: unstaged Phase 0-12 changes — BurnoutPredictor thresholds, CalendarSync loop, RLS bypass migration
+c1d52b6 fix: wire Supabase auth + anon key + DataBridge dual-write for production readiness
+149aeda feat: steps 6+8+10+11 — alert engine dual-scoring, avoidance stream 3, relationship cards, ACB refresh
+
+### Modified Files
+.build/.lock
+.build/debug.yaml
+.build/plugin-tools.yaml
+.build/arm64-apple-macosx/debug/Crypto.build/output-file-map.json
+.build/arm64-apple-macosx/debug/USearch.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftOperators.build/output-file-map.json
+.build/arm64-apple-macosx/debug/Supabase.build/output-file-map.json
+.build/arm64-apple-macosx/debug/CasePathsCore.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftParser-tool.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftCompilerPluginMessageHandling-tool.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftUINavigation.build/output-file-map.json
+.build/arm64-apple-macosx/debug/time-manager-desktop
+.build/arm64-apple-macosx/debug/Functions.build/output-file-map.json
+.build/arm64-apple-macosx/debug/HTTPTypes.build/output-file-map.json
+.build/arm64-apple-macosx/debug/Dependencies.build/output-file-map.json

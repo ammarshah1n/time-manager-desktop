@@ -1,13 +1,14 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { callAnthropic, extractText, submitBatch } from "../_shared/anthropic.ts";
+import { requireEnv } from "../_shared/config.ts";
 
 // Phase 2 of nightly pipeline: daily summary + ACB generation + self-improvement
 // Cron: 5 2 * * * (2:05 AM local — 5 minutes after phase1)
 // Estimated runtime: 90-120s (under 150s Edge Function limit)
 
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const SUPABASE_URL = requireEnv("SUPABASE_URL");
+const SUPABASE_SERVICE_KEY = requireEnv("SUPABASE_SERVICE_ROLE_KEY");
 
 type SupabaseClient = ReturnType<typeof createClient>;
 
@@ -250,14 +251,14 @@ async function runSelfImprovement(client: SupabaseClient, executiveId: string): 
       },
     }]);
 
-    await client.from("self_improvement_log").insert({
+    await client.from("self_improvement_log").upsert({
       profile_id: executiveId,
       log_date: new Date().toISOString().slice(0, 10),
       proposed_changes: { batch_id: batchId, status: "submitted" },
       accepted_changes: {},
       rejected_reasons: {},
       validation_results: {},
-    });
+    }, { onConflict: "profile_id,log_date" });
 
     return {
       status: "ok",

@@ -32,6 +32,10 @@ struct MorningInterviewPane: View {
     @State private var estimates: [UUID: Int] = [:]
     @State private var hasTravelToday: Bool = false
 
+    // Dish Me Up: energy & interruptibility (Q2 + Q3)
+    @State private var energyLevel: Int = 5         // 1-10
+    @State private var interruptibility: StateOfDay.Interruptibility = .medium
+
     // Voice mode
     @AppStorage("prefs.morningInterview.voiceMode") private var voiceMode: Bool = false
     @StateObject private var speechService = SpeechService()
@@ -74,8 +78,8 @@ struct MorningInterviewPane: View {
     @State private var skippedSteps: Set<Int> = []
     private let skipThreshold = 5
 
-    // totalSteps is now 5: deferral review (0), time (1), due today (2), estimates (3), confirm (4)
-    private let totalSteps = 5
+    // Steps: deferral review (0), time (1), energy (2), interruptibility (3), due today (4), estimates (5), confirm (6)
+    private let totalSteps = 7
 
     init(tasks: Binding<[TimedTask]>, blocks: Binding<[CalendarBlock]>, isPresented: Binding<Bool>) {
         self._tasks = tasks
@@ -159,9 +163,11 @@ struct MorningInterviewPane: View {
             ZStack {
                 if step == 0 { stepDeferralReview.transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading))) }
                 if step == 1 { stepTimeDeclaration.transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading))) }
-                if step == 2 { stepDueTodayReview.transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading))) }
-                if step == 3 { stepAssumptions.transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading))) }
-                if step == 4 { stepPlanConfirm.transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading))) }
+                if step == 2 { stepEnergyLevel.transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading))) }
+                if step == 3 { stepInterruptibility.transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading))) }
+                if step == 4 { stepDueTodayReview.transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading))) }
+                if step == 5 { stepAssumptions.transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading))) }
+                if step == 6 { stepPlanConfirm.transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading))) }
             }
             .animation(.easeInOut(duration: 0.25), value: step)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -226,8 +232,8 @@ struct MorningInterviewPane: View {
             }
             // Compute which steps are auto-skippable (adaptive skipping)
             if skipCountStep1 >= skipThreshold { skippedSteps.insert(1) }
-            if skipCountStep2 >= skipThreshold { skippedSteps.insert(2) }
-            if skipCountStep3 >= skipThreshold { skippedSteps.insert(3) }
+            if skipCountStep2 >= skipThreshold { skippedSteps.insert(4) }
+            if skipCountStep3 >= skipThreshold { skippedSteps.insert(5) }
 
             // Compute free time from calendar for step 1
             recomputeFreeTime()
@@ -745,7 +751,113 @@ struct MorningInterviewPane: View {
         .background(color.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
     }
 
-    // MARK: - Step 2: Due today review (was step 1)
+    // MARK: - Step 2: Energy Level (Q2)
+
+    private var stepEnergyLevel: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            voiceStatusBar
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("How's your energy today?")
+                    .font(.system(size: 16, weight: .medium))
+                Text("This helps match tasks to your current cognitive capacity.")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+            }
+
+            VStack(spacing: 12) {
+                HStack {
+                    Text("Low").font(.system(size: 12)).foregroundStyle(.secondary)
+                    Spacer()
+                    Text("High").font(.system(size: 12)).foregroundStyle(.secondary)
+                }
+
+                Slider(value: Binding(
+                    get: { Double(energyLevel) },
+                    set: { energyLevel = Int($0) }
+                ), in: 1...10, step: 1)
+                .tint(energyLevel <= 3 ? .orange : energyLevel >= 7 ? .green : .blue)
+
+                Text("\(energyLevel)/10")
+                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+                    .frame(maxWidth: .infinity, alignment: .center)
+
+                // Quick descriptors
+                Text(energyDescriptor)
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+            }
+            .padding(.top, 8)
+        }
+        .padding(.horizontal, 28).padding(.top, 8)
+    }
+
+    private var energyDescriptor: String {
+        switch energyLevel {
+        case 1...3: return "Low energy — quick wins and light tasks recommended"
+        case 4...6: return "Moderate — a mix of focused and routine work"
+        case 7...10: return "High energy — great for deep analytical work"
+        default: return ""
+        }
+    }
+
+    // MARK: - Step 3: Interruptibility (Q3)
+
+    private var stepInterruptibility: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            voiceStatusBar
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Will you be interrupted today?")
+                    .font(.system(size: 16, weight: .medium))
+                Text("This affects how long each task block should be.")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+            }
+
+            VStack(spacing: 10) {
+                interruptButton(.low,    "No — protected time",    "lock.shield.fill",  .green)
+                interruptButton(.medium, "A few interruptions",     "bell.badge.fill",   .orange)
+                interruptButton(.high,   "Frequent interruptions",  "bell.and.waves.left.and.right.fill", .red)
+            }
+            .padding(.top, 8)
+        }
+        .padding(.horizontal, 28).padding(.top, 8)
+    }
+
+    private func interruptButton(_ level: StateOfDay.Interruptibility, _ label: String, _ icon: String, _ tint: Color) -> some View {
+        Button {
+            interruptibility = level
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: icon)
+                    .font(.system(size: 16))
+                    .foregroundStyle(tint)
+                    .frame(width: 24)
+                Text(label)
+                    .font(.system(size: 14))
+                Spacer()
+                if interruptibility == level {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.indigo)
+                }
+            }
+            .padding(.horizontal, 16).padding(.vertical, 14)
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(interruptibility == level ? Color.indigo.opacity(0.08) : Color(.controlBackgroundColor))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(interruptibility == level ? Color.indigo.opacity(0.3) : .clear, lineWidth: 1.5)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Step 4: Due today review
 
     private var stepDueTodayReview: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -1050,6 +1162,10 @@ struct MorningInterviewPane: View {
             let meetingDesc = computedMeetingMinutes > 0 ? ", after \(formatMins(computedMeetingMinutes)) of meetings" : ""
             text = "Looking at your calendar, you have \(timeDesc) free today across \(blockDesc)\(meetingDesc). Shall I plan around that?"
         case 2:
+            text = "How's your energy today, on a scale of 1 to 10? This helps me match tasks to your cognitive capacity."
+        case 3:
+            text = "Will you be interrupted today? Protected time, a few interruptions, or frequent interruptions?"
+        case 4:
             let count = todayCandidates.count
             let titles = todayCandidates.prefix(3).map(\.title).joined(separator: ", ")
             if count == 0 {
@@ -1057,13 +1173,13 @@ struct MorningInterviewPane: View {
             } else {
                 text = "I found \(count) items due today. Here they are: \(titles). Should we keep all of them?"
             }
-        case 3:
+        case 5:
             let topAssumptions = assumptions.prefix(3).map { task in
                 let mins = estimates[task.id] ?? task.estimatedMinutes
                 return "\(task.title), \(formatMins(mins))"
             }.joined(separator: ". ")
             text = "I'm assuming these time estimates: \(topAssumptions). Sound right?"
-        case 4:
+        case 6:
             let topTasks = confirmedTasks.prefix(3).map { task in
                 let mins = estimates[task.id] ?? task.estimatedMinutes
                 return "\(task.title), \(formatMins(mins))"
@@ -1269,10 +1385,14 @@ struct MorningInterviewPane: View {
         case 1:
             handleTimeResponse(response)
         case 2:
-            handleDueTodayResponse(response)
+            handleEnergyResponse(response)
         case 3:
-            handleAssumptionsResponse(response)
+            handleInterruptResponse(response)
         case 4:
+            handleDueTodayResponse(response)
+        case 5:
+            handleAssumptionsResponse(response)
+        case 6:
             handlePlanResponse(response)
         default:
             break
@@ -1356,6 +1476,36 @@ struct MorningInterviewPane: View {
             }
         default:
             break
+        }
+    }
+
+    private func handleEnergyResponse(_ response: VoiceResponse) {
+        switch response {
+        case .number(let level):
+            energyLevel = min(10, max(1, level))
+            advanceStep()
+        case .affirmative:
+            // Keep current value and proceed
+            advanceStep()
+        default:
+            if voiceMode {
+                speechService.speak("Tell me a number from 1 to 10. 1 is exhausted, 10 is peak energy.")
+            }
+        }
+    }
+
+    private func handleInterruptResponse(_ response: VoiceResponse) {
+        switch response {
+        case .negative:
+            interruptibility = .low  // "No interruptions" = protected time
+            advanceStep()
+        case .affirmative:
+            interruptibility = .high  // "Yes" = frequent interruptions
+            advanceStep()
+        default:
+            // Default to medium and advance
+            interruptibility = .medium
+            advanceStep()
         }
     }
 
@@ -1449,9 +1599,9 @@ struct MorningInterviewPane: View {
 
     private func recordNonOverride(forStep s: Int) {
         switch s {
-        case 1: skipCountStep0 += 1  // step 1 maps to counter 0 (time)
-        case 2: skipCountStep1 += 1  // step 2 maps to counter 1 (due today)
-        case 3: skipCountStep2 += 1  // step 3 maps to counter 2 (estimates)
+        case 1: skipCountStep0 += 1  // step 1: time
+        case 4: skipCountStep1 += 1  // step 4: due today
+        case 5: skipCountStep2 += 1  // step 5: estimates
         default: break
         }
     }
@@ -1460,8 +1610,8 @@ struct MorningInterviewPane: View {
         // Reset counter on override
         switch s {
         case 1: skipCountStep0 = 0
-        case 2: skipCountStep1 = 0
-        case 3: skipCountStep2 = 0
+        case 4: skipCountStep1 = 0
+        case 5: skipCountStep2 = 0
         default: break
         }
         skippedSteps.remove(s)
@@ -1524,9 +1674,11 @@ struct MorningInterviewPane: View {
         switch step {
         case 0: return "Step \(displayStep) of \(displayTotal) — Yesterday's deferrals"
         case 1: return "Step \(displayStep) of \(displayTotal) — Your free time today"
-        case 2: return "Step \(displayStep) of \(displayTotal) — Confirm what's on for today"
-        case 3: return "Step \(displayStep) of \(displayTotal) — Check time estimates"
-        case 4: return "Step \(displayStep) of \(displayTotal) — Review and start"
+        case 2: return "Step \(displayStep) of \(displayTotal) — Energy level"
+        case 3: return "Step \(displayStep) of \(displayTotal) — Interruption forecast"
+        case 4: return "Step \(displayStep) of \(displayTotal) — Confirm what's on for today"
+        case 5: return "Step \(displayStep) of \(displayTotal) — Check time estimates"
+        case 6: return "Step \(displayStep) of \(displayTotal) — Review and start"
         default: return ""
         }
     }
@@ -1542,6 +1694,18 @@ struct MorningInterviewPane: View {
                 tasks[idx].estimatedMinutes = mins
             }
         }
+
+        // Produce StateOfDay from interview answers
+        let pinnedIds = Array(confirmedIds.prefix(2))
+        let sod = StateOfDay(
+            timeBudgetMinutes: availableMinutes,
+            energyLevel: energyLevel,
+            interruptibility: interruptibility,
+            pinnedTaskIds: pinnedIds,
+            carryOverConfirmed: showDeferralStep
+        )
+        // Store for downstream consumers (DishMeUpSheet, PlanPane)
+        MorningInterviewState.shared.latestStateOfDay = sod
     }
 }
 

@@ -236,7 +236,11 @@ actor CalendarSyncService {
             rawData: rawData,
             importanceScore: 0.5
         )
-        try? await Tier0Writer.shared.recordObservation(observation)
+        do {
+            try await Tier0Writer.shared.recordObservation(observation)
+        } catch {
+            TimedLogger.calendar.error("Tier0 calendar observation write failed: \(error.localizedDescription)")
+        }
 
         let calendarObservation = CalendarObservationRow(
             id: UUID(),
@@ -251,7 +255,11 @@ actor CalendarSyncService {
             wasRescheduled: emission.eventType == "calendar.rescheduled",
             originalStart: emission.originalStart
         )
-        try? await persistCalendarObservation(calendarObservation)
+        do {
+            try await persistCalendarObservation(calendarObservation)
+        } catch {
+            TimedLogger.calendar.error("Calendar observation persist failed: \(error.localizedDescription)")
+        }
     }
 
     private func calendarObservationEmission(for parsedEvent: ParsedCalendarEvent) -> CalendarObservationEmission? {

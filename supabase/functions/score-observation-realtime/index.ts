@@ -1,13 +1,16 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { callAnthropic, extractText } from "../_shared/anthropic.ts";
+import { verifyAuth, AuthError, authErrorResponse } from "../_shared/auth.ts";
+import { createRequestLogger } from "../_shared/logger.ts";
+import { requireEnv } from "../_shared/config.ts";
 
 // Real-time importance scoring via Haiku 4.5 at ingestion time.
 // Called by Swift client after Tier0Writer writes observations.
 // Research grounding: v3-02 (no CoT on classification), v3-05 (dual-scoring architecture)
 
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const SUPABASE_URL = requireEnv("SUPABASE_URL");
+const SUPABASE_SERVICE_KEY = requireEnv("SUPABASE_SERVICE_ROLE_KEY");
 
 // Alert thresholds from v3-05 research
 const ALERT_IMMEDIATE = 0.90;
@@ -15,8 +18,17 @@ const ALERT_PRELIMINARY = 0.80;
 const ALERT_BATCH_GATE = 0.75;
 
 serve(async (req: Request) => {
+  const log = createRequestLogger("score-observation-realtime");
+  try {
   if (req.method === "OPTIONS") {
     return new Response("ok", { status: 200 });
+  }
+
+  try {
+    await verifyAuth(req);
+  } catch (err) {
+    if (err instanceof AuthError) return authErrorResponse(err);
+    throw err;
   }
 
   const client = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
@@ -88,66 +100,54 @@ ${obsSummaries}`,
 
   let scored = 0;
   const alerts: Array<{ observation_id: string; score: number; level: string }> = [];
+  const rtScoredAt = new Date().toISOString();
+
+  // Accumulate writes for batching
+  const rtUpdates = [];
+  const auditRows = [];
+  const alertRows = [];
 
   for (let i = 0; i < Math.min(scores.length, observations.length); i++) {
     const rtScore = Math.max(1, Math.min(10, scores[i])) / 10.0;
     const obs = observations[i];
 
-    // Write RT score
-    await client
+    rtUpdates.push(client
       .from("tier0_observations")
-      .update({
-        rt_score: rtScore,
-        rt_scored_at: new Date().toISOString(),
-        rt_model: "claude-haiku-4-5-20251001",
-      })
-      .eq("id", obs.id);
+      .update({ rt_score: rtScore, rt_scored_at: rtScoredAt, rt_model: "claude-haiku-4-5-20251001" })
+      .eq("id", obs.id));
 
-    // Log to audit
-    await client
-      .from("score_audit_log")
-      .insert({
-        workspace_id: obs.profile_id,
-        observation_id: obs.id,
-        event_type: "realtime_scored",
-        rt_score: rtScore,
-        details: { source: obs.source, event_type: obs.event_type, day_context: dayContext },
-      });
+    auditRows.push({
+      profile_id: obs.profile_id,
+      observation_id: obs.id,
+      event_type: "realtime_scored",
+      rt_score: rtScore,
+      details: { source: obs.source, event_type: obs.event_type, day_context: dayContext },
+    });
 
-    // Check alert thresholds
     if (rtScore >= ALERT_IMMEDIATE) {
       alerts.push({ observation_id: obs.id, score: rtScore, level: "immediate" });
-      await client.from("alert_states").insert({
-        profile_id: obs.profile_id,
-        observation_id: obs.id,
-        status: "fired",
-        fire_score: rtScore,
-        fire_model: "claude-haiku-4-5-20251001",
-      });
+      alertRows.push({ profile_id: obs.profile_id, observation_id: obs.id, status: "fired", fire_score: rtScore, fire_model: "claude-haiku-4-5-20251001" });
     } else if (rtScore >= ALERT_PRELIMINARY) {
       alerts.push({ observation_id: obs.id, score: rtScore, level: "preliminary" });
-      await client.from("alert_states").insert({
-        profile_id: obs.profile_id,
-        observation_id: obs.id,
-        status: "fired",
-        fire_score: rtScore,
-        fire_model: "claude-haiku-4-5-20251001",
-        annotation_text: "Preliminary — awaiting batch confirmation",
-      });
+      alertRows.push({ profile_id: obs.profile_id, observation_id: obs.id, status: "fired", fire_score: rtScore, fire_model: "claude-haiku-4-5-20251001", annotation_text: "Preliminary — awaiting batch confirmation" });
     } else if (rtScore >= ALERT_BATCH_GATE) {
       alerts.push({ observation_id: obs.id, score: rtScore, level: "batch_gate" });
-      await client.from("alert_states").insert({
-        profile_id: obs.profile_id,
-        observation_id: obs.id,
-        status: "pending",
-        fire_score: rtScore,
-        fire_model: "claude-haiku-4-5-20251001",
-      });
+      alertRows.push({ profile_id: obs.profile_id, observation_id: obs.id, status: "pending", fire_score: rtScore, fire_model: "claude-haiku-4-5-20251001" });
     }
 
     scored++;
   }
 
+  // Flush in parallel chunks
+  await Promise.all(rtUpdates);
+  if (auditRows.length) await client.from("score_audit_log").insert(auditRows);
+  if (alertRows.length) await client.from("alert_states").insert(alertRows);
+
+  log.info("complete", {
+    executive_id: observations[0].profile_id,
+    scored,
+    alerts: alerts.length,
+  });
   return new Response(JSON.stringify({
     pipeline: "score-observation-realtime",
     scored,
@@ -156,4 +156,8 @@ ${obsSummaries}`,
     tokens_used: response.usage.input_tokens + response.usage.output_tokens,
     duration_ms: Date.now() - start,
   }), { status: 200, headers: { "Content-Type": "application/json" } });
+  } catch (err) {
+    log.error("unhandled", err);
+    return new Response(JSON.stringify({ error: err instanceof Error ? err.message : "Internal error", request_id: log.request_id }), { status: 500, headers: { "Content-Type": "application/json" } });
+  }
 });

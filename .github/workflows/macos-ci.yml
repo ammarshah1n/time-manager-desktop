@@ -21,6 +21,16 @@ jobs:
       - name: Run tests
         run: swift test
 
+      - name: Typecheck Edge Functions
+        run: |
+          curl -fsSL https://deno.land/install.sh | sh
+          export DENO_DIR="$HOME/.deno"
+          export PATH="$DENO_DIR/bin:$PATH"
+          for fn in supabase/functions/*/index.ts; do
+            echo "Checking $fn..."
+            deno check --no-lock "$fn" || exit 1
+          done
+
       - name: Package app
         run: bash scripts/package_app.sh
 

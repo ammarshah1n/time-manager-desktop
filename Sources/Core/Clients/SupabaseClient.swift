@@ -30,6 +30,12 @@ struct TaskDBRow: Codable, Identifiable, Sendable {
     let completedAt: Date?
     let createdAt: Date
     let updatedAt: Date
+    // Dish Me Up scoring fields
+    let urgency: Int
+    let importance: Int
+    let energyRequired: String
+    let context: String
+    let skipCount: Int
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -52,6 +58,11 @@ struct TaskDBRow: Codable, Identifiable, Sendable {
         case completedAt = "completed_at"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
+        case urgency
+        case importance
+        case energyRequired = "energy_required"
+        case context
+        case skipCount = "skip_count"
     }
 }
 

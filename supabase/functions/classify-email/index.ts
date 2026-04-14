@@ -11,12 +11,13 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import Anthropic from "https://esm.sh/@anthropic-ai/sdk@0.27.0";
 import { verifyAuth, AuthError, authErrorResponse } from "../_shared/auth.ts";
 import { withRetry, CircuitBreaker } from "../_shared/retry.ts";
+import { requireEnv } from "../_shared/config.ts";
 
 const supabase = createClient(
-  Deno.env.get("SUPABASE_URL")!,
-  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+  requireEnv("SUPABASE_URL"),
+  requireEnv("SUPABASE_SERVICE_ROLE_KEY")
 );
-const anthropic = new Anthropic({ apiKey: Deno.env.get("ANTHROPIC_API_KEY")! });
+const anthropic = new Anthropic({ apiKey: requireEnv("ANTHROPIC_API_KEY") });
 
 // Circuit breaker: trips after 5 Anthropic failures, resets after 2 min
 const classifyBreaker = new CircuitBreaker(5, 2 * 60 * 1000, "classify-email-anthropic");

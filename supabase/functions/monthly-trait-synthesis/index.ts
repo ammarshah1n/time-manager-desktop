@@ -1,15 +1,19 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { callAnthropic, extractText } from "../_shared/anthropic.ts";
+import { createRequestLogger } from "../_shared/logger.ts";
+import { requireEnv } from "../_shared/config.ts";
 
 // Phase 7.03: Monthly Trait Synthesis
 // Stage A: Opus 4.6 + extended thinking (64K budget), temp 1.0 — trait synthesis
 // Stage B: Opus 4.6 — prediction generation from traits with precision >= 0.7
 
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const SUPABASE_URL = requireEnv("SUPABASE_URL");
+const SUPABASE_SERVICE_KEY = requireEnv("SUPABASE_SERVICE_ROLE_KEY");
 
 serve(async (req: Request) => {
+  const log = createRequestLogger("monthly-trait-synthesis");
+  try {
   if (req.method === "OPTIONS") {
     return new Response("ok", { status: 200 });
   }
@@ -242,6 +246,11 @@ Output JSON:
     }
   }
 
+  log.info("complete", {
+    executive_id: executiveId,
+    confirmed_signatures: confirmedSigs.length,
+    predictions_generated: predictions.length,
+  });
   return new Response(JSON.stringify({
     status: "ok",
     stage_a: {
@@ -257,4 +266,8 @@ Output JSON:
     synthesis_tokens: synthesisResponse.usage.input_tokens + synthesisResponse.usage.output_tokens,
     duration_ms: Date.now() - start,
   }), { status: 200, headers: { "Content-Type": "application/json" } });
+  } catch (err) {
+    log.error("unhandled", err);
+    return new Response(JSON.stringify({ error: err instanceof Error ? err.message : "Internal error", request_id: log.request_id }), { status: 500, headers: { "Content-Type": "application/json" } });
+  }
 });

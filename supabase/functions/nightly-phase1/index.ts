@@ -1,14 +1,16 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { callAnthropic, extractText } from "../_shared/anthropic.ts";
+import { requireEnv } from "../_shared/config.ts";
 
 // Phase 1 of nightly pipeline: importance scoring + conflict detection
 // Cron: 0 2 * * * (2 AM local)
 // Estimated runtime: 30-60s (well under 150s Edge Function limit)
 
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const SUPABASE_URL = requireEnv("SUPABASE_URL");
+const SUPABASE_SERVICE_KEY = requireEnv("SUPABASE_SERVICE_ROLE_KEY");
 const MAX_IMPORTANCE_BATCH = 500;
+const WRITE_CHUNK_SIZE = 50;
 
 type SupabaseClient = ReturnType<typeof createClient>;
 
@@ -47,7 +49,7 @@ async function runImportanceScoring(client: SupabaseClient, executiveId: string)
     .from("tier0_observations")
     .select("id, profile_id, summary, source, event_type, raw_data, rt_score")
     .eq("profile_id", executiveId)
-    .eq("importance_score", 0.5)
+    .is("batch_score", null)
     .eq("is_processed", false)
     .limit(MAX_IMPORTANCE_BATCH);
 
@@ -80,25 +82,28 @@ async function runImportanceScoring(client: SupabaseClient, executiveId: string)
     scores = scoreText.match(/\d+/g)?.map(Number) ?? [];
   }
 
+  const pass1ScoredAt = new Date().toISOString();
+  const pass1Updates = [];
+  const pass1AuditRows = [];
+
   for (let i = 0; i < Math.min(scores.length, unscored.length); i++) {
     const score = Math.max(1, Math.min(10, scores[i])) / 10.0;
-    await client
+    pass1Updates.push(client
       .from("tier0_observations")
       .update({
-        importance_score: score,
         batch_score: score,
-        batch_scored_at: new Date().toISOString(),
+        batch_scored_at: pass1ScoredAt,
         batch_model: "claude-haiku-4-5-20251001",
       })
-      .eq("id", unscored[i].id);
+      .eq("id", unscored[i].id));
 
     // Log score conflict if RT score exists and delta is significant
     const obs = unscored[i];
     if (obs.rt_score !== undefined && obs.rt_score !== null) {
       const delta = score - obs.rt_score;
       if (Math.abs(delta) >= 0.15) {
-        await client.from("score_audit_log").insert({
-          workspace_id: obs.profile_id,
+        pass1AuditRows.push({
+          profile_id: obs.profile_id,
           observation_id: obs.id,
           event_type: "conflict_detected",
           rt_score: obs.rt_score,
@@ -110,13 +115,21 @@ async function runImportanceScoring(client: SupabaseClient, executiveId: string)
     }
   }
 
+  for (let i = 0; i < pass1Updates.length; i += WRITE_CHUNK_SIZE) {
+    await Promise.all(pass1Updates.slice(i, i + WRITE_CHUNK_SIZE));
+  }
+
+  for (let i = 0; i < pass1AuditRows.length; i += WRITE_CHUNK_SIZE) {
+    await client.from("score_audit_log").insert(pass1AuditRows.slice(i, i + WRITE_CHUNK_SIZE));
+  }
+
   // Pass 2: Sonnet re-scores uncertain band (0.55-0.75)
   const { data: uncertain } = await client
     .from("tier0_observations")
     .select("id, profile_id, summary, source, event_type, raw_data, rt_score")
     .eq("profile_id", executiveId)
-    .gte("importance_score", 0.55)
-    .lte("importance_score", 0.75)
+    .gte("batch_score", 0.55)
+    .lte("batch_score", 0.75)
     .eq("is_processed", false)
     .limit(150);
 
@@ -145,25 +158,28 @@ async function runImportanceScoring(client: SupabaseClient, executiveId: string)
       pass2Scores = pass2Text.match(/\d+/g)?.map(Number) ?? [];
     }
 
+    const pass2ScoredAt = new Date().toISOString();
+    const pass2Updates = [];
+    const pass2AuditRows = [];
+
     for (let i = 0; i < Math.min(pass2Scores.length, uncertain.length); i++) {
       const score = Math.max(1, Math.min(10, pass2Scores[i])) / 10.0;
       const obs = uncertain[i];
-      await client
+      pass2Updates.push(client
         .from("tier0_observations")
         .update({
-          importance_score: score,
           batch_score: score,
-          batch_scored_at: new Date().toISOString(),
+          batch_scored_at: pass2ScoredAt,
           batch_model: "claude-sonnet-4-6",
         })
-        .eq("id", obs.id);
+        .eq("id", obs.id));
 
       // Reconcile with RT score
       if (obs.rt_score !== undefined && obs.rt_score !== null) {
         const delta = score - obs.rt_score;
         if (Math.abs(delta) >= 0.15) {
-          await client.from("score_audit_log").insert({
-            workspace_id: obs.profile_id,
+          pass2AuditRows.push({
+            profile_id: obs.profile_id,
             observation_id: obs.id,
             event_type: "conflict_detected",
             rt_score: obs.rt_score,
@@ -200,6 +216,14 @@ async function runImportanceScoring(client: SupabaseClient, executiveId: string)
         }
       }
     }
+
+    for (let i = 0; i < pass2Updates.length; i += WRITE_CHUNK_SIZE) {
+      await Promise.all(pass2Updates.slice(i, i + WRITE_CHUNK_SIZE));
+    }
+
+    for (let i = 0; i < pass2AuditRows.length; i += WRITE_CHUNK_SIZE) {
+      await client.from("score_audit_log").insert(pass2AuditRows.slice(i, i + WRITE_CHUNK_SIZE));
+    }
   }
 
   return {
@@ -219,11 +243,11 @@ async function runConflictDetection(client: SupabaseClient, executiveId: string)
   const today = new Date().toISOString().slice(0, 10);
   const { data: todayObs } = await client
     .from("tier0_observations")
-    .select("id, summary, source, event_type, raw_data, importance_score")
+    .select("id, summary, source, event_type, raw_data, authoritative_score")
     .eq("profile_id", executiveId)
     .gte("occurred_at", today)
-    .gte("importance_score", 0.6)
-    .order("importance_score", { ascending: false })
+    .gte("authoritative_score", 0.6)
+    .order("authoritative_score", { ascending: false })
     .limit(50);
 
   if (!todayObs?.length) {
@@ -247,7 +271,7 @@ async function runConflictDetection(client: SupabaseClient, executiveId: string)
   }
 
   // Route effort: high when anomalies or developing signatures exist, medium otherwise
-  const hasAnomalies = todayObs.some((obs) => obs.importance_score >= 0.8);
+  const hasAnomalies = todayObs.some((obs) => obs.authoritative_score >= 0.8);
   const conflictEffort = (hasAnomalies || (tier2?.length ?? 0) >= 3) ? "high" : "medium";
 
   const existingMemory = [
@@ -256,7 +280,7 @@ async function runConflictDetection(client: SupabaseClient, executiveId: string)
   ].join("\n");
 
   const observationList = todayObs.map((obs) =>
-    `- ${obs.source}/${obs.event_type} (importance: ${obs.importance_score}): ${obs.summary ?? JSON.stringify(obs.raw_data).slice(0, 200)}`
+    `- ${obs.source}/${obs.event_type} (importance: ${obs.authoritative_score}): ${obs.summary ?? JSON.stringify(obs.raw_data).slice(0, 200)}`
   ).join("\n");
 
   const response = await callAnthropic({

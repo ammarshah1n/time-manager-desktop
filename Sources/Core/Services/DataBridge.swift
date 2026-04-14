@@ -48,7 +48,12 @@ actor DataBridge {
                     isOverdue: false,
                     completedAt: task.isDone ? Date() : nil,
                     createdAt: task.receivedAt,
-                    updatedAt: Date()
+                    updatedAt: Date(),
+                    urgency: task.urgency,
+                    importance: task.importance,
+                    energyRequired: task.energyRequired,
+                    context: task.context,
+                    skipCount: task.skipCount
                 )
                 do {
                     try await supabaseClient.upsertTask(row)

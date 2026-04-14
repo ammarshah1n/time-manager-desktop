@@ -7,12 +7,14 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import Anthropic from "https://esm.sh/@anthropic-ai/sdk@0.27.0";
+import { verifyAuth, AuthError, authErrorResponse } from "../_shared/auth.ts";
+import { requireEnv } from "../_shared/config.ts";
 
 const supabase = createClient(
-  Deno.env.get("SUPABASE_URL")!,
-  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+  requireEnv("SUPABASE_URL"),
+  requireEnv("SUPABASE_SERVICE_ROLE_KEY")
 );
-const anthropic = new Anthropic({ apiKey: Deno.env.get("ANTHROPIC_API_KEY")! });
+const anthropic = new Anthropic({ apiKey: requireEnv("ANTHROPIC_API_KEY") });
 
 interface ExtractedItem {
   title: string;
@@ -22,6 +24,13 @@ interface ExtractedItem {
 }
 
 serve(async (req: Request) => {
+  try {
+    await verifyAuth(req);
+  } catch (err) {
+    if (err instanceof AuthError) return authErrorResponse(err);
+    throw err;
+  }
+
   const { voiceCaptureId, workspaceId, profileId, transcript } = await req.json();
 
   if (!voiceCaptureId || !workspaceId || !profileId || !transcript) {

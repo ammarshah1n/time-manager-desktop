@@ -1,6 +1,9 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { callAnthropic, extractText } from "../_shared/anthropic.ts";
+import { verifyAuth, AuthError, authErrorResponse } from "../_shared/auth.ts";
+import { createRequestLogger } from "../_shared/logger.ts";
+import { requireEnv } from "../_shared/config.ts";
 
 // Relationship intelligence card generation
 // Triggered when RelationshipHealthService detects health drop below 0.6
@@ -13,12 +16,21 @@ import { callAnthropic, extractText } from "../_shared/anthropic.ts";
 //
 // Top predictors: reply latency delta (#1), meeting cancellation (#2), tone/formality (#3)
 
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const SUPABASE_URL = requireEnv("SUPABASE_URL");
+const SUPABASE_SERVICE_KEY = requireEnv("SUPABASE_SERVICE_ROLE_KEY");
 
 serve(async (req: Request) => {
+  const log = createRequestLogger("generate-relationship-card");
+  try {
   if (req.method === "OPTIONS") {
     return new Response("ok", { status: 200 });
+  }
+
+  try {
+    await verifyAuth(req);
+  } catch (err) {
+    if (err instanceof AuthError) return authErrorResponse(err);
+    throw err;
   }
 
   const client = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
@@ -87,7 +99,7 @@ serve(async (req: Request) => {
     .from("relationships")
     .select("created_at, health_score, health_trajectory, last_contact_at")
     .eq("profile_id", profile_id)
-    .eq("contact_id", contact_id)
+    .eq("node_id", contact_id)
     .maybeSingle();
 
   const relationshipAge = relationship
@@ -198,6 +210,7 @@ ${contactMeetings.slice(0, 15).map((m) =>
     tokens_used: response.usage.input_tokens + response.usage.output_tokens,
   }, { onConflict: "profile_id,contact_id" });
 
+  log.info("complete", { executive_id: profile_id, contact_id, health_status: cardData.health_status });
   return new Response(JSON.stringify({
     status: "ok",
     contact: contact.display_name,
@@ -207,4 +220,8 @@ ${contactMeetings.slice(0, 15).map((m) =>
     tokens_used: response.usage.input_tokens + response.usage.output_tokens,
     duration_ms: Date.now() - start,
   }), { status: 200, headers: { "Content-Type": "application/json" } });
+  } catch (err) {
+    log.error("unhandled", err);
+    return new Response(JSON.stringify({ error: err instanceof Error ? err.message : "Internal error", request_id: log.request_id }), { status: 500, headers: { "Content-Type": "application/json" } });
+  }
 });

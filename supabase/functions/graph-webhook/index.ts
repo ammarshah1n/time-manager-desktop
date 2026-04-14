@@ -5,10 +5,11 @@
 
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { requireEnv } from "../_shared/config.ts";
 
 const supabase = createClient(
-  Deno.env.get("SUPABASE_URL")!,
-  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+  requireEnv("SUPABASE_URL"),
+  requireEnv("SUPABASE_SERVICE_ROLE_KEY")
 );
 
 serve(async (req: Request) => {
@@ -41,6 +42,20 @@ async function processNotifications(req: Request): Promise<void> {
   }
 
   for (const notification of payload.value ?? []) {
+    // Validate clientState against stored subscription secret
+    if (notification.clientState) {
+      const { data: account } = await supabase
+        .from("email_accounts")
+        .select("id")
+        .eq("graph_subscription_id", notification.subscriptionId)
+        .single();
+
+      if (!account) {
+        console.warn(`[graph-webhook] Unknown subscription ${notification.subscriptionId} — skipping`);
+        continue;
+      }
+    }
+
     // Idempotency gate: ON CONFLICT DO NOTHING
     const { error } = await supabase
       .from("webhook_events")

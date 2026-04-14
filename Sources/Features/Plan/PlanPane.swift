@@ -403,7 +403,8 @@ struct PlanPane: View {
             bucketEstimates: planEstimates,
             calendarBlocks: blocks,
             workStartHour: OnboardingUserPrefs.workStartHour,
-            workEndHour: OnboardingUserPrefs.workEndHour
+            workEndHour: OnboardingUserPrefs.workEndHour,
+            stateOfDay: MorningInterviewState.shared.latestStateOfDay
         )
         let result = PlanningEngine.generatePlan(request)
 
@@ -506,7 +507,13 @@ struct PlanPane: View {
             isDailyUpdate: task.title.lowercased().hasPrefix("daily update"),
             isFamilyEmail: task.bucket == .reply && !task.sender.isEmpty && task.isDoFirst,
             deferredCount: min(task.daysInQueue / 7, 10),
-            isTransitSafe: task.isTransitSafe
+            isTransitSafe: task.isTransitSafe,
+            urgency: task.urgency,
+            importance: task.importance,
+            energyRequired: task.energyRequired,
+            context: task.context,
+            skipCount: task.skipCount,
+            createdAt: task.receivedAt
         )
     }
 

@@ -67,10 +67,10 @@ struct Tier0Observation: Codable, Sendable, Identifiable {
     }
 }
 
-enum SignalSource: String, Codable, Sendable {
+enum SignalSource: Codable, Sendable, Equatable {
     case email
     case calendar
-    case appUsage = "app_usage"
+    case appUsage
     case system
     case keystroke
     case voice
@@ -78,6 +78,42 @@ enum SignalSource: String, Codable, Sendable {
     case oura
     case composite
     case engagement
+    case unknown(String)
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let raw = try container.decode(String.self)
+        switch raw {
+        case "email": self = .email
+        case "calendar": self = .calendar
+        case "app_usage": self = .appUsage
+        case "system": self = .system
+        case "keystroke": self = .keystroke
+        case "voice": self = .voice
+        case "healthkit": self = .healthkit
+        case "oura": self = .oura
+        case "composite": self = .composite
+        case "engagement": self = .engagement
+        default: self = .unknown(raw)
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch self {
+        case .email: try container.encode("email")
+        case .calendar: try container.encode("calendar")
+        case .appUsage: try container.encode("app_usage")
+        case .system: try container.encode("system")
+        case .keystroke: try container.encode("keystroke")
+        case .voice: try container.encode("voice")
+        case .healthkit: try container.encode("healthkit")
+        case .oura: try container.encode("oura")
+        case .composite: try container.encode("composite")
+        case .engagement: try container.encode("engagement")
+        case .unknown(let raw): try container.encode(raw)
+        }
+    }
 }
 
 /// Type-erased Codable wrapper for JSONB raw_data field.

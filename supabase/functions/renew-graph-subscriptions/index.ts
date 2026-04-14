@@ -5,13 +5,17 @@
 
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createRequestLogger } from "../_shared/logger.ts";
+import { requireEnv } from "../_shared/config.ts";
 
 const supabase = createClient(
-  Deno.env.get("SUPABASE_URL")!,
-  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+  requireEnv("SUPABASE_URL"),
+  requireEnv("SUPABASE_SERVICE_ROLE_KEY")
 );
 
 serve(async (_req: Request) => {
+  const log = createRequestLogger("renew-graph-subscriptions");
+  try {
   const renewWindowCutoff = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
   // 1. Fetch all email_accounts with subscriptions expiring within 24 hours
@@ -101,8 +105,13 @@ serve(async (_req: Request) => {
   }
 
   // 3. Return summary
+  log.info("complete", { renewed, failed, needsReauth });
   return new Response(
     JSON.stringify({ renewed, failed, needsReauth }),
     { status: 200, headers: { "Content-Type": "application/json" } }
   );
+  } catch (err) {
+    log.error("unhandled", err);
+    return new Response(JSON.stringify({ error: err instanceof Error ? err.message : "Internal error", request_id: log.request_id }), { status: 500, headers: { "Content-Type": "application/json" } });
+  }
 });

@@ -5,13 +5,25 @@
 
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { verifyAuth, AuthError, authErrorResponse } from "../_shared/auth.ts";
+import { createRequestLogger } from "../_shared/logger.ts";
+import { requireEnv } from "../_shared/config.ts";
 
 const supabase = createClient(
-  Deno.env.get("SUPABASE_URL")!,
-  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+  requireEnv("SUPABASE_URL"),
+  requireEnv("SUPABASE_SERVICE_ROLE_KEY")
 );
 
 serve(async (req: Request) => {
+  const log = createRequestLogger("detect-reply");
+  try {
+  try {
+    await verifyAuth(req);
+  } catch (err) {
+    if (err instanceof AuthError) return authErrorResponse(err);
+    throw err;
+  }
+
   const { workspaceId, waitingItemId, fromAddress, subjectKeywords } = await req.json();
 
   if (!workspaceId || !waitingItemId || !fromAddress) {
@@ -118,6 +130,7 @@ serve(async (req: Request) => {
     ? new Date(waitingItem.expected_by).getTime() < now
     : false;
 
+  log.info("complete", { workspace_id: workspaceId, waiting_item_id: waitingItemId, resolved: false });
   return new Response(
     JSON.stringify({
       resolved: false,
@@ -126,4 +139,8 @@ serve(async (req: Request) => {
     }),
     { status: 200, headers: { "Content-Type": "application/json" } }
   );
+  } catch (err) {
+    log.error("unhandled", err);
+    return new Response(JSON.stringify({ error: err instanceof Error ? err.message : "Internal error", request_id: log.request_id }), { status: 500, headers: { "Content-Type": "application/json" } });
+  }
 });

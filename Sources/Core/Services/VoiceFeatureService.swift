@@ -91,7 +91,11 @@ actor VoiceFeatureService {
                     "confidence": AnyCodable(features.confidence),
                 ]
             )
-            try? await Tier0Writer.shared.recordObservation(observation)
+            do {
+                try await Tier0Writer.shared.recordObservation(observation)
+            } catch {
+                TimedLogger.voice.error("Tier0 voice observation write failed: \(error.localizedDescription)")
+            }
 
             let dur = Int(durationSeconds)
             TimedLogger.dataStore.info("VoiceFeatureService: processed \(dur)s audio segment")

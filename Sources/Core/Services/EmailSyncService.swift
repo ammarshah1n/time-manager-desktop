@@ -407,7 +407,11 @@ actor EmailSyncService {
             rawData: rawData,
             importanceScore: 0.5
         )
-        try? await Tier0Writer.shared.recordObservation(observation)
+        do {
+            try await Tier0Writer.shared.recordObservation(observation)
+        } catch {
+            TimedLogger.graph.error("Tier0 observation write failed: \(error.localizedDescription)")
+        }
 
         let counterpartyAddress = observationCounterpartyAddress(for: message)
         let importance = importanceLabel(for: senderImportanceScore(counterpartyAddress ?? senderAddress ?? ""))
@@ -428,7 +432,11 @@ actor EmailSyncService {
             threadDepth: threadDepth,
             categories: [senderCategory]
         )
-        try? await persistEmailObservation(emailObservation)
+        do {
+            try await persistEmailObservation(emailObservation)
+        } catch {
+            TimedLogger.graph.error("Email observation persist failed: \(error.localizedDescription)")
+        }
     }
 
     private func resolvedExecutiveId(_ explicitProfileId: UUID?) async -> UUID? {

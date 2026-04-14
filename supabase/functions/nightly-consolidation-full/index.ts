@@ -2,13 +2,16 @@ import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { callAnthropic, extractText, submitBatch } from "../_shared/anthropic.ts";
 import type { AnthropicModel } from "../_shared/anthropic.ts";
+import { createRequestLogger } from "../_shared/logger.ts";
+import { requireEnv } from "../_shared/config.ts";
 
 // Cron: 0 2 * * * (2 AM local)
 // Orchestrates: importance scoring → conflict detection → daily summary → ACB generation → self-improvement loop
 
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const SUPABASE_URL = requireEnv("SUPABASE_URL");
+const SUPABASE_SERVICE_KEY = requireEnv("SUPABASE_SERVICE_ROLE_KEY");
 const MAX_IMPORTANCE_BATCH = 200;
+const WRITE_CHUNK_SIZE = 50;
 
 type SupabaseClient = ReturnType<typeof createClient>;
 
@@ -83,13 +86,18 @@ async function runImportanceScoring(client: SupabaseClient, executiveId: string)
     scores = scoreText.match(/\d+/g)?.map(Number) ?? [];
   }
 
-  // Update importance scores
+  // Update batch scores in parallel chunks
+  const pass1ScoredAt = new Date().toISOString();
+  const pass1Updates = [];
   for (let i = 0; i < Math.min(scores.length, unscored.length); i++) {
     const score = Math.max(1, Math.min(10, scores[i])) / 10.0;
-    await client
+    pass1Updates.push(client
       .from("tier0_observations")
-      .update({ importance_score: score })
-      .eq("id", unscored[i].id);
+      .update({ batch_score: score, batch_scored_at: pass1ScoredAt, batch_model: "claude-haiku-4-5-20251001" })
+      .eq("id", unscored[i].id));
+  }
+  for (let j = 0; j < pass1Updates.length; j += WRITE_CHUNK_SIZE) {
+    await Promise.all(pass1Updates.slice(j, j + WRITE_CHUNK_SIZE));
   }
 
   // Pass 2: Sonnet re-scores uncertain band (0.55-0.75)
@@ -97,8 +105,8 @@ async function runImportanceScoring(client: SupabaseClient, executiveId: string)
     .from("tier0_observations")
     .select("id, summary, source, event_type, raw_data")
     .eq("profile_id", executiveId)
-    .gte("importance_score", 0.55)
-    .lte("importance_score", 0.75)
+    .gte("batch_score", 0.55)
+    .lte("batch_score", 0.75)
     .eq("is_processed", false)
     .limit(50);
 
@@ -127,12 +135,17 @@ async function runImportanceScoring(client: SupabaseClient, executiveId: string)
       pass2Scores = pass2Text.match(/\d+/g)?.map(Number) ?? [];
     }
 
+    const pass2ScoredAt = new Date().toISOString();
+    const pass2Updates = [];
     for (let i = 0; i < Math.min(pass2Scores.length, uncertain.length); i++) {
       const score = Math.max(1, Math.min(10, pass2Scores[i])) / 10.0;
-      await client
+      pass2Updates.push(client
         .from("tier0_observations")
-        .update({ importance_score: score })
-        .eq("id", uncertain[i].id);
+        .update({ batch_score: score, batch_scored_at: pass2ScoredAt, batch_model: "claude-sonnet-4-6" })
+        .eq("id", uncertain[i].id));
+    }
+    for (let j = 0; j < pass2Updates.length; j += WRITE_CHUNK_SIZE) {
+      await Promise.all(pass2Updates.slice(j, j + WRITE_CHUNK_SIZE));
     }
   }
 
@@ -210,21 +223,16 @@ async function runConflictDetection(client: SupabaseClient, executiveId: string)
     contradictions = [];
   }
 
-  // Tag observations with contradiction > 0.7
+  // Tag observations with contradiction > 0.7 — use jsonb merge to avoid stale spread
   const tagged = contradictions.filter((c) => c.contradiction_score > 0.7);
-  for (const c of tagged) {
-    if (c.observation_index < todayObs.length) {
-      await client
-        .from("tier0_observations")
-        .update({
-          raw_data: {
-            ...todayObs[c.observation_index].raw_data,
-            contradiction_score: c.contradiction_score,
-            contradicts_memory_id: c.contradicts_id,
-          },
-        })
-        .eq("id", todayObs[c.observation_index].id);
-    }
+  const tagUpdates = tagged
+    .filter((c) => c.observation_index < todayObs.length)
+    .map((c) => client.rpc("merge_observation_raw_data", {
+      obs_id: todayObs[c.observation_index].id,
+      merge_data: { contradiction_score: c.contradiction_score, contradicts_memory_id: c.contradicts_id },
+    }));
+  for (let j = 0; j < tagUpdates.length; j += WRITE_CHUNK_SIZE) {
+    await Promise.all(tagUpdates.slice(j, j + WRITE_CHUNK_SIZE));
   }
 
   return {
@@ -254,7 +262,7 @@ async function runDailySummary(client: SupabaseClient, executiveId: string): Pro
 
   const { data: observations } = await client
     .from("tier0_observations")
-    .select("*")
+    .select("id, profile_id, occurred_at, source, event_type, summary, raw_data, importance_score, batch_score, authoritative_score, baseline_deviation, is_processed")
     .eq("profile_id", executiveId)
     .gte("occurred_at", today)
     .order("occurred_at", { ascending: true });
@@ -265,7 +273,7 @@ async function runDailySummary(client: SupabaseClient, executiveId: string): Pro
 
   const { data: baselines } = await client
     .from("baselines")
-    .select("*")
+    .select("id, signal_type, metric_name, mean, stddev, sample_count")
     .eq("profile_id", executiveId);
 
   // Fetch ACB-FULL for context injection
@@ -351,13 +359,13 @@ async function runACBGeneration(client: SupabaseClient, executiveId: string): Pr
   // Gather context for ACB generation
   const { data: tier3Traits } = await client
     .from("tier3_personality_traits")
-    .select("*")
+    .select("id, trait_name, description, precision, evidence_chain, valid_from, valid_to")
     .eq("profile_id", executiveId)
     .is("valid_to", null);
 
   const { data: tier2Sigs } = await client
     .from("tier2_behavioural_signatures")
-    .select("*")
+    .select("id, signature_name, pattern_type, description, confidence, status, supporting_tier1_ids, first_observed, last_observed")
     .eq("profile_id", executiveId)
     .in("status", ["confirmed", "developing"]);
 
@@ -370,7 +378,7 @@ async function runACBGeneration(client: SupabaseClient, executiveId: string): Pr
 
   const { data: predictions } = await client
     .from("predictions")
-    .select("*")
+    .select("id, prediction_type, predicted_behaviour, time_window, confidence, status, brier_score, created_at")
     .eq("profile_id", executiveId)
     .in("status", ["active", "monitoring"]);
 
@@ -428,7 +436,7 @@ async function runSelfImprovement(client: SupabaseClient, executiveId: string): 
   const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
   const { data: recentSummaries } = await client
     .from("tier1_daily_summaries")
-    .select("*")
+    .select("summary_date, day_narrative, significant_events, anomalies, energy_profile, signals_aggregated")
     .eq("profile_id", executiveId)
     .gte("summary_date", sevenDaysAgo)
     .order("summary_date", { ascending: true });
@@ -458,14 +466,14 @@ async function runSelfImprovement(client: SupabaseClient, executiveId: string): 
     }]);
 
     // Log batch submission
-    await client.from("self_improvement_log").insert({
+    await client.from("self_improvement_log").upsert({
       profile_id: executiveId,
       log_date: new Date().toISOString().slice(0, 10),
       proposed_changes: { batch_id: batchId, status: "submitted" },
       accepted_changes: {},
       rejected_reasons: {},
       validation_results: {},
-    });
+    }, { onConflict: "profile_id,log_date" });
 
     return {
       status: "ok",
@@ -494,6 +502,8 @@ const PIPELINE_STEPS = [
 ];
 
 serve(async (req: Request) => {
+  const log = createRequestLogger("nightly-consolidation-full");
+  try {
   if (req.method === "OPTIONS") {
     return new Response("ok", { status: 200 });
   }
@@ -538,9 +548,14 @@ serve(async (req: Request) => {
     details: { results, total_duration_ms: Date.now() - pipelineStart },
   });
 
+  log.info("complete", { executives: Object.keys(results).length, duration_ms: Date.now() - pipelineStart });
   return new Response(JSON.stringify({
     pipeline: "nightly-consolidation-full",
     duration_ms: Date.now() - pipelineStart,
     results,
   }), { status: 200, headers: { "Content-Type": "application/json" } });
+  } catch (err) {
+    log.error("unhandled", err);
+    return new Response(JSON.stringify({ error: err instanceof Error ? err.message : "Internal error", request_id: log.request_id }), { status: 500, headers: { "Content-Type": "application/json" } });
+  }
 });

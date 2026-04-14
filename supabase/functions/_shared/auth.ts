@@ -4,10 +4,11 @@
 // Returns userId on success, throws 401-style error on failure.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { requireEnv } from "./config.ts";
 
 const supabase = createClient(
-  Deno.env.get("SUPABASE_URL")!,
-  Deno.env.get("SUPABASE_ANON_KEY")!
+  requireEnv("SUPABASE_URL"),
+  requireEnv("SUPABASE_ANON_KEY")
 );
 
 export class AuthError extends Error {

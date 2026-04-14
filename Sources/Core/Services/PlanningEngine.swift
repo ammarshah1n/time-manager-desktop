@@ -23,6 +23,7 @@ struct PlanRequest: Sendable {
     var calendarBlocks: [CalendarBlock] = []      // today's calendar events — meetings subtract from available time
     var workStartHour: Int = 9                    // user's preferred work window start (0–23)
     var workEndHour: Int = 18                     // user's preferred work window end (0–23)
+    var stateOfDay: StateOfDay = .default         // from morning interview; defaults before interview
 }
 
 enum MoodContext: String, Sendable {
@@ -51,6 +52,13 @@ struct PlanTask: Identifiable, Sendable {
     let isFamilyEmail: Bool
     let deferredCount: Int
     let isTransitSafe: Bool
+    // Dish Me Up scoring fields
+    let urgency: Int           // 1-5
+    let importance: Int        // 1-5
+    let energyRequired: String // high/medium/low
+    let context: String        // desk/transit/anywhere
+    let skipCount: Int         // algorithmic skip count
+    let createdAt: Date        // for days_in_backlog calculation
 }
 
 // MARK: - Output Types
@@ -74,7 +82,49 @@ struct ScoreBreakdown: Sendable {
     let timingBump: Int
     let thompsonBump: Int
     let workHourPenalty: Int
+    // Dish Me Up composite scoring layers
+    let energyBump: Int      // energy match/mismatch with user's current level
+    let ageingBump: Int      // days_in_backlog boost (prevents silent decay)
+    let skipPenalty: Int     // demotion for repeatedly skipped tasks
     let totalScore: Int
+}
+
+// MARK: - State of Day (Morning Interview Output)
+
+/// Parameterises the scoring engine and allocator with the user's current state.
+/// Populated by the morning interview (Phase 5); defaults used before interview runs.
+struct StateOfDay: Sendable {
+    let timeBudgetMinutes: Int       // from Q1: how much time available
+    let energyLevel: Int             // from Q2: 1-10 scale
+    let interruptibility: Interruptibility  // from Q3
+    let pinnedTaskIds: [UUID]        // from Q4: must-do items (max 2)
+    let carryOverConfirmed: Bool     // from Q5
+
+    enum Interruptibility: String, Sendable {
+        case high, medium, low
+    }
+
+    /// Sensible defaults before morning interview has been conducted
+    static let `default` = StateOfDay(
+        timeBudgetMinutes: 120,
+        energyLevel: 5,
+        interruptibility: .medium,
+        pinnedTaskIds: [],
+        carryOverConfirmed: false
+    )
+}
+
+/// Thread-safe shared state for the morning interview output.
+/// Written by MorningInterviewPane, read by PlanPane and DishMeUpSheet.
+final class MorningInterviewState: @unchecked Sendable {
+    static let shared = MorningInterviewState()
+    private let lock = NSLock()
+    private var _stateOfDay: StateOfDay = .default
+
+    var latestStateOfDay: StateOfDay {
+        get { lock.withLock { _stateOfDay } }
+        set { lock.withLock { _stateOfDay = newValue } }
+    }
 }
 
 struct PlanResult: Sendable {
@@ -149,7 +199,7 @@ enum PlanningEngine {
 
         // 1. Score all tasks
         var scored: [(task: PlanTask, breakdown: ScoreBreakdown)] = effectiveTasks.map { task in
-            let breakdown = scoreTask(task, now: now, moodContext: request.moodContext, behaviouralRules: request.behaviouralRules, bucketStats: request.bucketStats, bucketEstimates: request.bucketEstimates, availableMinutes: effectiveAvailable, workStartHour: request.workStartHour, workEndHour: request.workEndHour)
+            let breakdown = scoreTask(task, now: now, moodContext: request.moodContext, behaviouralRules: request.behaviouralRules, bucketStats: request.bucketStats, bucketEstimates: request.bucketEstimates, availableMinutes: effectiveAvailable, workStartHour: request.workStartHour, workEndHour: request.workEndHour, stateOfDay: request.stateOfDay)
             return (task, breakdown)
         }
 
@@ -170,7 +220,8 @@ enum PlanningEngine {
                         deadlineBump: breakdown.deadlineBump, moodBump: breakdown.moodBump,
                         behaviourBump: breakdown.behaviourBump, timingBump: breakdown.timingBump,
                         thompsonBump: breakdown.thompsonBump, workHourPenalty: breakdown.workHourPenalty,
-                        totalScore: newTotal
+                        energyBump: breakdown.energyBump, ageingBump: breakdown.ageingBump,
+                        skipPenalty: breakdown.skipPenalty, totalScore: newTotal
                     ))
                 }
             }
@@ -278,6 +329,8 @@ enum PlanningEngine {
     // MARK: - Scoring
 
     /// Computes a composite score for a task. Pure function.
+    /// Implements WSJF-inspired scoring: urgency/importance split, energy match,
+    /// ageing boost, skip demotion, and interruptibility modifier.
     static func scoreTask(
         _ task: PlanTask,
         now: Date,
@@ -287,15 +340,16 @@ enum PlanningEngine {
         bucketEstimates: [String: Double] = [:],
         availableMinutes: Int = 120,
         workStartHour: Int = 9,
-        workEndHour: Int = 18
+        workEndHour: Int = 18,
+        stateOfDay: StateOfDay = .default
     ) -> ScoreBreakdown {
 
         // Hard overrides for fixed-position tasks
         if task.isDailyUpdate {
-            return ScoreBreakdown(base: Score.fixedFirst, overdueBump: 0, deadlineBump: 0, moodBump: 0, behaviourBump: 0, timingBump: 0, thompsonBump: 0, workHourPenalty: 0, totalScore: Score.fixedFirst)
+            return ScoreBreakdown(base: Score.fixedFirst, overdueBump: 0, deadlineBump: 0, moodBump: 0, behaviourBump: 0, timingBump: 0, thompsonBump: 0, workHourPenalty: 0, energyBump: 0, ageingBump: 0, skipPenalty: 0, totalScore: Score.fixedFirst)
         }
         if task.isFamilyEmail {
-            return ScoreBreakdown(base: Score.fixedSecond, overdueBump: 0, deadlineBump: 0, moodBump: 0, behaviourBump: 0, timingBump: 0, thompsonBump: 0, workHourPenalty: 0, totalScore: Score.fixedSecond)
+            return ScoreBreakdown(base: Score.fixedSecond, overdueBump: 0, deadlineBump: 0, moodBump: 0, behaviourBump: 0, timingBump: 0, thompsonBump: 0, workHourPenalty: 0, energyBump: 0, ageingBump: 0, skipPenalty: 0, totalScore: Score.fixedSecond)
         }
 
         // Base: bucket type + priority + duration penalty
@@ -309,10 +363,26 @@ enum PlanningEngine {
         default:        bucketBase = 0
         }
 
-        // Priority is 0–5 scale from DB; multiply to give meaningful weight
-        let priorityBase = task.priority * 80
+        // Composite urgency/importance scoring (WSJF-inspired)
+        // S_base = w1·U + w2·I + w3·1/(D+1) where U=urgency, I=importance, D=days to deadline
+        let w1 = 0.4, w2 = 0.35, w3 = 0.25
+        let urgencyComponent = w1 * Double(task.urgency)
+        let importanceComponent = w2 * Double(task.importance)
+        let deadlineProximity: Double
+        if let dueAt = task.dueAt {
+            let daysUntilDue = max(0, dueAt.timeIntervalSince(now) / 86_400)
+            deadlineProximity = w3 * (1.0 / (daysUntilDue + 1.0))
+        } else {
+            deadlineProximity = 0
+        }
+        // Scale composite to match existing point system (~0-5 raw → 0-500 points)
+        let compositeScore = Int((urgencyComponent + importanceComponent + deadlineProximity) * 100)
 
-        // Quick win bump
+        // Priority is 0–5 scale from DB; multiply to give meaningful weight
+        // Blended: composite score dominates, legacy priority provides backward compat
+        let priorityBase = compositeScore + task.priority * 40
+
+        // Quick win bump — WSJF principle: short high-value tasks first
         let quickWin = task.estimatedMinutes <= 5 ? Score.quickWinBump : 0
 
         // Duration penalty — adaptive to session length (harsher in short sessions)
@@ -405,7 +475,48 @@ enum PlanningEngine {
             workHourPenalty = 0
         }
 
-        let total = base + overdueBump + deadlineBump + moodBump + behaviourBump + timingBump + thompsonBump + workHourPenalty
+        // --- Dish Me Up Composite Scoring Layers ---
+
+        // Energy match: boost tasks that match user's current energy, penalise mismatches
+        // Research: E_match = 1.2 if matched, 0.7 if mismatched, 1.0 neutral
+        let energyBump: Int
+        let userEnergy = stateOfDay.energyLevel
+        switch task.energyRequired {
+        case "high":
+            if userEnergy >= 7 { energyBump = 200 }          // high energy matches high task
+            else if userEnergy <= 4 { energyBump = -300 }     // demote deep work when tired
+            else { energyBump = 0 }
+        case "low":
+            if userEnergy <= 3 { energyBump = 150 }           // low-energy tasks match tired state
+            else if userEnergy >= 8 { energyBump = -100 }     // waste of peak energy
+            else { energyBump = 0 }
+        default: energyBump = 0                                // medium matches anything
+        }
+
+        // Ageing boost: prevents tasks from dying silently in the backlog
+        // Research: A_boost = 1.0 + 0.05 × days_in_backlog, capped at 1.5
+        let daysInBacklog = max(0, Int(now.timeIntervalSince(task.createdAt) / 86_400))
+        let ageingMultiplier = min(1.5, 1.0 + 0.05 * Double(daysInBacklog))
+        let ageingBump = daysInBacklog > 3 ? Int((ageingMultiplier - 1.0) * 500) : 0
+
+        // Skip demotion: if user keeps skipping a task, it signals scoring is wrong
+        // After 3 skips: flag it. After 5: heavy demotion (pushed toward "someday")
+        let skipPenalty: Int
+        if task.skipCount >= 5 { skipPenalty = -800 }
+        else if task.skipCount >= 3 { skipPenalty = -300 }
+        else { skipPenalty = 0 }
+
+        // Interruptibility modifier: penalise long tasks when user expects interruptions
+        let interruptPenalty: Int
+        if stateOfDay.interruptibility == .high && task.estimatedMinutes > 30 {
+            interruptPenalty = -400  // penalise long blocks in interruptible sessions
+        } else if stateOfDay.interruptibility == .low && task.estimatedMinutes > 60 {
+            interruptPenalty = 100   // boost deep blocks in protected time
+        } else {
+            interruptPenalty = 0
+        }
+
+        let total = base + overdueBump + deadlineBump + moodBump + behaviourBump + timingBump + thompsonBump + workHourPenalty + energyBump + ageingBump + skipPenalty + interruptPenalty
 
         return ScoreBreakdown(
             base: base,
@@ -416,6 +527,9 @@ enum PlanningEngine {
             timingBump: timingBump,
             thompsonBump: thompsonBump,
             workHourPenalty: workHourPenalty,
+            energyBump: energyBump,
+            ageingBump: ageingBump,
+            skipPenalty: skipPenalty,
             totalScore: total
         )
     }

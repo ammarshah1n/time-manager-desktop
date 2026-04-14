@@ -1,6 +1,8 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { callAnthropic, extractText } from "../_shared/anthropic.ts";
+import { createRequestLogger } from "../_shared/logger.ts";
+import { requireEnv } from "../_shared/config.ts";
 
 // Executive cognitive bias detection — 6-phase nightly pipeline
 // Cron: 0 3 * * * (3 AM, one hour after nightly phase2)
@@ -15,8 +17,8 @@ import { callAnthropic, extractText } from "../_shared/anthropic.ts";
 // Only the insight card generation step uses Opus adaptive thinking.
 // Requires 90-day personal baseline before surfacing insights.
 
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const SUPABASE_URL = requireEnv("SUPABASE_URL");
+const SUPABASE_SERVICE_KEY = requireEnv("SUPABASE_SERVICE_ROLE_KEY");
 
 const BIAS_TYPES = [
   "overconfidence", "anchoring", "sunk_cost", "availability",
@@ -32,6 +34,8 @@ const VIABLE_BIASES = new Set([
 const MIN_BASELINE_DAYS = 90;
 
 serve(async (req: Request) => {
+  const log = createRequestLogger("nightly-bias-detection");
+  try {
   if (req.method === "OPTIONS") {
     return new Response("ok", { status: 200 });
   }
@@ -162,16 +166,27 @@ ${signalContext}`,
         if (signal.strength < 0.3) continue;
 
         // Write signal observation
-        await client.from("bias_signal_observations").insert({
-          profile_id: executiveId,
-          bias_type: biasResult.bias_type,
-          signal_type: "extracted",
-          signal_value: signal.strength,
-          classification: signal.strength >= 0.6 ? "strong" : "moderate",
-          context_snapshot: { description: signal.description, evidence: signal.evidence },
-          meets_minimum_data: emails.length >= 10,
-        });
-        newObservations++;
+        try {
+          await client.from("bias_signal_observations").insert({
+            profile_id: executiveId,
+            bias_type: biasResult.bias_type,
+            signal_type: "extracted",
+            signal_value: signal.strength,
+            classification: signal.strength >= 0.6 ? "strong" : "moderate",
+            context_snapshot: { description: signal.description, evidence: signal.evidence },
+            meets_minimum_data: emails.length >= 10,
+          });
+          newObservations++;
+        } catch (error) {
+          const duplicateError =
+            typeof error === "object" &&
+            error !== null &&
+            "code" in error &&
+            error.code === "23505";
+          if (!duplicateError) {
+            throw error;
+          }
+        }
       }
 
       // Update or create evidence chain
@@ -338,9 +353,14 @@ Output JSON:
     details: { results, duration_ms: Date.now() - start },
   });
 
+  log.info("complete", { executives_processed: executives.length, duration_ms: Date.now() - start });
   return new Response(JSON.stringify({
     pipeline: "nightly-bias-detection",
     duration_ms: Date.now() - start,
     results,
   }), { status: 200, headers: { "Content-Type": "application/json" } });
+  } catch (err) {
+    log.error("unhandled", err);
+    return new Response(JSON.stringify({ error: err instanceof Error ? err.message : "Internal error", request_id: log.request_id }), { status: 500, headers: { "Content-Type": "application/json" } });
+  }
 });

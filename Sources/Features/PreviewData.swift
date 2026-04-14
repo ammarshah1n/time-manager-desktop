@@ -121,6 +121,12 @@ struct TimedTask: Identifiable, Codable, Sendable, Equatable {
     var planScore: Int? = nil
     // Planning: scheduled start time from generated plan
     var scheduledStartTime: Date? = nil
+    // Dish Me Up scoring fields
+    var urgency: Int = 3          // 1-5, time-sensitivity
+    var importance: Int = 3       // 1-5, strategic value
+    var energyRequired: String = "medium"  // high/medium/low
+    var context: String = "anywhere"       // desk/transit/anywhere
+    var skipCount: Int = 0        // times skipped when ranked highly
 
     /// True when uncertainty exceeds 25% of the estimated time
     var isUncertain: Bool {

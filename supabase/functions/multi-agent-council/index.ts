@@ -1,15 +1,19 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { callAnthropic, extractText } from "../_shared/anthropic.ts";
+import { createRequestLogger } from "../_shared/logger.ts";
+import { requireEnv } from "../_shared/config.ts";
 
 // Phase 8.06: Multi-agent council for high-stakes decisions
 // 3 specialist Opus agents in parallel + leader synthesis
 // Trigger: alert composite > 0.7 AND prediction confidence > 0.75 AND coaching stage >= workingAlliance
 
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const SUPABASE_URL = requireEnv("SUPABASE_URL");
+const SUPABASE_SERVICE_KEY = requireEnv("SUPABASE_SERVICE_ROLE_KEY");
 
 serve(async (req: Request) => {
+  const log = createRequestLogger("multi-agent-council");
+  try {
   if (req.method === "OPTIONS") {
     return new Response("ok", { status: 200 });
   }
@@ -216,6 +220,7 @@ Output JSON:
   const totalTokens = [energyResult, priorityResult, patternResult, leaderResponse]
     .reduce((sum, r) => sum + r.usage.input_tokens + r.usage.output_tokens, 0);
 
+  log.info("complete", { executive_id: executiveId, trigger_context: triggerContext, tokens_used: totalTokens });
   return new Response(JSON.stringify({
     status: "ok",
     trigger: triggerContext,
@@ -228,4 +233,8 @@ Output JSON:
     tokens_used: totalTokens,
     duration_ms: Date.now() - start,
   }), { status: 200, headers: { "Content-Type": "application/json" } });
+  } catch (err) {
+    log.error("unhandled", err);
+    return new Response(JSON.stringify({ error: err instanceof Error ? err.message : "Internal error", request_id: log.request_id }), { status: 500, headers: { "Content-Type": "application/json" } });
+  }
 });

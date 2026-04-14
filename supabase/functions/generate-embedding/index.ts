@@ -1,4 +1,7 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
+import { verifyAuth, AuthError, authErrorResponse } from "../_shared/auth.ts";
+import { createRequestLogger } from "../_shared/logger.ts";
+import { requireEnv } from "../_shared/config.ts";
 
 const MAX_BATCH_SIZE = 10;
 const VOYAGE_MODEL = "voyage-3";
@@ -135,8 +138,17 @@ function parseEmbeddingRows(data: ProviderEmbeddingItem[] | undefined, expectedC
 }
 
 serve(async (req: Request) => {
+  const log = createRequestLogger("generate-embedding");
+  try {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: responseHeaders() });
+  }
+
+  try {
+    await verifyAuth(req);
+  } catch (err) {
+    if (err instanceof AuthError) return authErrorResponse(err);
+    throw err;
   }
 
   if (req.method !== "POST") {
@@ -197,6 +209,7 @@ serve(async (req: Request) => {
       );
     }
 
+    log.info("complete", { tier: parsedBody.tier, texts: parsedBody.texts.length, dimension: provider.dimension });
     return jsonResponse({
       embeddings,
       dimension: provider.dimension,
@@ -212,5 +225,9 @@ serve(async (req: Request) => {
       },
       502,
     );
+  }
+  } catch (err) {
+    log.error("unhandled", err);
+    return new Response(JSON.stringify({ error: err instanceof Error ? err.message : "Internal error", request_id: log.request_id }), { status: 500, headers: { "Content-Type": "application/json" } });
   }
 });

@@ -1,14 +1,15 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getBatchStatus } from "../_shared/anthropic.ts";
+import { requireEnv } from "../_shared/config.ts";
 
 // Polls Anthropic Batch API for completed self-improvement results.
 // Writes accepted signatures to tier2_behavioural_signatures.
 // Cron: */30 * * * * (every 30 minutes)
 
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY")!;
+const SUPABASE_URL = requireEnv("SUPABASE_URL");
+const SUPABASE_SERVICE_KEY = requireEnv("SUPABASE_SERVICE_ROLE_KEY");
+const ANTHROPIC_API_KEY = requireEnv("ANTHROPIC_API_KEY");
 
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -107,7 +108,7 @@ serve(async (req: Request) => {
           // Write proposed signatures that pass validation to tier2
           for (const sig of parsed.proposed_signatures ?? []) {
             if (sig.confidence >= 0.6 && sig.passes_bocpd_floor !== false) {
-              await client.from("tier2_behavioural_signatures").insert({
+              await client.from("tier2_behavioural_signatures").upsert({
                 profile_id: log.profile_id,
                 signature_name: sig.signature_name,
                 pattern_type: sig.pattern_type ?? "emergent",
@@ -117,7 +118,7 @@ serve(async (req: Request) => {
                 supporting_tier1_ids: [],
                 first_observed: sig.supporting_dates?.[0] ?? new Date().toISOString().slice(0, 10),
                 last_observed: sig.supporting_dates?.at(-1) ?? new Date().toISOString().slice(0, 10),
-              });
+              }, { onConflict: "profile_id,signature_name" });
               acceptedSignatures++;
               acceptedChanges.push(sig);
             } else {
