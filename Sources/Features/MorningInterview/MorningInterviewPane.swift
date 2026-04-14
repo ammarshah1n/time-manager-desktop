@@ -1541,15 +1541,22 @@ struct MorningInterviewPane: View {
 
     private func handleEnergyResponse(_ response: VoiceResponse) {
         switch response {
-        case .number(let level):
+        case .number(let rawValue):
+            // VoiceResponseParser treats bare numbers as hours → minutes (*60)
+            // For energy: if divisible by 60 and quotient is 1-10, use the quotient
+            let level: Int
+            if rawValue >= 60 && rawValue % 60 == 0 && rawValue / 60 <= 10 {
+                level = rawValue / 60
+            } else {
+                level = rawValue
+            }
             energyLevel = min(10, max(1, level))
             advanceStep()
         case .affirmative:
-            // Keep current value and proceed
             advanceStep()
         default:
             if voiceMode {
-                speechService.speak("Tell me a number from 1 to 10. 1 is exhausted, 10 is peak energy.")
+                speechService.speak("Just a number from one to ten. One is running on empty, ten is firing on all cylinders.")
             }
         }
     }

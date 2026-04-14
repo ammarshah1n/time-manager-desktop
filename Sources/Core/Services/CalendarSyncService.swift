@@ -112,6 +112,7 @@ actor CalendarSyncService {
 
             let title = event.subject ?? "Untitled Event"
             let category = detectCategory(title: title)
+            let names = event.attendees?.compactMap { $0.emailAddress?.name }.filter { !$0.isEmpty }
 
             return CalendarBlock(
                 id: UUID(),
@@ -119,7 +120,8 @@ actor CalendarSyncService {
                 startTime: parsedEvent.startDate,
                 endTime: parsedEvent.endDate,
                 sourceEmailId: nil,
-                category: category
+                category: category,
+                attendeeNames: names?.isEmpty == true ? nil : names
             )
         }
 

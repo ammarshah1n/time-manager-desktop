@@ -1,4 +1,4 @@
-# BUILD_STATE.md — Last updated: 2026-04-14 (Intelligence Maximisation + Auth Bridge)
+# BUILD_STATE.md — Last updated: 2026-04-14 (Production Readiness for Yasser)
 
 ## What Exists and Works
 
@@ -84,8 +84,9 @@
 - [ ] Reflection engine tests — NOT STARTED
 
 ### Backend (Supabase)
-- [x] 36 SQL migrations deployed (15 original + 15 intelligence + 6 intelligence maximisation)
-- [x] 28 Edge Functions active (9 original + 12 intelligence + 7 intelligence maximisation)
+- [x] 48 SQL migrations deployed (all pushed 2026-04-14, including Dish Me Up task fields)
+- [x] 29 Edge Functions deployed (all deployed 2026-04-14)
+- [x] Anthropic API key set in Supabase secrets
 - [x] Dual-provider embeddings: Voyage (Tier 0, 1024-dim) + OpenAI (Tier 1-3, 3072-dim)
 - [x] Microsoft OAuth app registration (Azure) — client secret expires 2028-04-11
 - [x] Azure provider enabled in Supabase Auth dashboard, redirect URLs configured
@@ -144,4 +145,4 @@
 - **3 architecture syntheses:** `research/ARCHITECTURE-MEMORY.md`, `ARCHITECTURE-SIGNALS.md`, `ARCHITECTURE-DELIVERY.md`
 
 Any future build session should read `CLAUDE.md` → `BUILD_STATE.md` → relevant `ARCHITECTURE-*.md` → build.
-Last Session: 2026-04-14 12:58
+Last Session: 2026-04-14 17:09

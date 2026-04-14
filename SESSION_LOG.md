@@ -1,5 +1,29 @@
 # SESSION_LOG.md
 
+### 2026-04-14 (afternoon) — Production Readiness for Yasser + Dish Me Up Engine
+
+**Done**:
+- Dish Me Up engine: task scoring fields (migration + Swift), composite WSJF scoring, energy/ageing/skip layers
+- Morning Interview: energy buttons (replaced slider), interruptibility picker, StateOfDay output wired to PlanningEngine
+- Onboarding: single "Connect Outlook" button, surname inferred from email, PA → "Coming soon", reduced to 8 steps
+- Auth: auto-start email/calendar sync after Outlook connect, bootstrap retry with backoff
+- Focus timer: actual_minutes writeback → bucket estimates (Bayesian loop) → Supabase sync
+- Capture: bulk paste import, crash fix (VoiceCaptureService force-unwrap), clearer header
+- UI polish: no Supabase references, human-readable ML rules, friendly error messages
+- Backend: 12 migrations pushed (with fixes for $$ quoting, immutable indexes), 29 Edge Functions deployed, Anthropic API key set
+- Build scripts: package_app.sh embeds MSAL + URL schemes, create_dmg.sh for distribution
+- All merged to main and pushed
+
+**Discovered**:
+- VoiceCaptureService()! force-unwrap crashes app when speech recognition unavailable
+- Nested `$$` dollar-quoting in pg_cron schedules inside DO blocks causes syntax errors — use `$outer$`/`$cron$`
+- `::date` cast on timestamptz in unique index expressions is not immutable — need wrapper function
+- Running bare SwiftPM executable doesn't register as GUI app — need .app bundle for window + OAuth callbacks
+
+**Next**: Test end-to-end Outlook sign-in with real account, ElevenLabs voice integration (separate workstream), package DMG for Yasser
+
+---
+
 ### 2026-04-02 — Initial Audit & Documentation Architecture
 
 **Done:**
@@ -430,3 +454,233 @@ c1d52b6 fix: wire Supabase auth + anon key + DataBridge dual-write for productio
 .build/arm64-apple-macosx/debug/Functions.build/output-file-map.json
 .build/arm64-apple-macosx/debug/HTTPTypes.build/output-file-map.json
 .build/arm64-apple-macosx/debug/Dependencies.build/output-file-map.json
+
+---
+## Session: 2026-04-14 07:08
+
+### Commits This Session
+9de58d9 feat: add SessionStart hook for automatic session context loading
+364721a docs: update BUILD_STATE.md and SESSION_LOG.md for intelligence maximisation + auth bridge session
+740581f fix: unstaged Phase 0-12 changes — BurnoutPredictor thresholds, CalendarSync loop, RLS bypass migration
+c1d52b6 fix: wire Supabase auth + anon key + DataBridge dual-write for production readiness
+149aeda feat: steps 6+8+10+11 — alert engine dual-scoring, avoidance stream 3, relationship cards, ACB refresh
+
+### Modified Files
+.build/.lock
+.build/arm64-apple-macosx/debug/time-manager-desktop
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/MorningBriefingPane.d
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/PlanningEngine.dia
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/time_manager_desktop.emit-module.d
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/MorningInterviewPane.d
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/DishMeUpSheet.swiftdeps
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/PlanningEngine.swiftdeps
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/MorningBriefingPane.swiftdeps
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/DishMeUpSheet.dia
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/time_manager_desktop.emit-module.dia
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/PlanPane.swift.o
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/TimedRootView.dia
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/TimedRootView.d
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/PlanningEngine.d
+
+---
+## Session: 2026-04-14 07:25
+
+### Commits This Session
+aa49e62 fix: production readiness audit — security, resilience, data integrity, performance
+9de58d9 feat: add SessionStart hook for automatic session context loading
+364721a docs: update BUILD_STATE.md and SESSION_LOG.md for intelligence maximisation + auth bridge session
+740581f fix: unstaged Phase 0-12 changes — BurnoutPredictor thresholds, CalendarSync loop, RLS bypass migration
+c1d52b6 fix: wire Supabase auth + anon key + DataBridge dual-write for production readiness
+
+### Modified Files
+.build/.lock
+.build/arm64-apple-macosx/debug/time-manager-desktop
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/MorningBriefingPane.d
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/time_manager_desktop.emit-module.d
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/MorningBriefingPane.swiftdeps
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/time_manager_desktop.emit-module.dia
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/MorningBriefingPane.swift.o
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/MorningBriefingPane.dia
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/primary.priors
+.build/arm64-apple-macosx/debug/index/store/v5/units/MorningBriefingPane.swift.o-2BZPI013UWIY7
+.build/arm64-apple-macosx/debug/time-manager-desktop.dSYM/Contents/Resources/Relocations/aarch64/time-manager-desktop.yml
+.build/arm64-apple-macosx/debug/time-manager-desktop.dSYM/Contents/Resources/DWARF/time-manager-desktop
+.build/arm64-apple-macosx/debug/time-manager-desktop.dSYM/Contents/Resources/Swift/aarch64/MSAL.swiftinterface
+.build/arm64-apple-macosx/debug/time-manager-desktop.dSYM/Contents/Info.plist
+.build/arm64-apple-macosx/debug/Modules/time_manager_desktop.abi.json
+
+---
+## Session: 2026-04-14 14:00
+
+### Commits This Session
+aa49e62 fix: production readiness audit — security, resilience, data integrity, performance
+9de58d9 feat: add SessionStart hook for automatic session context loading
+364721a docs: update BUILD_STATE.md and SESSION_LOG.md for intelligence maximisation + auth bridge session
+740581f fix: unstaged Phase 0-12 changes — BurnoutPredictor thresholds, CalendarSync loop, RLS bypass migration
+c1d52b6 fix: wire Supabase auth + anon key + DataBridge dual-write for production readiness
+
+### Modified Files
+.build/.lock
+.build/arm64-apple-macosx/debug/time-manager-desktop
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/OnboardingFlow.dia
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/SharingPane.d
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/PrefsPane.swift.o
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/SharingPane.swiftdeps
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/time_manager_desktop.emit-module.d
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/OnboardingFlow.swift.o
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/SharingPane.swift.o
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/CapturePane.d
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/OnboardingFlow.swiftdeps
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/time_manager_desktop.emit-module.dia
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/TimedRootView.dia
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/TimedRootView.d
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/SharingPane.dia
+
+---
+## Session: 2026-04-14 14:11
+
+### Commits This Session
+aa49e62 fix: production readiness audit — security, resilience, data integrity, performance
+9de58d9 feat: add SessionStart hook for automatic session context loading
+364721a docs: update BUILD_STATE.md and SESSION_LOG.md for intelligence maximisation + auth bridge session
+740581f fix: unstaged Phase 0-12 changes — BurnoutPredictor thresholds, CalendarSync loop, RLS bypass migration
+c1d52b6 fix: wire Supabase auth + anon key + DataBridge dual-write for production readiness
+
+### Modified Files
+.build/.lock
+.build/arm64-apple-macosx/debug/time-manager-desktop
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/OnboardingFlow.dia
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/time_manager_desktop.emit-module.d
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/OnboardingFlow.swift.o
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/OnboardingFlow.swiftdeps
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/time_manager_desktop.emit-module.dia
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/TimedRootView.dia
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/TimedRootView.d
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/TimedRootView.swift.o
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/OnboardingFlow.d
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/primary.priors
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/TimedRootView.swiftdeps
+.build/arm64-apple-macosx/debug/index/store/v5/records/11/OnboardingFlow.swift-3EIQ9U2Q2UY11
+.build/arm64-apple-macosx/debug/index/store/v5/units/OnboardingFlow.swift.o-19OQA89C7ML4T
+
+---
+## Session: 2026-04-14 14:38
+
+### Commits This Session
+aa49e62 fix: production readiness audit — security, resilience, data integrity, performance
+9de58d9 feat: add SessionStart hook for automatic session context loading
+364721a docs: update BUILD_STATE.md and SESSION_LOG.md for intelligence maximisation + auth bridge session
+740581f fix: unstaged Phase 0-12 changes — BurnoutPredictor thresholds, CalendarSync loop, RLS bypass migration
+c1d52b6 fix: wire Supabase auth + anon key + DataBridge dual-write for production readiness
+
+### Modified Files
+.build/.lock
+.build/arm64-apple-macosx/debug/time-manager-desktop
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/VoiceCaptureService.swift.o
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/VoiceCaptureService.dia
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/VoiceCaptureService.d
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/time_manager_desktop.emit-module.d
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/MorningInterviewPane.d
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/CapturePane.d
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/time_manager_desktop.emit-module.dia
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/TimedRootView.dia
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/TimedRootView.d
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/MorningInterviewPane.dia
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/CapturePane.swift.o
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/VoiceCaptureService.swiftdeps
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/MorningInterviewPane.swiftdeps
+
+---
+## Session: 2026-04-14 14:51
+
+### Commits This Session
+aa49e62 fix: production readiness audit — security, resilience, data integrity, performance
+9de58d9 feat: add SessionStart hook for automatic session context loading
+364721a docs: update BUILD_STATE.md and SESSION_LOG.md for intelligence maximisation + auth bridge session
+740581f fix: unstaged Phase 0-12 changes — BurnoutPredictor thresholds, CalendarSync loop, RLS bypass migration
+c1d52b6 fix: wire Supabase auth + anon key + DataBridge dual-write for production readiness
+
+### Modified Files
+.build/.lock
+.build/arm64-apple-macosx/debug/time-manager-desktop
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/OnboardingFlow.dia
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/ONAGraphBuilder.dia
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/FirstLastActivityAgent.dia
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/AuthService.swift.o
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/SharingPane.d
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/RelationshipHealthService.dia
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/DisengagementDetector.swiftdeps
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/HistoricalBackfillService.d
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/MorningBriefingPane.d
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/AvoidanceDetector.dia
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/TaskExtractionService.d
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/AuthService.d
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/SharingPane.swiftdeps
+
+---
+## Session: 2026-04-14 15:12
+
+### Commits This Session
+aa49e62 fix: production readiness audit — security, resilience, data integrity, performance
+9de58d9 feat: add SessionStart hook for automatic session context loading
+364721a docs: update BUILD_STATE.md and SESSION_LOG.md for intelligence maximisation + auth bridge session
+740581f fix: unstaged Phase 0-12 changes — BurnoutPredictor thresholds, CalendarSync loop, RLS bypass migration
+c1d52b6 fix: wire Supabase auth + anon key + DataBridge dual-write for production readiness
+
+### Modified Files
+.build/.lock
+.build/debug.yaml
+.build/plugin-tools.yaml
+.build/arm64-apple-macosx/debug/Crypto.build/output-file-map.json
+.build/arm64-apple-macosx/debug/USearch.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftOperators.build/output-file-map.json
+.build/arm64-apple-macosx/debug/Supabase.build/output-file-map.json
+.build/arm64-apple-macosx/debug/CasePathsCore.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftParser-tool.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftCompilerPluginMessageHandling-tool.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftUINavigation.build/output-file-map.json
+.build/arm64-apple-macosx/debug/time-manager-desktop
+.build/arm64-apple-macosx/debug/Functions.build/output-file-map.json
+.build/arm64-apple-macosx/debug/HTTPTypes.build/output-file-map.json
+.build/arm64-apple-macosx/debug/Dependencies.build/output-file-map.json
+
+---
+## Session: 2026-04-14 16:57
+
+### Commits This Session
+47addcd feat: production readiness for Yasser — Dish Me Up engine, onboarding polish, backend deploy
+aa49e62 fix: production readiness audit — security, resilience, data integrity, performance
+9de58d9 feat: add SessionStart hook for automatic session context loading
+364721a docs: update BUILD_STATE.md and SESSION_LOG.md for intelligence maximisation + auth bridge session
+740581f fix: unstaged Phase 0-12 changes — BurnoutPredictor thresholds, CalendarSync loop, RLS bypass migration
+
+### Modified Files
+.build/.lock
+.build/debug.yaml
+.build/plugin-tools.yaml
+.build/arm64-apple-macosx/debug/Crypto.build/output-file-map.json
+.build/arm64-apple-macosx/debug/USearch.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftOperators.build/output-file-map.json
+.build/arm64-apple-macosx/debug/Supabase.build/output-file-map.json
+.build/arm64-apple-macosx/debug/CasePathsCore.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftParser-tool.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftCompilerPluginMessageHandling-tool.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftUINavigation.build/output-file-map.json
+.build/arm64-apple-macosx/debug/time-manager-desktop
+.build/arm64-apple-macosx/debug/Functions.build/output-file-map.json
+.build/arm64-apple-macosx/debug/HTTPTypes.build/output-file-map.json
+.build/arm64-apple-macosx/debug/Dependencies.build/output-file-map.json
+
+---
+## Session: 2026-04-14 17:09
+
+### Commits This Session
+47addcd feat: production readiness for Yasser — Dish Me Up engine, onboarding polish, backend deploy
+aa49e62 fix: production readiness audit — security, resilience, data integrity, performance
+9de58d9 feat: add SessionStart hook for automatic session context loading
+364721a docs: update BUILD_STATE.md and SESSION_LOG.md for intelligence maximisation + auth bridge session
+740581f fix: unstaged Phase 0-12 changes — BurnoutPredictor thresholds, CalendarSync loop, RLS bypass migration
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
