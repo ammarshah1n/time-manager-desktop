@@ -1,4 +1,4 @@
-# BUILD_STATE.md — Last updated: 2026-04-14 (Production Readiness for Yasser)
+# BUILD_STATE.md — Last updated: 2026-04-16 (ElevenLabs Onboarding + Intelligent Capture)
 
 ## What Exists and Works
 
@@ -47,7 +47,11 @@
 - [x] DishMeUpSheet.swift — "I have X minutes" planning (555 lines)
 - [x] FocusPane.swift — Circular countdown timer, Pomodoro, session persistence (505 lines)
 - [x] CalendarPane.swift — Weekly grid, drag-to-create, Outlook sync (656 lines)
-- [x] CapturePane.swift — Voice/text quick capture (393 lines)
+- [x] CapturePane.swift — Voice/text quick capture with Opus AI extraction (530 lines)
+- [x] CaptureAIClient.swift — Claude Opus 4.6 tool use for intelligent task parsing (145 lines)
+- [x] InterviewAIClient.swift — Opus-powered morning interview with ACB context (359 lines)
+- [x] SpeechService.swift — ElevenLabs TTS (Lily default) + AVSpeechSynthesizer fallback (192 lines)
+- [x] OnboardingFlow.swift — 10-step wizard with ElevenLabs voice narration + hero screen (580 lines)
 - [x] MorningInterviewPane.swift — 5-step voice morning interview (500+ lines)
 - [x] CommandPalette.swift — Cmd+K, fuzzy search, action registry (264 lines)
 - [x] MenuBarManager.swift — NSStatusItem, current task, next event (358 lines)
@@ -145,4 +149,4 @@
 - **3 architecture syntheses:** `research/ARCHITECTURE-MEMORY.md`, `ARCHITECTURE-SIGNALS.md`, `ARCHITECTURE-DELIVERY.md`
 
 Any future build session should read `CLAUDE.md` → `BUILD_STATE.md` → relevant `ARCHITECTURE-*.md` → build.
-Last Session: 2026-04-14 17:09
+Last Session: 2026-04-16 11:33

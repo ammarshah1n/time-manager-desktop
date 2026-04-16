@@ -1,5 +1,27 @@
 # SESSION_LOG.md
 
+### 2026-04-16 — ElevenLabs Onboarding Voice + Intelligent Capture + Hero Screen
+**Done**:
+- Redesigned onboarding from 8 to 10 steps: hero animation, name entry, voice picker
+- Hero screen: staggered "TIMED" fade-in with CEO cognitive load stat
+- ElevenLabs TTS narrates every onboarding step (Lily default, premade voices)
+- Voice picker: 3 ElevenLabs voices (Lily, Jessica, Eric) with play-to-sample
+- CaptureAIClient: Opus 4.6 tool use for intelligent task extraction from voice/text
+- CapturePane wired to AI client with spoken confirmation + fallback to regex parser
+- SpeechService default changed to Lily (premade, works on free tier)
+- Removed sample data loading — app starts completely clean
+- Generated white clock app icon for all sizes + .icns bundle
+- Committed prior session work: InterviewAIClient, audio waveform, color refactor
+**Discovered**:
+- ElevenLabs free tier blocks library voices (Rachel, Antoni) with 402
+- Only premade voices work: Lily, Jessica, Eric, George, Callum, Sarah, Bella
+- App bundle needs `@executable_path/../Frameworks` rpath for MSAL after binary copy
+**Next**:
+- Make onboarding screens voice-conversational (mic active, user talks back, Opus parses)
+- Replace temporary generated icon with user's actual logo
+- Test end-to-end sign-in flow
+- Deploy new edge functions + migrations
+
 ### 2026-04-14 (afternoon) — Production Readiness for Yasser + Dish Me Up Engine
 
 **Done**:
@@ -684,3 +706,146 @@ aa49e62 fix: production readiness audit — security, resilience, data integrity
 ### Modified Files
 logs/watchdog-launchd.log
 logs/watchdog.log
+
+---
+## Session: 2026-04-14 17:29
+
+### Commits This Session
+31f7f94 docs: session wrap-up — handoff, build state, session log + minor fixes
+47addcd feat: production readiness for Yasser — Dish Me Up engine, onboarding polish, backend deploy
+aa49e62 fix: production readiness audit — security, resilience, data integrity, performance
+9de58d9 feat: add SessionStart hook for automatic session context loading
+364721a docs: update BUILD_STATE.md and SESSION_LOG.md for intelligence maximisation + auth bridge session
+
+### Modified Files
+.build/.lock
+.build/debug.yaml
+.build/plugin-tools.yaml
+.build/arm64-apple-macosx/debug/Crypto.build/output-file-map.json
+.build/arm64-apple-macosx/debug/USearch.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftOperators.build/output-file-map.json
+.build/arm64-apple-macosx/debug/Supabase.build/output-file-map.json
+.build/arm64-apple-macosx/debug/CasePathsCore.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftParser-tool.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftCompilerPluginMessageHandling-tool.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftUINavigation.build/output-file-map.json
+.build/arm64-apple-macosx/debug/time-manager-desktop
+.build/arm64-apple-macosx/debug/Functions.build/output-file-map.json
+.build/arm64-apple-macosx/debug/HTTPTypes.build/output-file-map.json
+.build/arm64-apple-macosx/debug/Dependencies.build/output-file-map.json
+
+---
+## Session: 2026-04-14 17:41
+
+### Commits This Session
+31f7f94 docs: session wrap-up — handoff, build state, session log + minor fixes
+47addcd feat: production readiness for Yasser — Dish Me Up engine, onboarding polish, backend deploy
+aa49e62 fix: production readiness audit — security, resilience, data integrity, performance
+9de58d9 feat: add SessionStart hook for automatic session context loading
+364721a docs: update BUILD_STATE.md and SESSION_LOG.md for intelligence maximisation + auth bridge session
+
+### Modified Files
+.build/.lock
+.build/arm64-apple-macosx/debug/time-manager-desktop
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/QuickCapturePanel.swiftdeps
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/OnboardingFlow.dia
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/QuickCapturePanel.d
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/SharingPane.d
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/VoiceCaptureService.swift.o
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/VoiceCaptureService.dia
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/PrefsPane.swift.o
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/VoiceCaptureService.d
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/SpeechService.swift.o
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/SharingPane.swiftdeps
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/time_manager_desktop.emit-module.d
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/MorningInterviewPane.d
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/PreviewData.d
+
+---
+## Session: 2026-04-14 17:54
+
+### Commits This Session
+31f7f94 docs: session wrap-up — handoff, build state, session log + minor fixes
+47addcd feat: production readiness for Yasser — Dish Me Up engine, onboarding polish, backend deploy
+aa49e62 fix: production readiness audit — security, resilience, data integrity, performance
+9de58d9 feat: add SessionStart hook for automatic session context loading
+364721a docs: update BUILD_STATE.md and SESSION_LOG.md for intelligence maximisation + auth bridge session
+
+### Modified Files
+dist/TimeManagerDesktop.app/Contents/_CodeSignature/CodeResources
+dist/TimeManagerDesktop.app/Contents/MacOS/TimeManagerDesktop
+dist/TimeManagerDesktop.app/Contents/Resources/Timed.icns
+dist/TimeManagerDesktop.app/Contents/Frameworks/MSAL.framework/Versions/A/_CodeSignature/CodeResources
+dist/TimeManagerDesktop.app/Contents/Frameworks/MSAL.framework/Versions/A/Resources/Info.plist
+dist/TimeManagerDesktop.app/Contents/Frameworks/MSAL.framework/Versions/A/MSAL
+dist/TimeManagerDesktop.app/Contents/Frameworks/MSAL.framework/Versions/A/Headers/MSALGlobalConfig.h
+dist/TimeManagerDesktop.app/Contents/Frameworks/MSAL.framework/Versions/A/Headers/MSALDefinitions.h
+dist/TimeManagerDesktop.app/Contents/Frameworks/MSAL.framework/Versions/A/Headers/MSALWebviewParameters.h
+dist/TimeManagerDesktop.app/Contents/Frameworks/MSAL.framework/Versions/A/Headers/MSALJsonSerializable.h
+dist/TimeManagerDesktop.app/Contents/Frameworks/MSAL.framework/Versions/A/Headers/MSALAuthenticationSchemeProtocol.h
+dist/TimeManagerDesktop.app/Contents/Frameworks/MSAL.framework/Versions/A/Headers/MSALB2CAuthority.h
+dist/TimeManagerDesktop.app/Contents/Frameworks/MSAL.framework/Versions/A/Headers/MSAL.h
+dist/TimeManagerDesktop.app/Contents/Frameworks/MSAL.framework/Versions/A/Headers/MSALLogger.h
+dist/TimeManagerDesktop.app/Contents/Frameworks/MSAL.framework/Versions/A/Headers/MSALInteractiveTokenParameters.h
+
+---
+## Session: 2026-04-14 18:25
+
+### Commits This Session
+31f7f94 docs: session wrap-up — handoff, build state, session log + minor fixes
+47addcd feat: production readiness for Yasser — Dish Me Up engine, onboarding polish, backend deploy
+aa49e62 fix: production readiness audit — security, resilience, data integrity, performance
+9de58d9 feat: add SessionStart hook for automatic session context loading
+364721a docs: update BUILD_STATE.md and SESSION_LOG.md for intelligence maximisation + auth bridge session
+
+### Modified Files
+.build/.lock
+.build/debug.yaml
+.build/plugin-tools.yaml
+.build/arm64-apple-macosx/debug/Crypto.build/output-file-map.json
+.build/arm64-apple-macosx/debug/USearch.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftOperators.build/output-file-map.json
+.build/arm64-apple-macosx/debug/Supabase.build/output-file-map.json
+.build/arm64-apple-macosx/debug/CasePathsCore.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftParser-tool.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftCompilerPluginMessageHandling-tool.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftUINavigation.build/output-file-map.json
+.build/arm64-apple-macosx/debug/time-manager-desktop
+.build/arm64-apple-macosx/debug/Functions.build/output-file-map.json
+.build/arm64-apple-macosx/debug/HTTPTypes.build/output-file-map.json
+.build/arm64-apple-macosx/debug/Dependencies.build/output-file-map.json
+
+---
+## Session: 2026-04-14 21:07
+
+### Commits This Session
+31f7f94 docs: session wrap-up — handoff, build state, session log + minor fixes
+47addcd feat: production readiness for Yasser — Dish Me Up engine, onboarding polish, backend deploy
+aa49e62 fix: production readiness audit — security, resilience, data integrity, performance
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-16 11:33
+
+### Commits This Session
+7cef6d0 feat: ElevenLabs onboarding voice, intelligent capture with Opus 4.6, hero screen redesign
+
+### Modified Files
+.build/.lock
+.build/arm64-apple-macosx/debug/time-manager-desktop
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/OnboardingFlow.dia
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/SpeechService.swift.o
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/time_manager_desktop.emit-module.d
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/MorningInterviewPane.d
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/OnboardingFlow.swift.o
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/CapturePane.d
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/OnboardingFlow.swiftdeps
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/time_manager_desktop.emit-module.dia
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/TimedRootView.dia
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/SpeechService.dia
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/TimedRootView.d
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/MorningInterviewPane.dia
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/SpeechService.swiftdeps

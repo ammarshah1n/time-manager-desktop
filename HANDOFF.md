@@ -1,32 +1,33 @@
-# Session Handoff — 2026-04-14 15:30 GMT+2
+# Session Handoff — 2026-04-16 GMT+2
 
 ## Done This Session
-- **Dish Me Up engine built** — composite WSJF scoring (urgency/importance/energy/ageing/skip), StateOfDay, energy hard filter, context filter, training signals
-- **Morning Interview enhanced** — 7 steps with energy buttons + interruptibility picker, produces StateOfDay for planning engine
-- **Onboarding polished** — single "Connect Outlook", no Supabase visible, PA → "Coming soon", surname inferred from email, 8 steps
-- **Auth hardened** — auto-start email/calendar sync after connect, bootstrap retry (3 attempts, exponential backoff)
-- **Focus timer feedback** — actual_minutes writeback → bucket estimates (EMA) → Supabase estimation_history trigger
-- **Capture fixed** — crash fix (VoiceCaptureService force-unwrap), bulk paste import, clear purpose header
-- **UI audit** — removed all Supabase/developer jargon from user-facing views
-- **Backend deployed** — 12 migrations pushed (with $$ quoting + immutable index fixes), 29 Edge Functions deployed, Anthropic API key set
-- **Build scripts** — package_app.sh embeds MSAL.framework + URL schemes, create_dmg.sh for DMG distribution
-- **Merged to main** — commit 47addcd pushed to GitHub
+- **Onboarding redesigned** — 8 → 10 steps: hero screen ("TIMED" staggered animation + CEO stat), name entry, voice picker
+- **ElevenLabs voice on all onboarding steps** — narrates each step, Lily (premade) as default
+- **Voice picker** — 3 premade voices (Lily, Jessica, Eric) with play-to-sample, selection persists
+- **CaptureAIClient** — new Opus 4.6 client for intelligent task extraction via tool use
+- **CapturePane wired to AI** — voice and text capture try Opus first, spoken confirmation, regex fallback
+- **SpeechService default** — changed to Lily (premade, works on free ElevenLabs tier)
+- **Sample data removed** — app starts completely clean, no old tasks
+- **App icon** — white clock icon generated for all sizes + .icns
+- **Prior session committed** — InterviewAIClient, audio waveform, color refactor, VoiceCaptureService
 
 ## Current State
-- Branch: `ui/apple-v1-restore` (merged to `main`)
-- Build: clean (swift build ~0.2s cached)
-- App: runs from `dist/TimeManagerDesktop.app` (manually updated binary)
-- Backend: fully deployed — 48 migrations, 29 Edge Functions, API key set
+- Branch: `ui/apple-v1-restore` — pushed to origin (7cef6d0)
+- Build: clean (swift build ~6s, ~13s fresh)
+- App: runs from `dist/TimeManagerDesktop.app`
+- ElevenLabs: working with premade voices on free tier
+- Anthropic API: wired for InterviewAIClient + CaptureAIClient (key in AppStorage)
 
 ## Known Issues
-- ElevenLabs voice integration not yet done (Ammar working on it separately, key: in conversation)
+- ElevenLabs free tier blocks library voices (Rachel 402, Antoni 402) — only premade voices work
+- Onboarding screens are form-based — user wants voice-conversational (mic active, user talks back, Opus parses)
+- App bundle needs `@executable_path/../Frameworks` rpath manually added after binary copy
 - End-to-end Outlook sign-in never tested with real account
-- `dist/TimeManagerDesktop.app` has manually embedded MSAL — run `scripts/package_app.sh` for proper release build
-- Voice response parser maps bare numbers as hours→minutes (fixed for energy step but may affect other contexts)
+- User's actual logo image not yet integrated (provided but not processed)
 
 ## Next
-1. **Test Outlook sign-in** with Yasser's real Microsoft 365 account
-2. **ElevenLabs voice** — replace AVSpeechSynthesizer in SpeechService.swift (prompt provided to Ammar)
-3. **Package DMG** — `bash scripts/package_app.sh && bash scripts/create_dmg.sh`
-4. **Deliver to Yasser** — DMG + first-launch instructions (right-click → Open for Gatekeeper)
-5. **Observe first use** — fix whatever breaks in real usage
+1. **Conversational onboarding** — enable mic on each setup step, user speaks answers, Opus parses and fills values
+2. **Integrate user's logo** — replace generated white clock with actual provided image
+3. **Test Outlook sign-in** with real Microsoft 365 account
+4. **Package DMG** for delivery to Yasser
+5. **Deploy edge functions + migrations** — 7 new functions, 6 new migrations from intelligence engine
