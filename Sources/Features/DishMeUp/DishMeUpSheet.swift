@@ -51,7 +51,7 @@ enum DishMeUpMood: String, CaseIterable {
         case .none:      Color(.systemGray)
         case .easyWins:  .green
         case .avoidance: .orange
-        case .deepFocus: .indigo
+        case .deepFocus: .primary
         }
     }
 }
@@ -165,7 +165,7 @@ struct DishMeUpSheet: View {
                             .frame(minWidth: 48)
                             .padding(.horizontal, 14).padding(.vertical, 8)
                             .background(
-                                minutes == preset.mins ? Color.indigo : Color(.controlBackgroundColor),
+                                minutes == preset.mins ? Color.primary : Color(.controlBackgroundColor),
                                 in: RoundedRectangle(cornerRadius: 8)
                             )
                             .foregroundStyle(minutes == preset.mins ? .white : .primary)
@@ -213,7 +213,7 @@ struct DishMeUpSheet: View {
                         }
                         .padding(.horizontal, 12).padding(.vertical, 7)
                         .background(
-                            context == c ? Color.indigo : Color(.controlBackgroundColor),
+                            context == c ? Color.primary : Color(.controlBackgroundColor),
                             in: RoundedRectangle(cornerRadius: 8)
                         )
                         .foregroundStyle(context == c ? .white : .primary)
@@ -336,12 +336,12 @@ struct DishMeUpSheet: View {
             // Flight offline note
             if context == .flight {
                 HStack(spacing: 6) {
-                    Image(systemName: "airplane").font(.system(size: 10)).foregroundStyle(.indigo)
+                    Image(systemName: "airplane").font(.system(size: 10)).foregroundStyle(.primary)
                     Text("Plan saved for offline use")
-                        .font(.system(size: 11, weight: .medium)).foregroundStyle(.indigo)
+                        .font(.system(size: 11, weight: .medium)).foregroundStyle(.primary)
                 }
                 .padding(.horizontal, 12).padding(.vertical, 6)
-                .background(Color.indigo.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+                .background(Color.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
             }
 
             // Allocation stats
@@ -400,7 +400,7 @@ struct DishMeUpSheet: View {
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
-                    .background(.indigo, in: RoundedRectangle(cornerRadius: 10))
+                    .background(.primary, in: RoundedRectangle(cornerRadius: 10))
                 }
                 .buttonStyle(.plain)
             } else {
@@ -417,7 +417,7 @@ struct DishMeUpSheet: View {
                     }
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(.indigo)
+                .tint(.primary)
                 .keyboardShortcut(.return)
             }
         }

@@ -1,5 +1,5 @@
 // OnboardingFlow.swift — Timed macOS
-// First-launch voice-style setup wizard. 8 steps, animated transitions.
+// First-launch setup wizard with ElevenLabs voice narration. 10 steps, animated transitions.
 
 import SwiftUI
 
@@ -8,46 +8,59 @@ import SwiftUI
 struct OnboardingFlow: View {
     let onComplete: () -> Void
     @StateObject private var auth = AuthService.shared
+    @StateObject private var speechService = SpeechService()
 
     @State private var currentStep: Int = 0
 
-    // Step 1 — Accounts
+    // Step 1 — Name
+    @AppStorage("onboarding_userName") private var userName: String = ""
+
+    // Step 2 — Voice
+    @AppStorage("elevenlabs_voice_id") private var selectedVoiceId: String = "pFZP5JQG7iQjIQuC4Bku"
+
+    // Step 3 — Accounts
     @AppStorage("accounts.outlook.connected") private var outlookConnected: Bool = false
     @AppStorage("accounts.supabase.connected") private var supabaseConnected: Bool = false
 
-    // Step 2 — Connect Email
+    // Step 4 — Connect Email
     @AppStorage("onboarding_email") private var emailHint: String = ""
 
-    // Step 3 — Work Day
+    // Step 5 — Work Day
     @AppStorage("onboarding_workdayHours") private var workdayHours: Int = 9
     @AppStorage("onboarding_todayHours") private var todayHours: Int = 7
     @AppStorage("onboarding_workStartHour") private var workStartHour: Int = 9
     @AppStorage("onboarding_workEndHour") private var workEndHour: Int = 18
 
-    // Step 4 — Email Cadence
+    // Step 6 — Email Cadence
     @AppStorage("onboarding_emailCadence") private var emailCadence: Int = 2
     @AppStorage("onboarding_familySurname") private var familySurname: String = ""
 
-    // Step 5 — Time Defaults
+    // Step 7 — Time Defaults
     @AppStorage("onboarding_replyMins") private var replyMins: Int = 5
     @AppStorage("onboarding_actionMins") private var actionMins: Int = 30
     @AppStorage("onboarding_callMins") private var callMins: Int = 15
     @AppStorage("onboarding_readMins") private var readMins: Int = 20
 
-    // Step 6 — Transit
+    // Step 8 — Transit
     @AppStorage("onboarding_transitModes") private var transitModes: String = ""
 
-    // Step 7 — PA
+    // Step 9 — PA
     @AppStorage("onboarding_paEmail") private var paEmail: String = ""
     @AppStorage("onboarding_paEnabled") private var paEnabled: Bool = false
 
-    private let totalSteps = 8
+    private let totalSteps = 10
 
-    // Transit checkbox state (derived from transitModes AppStorage)
+    // Transit checkbox state
     @State private var transitChauffeur: Bool = false
     @State private var transitTrain: Bool = false
     @State private var transitPlane: Bool = false
     @State private var transitDrive: Bool = false
+
+    // Hero animation
+    @State private var heroTitleVisible = false
+    @State private var heroSubtitleVisible = false
+    @State private var heroStatVisible = false
+    @State private var heroCtaVisible = false
 
     var body: some View {
         ZStack {
@@ -79,6 +92,29 @@ struct OnboardingFlow: View {
         .background(Color(.controlBackgroundColor))
         .cornerRadius(16)
         .shadow(color: .black.opacity(0.35), radius: 24, x: 0, y: 8)
+        .onChange(of: currentStep) { _, newStep in
+            speechService.stop()
+            let name = userName.isEmpty ? "" : userName
+            switch newStep {
+            case 0: break // Hero handles its own speech
+            case 1: break // Name step handles its own speech
+            case 2: break // Voice picker handles its own speech
+            case 3:
+                speechService.speak("Let's connect your Outlook\(name.isEmpty ? "" : ", \(name)"). This is how I'll understand your calendar and your emails.")
+            case 4:
+                speechService.speak("How long is your typical work day? This helps me tell you how much you can realistically fit in.")
+            case 5:
+                speechService.speak("How often do you check email? I'll batch replies and surface them at your cadence.")
+            case 6:
+                speechService.speak("Set your time defaults. You can always override — but here's where we start.")
+            case 7:
+                speechService.speak("How do you travel? I'll surface the right tasks when you're in transit.")
+            case 8: break // PA — placeholder
+            case 9:
+                speechService.speak("You're ready\(name.isEmpty ? "" : ", \(name)"). Let's start your day.")
+            default: break
+            }
+        }
     }
 
     // MARK: - Progress Dots
@@ -87,7 +123,7 @@ struct OnboardingFlow: View {
         HStack(spacing: 8) {
             ForEach(0..<totalSteps, id: \.self) { index in
                 Circle()
-                    .fill(index <= currentStep ? Color.indigo : Color.secondary.opacity(0.3))
+                    .fill(index <= currentStep ? Color.primary : Color.secondary.opacity(0.3))
                     .frame(width: 6, height: 6)
             }
         }
@@ -99,14 +135,16 @@ struct OnboardingFlow: View {
     private var stepContent: some View {
         Group {
             switch currentStep {
-            case 0: step1Welcome
-            case 1: step2Accounts
-            case 2: step4WorkDay
-            case 3: step5Cadence
-            case 4: step6TimeDefaults
-            case 5: step7Transit
-            case 6: step8PA
-            case 7: step9Done
+            case 0: stepHero
+            case 1: stepName
+            case 2: stepVoicePicker
+            case 3: stepAccounts
+            case 4: stepWorkDay
+            case 5: stepCadence
+            case 6: stepTimeDefaults
+            case 7: stepTransit
+            case 8: stepPA
+            case 9: stepDone
             default: EmptyView()
             }
         }
@@ -117,42 +155,165 @@ struct OnboardingFlow: View {
         .animation(.spring(duration: 0.35), value: currentStep)
     }
 
-    // MARK: - Step 1: Welcome
+    // MARK: - Step 0: Hero
 
-    private var step1Welcome: some View {
-        StepLayout(
-            icon: "sparkles",
-            iconColor: .indigo,
-            headline: "Welcome to Timed",
-            bodyText:"The time allocation engine. Set up takes 2 minutes."
-        ) {
-            EmptyView()
+    private var stepHero: some View {
+        VStack(spacing: 0) {
+            Spacer()
+
+            Text("TIMED")
+                .font(.system(size: 52, weight: .black))
+                .tracking(6)
+                .opacity(heroTitleVisible ? 1 : 0)
+
+            Text("The most intelligent executive OS ever built.")
+                .font(.system(size: 16, weight: .medium))
+                .foregroundStyle(.secondary)
+                .padding(.top, 16)
+                .opacity(heroSubtitleVisible ? 1 : 0)
+
+            VStack(spacing: 4) {
+                Text("CEOs spend 72% of their work week on task allocation,")
+                Text("context switching, and deciding what to do next")
+                Text("— not the work itself.")
+                    .fontWeight(.semibold)
+            }
+            .font(.system(size: 13))
+            .foregroundStyle(.secondary)
+            .multilineTextAlignment(.center)
+            .padding(.top, 32)
+            .opacity(heroStatVisible ? 1 : 0)
+
+            Text("That ends now.")
+                .font(.system(size: 18, weight: .bold))
+                .padding(.top, 24)
+                .opacity(heroCtaVisible ? 1 : 0)
+
+            Spacer()
+        }
+        .frame(maxWidth: .infinity)
+        .onAppear {
+            withAnimation(.easeIn(duration: 0.6).delay(0.3)) { heroTitleVisible = true }
+            withAnimation(.easeIn(duration: 0.6).delay(1.1)) { heroSubtitleVisible = true }
+            withAnimation(.easeIn(duration: 0.6).delay(1.9)) { heroStatVisible = true }
+            withAnimation(.easeIn(duration: 0.6).delay(2.7)) { heroCtaVisible = true }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                speechService.speak("Hey. Welcome to the most intelligent app ever built.")
+            }
         }
     }
 
-    // MARK: - Step 2: Accounts
+    // MARK: - Step 1: Name
+
+    private var stepName: some View {
+        VStack(spacing: 24) {
+            Spacer()
+
+            Text("What's your name?")
+                .font(.title2.bold())
+
+            Text("Before we get started.")
+                .font(.body)
+                .foregroundStyle(.secondary)
+
+            TextField("Your first name", text: $userName)
+                .textFieldStyle(.roundedBorder)
+                .font(.system(size: 16))
+                .frame(maxWidth: 280)
+                .multilineTextAlignment(.center)
+
+            Spacer()
+        }
+        .frame(maxWidth: .infinity)
+        .onAppear {
+            speechService.speak("What's your name, before we get started?")
+        }
+    }
+
+    // MARK: - Step 2: Voice Picker
+
+    private let voiceOptions: [(id: String, name: String, desc: String)] = [
+        ("pFZP5JQG7iQjIQuC4Bku", "Lily", "Velvety and warm"),
+        ("cgSgspJ2msm6clMCkdW9", "Jessica", "Playful and bright"),
+        ("cjVigY5qzO86Huf0OWal", "Eric", "Smooth and trustworthy"),
+    ]
+
+    private var stepVoicePicker: some View {
+        VStack(spacing: 24) {
+            Spacer()
+
+            Text("Choose your voice")
+                .font(.title2.bold())
+
+            Text("This is how Timed will talk to you.")
+                .font(.body)
+                .foregroundStyle(.secondary)
+
+            VStack(spacing: 12) {
+                ForEach(voiceOptions, id: \.id) { voice in
+                    HStack(spacing: 16) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(voice.name)
+                                .font(.system(size: 15, weight: .semibold))
+                            Text(voice.desc)
+                                .font(.system(size: 12))
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Spacer()
+
+                        Button {
+                            selectedVoiceId = voice.id
+                            speechService.stop()
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                speechService.speak("Good morning\(userName.isEmpty ? "" : ", \(userName)"). You have three meetings today and about four hours of free time. Let's make them count.")
+                            }
+                        } label: {
+                            Image(systemName: "play.circle.fill")
+                                .font(.system(size: 24))
+                                .foregroundStyle(selectedVoiceId == voice.id ? Color.primary : Color.secondary)
+                        }
+                        .buttonStyle(.plain)
+
+                        Image(systemName: selectedVoiceId == voice.id ? "checkmark.circle.fill" : "circle")
+                            .font(.system(size: 20))
+                            .foregroundStyle(selectedVoiceId == voice.id ? Color.primary : Color.secondary.opacity(0.3))
+                            .onTapGesture {
+                                selectedVoiceId = voice.id
+                            }
+                    }
+                    .padding(.horizontal, 20).padding(.vertical, 14)
+                    .background(
+                        selectedVoiceId == voice.id ? Color.primary.opacity(0.06) : Color(.controlBackgroundColor),
+                        in: RoundedRectangle(cornerRadius: 12)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .strokeBorder(selectedVoiceId == voice.id ? Color.primary.opacity(0.2) : Color.clear, lineWidth: 1)
+                    )
+                }
+            }
+            .frame(maxWidth: 400)
+
+            Spacer()
+        }
+        .frame(maxWidth: .infinity)
+        .onAppear {
+            speechService.speak("Would you prefer I talk like this — or choose a different voice.")
+        }
+    }
+
+    // MARK: - Step 3: Accounts
 
     private var outlookConfigured: Bool {
-        // GraphClient has hardcoded client ID fallback — always configured
         let clientId = ProcessInfo.processInfo.environment["GRAPH_CLIENT_ID"]
             ?? "89e8f1c6-3cc4-47fb-83ae-f7e0528eb860"
         return !clientId.isEmpty
     }
 
-    private var supabaseConfigured: Bool {
-        // SupabaseClient has hardcoded URL fallback — always configured
-        let url = ProcessInfo.processInfo.environment["SUPABASE_URL"]
-            ?? "https://fpmjuufefhtlwbfinxlx.supabase.co"
-        return !url.contains("fake.supabase.co")
-    }
-
-    private var neitherConfigured: Bool {
-        !outlookConfigured && !supabaseConfigured
-    }
-
     @State private var isConnecting = false
 
-    private var step2Accounts: some View {
+    private var stepAccounts: some View {
         StepLayout(
             icon: "envelope.badge.fill",
             iconColor: .blue,
@@ -161,7 +322,6 @@ struct OnboardingFlow: View {
         ) {
             VStack(spacing: 20) {
                 if outlookConnected {
-                    // Connected state
                     HStack(spacing: 12) {
                         Image(systemName: "checkmark.circle.fill")
                             .font(.system(size: 24))
@@ -179,14 +339,12 @@ struct OnboardingFlow: View {
                     .background(Color.green.opacity(0.08))
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                 } else {
-                    // Connect button — single prominent action
                     Button {
                         isConnecting = true
                         Task {
                             await auth.signInWithGraph(loginHint: emailHint)
                             if auth.graphAccessToken != nil {
                                 outlookConnected = true
-                                // Infer family surname from user's email
                                 if let email = auth.userEmail ?? emailHint.nilIfEmpty {
                                     let parts = email.components(separatedBy: "@").first?
                                         .components(separatedBy: ".") ?? []
@@ -227,29 +385,14 @@ struct OnboardingFlow: View {
         }
     }
 
-    // MARK: - Step 3: Connect Email
-
-    private var step3Email: some View {
-        StepLayout(
-            icon: "envelope.badge.fill",
-            iconColor: .blue,
-            headline: "Connect your Outlook",
-            bodyText:"Timed pulls from Microsoft 365 to triage, not replace, your inbox."
-        ) {
-            TextField("your@company.com", text: $emailHint)
-                .textFieldStyle(.roundedBorder)
-                .frame(maxWidth: 320)
-        }
-    }
-
     // MARK: - Step 4: Work Day
 
-    private var step4WorkDay: some View {
+    private var stepWorkDay: some View {
         StepLayout(
             icon: "clock.fill",
             iconColor: .orange,
             headline: "How long is your typical work day?",
-            bodyText:"Timed uses this to tell you how much you can realistically fit in."
+            bodyText: "Timed uses this to tell you how much you can realistically fit in."
         ) {
             VStack(alignment: .leading, spacing: 14) {
                 HStack {
@@ -294,12 +437,12 @@ struct OnboardingFlow: View {
 
     private let cadenceOptions = ["Once", "Twice", "3 × daily", "4+ times"]
 
-    private var step5Cadence: some View {
+    private var stepCadence: some View {
         StepLayout(
             icon: "tray.and.arrow.down.fill",
             iconColor: .red,
             headline: "How often do you check email?",
-            bodyText:"Timed batches replies and surfaces them at your cadence."
+            bodyText: "Timed batches replies and surfaces them at your cadence."
         ) {
             VStack(alignment: .leading, spacing: 14) {
                 Picker("", selection: $emailCadence) {
@@ -315,17 +458,17 @@ struct OnboardingFlow: View {
 
     // MARK: - Step 6: Time Defaults
 
-    private var step6TimeDefaults: some View {
+    private var stepTimeDefaults: some View {
         StepLayout(
             icon: "timer",
-            iconColor: .purple,
+            iconColor: .primary,
             headline: "Set your time defaults",
-            bodyText:"Timed estimates task time. You can override anytime — but here's where to start."
+            bodyText: "Timed estimates task time. You can override anytime — but here's where to start."
         ) {
             VStack(alignment: .leading, spacing: 10) {
-                TimeDefaultRow(label: "Quick reply",  minutes: $replyMins)
-                TimeDefaultRow(label: "Email action", minutes: $actionMins)
-                TimeDefaultRow(label: "Phone call",   minutes: $callMins)
+                TimeDefaultRow(label: "Quick reply",   minutes: $replyMins)
+                TimeDefaultRow(label: "Email action",  minutes: $actionMins)
+                TimeDefaultRow(label: "Phone call",    minutes: $callMins)
                 TimeDefaultRow(label: "Read / Review", minutes: $readMins)
             }
             .frame(maxWidth: 360)
@@ -334,12 +477,12 @@ struct OnboardingFlow: View {
 
     // MARK: - Step 7: Transit
 
-    private var step7Transit: some View {
+    private var stepTransit: some View {
         StepLayout(
             icon: "car.fill",
             iconColor: .green,
             headline: "How do you travel?",
-            bodyText:"Timed surfaces the right tasks when you're in transit — no desk, no focus required."
+            bodyText: "Timed surfaces the right tasks when you're in transit — no desk, no focus required."
         ) {
             VStack(alignment: .leading, spacing: 10) {
                 TransitToggle(label: "Chauffeur / rideshare", isOn: $transitChauffeur)
@@ -362,7 +505,7 @@ struct OnboardingFlow: View {
 
     // MARK: - Step 8: PA
 
-    private var step8PA: some View {
+    private var stepPA: some View {
         StepLayout(
             icon: "person.2.fill",
             iconColor: .teal,
@@ -388,12 +531,12 @@ struct OnboardingFlow: View {
 
     // MARK: - Step 9: Done
 
-    private var step9Done: some View {
+    private var stepDone: some View {
         StepLayout(
             icon: "checkmark.seal.fill",
-            iconColor: .indigo,
-            headline: "You're ready",
-            bodyText:"Timed is set up. Your first morning interview starts now — it takes 5 minutes and plans your whole day."
+            iconColor: .primary,
+            headline: "You're ready\(userName.isEmpty ? "" : ", \(userName)")",
+            bodyText: "Timed is set up. Your first morning interview starts now — it takes 5 minutes and plans your whole day."
         ) {
             EmptyView()
         }
@@ -415,7 +558,17 @@ struct OnboardingFlow: View {
 
             Spacer()
 
-            if currentStep < totalSteps - 1 {
+            if currentStep == 0 {
+                Button("Get started →") {
+                    withAnimation(.spring(duration: 0.35)) {
+                        currentStep += 1
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .tint(.primary)
+                .opacity(heroCtaVisible ? 1 : 0)
+            } else if currentStep < totalSteps - 1 {
                 Button("Continue →") {
                     withAnimation(.spring(duration: 0.35)) {
                         currentStep += 1
@@ -423,14 +576,14 @@ struct OnboardingFlow: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
-                .tint(.indigo)
+                .tint(.primary)
             } else {
                 Button("Start my day →") {
                     onComplete()
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
-                .tint(.indigo)
+                .tint(.primary)
             }
         }
     }
@@ -466,7 +619,6 @@ private struct StepLayout<InputContent: View>: View {
 
     var body: some View {
         VStack(spacing: 20) {
-            // Icon
             ZStack {
                 RoundedRectangle(cornerRadius: 14)
                     .fill(iconColor.opacity(0.10))
@@ -476,7 +628,6 @@ private struct StepLayout<InputContent: View>: View {
                     .foregroundStyle(iconColor)
             }
 
-            // Text
             VStack(spacing: 8) {
                 Text(headline)
                     .font(.title2.bold())
@@ -528,66 +679,14 @@ private struct TransitToggle: View {
     }
 }
 
-// MARK: - AccountConnectionRow
-
-private struct AccountConnectionRow: View {
-    let icon: String
-    let iconColor: Color
-    let title: String
-    let isConfigured: Bool
-    let isConnected: Bool
-    let configuredMessage: String
-    let notConfiguredMessage: String
-    let onConnect: () -> Void
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.title3)
-                .foregroundStyle(iconColor)
-                .frame(width: 28)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.callout.bold())
-
-                if isConnected {
-                    Label("Connected", systemImage: "checkmark.circle.fill")
-                        .font(.caption)
-                        .foregroundStyle(.green)
-                } else if isConfigured {
-                    Text(configuredMessage)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else {
-                    Text(notConfiguredMessage)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            Spacer()
-
-            if isConnected {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
-                    .font(.title3)
-            } else if isConfigured {
-                Button("Sign In") {
-                    onConnect()
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-            }
-        }
-    }
-}
-
 // MARK: - OnboardingUserPrefs
 
 /// Read-only access to all onboarding-set preferences from AppStorage.
-/// Use this throughout the app instead of reading @AppStorage keys directly.
 struct OnboardingUserPrefs {
+    static var userName: String {
+        UserDefaults.standard.string(forKey: "onboarding_userName") ?? ""
+    }
+
     static var email: String {
         UserDefaults.standard.string(forKey: "onboarding_email") ?? ""
     }
@@ -672,4 +771,3 @@ struct OnboardingUserPrefs {
         UserDefaults.standard.bool(forKey: "accounts.supabase.connected")
     }
 }
-

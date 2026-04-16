@@ -93,7 +93,7 @@ private struct QuickCaptureView: View {
         HStack(spacing: 12) {
             Image(systemName: "plus.circle.fill")
                 .font(.system(size: 22))
-                .foregroundStyle(.indigo)
+                .foregroundStyle(.primary)
 
             TextField("Quick capture \u{2014} type a task and press Return", text: $text)
                 .textFieldStyle(.plain)
@@ -109,7 +109,7 @@ private struct QuickCaptureView: View {
             } label: {
                 Image(systemName: "arrow.up.circle.fill")
                     .font(.system(size: 22))
-                    .foregroundStyle(text.trimmingCharacters(in: .whitespaces).isEmpty ? .gray : .indigo)
+                    .foregroundStyle(text.trimmingCharacters(in: .whitespaces).isEmpty ? .gray : .primary)
             }
             .buttonStyle(.plain)
             .disabled(text.trimmingCharacters(in: .whitespaces).isEmpty)

@@ -22,7 +22,7 @@ enum ReplyMedium: String, CaseIterable, Codable {
         switch self {
         case .email:    .blue
         case .whatsApp: Color(red: 0.18, green: 0.71, blue: 0.36)
-        case .other:    .purple
+        case .other:    .gray
         }
     }
 }
@@ -57,7 +57,7 @@ enum TaskBucket: String, CaseIterable, Hashable, Codable {
         case .reply:        .blue
         case .action:       .orange
         case .calls:        .green
-        case .readToday:    .purple
+        case .readToday:    .gray
         case .readThisWeek: Color(.systemGray)
         case .transit:      Color(red: 0.2, green: 0.6, blue: 0.45)
         case .waiting:      .teal
@@ -467,7 +467,7 @@ struct TriageItem: Identifiable, Codable, Sendable, Equatable {
 
     /// Deterministic color derived from sender name — no stored state needed.
     var avatarColor: Color {
-        let palette: [Color] = [.blue, .purple, .teal, .orange, .indigo, .red, .green, .cyan]
+        let palette: [Color] = [.blue, .gray, .teal, .orange, .primary, .red, .green, .cyan]
         let hash = abs(sender.unicodeScalars.reduce(0) { $0 &+ Int($1.value) })
         return palette[hash % palette.count]
     }
@@ -513,7 +513,7 @@ extension CalendarBlock {
     var categoryColor: Color  {
         switch category {
         case .focus:   .blue
-        case .meeting: .purple
+        case .meeting: .secondary
         case .admin:   .orange
         case .break:   Color(.systemGreen)
         case .transit: Color(red: 0.2, green: 0.6, blue: 0.45)

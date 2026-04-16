@@ -7,6 +7,8 @@ import SwiftUI
 struct CapturePane: View {
     @Binding var tasks: [TimedTask]
     @StateObject private var voice = VoiceCaptureService()
+    @StateObject private var captureAI = CaptureAIClient()
+    @StateObject private var speechService = SpeechService()
     @Binding var items: [CaptureItem]
     @State private var textInput = ""
     @State private var pulseAnimation = false
@@ -40,19 +42,50 @@ struct CapturePane: View {
         .navigationTitle("Capture")
         .onChange(of: voice.isRecording) { _, isNowRecording in
             pulseAnimation = isNowRecording
-            if !isNowRecording && !voice.parsedItems.isEmpty {
-                let newItems = voice.parsedItems.map { parsed in
-                    CaptureItem(
-                        id: parsed.id,
-                        inputType: .voice,
-                        rawText: voice.liveTranscript,
-                        parsedTitle: parsed.title,
-                        suggestedBucket: bucketFromVoice(parsed.bucketType),
-                        suggestedMinutes: parsed.estimatedMinutes ?? 10,
-                        capturedAt: Date()
-                    )
+            if !isNowRecording && !voice.liveTranscript.isEmpty {
+                let transcript = voice.liveTranscript
+                Task {
+                    if captureAI.isAvailable {
+                        let context = CaptureContext(
+                            existingBuckets: TaskBucket.allCases.map(\.rawValue),
+                            calendarToday: [],
+                            recentTasks: tasks.prefix(5).map(\.title)
+                        )
+                        if let extracted = await captureAI.extractTasks(transcript, context: context), !extracted.isEmpty {
+                            let newItems = extracted.map { task in
+                                CaptureItem(
+                                    id: UUID(),
+                                    inputType: .voice,
+                                    rawText: transcript,
+                                    parsedTitle: task.title,
+                                    suggestedBucket: bucketFromAI(task.bucket),
+                                    suggestedMinutes: task.duration,
+                                    capturedAt: Date()
+                                )
+                            }
+                            items.insert(contentsOf: newItems, at: 0)
+                            if let first = extracted.first {
+                                speechService.speak(first.spokenConfirmation)
+                            }
+                            return
+                        }
+                    }
+                    // Fallback to parser
+                    if !voice.parsedItems.isEmpty {
+                        let newItems = voice.parsedItems.map { parsed in
+                            CaptureItem(
+                                id: parsed.id,
+                                inputType: .voice,
+                                rawText: transcript,
+                                parsedTitle: parsed.title,
+                                suggestedBucket: bucketFromVoice(parsed.bucketType),
+                                suggestedMinutes: parsed.estimatedMinutes ?? 10,
+                                capturedAt: Date()
+                            )
+                        }
+                        items.insert(contentsOf: newItems, at: 0)
+                    }
                 }
-                items.insert(contentsOf: newItems, at: 0)
             }
         }
     }
@@ -99,7 +132,7 @@ struct CapturePane: View {
                 HStack(spacing: 10) {
                     ZStack {
                         Circle()
-                            .fill(voice.isRecording ? Color.red : Color.indigo)
+                            .fill(voice.isRecording ? Color.red : Color.primary)
                             .frame(width: 48, height: 48)
                         Circle()
                             .fill(voice.isRecording ? Color.red.opacity(0.3) : Color.clear)
@@ -116,7 +149,7 @@ struct CapturePane: View {
                             .font(.system(size: 18, weight: .medium))
                             .foregroundStyle(.white)
                     }
-                    .shadow(color: voice.isRecording ? .red.opacity(0.4) : .indigo.opacity(0.3), radius: voice.isRecording ? 8 : 4)
+                    .shadow(color: voice.isRecording ? .red.opacity(0.4) : .primary.opacity(0.3), radius: voice.isRecording ? 8 : 4)
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text(voice.isRecording ? "Recording… tap to stop" : "Hold to record")
@@ -162,6 +195,17 @@ struct CapturePane: View {
                 .padding(.horizontal, 4)
             }
 
+            if captureAI.isProcessing {
+                HStack(spacing: 8) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("Understanding...")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 4)
+            }
+
             // Text input
             HStack(spacing: 8) {
                 TextField("Or type a task… \"Fix bookmarks in laptop, 10 min, transit\"", text: $textInput)
@@ -173,7 +217,7 @@ struct CapturePane: View {
                     addTextCapture()
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(.indigo)
+                .tint(.primary)
                 .controlSize(.small)
                 .disabled(textInput.trimmingCharacters(in: .whitespaces).isEmpty)
             }
@@ -190,7 +234,7 @@ struct CapturePane: View {
                     Text("Paste a task list")
                         .font(.system(size: 13))
                 }
-                .foregroundStyle(.indigo)
+                .foregroundStyle(.primary)
             }
             .buttonStyle(.plain)
             .sheet(isPresented: $showBulkImport) {
@@ -235,7 +279,7 @@ struct CapturePane: View {
                     showBulkImport = false
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(.indigo)
+                .tint(.primary)
                 .disabled(bulkText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
@@ -314,30 +358,58 @@ struct CapturePane: View {
     private func addTextCapture() {
         let t = textInput.trimmingCharacters(in: .whitespaces)
         guard !t.isEmpty else { return }
-
-        let parsed = TranscriptParser.parse(t)
-        let newItems: [CaptureItem]
-        if parsed.isEmpty {
-            // NLP couldn't extract anything — fall back to raw text with defaults
-            newItems = [CaptureItem(
-                id: UUID(), inputType: .text,
-                rawText: t, parsedTitle: t,
-                suggestedBucket: .action, suggestedMinutes: 15,
-                capturedAt: Date()
-            )]
-        } else {
-            newItems = parsed.map { p in
-                CaptureItem(
-                    id: p.id, inputType: .text,
-                    rawText: t, parsedTitle: p.title,
-                    suggestedBucket: bucketFromVoice(p.bucketType),
-                    suggestedMinutes: p.estimatedMinutes ?? 15,
-                    capturedAt: Date()
-                )
-            }
-        }
-        items.insert(contentsOf: newItems, at: 0)
+        let input = t
         textInput = ""
+
+        Task {
+            if captureAI.isAvailable {
+                let context = CaptureContext(
+                    existingBuckets: TaskBucket.allCases.map(\.rawValue),
+                    calendarToday: [],
+                    recentTasks: tasks.prefix(5).map(\.title)
+                )
+                if let extracted = await captureAI.extractTasks(input, context: context), !extracted.isEmpty {
+                    let newItems = extracted.map { task in
+                        CaptureItem(
+                            id: UUID(),
+                            inputType: .text,
+                            rawText: input,
+                            parsedTitle: task.title,
+                            suggestedBucket: bucketFromAI(task.bucket),
+                            suggestedMinutes: task.duration,
+                            capturedAt: Date()
+                        )
+                    }
+                    items.insert(contentsOf: newItems, at: 0)
+                    if let first = extracted.first {
+                        speechService.speak(first.spokenConfirmation)
+                    }
+                    return
+                }
+            }
+            // Fallback to TranscriptParser
+            let parsed = TranscriptParser.parse(input)
+            let newItems: [CaptureItem]
+            if parsed.isEmpty {
+                newItems = [CaptureItem(
+                    id: UUID(), inputType: .text,
+                    rawText: input, parsedTitle: input,
+                    suggestedBucket: .action, suggestedMinutes: 15,
+                    capturedAt: Date()
+                )]
+            } else {
+                newItems = parsed.map { p in
+                    CaptureItem(
+                        id: p.id, inputType: .text,
+                        rawText: input, parsedTitle: p.title,
+                        suggestedBucket: bucketFromVoice(p.bucketType),
+                        suggestedMinutes: p.estimatedMinutes ?? 15,
+                        capturedAt: Date()
+                    )
+                }
+            }
+            items.insert(contentsOf: newItems, at: 0)
+        }
     }
 
     private func convertItem(_ item: CaptureItem) {
@@ -363,6 +435,20 @@ struct CapturePane: View {
         case "read_today":  return .readToday
         case "action":      return .action
         default:            return .action
+        }
+    }
+
+    private func bucketFromAI(_ bucket: String) -> TaskBucket {
+        switch bucket {
+        case "calls":        return .calls
+        case "reply":        return .reply
+        case "readToday":    return .readToday
+        case "readThisWeek": return .readThisWeek
+        case "transit":      return .transit
+        case "waiting":      return .waiting
+        case "ccFyi":        return .ccFyi
+        case "action":       return .action
+        default:             return .action
         }
     }
 }
@@ -437,7 +523,7 @@ struct CaptureRow: View {
 
                     Button("Add to Tasks") { onConvert() }
                         .buttonStyle(.borderedProminent)
-                        .tint(.indigo)
+                        .tint(.primary)
                         .controlSize(.mini)
                 }
 

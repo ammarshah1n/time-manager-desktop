@@ -177,7 +177,7 @@ private struct MenuBarPopoverView: View {
             // Header
             HStack {
                 Image(systemName: "clock.fill")
-                    .foregroundStyle(.indigo)
+                    .foregroundStyle(.primary)
                 Text("Timed")
                     .font(.system(size: 14, weight: .semibold))
                 Spacer()
@@ -285,13 +285,13 @@ private struct MenuBarPopoverView: View {
 
                     // Quick Actions
                     HStack(spacing: 12) {
-                        quickAction("Focus", icon: "play.fill", color: .indigo) {
+                        quickAction("Focus", icon: "play.fill", color: .primary) {
                             if let first = manager.tasks.first(where: { !$0.isDone }) {
                                 manager.onStartFocus?(first)
                             }
                         }
 
-                        quickAction("Capture", icon: "mic.fill", color: .purple) {
+                        quickAction("Capture", icon: "mic.fill", color: .primary) {
                             QuickCapturePanel.shared.show(onSubmit: manager.onQuickCapture)
                         }
 

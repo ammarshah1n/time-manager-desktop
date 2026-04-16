@@ -11,9 +11,8 @@ final class SpeechService: NSObject, ObservableObject {
     // MARK: - Published state
 
     @Published private(set) var isSpeaking: Bool = false
-    @AppStorage("prefs.voice.identifier") private var voiceIdentifier: String = ""
     @AppStorage("elevenlabs_api_key") private var apiKey: String = "sk_b1779a2f714a1022e0800a7d4aa097892cde5f440f8d44f2"
-    @AppStorage("elevenlabs_voice_id") private var voiceId: String = "JBFqnCBsd6RMkjVDRZzb" // George — warm British male
+    @AppStorage("elevenlabs_voice_id") private var voiceId: String = "pFZP5JQG7iQjIQuC4Bku" // Lily — velvety, warm female
 
     // MARK: - Private
 
@@ -43,21 +42,6 @@ final class SpeechService: NSObject, ObservableObject {
             if Task.isCancelled {
                 isSpeaking = false
             }
-        }
-    }
-
-    func previewVoice(_ identifier: String) {
-        stop()
-        let utterance = AVSpeechUtterance(string: "Here's your plan for today.")
-        utterance.rate = 0.50
-        utterance.voice = AVSpeechSynthesisVoice(identifier: identifier) ?? AVSpeechSynthesisVoice(language: "en-GB")
-        synthesizer.speak(utterance)
-        isSpeaking = true
-    }
-
-    static func availablePremiumVoices() -> [AVSpeechSynthesisVoice] {
-        AVSpeechSynthesisVoice.speechVoices().filter {
-            $0.language.hasPrefix("en") && ($0.quality == .premium || $0.quality == .enhanced)
         }
     }
 
@@ -166,14 +150,7 @@ final class SpeechService: NSObject, ObservableObject {
     }
 
     private func resolveVoice() -> AVSpeechSynthesisVoice? {
-        if !voiceIdentifier.isEmpty,
-           let stored = AVSpeechSynthesisVoice(identifier: voiceIdentifier) {
-            return stored
-        }
-        if let premium = Self.availablePremiumVoices().first {
-            return premium
-        }
-        return AVSpeechSynthesisVoice(language: "en-GB")
+        AVSpeechSynthesisVoice(language: "en-GB")
     }
 }
 

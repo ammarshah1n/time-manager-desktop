@@ -160,12 +160,12 @@ struct SharingPane: View {
     private func memberRow(_ member: PAMember) -> some View {
         HStack(spacing: 10) {
             Circle()
-                .fill(member.role == "owner" ? Color.blue.opacity(0.15) : Color.purple.opacity(0.15))
+                .fill(member.role == "owner" ? Color.blue.opacity(0.15) : Color.secondary.opacity(0.15))
                 .frame(width: 32, height: 32)
                 .overlay {
                     Text(initials(for: member))
                         .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(member.role == "owner" ? .blue : .purple)
+                        .foregroundStyle(member.role == "owner" ? .blue : .secondary)
                 }
 
             VStack(alignment: .leading, spacing: 2) {
@@ -202,10 +202,10 @@ struct SharingPane: View {
             .background(
                 role == "owner"
                     ? Color.blue.opacity(0.12)
-                    : Color.purple.opacity(0.12),
+                    : Color.secondary.opacity(0.12),
                 in: Capsule()
             )
-            .foregroundStyle(role == "owner" ? .blue : .purple)
+            .foregroundStyle(role == "owner" ? .blue : .secondary)
     }
 
     private func initials(for member: PAMember) -> String {

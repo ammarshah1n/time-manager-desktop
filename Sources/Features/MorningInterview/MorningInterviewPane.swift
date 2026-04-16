@@ -40,6 +40,7 @@ struct MorningInterviewPane: View {
     @AppStorage("prefs.morningInterview.voiceMode") private var voiceMode: Bool = true
     @StateObject private var speechService = SpeechService()
     @StateObject private var voiceCapture: VoiceCaptureService = VoiceCaptureService()
+    @StateObject private var interviewAI = InterviewAIClient()
     @State private var isListening: Bool = false
     @State private var voiceProcessing: Bool = false
     @State private var voiceStatusText: String = ""
@@ -243,6 +244,9 @@ struct MorningInterviewPane: View {
             // Compute free time from calendar for step 1
             recomputeFreeTime()
 
+            // Pre-fetch executive knowledge for Opus-powered interview
+            Task { await interviewAI.loadContext() }
+
             if voiceMode {
                 speakForStep(step)
             }
@@ -285,7 +289,7 @@ struct MorningInterviewPane: View {
             HStack(spacing: 4) {
                 ForEach(0..<totalSteps, id: \.self) { i in
                     Capsule()
-                        .fill(i <= step ? Color.indigo : Color(.separatorColor))
+                        .fill(i <= step ? Color.primary : Color(.separatorColor))
                         .frame(height: 3)
                         .animation(.easeInOut(duration: 0.3), value: step)
                 }
@@ -306,10 +310,10 @@ struct MorningInterviewPane: View {
                 Text(voiceMode ? "Voice On" : "Voice Off")
                     .font(.system(size: 11, weight: .medium))
             }
-            .foregroundStyle(voiceMode ? .indigo : .secondary)
+            .foregroundStyle(voiceMode ? .primary : .secondary)
             .padding(.horizontal, 10).padding(.vertical, 5)
             .background(
-                voiceMode ? Color.indigo.opacity(0.1) : Color(.controlBackgroundColor),
+                voiceMode ? Color.primary.opacity(0.1) : Color(.controlBackgroundColor),
                 in: Capsule()
             )
         }
@@ -358,7 +362,7 @@ struct MorningInterviewPane: View {
                             Spacer()
                             Button("Yes") { confirmPendingTranscript() }
                                 .buttonStyle(.borderedProminent)
-                                .tint(.indigo)
+                                .tint(.primary)
                                 .controlSize(.mini)
                             Button("No") { rejectPendingTranscript() }
                                 .buttonStyle(.bordered)
@@ -396,11 +400,11 @@ struct MorningInterviewPane: View {
 
     private var speakingIndicator: some View {
         HStack(spacing: 8) {
-            PulsingIcon(systemName: "speaker.wave.2.fill", color: .indigo)
+            PulsingIcon(systemName: "speaker.wave.2.fill", color: .primary)
             VStack(alignment: .leading, spacing: 2) {
                 Text("Speaking...")
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.indigo)
+                    .foregroundStyle(.primary)
                 if !voiceStatusText.isEmpty {
                     Text(voiceStatusText)
                         .font(.system(size: 11))
@@ -422,30 +426,37 @@ struct MorningInterviewPane: View {
     }
 
     private var listeningIndicator: some View {
-        HStack(spacing: 8) {
-            PulsingIcon(systemName: "mic.fill", color: .red)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Listening...")
-                    .font(.system(size: 12, weight: .semibold))
+        VStack(spacing: 8) {
+            // Waveform visualization
+            AudioWaveformView(level: voiceCapture.audioLevel)
+                .frame(height: 32)
+
+            HStack(spacing: 8) {
+                Image(systemName: "mic.fill")
+                    .font(.system(size: 12))
                     .foregroundStyle(.red)
                 if !voiceCapture.liveTranscript.isEmpty {
                     Text(voiceCapture.liveTranscript)
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
+                } else {
+                    Text("Listening...")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.secondary)
                 }
+                Spacer()
+                Button {
+                    finishListening()
+                } label: {
+                    Text("Done")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 10).padding(.vertical, 4)
+                        .background(.red, in: Capsule())
+                }
+                .buttonStyle(.plain)
             }
-            Spacer()
-            Button {
-                finishListening()
-            } label: {
-                Text("Done")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 10).padding(.vertical, 4)
-                    .background(.red, in: Capsule())
-            }
-            .buttonStyle(.plain)
         }
     }
 
@@ -477,7 +488,7 @@ struct MorningInterviewPane: View {
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.white)
                     .padding(.horizontal, 12).padding(.vertical, 4)
-                    .background(.indigo, in: Capsule())
+                    .background(.primary, in: Capsule())
             }
             .buttonStyle(.plain)
         }
@@ -500,7 +511,7 @@ struct MorningInterviewPane: View {
 
     private var voiceStatusBackground: Color {
         switch conversationState {
-        case .appSpeaking, .waitingToListen: return Color.indigo.opacity(0.06)
+        case .appSpeaking, .waitingToListen: return Color.primary.opacity(0.06)
         case .listening, .correcting: return Color.red.opacity(0.06)
         case .processing, .interrupted: return Color(.controlBackgroundColor)
         case .ambiguous: return Color.orange.opacity(0.06)
@@ -528,7 +539,7 @@ struct MorningInterviewPane: View {
                         HStack(spacing: 12) {
                             Image(systemName: confirmedIds.contains(task.id) ? "checkmark.circle.fill" : "circle")
                                 .font(.system(size: 16))
-                                .foregroundStyle(confirmedIds.contains(task.id) ? Color.indigo : Color(.separatorColor))
+                                .foregroundStyle(confirmedIds.contains(task.id) ? Color.primary : Color(.separatorColor))
 
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(task.title)
@@ -548,7 +559,7 @@ struct MorningInterviewPane: View {
                         }
                         .padding(.horizontal, 12).padding(.vertical, 9)
                         .background(
-                            confirmedIds.contains(task.id) ? Color.indigo.opacity(0.06) : Color(.controlBackgroundColor),
+                            confirmedIds.contains(task.id) ? Color.primary.opacity(0.06) : Color(.controlBackgroundColor),
                             in: RoundedRectangle(cornerRadius: 8)
                         )
                         .onTapGesture {
@@ -575,7 +586,7 @@ struct MorningInterviewPane: View {
                     advanceStep()
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(.indigo)
+                .tint(.primary)
                 .controlSize(.small)
 
                 Button("Skip All") {
@@ -615,7 +626,7 @@ struct MorningInterviewPane: View {
                     value: formatMins(effectiveFreeMinutes),
                     label: "Free",
                     icon: "clock.fill",
-                    color: .indigo
+                    color: .primary
                 )
                 freeTimeStat(
                     value: "\(computedGapCount)",
@@ -635,7 +646,7 @@ struct MorningInterviewPane: View {
             HStack(spacing: 8) {
                 Image(systemName: "calendar")
                     .font(.system(size: 11))
-                    .foregroundStyle(.indigo)
+                    .foregroundStyle(.primary)
                 Text("Work window: \(OnboardingUserPrefs.workStartHour):00 – \(effectiveWorkEndHour):00")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
@@ -646,7 +657,7 @@ struct MorningInterviewPane: View {
                 }
             }
             .padding(10)
-            .background(Color.indigo.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+            .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
 
             // Manual subtract display
             if manualSubtract > 0 {
@@ -773,7 +784,7 @@ struct MorningInterviewPane: View {
             VStack(spacing: 10) {
                 energyButton(range: 9...10, label: "Peak energy",       desc: "Deep analytical work, big decisions", icon: "bolt.fill",             tint: .green)
                 energyButton(range: 7...8,  label: "Good energy",       desc: "Focused work, meetings, calls",       icon: "sun.max.fill",          tint: .blue)
-                energyButton(range: 5...6,  label: "Moderate",          desc: "Mix of focused and routine tasks",     icon: "cloud.sun.fill",        tint: .indigo)
+                energyButton(range: 5...6,  label: "Moderate",          desc: "Mix of focused and routine tasks",     icon: "cloud.sun.fill",        tint: .primary)
                 energyButton(range: 3...4,  label: "Low energy",        desc: "Quick replies, light admin, reading",  icon: "moon.fill",             tint: .orange)
                 energyButton(range: 1...2,  label: "Running on empty",  desc: "Only essentials — defer what you can", icon: "battery.25percent",     tint: .red)
             }
@@ -799,17 +810,17 @@ struct MorningInterviewPane: View {
                 Spacer()
                 if isSelected {
                     Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.indigo)
+                        .foregroundStyle(.primary)
                 }
             }
             .padding(.horizontal, 16).padding(.vertical, 12)
             .background(
                 RoundedRectangle(cornerRadius: 10)
-                    .fill(isSelected ? Color.indigo.opacity(0.08) : Color(.controlBackgroundColor))
+                    .fill(isSelected ? Color.primary.opacity(0.08) : Color(.controlBackgroundColor))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 10)
-                    .stroke(isSelected ? Color.indigo.opacity(0.3) : .clear, lineWidth: 1.5)
+                    .stroke(isSelected ? Color.primary.opacity(0.3) : .clear, lineWidth: 1.5)
             )
         }
         .buttonStyle(.plain)
@@ -853,17 +864,17 @@ struct MorningInterviewPane: View {
                 Spacer()
                 if interruptibility == level {
                     Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.indigo)
+                        .foregroundStyle(.primary)
                 }
             }
             .padding(.horizontal, 16).padding(.vertical, 14)
             .background(
                 RoundedRectangle(cornerRadius: 10)
-                    .fill(interruptibility == level ? Color.indigo.opacity(0.08) : Color(.controlBackgroundColor))
+                    .fill(interruptibility == level ? Color.primary.opacity(0.08) : Color(.controlBackgroundColor))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 10)
-                    .stroke(interruptibility == level ? Color.indigo.opacity(0.3) : .clear, lineWidth: 1.5)
+                    .stroke(interruptibility == level ? Color.primary.opacity(0.3) : .clear, lineWidth: 1.5)
             )
         }
         .buttonStyle(.plain)
@@ -1122,7 +1133,7 @@ struct MorningInterviewPane: View {
                     step += 1
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(.indigo)
+                .tint(.primary)
                 .controlSize(.regular)
             } else {
                 Button("Start My Day →") {
@@ -1134,7 +1145,7 @@ struct MorningInterviewPane: View {
                     isPresented = false
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(.indigo)
+                .tint(.primary)
                 .controlSize(.regular)
             }
         }
@@ -1145,75 +1156,124 @@ struct MorningInterviewPane: View {
 
     private func speakForStep(_ stepIndex: Int) {
         guard voiceMode else { return }
-        // Prevent re-speaking if already speaking this step
         if case .appSpeaking(let s) = conversationState, s == stepIndex { return }
 
         stopListening()
         cancelSilenceTimer()
 
-        // Adaptive skipping: if this step is skippable, auto-advance
+        // Adaptive skipping
         if skippedSteps.contains(stepIndex) && stepIndex > 0 && stepIndex < totalSteps - 1 {
             advanceStep()
             return
         }
 
-        let text: String
+        // Skip empty deferral / due-today steps before any AI call
+        if stepIndex == 0 && deferredTasks.isEmpty { advanceStep(); return }
+        if stepIndex == 4 && todayCandidates.isEmpty { advanceStep(); return }
+
+        // First-time workday question — handled locally, not by Opus
+        if stepIndex == 1 && !workHoursConfirmed {
+            awaitingWorkHoursAnswer = true
+            let text = "Quick question before we dive in — what time do you usually start and finish work? Something like nine to six."
+            voiceStatusText = text
+            conversationState = .appSpeaking(step: stepIndex)
+            speechService.speak(text)
+            return
+        }
+        if stepIndex == 1 { awaitingWorkHoursAnswer = false }
+
+        conversationState = .appSpeaking(step: stepIndex)
+
+        // Try Opus, fall back to hardcoded scripts
+        if interviewAI.isAvailable {
+            Task {
+                let context = buildStepContext(stepIndex)
+                if let aiText = await interviewAI.generateStepPrompt(step: stepIndex, context: context) {
+                    voiceStatusText = aiText
+                    speechService.speak(aiText)
+                } else {
+                    let fallback = hardcodedTextForStep(stepIndex)
+                    voiceStatusText = fallback
+                    speechService.speak(fallback)
+                }
+            }
+        } else {
+            let text = hardcodedTextForStep(stepIndex)
+            voiceStatusText = text
+            speechService.speak(text)
+        }
+    }
+
+    private func hardcodedTextForStep(_ stepIndex: Int) -> String {
         switch stepIndex {
         case 0:
-            if deferredTasks.isEmpty {
-                advanceStep()
-                return
-            }
             let titles = deferredTasks.prefix(3).map(\.title).joined(separator: ", ")
             if deferredTasks.count == 1 {
-                text = "Morning. Before we start — you left one thing unfinished yesterday: \(titles). Carry it over?"
-            } else {
-                text = "Morning. Before we start — you left a few things on the table yesterday. \(titles). Carry those over, or start fresh?"
+                return "Morning. Before we start — you left one thing unfinished yesterday: \(titles). Carry it over?"
             }
+            return "Morning. Before we start — you left a few things on the table yesterday. \(titles). Carry those over, or start fresh?"
         case 1:
-            // First-time: ask about usual workday before calendar narration
-            if !workHoursConfirmed {
-                awaitingWorkHoursAnswer = true
-                text = "Quick question before we dive in — what time do you usually start and finish work? Something like nine to six."
-            } else {
-                awaitingWorkHoursAnswer = false
-                text = buildCalendarNarration()
-            }
+            return buildCalendarNarration()
         case 2:
-            text = "How are you feeling this morning? Sharp and ready to go, or more of a slow start? Give me a number, one to ten."
+            return "How are you feeling this morning? Sharp and ready to go, or more of a slow start? Give me a number, one to ten."
         case 3:
-            text = "Are you expecting many interruptions today, or is it fairly protected?"
+            return "Are you expecting many interruptions today, or is it fairly protected?"
         case 4:
             let count = todayCandidates.count
-            if count == 0 {
-                text = "Nothing flagged for today. Moving on."
-                advanceStep()
-                return
-            }
             let titles = todayCandidates.prefix(3).map(\.title).joined(separator: ", ")
             if count == 1 {
-                text = "For today, I've got one thing: \(titles). Keep it?"
-            } else {
-                text = "For today, I've pulled in \(count) things. The main ones are \(titles). Look right, or want to drop any?"
+                return "For today, I've got one thing: \(titles). Keep it?"
             }
+            return "For today, I've pulled in \(count) things. The main ones are \(titles). Look right, or want to drop any?"
         case 5:
             let topAssumptions = assumptions.prefix(3).map { task in
                 let mins = estimates[task.id] ?? task.estimatedMinutes
                 return "\(task.title) at \(spokenTime(mins))"
             }.joined(separator: ", ")
-            text = "Time-wise, I've got \(topAssumptions). Any of those feel off?"
+            return "Time-wise, I've got \(topAssumptions). Any of those feel off?"
         case 6:
             let taskCount = confirmedTasks.count
             let taskWord = taskCount == 1 ? "task" : "tasks"
-            text = "All right, that's \(taskCount) \(taskWord), about \(spokenTime(confirmedTotal)) of work, fitting into \(spokenTime(effectiveFreeMinutes)) of free time. Shall I lock it in?"
+            return "All right, that's \(taskCount) \(taskWord), about \(spokenTime(confirmedTotal)) of work, fitting into \(spokenTime(effectiveFreeMinutes)) of free time. Shall I lock it in?"
         default:
-            return
+            return ""
         }
+    }
 
-        voiceStatusText = text
-        conversationState = .appSpeaking(step: stepIndex)
-        speechService.speak(text)
-        // Transition to listening is handled by onChange(of: speechService.isSpeaking)
+    private func buildStepContext(_ stepIndex: Int) -> StepContext {
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        let tomorrow = cal.date(byAdding: .day, value: 1, to: today) ?? today
+        let formatter = DateFormatter()
+        formatter.dateFormat = "h:mm a"
+
+        let calendarItems = blocks
+            .filter { $0.category == .meeting && $0.startTime >= today && $0.startTime < tomorrow }
+            .sorted { $0.startTime < $1.startTime }
+            .prefix(6)
+            .map { block in
+                (title: block.title, time: formatter.string(from: block.startTime),
+                 attendees: block.attendeeNames ?? [])
+            }
+
+        return StepContext(
+            step: stepIndex,
+            deferredTasks: deferredTasks.map { task in
+                let days = max(1, cal.dateComponents([.day], from: task.receivedAt, to: Date()).day ?? 1)
+                return (title: task.title, daysOld: days)
+            },
+            calendarBlocks: calendarItems,
+            availableMinutes: effectiveFreeMinutes,
+            meetingMinutes: computedMeetingMinutes,
+            gapCount: computedGapCount,
+            todayCandidates: todayCandidates.map(\.title),
+            confirmedTasks: confirmedTasks.map(\.title),
+            confirmedTotal: confirmedTotal,
+            energyLevel: energyLevel,
+            interruptibility: interruptibility.rawValue,
+            assumptions: assumptions.prefix(5).map { ($0.title, estimates[$0.id] ?? $0.estimatedMinutes) },
+            userLastSaid: lastRawTranscript
+        )
     }
 
     // MARK: - Silence timeout
@@ -1335,13 +1395,69 @@ struct MorningInterviewPane: View {
         voiceProcessing = true
         lastRawTranscript = transcript
         let response = VoiceResponse.parse(transcript)
+
+        // On .unknown, try Opus resolution before giving up
+        if case .unknown = response, interviewAI.isAvailable {
+            Task {
+                if let resolved = await interviewAI.resolveUnknown(transcript: transcript, step: step) {
+                    let mappedResponse = mapResolvedToVoiceResponse(resolved)
+                    if let mappedResponse {
+                        // Speak acknowledgment, then process the intent
+                        if !resolved.spokenResponse.isEmpty {
+                            speechService.speak(resolved.spokenResponse)
+                        }
+                        handleVoiceResponse(mappedResponse)
+                    } else {
+                        // Opus returned "unclear" — re-prompt
+                        conversationState = .ambiguous(step: step, prompt: resolved.spokenResponse)
+                        speechService.speak(resolved.spokenResponse)
+                    }
+                } else {
+                    conversationState = .idle
+                    speechService.speak("I didn't quite get that. Could you say it differently?")
+                }
+                voiceProcessing = false
+                if case .processing = conversationState {
+                    conversationState = .idle
+                }
+            }
+            return
+        }
+
         handleVoiceResponse(response)
         voiceProcessing = false
-        // After processing, state transitions happen inside handleVoiceResponse
-        // (advanceStep triggers speakForStep which sets .appSpeaking)
-        // If no advance happened, go idle
         if case .processing = conversationState {
             conversationState = .idle
+        }
+    }
+
+    private func mapResolvedToVoiceResponse(_ resolved: ResolvedIntent) -> VoiceResponse? {
+        switch resolved.action {
+        case "affirmative": return .affirmative
+        case "negative": return .negative
+        case "skip": return .skip
+        case "done": return .done
+        case "repeat": return .repeat_
+        case "goBack": return .goBack
+        case "undo": return .undo
+        case "number":
+            return .number(resolved.value ?? 0)
+        case "adjustEndTime":
+            return .adjustEndTime(resolved.value ?? 17)
+        case "subtractTime":
+            return .subtractTime(resolved.value ?? 30)
+        case "removeItem":
+            return .removeItem(resolved.index ?? 1)
+        case "moveToTomorrow":
+            return .moveToTomorrow(resolved.index)
+        case "addTask":
+            return .addTask(resolved.description ?? "New task")
+        case "estimateOverride":
+            return .estimateOverride(ordinal: resolved.ordinal ?? 1, minutes: resolved.minutes ?? 15)
+        case "unclear":
+            return nil
+        default:
+            return nil
         }
     }
 
@@ -1896,6 +2012,42 @@ struct PulsingIcon: View {
     }
 }
 
+// MARK: - Audio waveform visualization
+
+struct AudioWaveformView: View {
+    let level: Float
+    private let barCount = 24
+
+    @State private var barHeights: [CGFloat] = Array(repeating: 0.1, count: 24)
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(0..<barCount, id: \.self) { i in
+                RoundedRectangle(cornerRadius: 1.5)
+                    .fill(barColor(for: barHeights[i]))
+                    .frame(width: 3, height: max(3, barHeights[i] * 32))
+            }
+        }
+        .onChange(of: level) { _, newLevel in
+            withAnimation(.easeOut(duration: 0.08)) {
+                // Shift bars left, add new bar on right
+                for i in 0..<(barCount - 1) {
+                    barHeights[i] = barHeights[i + 1]
+                }
+                // Add slight randomness for natural feel
+                let jitter = CGFloat.random(in: 0.7...1.3)
+                barHeights[barCount - 1] = CGFloat(newLevel) * jitter
+            }
+        }
+    }
+
+    private func barColor(for height: CGFloat) -> Color {
+        if height > 0.6 { return .red.opacity(0.8) }
+        if height > 0.3 { return .primary.opacity(0.7) }
+        return .primary.opacity(0.35)
+    }
+}
+
 // MARK: - Interview task row
 
 struct InterviewTaskRow: View {
@@ -1908,7 +2060,7 @@ struct InterviewTaskRow: View {
             HStack(spacing: 12) {
                 Image(systemName: isConfirmed ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 16))
-                    .foregroundStyle(isConfirmed ? Color.indigo : Color(.separatorColor))
+                    .foregroundStyle(isConfirmed ? Color.primary : Color(.separatorColor))
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(task.title)
@@ -1918,7 +2070,7 @@ struct InterviewTaskRow: View {
                     if task.isDoFirst {
                         Text("Do First — always runs first")
                             .font(.system(size: 10))
-                            .foregroundStyle(.indigo)
+                            .foregroundStyle(.primary)
                     }
                 }
 
@@ -1939,7 +2091,7 @@ struct InterviewTaskRow: View {
             }
             .padding(.horizontal, 12).padding(.vertical, 9)
             .background(
-                isConfirmed ? Color.indigo.opacity(0.06) : Color(.controlBackgroundColor),
+                isConfirmed ? Color.primary.opacity(0.06) : Color(.controlBackgroundColor),
                 in: RoundedRectangle(cornerRadius: 8)
             )
         }

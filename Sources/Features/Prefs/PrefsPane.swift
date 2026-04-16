@@ -2,7 +2,7 @@
 // Settings: email accounts, sync, time blocks, notifications, appearance, voice.
 
 import SwiftUI
-import AVFoundation
+import Foundation
 import Dependencies
 
 struct PrefsPane: View {
@@ -233,7 +233,7 @@ struct AppearanceTab: View {
     @AppStorage("prefs.appearance.accent") private var accent = 0
 
     private let themes  = ["Automatic", "Light", "Dark"]
-    private let accents: [(String, Color)] = [("Blue", .blue), ("Crimson", Color(red: 0.827, green: 0.184, blue: 0.184)), ("Indigo", .indigo)]
+    private let accents: [(String, Color)] = [("Blue", .blue), ("Crimson", Color(red: 0.827, green: 0.184, blue: 0.184)), ("Graphite", .gray)]
 
     var body: some View {
         Form {
@@ -268,45 +268,27 @@ struct AppearanceTab: View {
 // MARK: - Voice
 
 struct VoiceTab: View {
-    @AppStorage("prefs.voice.identifier") private var selectedVoice = ""
-    @AppStorage("prefs.voice.rate")       private var rate: Double = 0.50
-    @StateObject private var speech = SpeechService()
-
-    private var grouped: [(String, [AVSpeechSynthesisVoice])] {
-        let order = ["en-GB", "en-US", "en-AU"]
-        let dict = Dictionary(grouping: SpeechService.availablePremiumVoices()) { $0.language }
-        return order.compactMap { key in dict[key].map { (key, $0) } }
-    }
+    @AppStorage("elevenlabs_api_key")     private var elevenlabsKey = ""
+    @AppStorage("elevenlabs_voice_id")    private var voiceId = ""
+    @AppStorage("anthropic_api_key")      private var anthropicKey = ""
 
     var body: some View {
         Form {
-            ForEach(grouped, id: \.0) { lang, voices in
-                Section(lang) {
-                    ForEach(voices, id: \.identifier) { voice in
-                        HStack {
-                            Button { selectedVoice = voice.identifier } label: {
-                                Image(systemName: selectedVoice == voice.identifier
-                                      ? "largecircle.fill.circle" : "circle")
-                            }
-                            .buttonStyle(.plain)
-                            Text(voice.name).font(.system(size: 13))
-                            Spacer()
-                            Text(voice.language).font(.caption).foregroundStyle(.secondary)
-                            Button("Preview") { speech.previewVoice(voice.identifier) }
-                                .buttonStyle(.bordered).controlSize(.mini)
-                        }
-                    }
-                }
+            Section("Voice (ElevenLabs)") {
+                SecureField("API Key", text: $elevenlabsKey)
+                    .textFieldStyle(.roundedBorder)
+                TextField("Voice ID", text: $voiceId)
+                    .textFieldStyle(.roundedBorder)
+                Text("George (warm British male) is the default. Change the Voice ID to use a different ElevenLabs voice.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
-            Section("Rate") {
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack {
-                        Text("Speaking rate")
-                        Spacer()
-                        Text(String(format: "%.2f", rate)).foregroundStyle(.secondary).monospacedDigit()
-                    }
-                    Slider(value: $rate, in: 0.40...0.60, step: 0.02)
-                }
+            Section("Interview Intelligence") {
+                SecureField("Anthropic API Key", text: $anthropicKey)
+                    .textFieldStyle(.roundedBorder)
+                Text("Personalises morning interview prompts using your executive profile. Leave empty for standard scripts.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)

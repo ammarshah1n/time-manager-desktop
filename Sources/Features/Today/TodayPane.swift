@@ -312,7 +312,7 @@ struct TodayPane: View {
                             id: "readToday",
                             icon: "doc.text.fill",
                             title: "READ TODAY",
-                            color: .purple,
+                            color: .secondary,
                             tasks: readsToday,
                             expanded: expandedSections.contains("readToday"),
                             completedIds: $completedIds,

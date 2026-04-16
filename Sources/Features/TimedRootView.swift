@@ -156,19 +156,10 @@ struct TimedRootView: View {
 
             // Load from local DataStore first (offline-first)
             if let v = try? await store.loadTasks(),        !v.isEmpty { tasks       = v }
-            else if !hasCompletedOnboarding { tasks = TimedTask.samples }
-
             if let v = try? await store.loadTriageItems(),  !v.isEmpty { triageItems = v }
-            else if !hasCompletedOnboarding { triageItems = TriageItem.samples }
-
             if let v = try? await store.loadWOOItems(),     !v.isEmpty { wooItems    = v }
-            else if !hasCompletedOnboarding { wooItems = WOOItem.samples }
-
             if let v = try? await store.loadBlocks(),       !v.isEmpty { blocks      = v }
-            else if !hasCompletedOnboarding { blocks = CalendarBlock.samples }
-
             if let v = try? await store.loadCaptureItems(), !v.isEmpty { captureItems = v }
-            else if !hasCompletedOnboarding { captureItems = CaptureItem.samples }
 
             // Start email sync if Graph token is available
             startEmailSyncIfReady()
@@ -305,7 +296,7 @@ struct TimedRootView: View {
 
             // ── TOOLS ──────────────────────────────────────────────────
             Section {
-                SidebarRow(label: "Capture", icon: "mic.fill", color: .purple, badge: 0, isSelected: selection == .capture)
+                SidebarRow(label: "Capture", icon: "mic.fill", color: .primary, badge: 0, isSelected: selection == .capture)
                     .tag(NavSection.capture)
 
                 SidebarRow(label: "Calendar", icon: "calendar", color: .blue, badge: 0, isSelected: selection == .calendar)

@@ -51,6 +51,7 @@ final class VoiceCaptureService: NSObject, ObservableObject {
     @Published private(set) var parsedItems: [ParsedItem] = []
     @Published private(set) var lastError: Error?
     @Published var lastConfidence: Float = 1.0
+    @Published private(set) var audioLevel: Float = 0.0  // 0.0–1.0 normalized RMS for waveform display
 
     // MARK: - Private
 
@@ -147,6 +148,7 @@ final class VoiceCaptureService: NSObject, ObservableObject {
         recognitionTask = nil
         recognitionRequest = nil
         isRecording = false
+        audioLevel = 0
 
         // Parse final transcript into discrete task items
         parsedItems = TranscriptParser.parse(liveTranscript)
@@ -175,7 +177,21 @@ final class VoiceCaptureService: NSObject, ObservableObject {
         inputNode.removeTap(onBus: 0)
         inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self] buffer, _ in
             guard let self else { return }
-            Task { @MainActor in self.recognitionRequest?.append(buffer) }
+            // Compute RMS audio level for waveform visualization
+            let channelData = buffer.floatChannelData?[0]
+            let frameLength = Int(buffer.frameLength)
+            var rms: Float = 0
+            if let samples = channelData, frameLength > 0 {
+                var sum: Float = 0
+                for i in 0..<frameLength { sum += samples[i] * samples[i] }
+                rms = sqrtf(sum / Float(frameLength))
+            }
+            // Normalize to 0-1 range (typical speech RMS is 0.01-0.2)
+            let normalized = min(1.0, rms * 8)
+            Task { @MainActor in
+                self.recognitionRequest?.append(buffer)
+                self.audioLevel = normalized
+            }
         }
 
         audioEngine.prepare()
