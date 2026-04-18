@@ -849,3 +849,122 @@ logs/watchdog.log
 .build/arm64-apple-macosx/debug/time_manager_desktop.build/TimedRootView.d
 .build/arm64-apple-macosx/debug/time_manager_desktop.build/MorningInterviewPane.dia
 .build/arm64-apple-macosx/debug/time_manager_desktop.build/SpeechService.swiftdeps
+
+---
+## Session: 2026-04-16 11:51
+
+### Commits This Session
+21311ee docs: session wrap-up — handoff, build state, session log
+7cef6d0 feat: ElevenLabs onboarding voice, intelligent capture with Opus 4.6, hero screen redesign
+
+### Modified Files
+.build/.lock
+.build/debug.yaml
+.build/plugin-tools.yaml
+.build/arm64-apple-macosx/debug/Crypto.build/output-file-map.json
+.build/arm64-apple-macosx/debug/USearch.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftOperators.build/output-file-map.json
+.build/arm64-apple-macosx/debug/Supabase.build/output-file-map.json
+.build/arm64-apple-macosx/debug/CasePathsCore.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftParser-tool.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftCompilerPluginMessageHandling-tool.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftUINavigation.build/output-file-map.json
+.build/arm64-apple-macosx/debug/time-manager-desktop
+.build/arm64-apple-macosx/debug/Functions.build/output-file-map.json
+.build/arm64-apple-macosx/debug/HTTPTypes.build/output-file-map.json
+.build/arm64-apple-macosx/debug/Dependencies.build/output-file-map.json
+
+---
+## Session: 2026-04-16 12:05
+
+### Commits This Session
+21311ee docs: session wrap-up — handoff, build state, session log
+7cef6d0 feat: ElevenLabs onboarding voice, intelligent capture with Opus 4.6, hero screen redesign
+
+### Modified Files
+.build/.lock
+.build/arm64-apple-macosx/debug/time-manager-desktop
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/VoiceCaptureService.swift.o
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/VoiceCaptureService.dia
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/VoiceCaptureService.d
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/time_manager_desktop.emit-module.d
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/time_manager_desktop.emit-module.dia
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/VoiceCaptureService.swiftdeps
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/primary.priors
+.build/arm64-apple-macosx/debug/index/store/v5/units/VoiceCaptureService.swift.o-25JFB4Y9J42I3
+.build/arm64-apple-macosx/debug/time-manager-desktop.dSYM/Contents/Resources/Relocations/aarch64/time-manager-desktop.yml
+.build/arm64-apple-macosx/debug/time-manager-desktop.dSYM/Contents/Resources/DWARF/time-manager-desktop
+.build/arm64-apple-macosx/debug/time-manager-desktop.dSYM/Contents/Resources/Swift/aarch64/MSAL.swiftinterface
+.build/arm64-apple-macosx/debug/time-manager-desktop.dSYM/Contents/Info.plist
+.build/arm64-apple-macosx/debug/Modules/time_manager_desktop.abi.json
+
+---
+## Session: 2026-04-17 11:48
+
+### Commits This Session
+(no recent commits)
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-17 12:04
+
+### Commits This Session
+(no recent commits)
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-17 12:15
+
+### Commits This Session
+(no recent commits)
+
+### Modified Files
+.build/.lock
+.build/debug.yaml
+.build/plugin-tools.yaml
+.build/arm64-apple-macosx/debug/Crypto.build/output-file-map.json
+.build/arm64-apple-macosx/debug/USearch.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftOperators.build/output-file-map.json
+.build/arm64-apple-macosx/debug/Supabase.build/output-file-map.json
+.build/arm64-apple-macosx/debug/CasePathsCore.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftParser-tool.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftCompilerPluginMessageHandling-tool.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftUINavigation.build/output-file-map.json
+.build/arm64-apple-macosx/debug/time-manager-desktop
+.build/arm64-apple-macosx/debug/Functions.build/output-file-map.json
+.build/arm64-apple-macosx/debug/HTTPTypes.build/output-file-map.json
+.build/arm64-apple-macosx/debug/Dependencies.build/output-file-map.json
+
+---
+### 2026-04-18 — Cinematic First-Launch Intro + Brand Tokens
+
+**Done**:
+- `IntroFeature.swift`: TCA 1.15+ @Reducer with @ObservableState, phase machine (reveal → tagline → holding → exiting → finished), @Dependency(\.continuousClock) for all delays, `.delegate(.completed)` emission
+- `IntroView.swift`: circular mask reveal (logo materialises via expanding Circle mask), MeshGradient 3×3 with TimelineView hue drift, word-by-word tagline with 0.08s stagger, skip button after 2s, exit morphs MeshGradient toward BrandColor.surface to avoid hard cut, Reduce Motion collapses to 300ms cross-fade
+- `BrandTokens.swift` (Sources/Core/Design/): BrandColor (primary #4C8DFF, accent, surface/ink/mist dynamic via NSColor(name:)), BrandMotion (easeStandard/Expressive, stagger, grace windows), BrandType (display 72pt thin expanded, headline, tagline, body, mono), BrandVersion.current="v1" + introSeenKey, BrandAsset.logoImage() via Bundle.module
+- `TimeManagerDesktopApp.swift`: `.windowStyle(.hiddenTitleBar)` applied to WindowGroup, @AppStorage(BrandVersion.introSeenKey) gates RootContainer; IntroFeature store owned by app, observes `.finished` phase to flip flag with withAnimation
+- `Sources/Resources/BrandLogo.png`: copied from Assets.xcassets/AppIcon.appiconset/icon_1024.png for SwiftPM Bundle.module access (still placeholder white-clock pending real logo from user)
+- `scripts/package_app.sh` end-to-end (manual finish due to render_app_icons.sh bug, see Discovered), .app bundle signed, launched successfully
+
+**In progress**:
+- Real logo drop — placeholder white-clock will auto-swap when user replaces `Sources/Resources/BrandLogo.png`
+- Still-uncommitted voice-conversational onboarding work from prior session (VoiceCaptureService.swift, OnboardingFlow.swift, OnboardingAIClient.swift) — left untouched this session
+
+**Discovered**:
+- Repo-root `Assets.xcassets` is NOT in the SwiftPM target (Package.swift uses `resources: [.copy("Resources")]`). `Image("BrandLogo")` and `Color("BrandPrimary")` would NOT resolve at runtime if defined there. Solution: Swift-defined colours via `NSColor(name:)` appearance adapter + logo loaded via `Bundle.module.url(forResource:)`. AppIcon.appiconset works only because `package_app.sh` runs `iconutil` on the PNGs directly.
+- `scripts/render_app_icons.sh` line 74 has a glob bug: `"$ROOT_DIR"/Sources/*.swift` matches zero files now that Sources/ has subdirs. Causes set -e abort in package_app.sh. Worked around by running the remaining package steps manually. Fix: change to `"$ROOT_DIR"/Sources/**/*.swift` with globstar, or supply a file list.
+- `withAnimation(.easeOut(...))` on @State triggering MeshGradient colour change works cleanly — TimelineView subtree re-evaluates each tick with fresh state value
+- Introducing `@Reducer` IntroFeature adds TCA runtime import to the app for the first time (previously TCA was in Package.swift but only @Dependency types were referenced indirectly). No other module required changes.
+
+**Next**:
+- Make onboarding screens voice-conversational (mic active, user talks back, Opus parses) — the big pending workstream
+- Replace `Sources/Resources/BrandLogo.png` with user's actual logo asset
+- Fix `scripts/render_app_icons.sh` glob
+- Deploy 6 new intelligence migrations + 7 new Edge Functions (still pending from Apr 14)
+- First end-to-end Outlook sign-in test with real account
