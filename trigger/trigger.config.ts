@@ -8,8 +8,15 @@ import { defineConfig } from "@trigger.dev/sdk";
  * knob below is encoded here so the eventual `trigger.dev deploy` is a no-arg
  * operation.
  */
+const TRIGGER_PROJECT_REF = process.env.TRIGGER_PROJECT_REF;
+if (!TRIGGER_PROJECT_REF) {
+  throw new Error(
+    "TRIGGER_PROJECT_REF env var is required. Set it in the Trigger.dev org → Project settings, or export it locally before running `trigger.dev deploy`.",
+  );
+}
+
 export default defineConfig({
-  project: process.env.TRIGGER_PROJECT_REF ?? "proj_placeholder_set_in_trigger_dashboard",
+  project: TRIGGER_PROJECT_REF,
   dirs: ["./src/tasks"],
   runtime: "node",
   logLevel: "info",
