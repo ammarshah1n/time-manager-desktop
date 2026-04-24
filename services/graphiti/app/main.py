@@ -155,7 +155,8 @@ async def add_episode(body: EpisodeIn) -> dict[str, Any]:
     except Exception as exc:  # noqa: BLE001
         logger.exception("add_episode failed")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return {"episode_uuid": getattr(result, "episode", {}).uuid if hasattr(result, "episode") else None}
+    ep = getattr(result, "episode", None)
+    return {"episode_uuid": ep.uuid if ep is not None else None}
 
 
 @app.post("/search")

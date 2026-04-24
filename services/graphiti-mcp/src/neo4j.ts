@@ -204,23 +204,22 @@ export class Neo4jClient {
   ): Promise<EntityRelationshipRow[]> {
     // Clamp depth — unbounded expansion on a temporal KG is a footgun.
     const clamped = Math.max(1, Math.min(depth, 3));
+    // Emit one row per edge along the path, with peer = the node at the OTHER
+    // end of THAT specific edge (not the terminal node of the walk).
     const cypher = `
       MATCH (root:Entity { uuid: $entityId })
       CALL {
         WITH root
-        MATCH path = (root)-[rels:RELATES_TO*1..${clamped}]->(peer:Entity)
-        WITH peer, rels, length(path) AS d, 'out' AS direction
-        RETURN peer, rels, d, direction
-        UNION
-        WITH root
-        MATCH path = (root)<-[rels:RELATES_TO*1..${clamped}]-(peer:Entity)
-        WITH peer, rels, length(path) AS d, 'in' AS direction
-        RETURN peer, rels, d, direction
+        MATCH path = (root)-[:RELATES_TO*1..${clamped}]-(leaf:Entity)
+        WITH relationships(path) AS rels, nodes(path) AS ns
+        UNWIND range(0, size(rels) - 1) AS i
+        WITH rels[i] AS r, ns[i] AS u, ns[i + 1] AS v, i + 1 AS d
+        WHERE r.expired_at IS NULL
+        RETURN DISTINCT r, u, v, d
       }
-      WITH peer, rels, d, direction
-      UNWIND rels AS r
-      WITH peer, direction, d, r
-      WHERE r.expired_at IS NULL
+      WITH r, u, v, d,
+           CASE WHEN startNode(r).uuid = u.uuid THEN 'out' ELSE 'in' END AS direction,
+           CASE WHEN startNode(r).uuid = u.uuid THEN v ELSE u END AS peer
       RETURN direction, d AS depth,
              peer.uuid AS peer_uuid, peer.name AS peer_name,
              r.fact AS fact,

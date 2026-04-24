@@ -12,6 +12,8 @@
  * keep the JSON body parsed by Express.
  */
 
+import { timingSafeEqual } from "node:crypto";
+
 import express, { type Request, type Response, type NextFunction } from "express";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
@@ -37,7 +39,13 @@ registerTools(server, { neo4j, graphiti, snapshot });
 function bearerAuth(req: Request, res: Response, next: NextFunction): void {
   const header = req.header("authorization") ?? "";
   const match = header.match(/^Bearer\s+(.+)$/i);
-  if (!match || match[1] !== cfg.mcpToken) {
+  if (!match) {
+    res.status(401).json({ error: "unauthorized" });
+    return;
+  }
+  const provided = Buffer.from(match[1]!);
+  const expected = Buffer.from(cfg.mcpToken);
+  if (provided.length !== expected.length || !timingSafeEqual(provided, expected)) {
     res.status(401).json({ error: "unauthorized" });
     return;
   }
@@ -45,7 +53,7 @@ function bearerAuth(req: Request, res: Response, next: NextFunction): void {
 }
 
 const app = express();
-app.use(express.json({ limit: "32mb" })); // export_snapshot responses can be chunky
+app.use(express.json({ limit: "32mb" })); // add_episode inbound payloads can be chunky
 
 app.get("/healthz", (_req, res) => {
   res.status(200).json({ ok: true });

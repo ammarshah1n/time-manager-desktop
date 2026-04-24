@@ -53,8 +53,12 @@ export class SnapshotService {
       throw new Error(`supabase storage upload failed: ${error.message}`);
     }
 
+    // Return the object path only (no bucket prefix). Consumers call
+    // `supabase.storage.from(snapshotBucket).download(storage_path)`; the
+    // bucket is a separate dimension and baking it into the path breaks that
+    // contract.
     return {
-      storage_path: `${this.cfg.snapshotBucket}/${storagePath}`,
+      storage_path: storagePath,
       node_count: dump.nodes,
       relationship_count: dump.relationships,
       size_bytes: dump.data.length,
