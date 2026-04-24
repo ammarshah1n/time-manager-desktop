@@ -387,12 +387,34 @@ struct BehaviourEventInsert: Codable, Sendable {
     let workspaceId: UUID
     let profileId: UUID
     let eventType: String
-    let taskId: UUID
+    let taskId: UUID?
     let bucketType: String
     let hourOfDay: Int
     let dayOfWeek: Int
     let oldValue: String?
     let newValue: String?
+
+    init(
+        workspaceId: UUID,
+        profileId: UUID,
+        eventType: String,
+        taskId: UUID?,
+        bucketType: String,
+        hourOfDay: Int,
+        dayOfWeek: Int,
+        oldValue: String? = nil,
+        newValue: String? = nil
+    ) {
+        self.workspaceId = workspaceId
+        self.profileId = profileId
+        self.eventType = eventType
+        self.taskId = taskId
+        self.bucketType = bucketType
+        self.hourOfDay = hourOfDay
+        self.dayOfWeek = dayOfWeek
+        self.oldValue = oldValue
+        self.newValue = newValue
+    }
 
     enum CodingKeys: String, CodingKey {
         case workspaceId = "workspace_id"
@@ -404,6 +426,34 @@ struct BehaviourEventInsert: Codable, Sendable {
         case dayOfWeek = "day_of_week"
         case oldValue = "old_value"
         case newValue = "new_value"
+    }
+}
+
+struct ExecutiveProfileUpsert: Codable, Sendable {
+    let execId: UUID
+    let displayName: String?
+    let workHoursStart: String?
+    let workHoursEnd: String?
+    let typicalWorkdayHours: Double?
+    let emailCadenceMode: Int?
+    let transitModes: [String]
+    let timeDefaults: [String: Int]
+    let paEmail: String?
+    let paEnabled: Bool
+    let updatedAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case execId = "exec_id"
+        case displayName = "display_name"
+        case workHoursStart = "work_hours_start"
+        case workHoursEnd = "work_hours_end"
+        case typicalWorkdayHours = "typical_workday_hours"
+        case emailCadenceMode = "email_cadence_mode"
+        case transitModes = "transit_modes"
+        case timeDefaults = "time_defaults"
+        case paEmail = "pa_email"
+        case paEnabled = "pa_enabled"
+        case updatedAt = "updated_at"
     }
 }
 
@@ -479,6 +529,12 @@ struct SupabaseClientDependency: Sendable {
 
     /// Single-shot behaviour event write — fire-and-forget from UI interactions.
     var logBehaviourEvent: @Sendable (_ event: BehaviourEventInsert) async throws -> Void = { _ in }
+
+    /// Upserts the executive's onboarding-derived profile row. No-ops when Supabase isn't configured.
+    var upsertExecutiveProfile: @Sendable (_ payload: ExecutiveProfileUpsert) async throws -> Void = { _ in }
+
+    /// Appends an interaction entry to briefings.sections_interacted (client-side array append).
+    var appendBriefingSectionInteraction: @Sendable (_ briefingId: UUID, _ entry: [String: String]) async throws -> Void = { _, _ in }
 
     // MARK: - Realtime
     var subscribeToTaskChanges: @Sendable (_ workspaceId: UUID, _ onChange: @escaping @Sendable () -> Void) async -> Void = { _, _ in }
@@ -805,6 +861,40 @@ extension SupabaseClientDependency {
                 try await client
                     .from("behaviour_events")
                     .insert(event)
+                    .execute()
+            },
+            upsertExecutiveProfile: { payload in
+                try await client
+                    .from("executive_profile")
+                    .upsert(payload, onConflict: "exec_id")
+                    .execute()
+            },
+            appendBriefingSectionInteraction: { briefingId, entry in
+                struct FetchedInteractions: Decodable, Sendable {
+                    let sectionsInteracted: [[String: String]]?
+                    enum CodingKeys: String, CodingKey {
+                        case sectionsInteracted = "sections_interacted"
+                    }
+                }
+                struct InteractionUpdate: Encodable, Sendable {
+                    let sectionsInteracted: [[String: String]]
+                    enum CodingKeys: String, CodingKey {
+                        case sectionsInteracted = "sections_interacted"
+                    }
+                }
+                let existing: FetchedInteractions = try await client
+                    .from("briefings")
+                    .select("sections_interacted")
+                    .eq("id", value: briefingId)
+                    .single()
+                    .execute()
+                    .value
+                var merged = existing.sectionsInteracted ?? []
+                merged.append(entry)
+                try await client
+                    .from("briefings")
+                    .update(InteractionUpdate(sectionsInteracted: merged))
+                    .eq("id", value: briefingId)
                     .execute()
             },
             subscribeToTaskChanges: { workspaceId, onChange in
