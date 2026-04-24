@@ -1190,3 +1190,63 @@ a4d8cc2 docs: session wrap — Dish Me Up shipped, learnings + rules updated
 logs/watchdog-launchd.log
 logs/watchdog.log
 HANDOFF.md
+
+---
+## Session: 2026-04-25 00:40
+
+### Commits This Session
+74a379c chore: voice-first onboarding bridge, hook refactor, archive .codex/ralph
+a4d8cc2 docs: session wrap — Dish Me Up shipped, learnings + rules updated
+27d68c3 feat: Dish Me Up end-to-end — voice onboarding, Opus plan, cut dead code
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+.gitignore
+
+---
+## Session: 2026-04-25 00:53
+
+### Commits This Session
+74a379c chore: voice-first onboarding bridge, hook refactor, archive .codex/ralph
+a4d8cc2 docs: session wrap — Dish Me Up shipped, learnings + rules updated
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-25 01:22
+
+### Commits This Session
+74a379c chore: voice-first onboarding bridge, hook refactor, archive .codex/ralph
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-25 — Comet MCP fixes (NOT a Timed session)
+
+The three auto-appended entries above are passive hook noise — this session was infrastructure work on the **perplexity-comet-mcp** repo, not Timed. No Timed code changed. Timed HANDOFF.md and build state are unchanged.
+
+**Real work this session lives in `/Users/integrale/code/perplexity-comet-mcp`:**
+
+- Fixed the Feb 2026 Perplexity "+" popover UI in `comet_mode` (src/index.ts) so mode switching actually works.
+- Added `comet_deep_research` (one-shot mode + prompt, 5 min default) and `comet_connectors` tools.
+- `comet_ask` gained a `deepResearch:boolean` param that flips mode and bumps timeout.
+- `getAgentStatus` (src/comet-ai.ts) now detects Deep Research completion signals and new working patterns.
+- `submitPrompt` skip-list extended for post-Feb-2026 mode aria-labels.
+- Added CDP helpers: `cdpMouseClick`, `cdpSelectAll`, `cdpInsertText`.
+- New `docs/` folder at repo root: `ARCHITECTURE.md` (end-to-end request flow + on-disk config map) and `TROUBLESHOOTING.md` (opinionated symptom-to-fix runbook).
+- Forked to `ammarshah1n/Perplexity-Comet-MCP`; pushed 3 commits (96e9e60 fixes, 2aa8397 docs).
+
+**Claude Code config changes (user-level, outside any project repo):**
+
+- Deleted redundant `~/.claude/skills/comet-deep-research/` (desktop-pilot-mcp path, superseded).
+- Rewrote `~/.claude/skills/comet/SKILL.md` with a BLOCKING subagent-only contract + file-output contract (reports land in `~/Downloads/comet-reports/<ts>-<slug>.md`, main session only sees path + headline).
+- Created `~/.claude/commands/comet.md` as a proper slash command.
+- Prepended a 2026-04-25 update note to `~/.claude/docs/perplexity-comet-capabilities.md`.
+- Tightened `~/CLAUDE.md` Tool Dispatch item #1 to auto-route any complex research / fresh-info query to `/comet`.
+
+**Done outside this repo, so no commit here.** Next Timed session should resume from the existing Timed HANDOFF.md unchanged.
