@@ -471,6 +471,15 @@ struct SupabaseClientDependency: Sendable {
     /// Syncs local EMA posterior to Supabase for cross-device consistency.
     var upsertBucketEstimate: @Sendable (UUID, UUID, String, Double, Int) async throws -> Void = { _, _, _, _, _ in }
 
+    // MARK: - Dish Me Up (generate-dish-me-up Edge Function)
+    /// Invokes the Opus-backed planning Edge Function. Throws if Supabase isn't configured.
+    var generateDishMeUp: @Sendable (_ availableMinutes: Int) async throws -> DishMeUpPlan = { _ in
+        throw NSError(domain: "SupabaseClient", code: -1, userInfo: [NSLocalizedDescriptionKey: "Supabase not configured"])
+    }
+
+    /// Single-shot behaviour event write — fire-and-forget from UI interactions.
+    var logBehaviourEvent: @Sendable (_ event: BehaviourEventInsert) async throws -> Void = { _ in }
+
     // MARK: - Realtime
     var subscribeToTaskChanges: @Sendable (_ workspaceId: UUID, _ onChange: @escaping @Sendable () -> Void) async -> Void = { _, _ in }
 
@@ -779,6 +788,23 @@ extension SupabaseClientDependency {
                 try await client
                     .from("bucket_estimates")
                     .upsert(row, onConflict: "workspace_id,profile_id,bucket_type")
+                    .execute()
+            },
+            generateDishMeUp: { availableMinutes in
+                let request = DishMeUpRequest(
+                    availableMinutes: availableMinutes,
+                    currentTime: ISO8601DateFormatter().string(from: Date())
+                )
+                let plan: DishMeUpPlan = try await client.functions.invoke(
+                    "generate-dish-me-up",
+                    options: FunctionInvokeOptions(method: .post, body: request)
+                )
+                return plan
+            },
+            logBehaviourEvent: { event in
+                try await client
+                    .from("behaviour_events")
+                    .insert(event)
                     .execute()
             },
             subscribeToTaskChanges: { workspaceId, onChange in

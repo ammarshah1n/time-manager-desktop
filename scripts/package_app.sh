@@ -29,6 +29,21 @@ if [[ -d "$MSAL_SRC" ]]; then
 else
   echo "WARNING: MSAL.framework not found — OAuth will not work"
 fi
+
+# Embed LiveKitWebRTC.framework — transitive dep of ElevenLabs SDK's voice stack.
+# Without this, the binary dyld-crashes on launch because the ElevenLabs
+# Conversation import pulls in LiveKit at runtime.
+LIVEKIT_SRC="$ROOT_DIR/.build/artifacts/webrtc-xcframework/LiveKitWebRTC/LiveKitWebRTC.xcframework/macos-arm64_x86_64/LiveKitWebRTC.framework"
+if [[ ! -d "$LIVEKIT_SRC" ]]; then
+  LIVEKIT_SRC="$ROOT_DIR/.build/arm64-apple-macosx/release/LiveKitWebRTC.framework"
+fi
+if [[ -d "$LIVEKIT_SRC" ]]; then
+  mkdir -p "$APP_DIR/Contents/Frameworks"
+  cp -R "$LIVEKIT_SRC" "$APP_DIR/Contents/Frameworks/LiveKitWebRTC.framework"
+  echo "Embedded LiveKitWebRTC.framework"
+else
+  echo "WARNING: LiveKitWebRTC.framework not found — voice check-in will crash on launch"
+fi
 echo "APPL????" > "$APP_DIR/Contents/PkgInfo"
 
 if [[ -d "$ICONSET_SOURCE" ]]; then
@@ -117,6 +132,7 @@ cat > "$APP_DIR/Contents/Info.plist" <<'PLIST'
 PLIST
 
 codesign --force --deep --sign - "$APP_DIR/Contents/Frameworks/MSAL.framework" 2>/dev/null || true
+codesign --force --deep --sign - "$APP_DIR/Contents/Frameworks/LiveKitWebRTC.framework" 2>/dev/null || true
 codesign --force --deep --sign - "$APP_DIR"
 
 echo "Packaged $APP_DIR"

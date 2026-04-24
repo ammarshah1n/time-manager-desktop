@@ -1,233 +1,31 @@
+// generate-embedding — DISABLED per Dish Me Up Model Routing Amendment.
+//
+// This function previously called OpenAI text-embedding-3-large and Voyage
+// voyage-3. The Claude-only stack (Model Routing Amendment) removes OpenAI
+// from the inference path and replaces semantic embeddings with structured
+// Haiku-generated tags + Postgres array overlap at query time.
+//
+// Re-enable only if retrieval quality is insufficient after 200+ real corrections
+// have accumulated (Ship-It.md, Part 2).
+
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
-import { verifyAuth, AuthError, authErrorResponse } from "../_shared/auth.ts";
-import { createRequestLogger } from "../_shared/logger.ts";
-import { requireEnv } from "../_shared/config.ts";
 
-const MAX_BATCH_SIZE = 10;
-const VOYAGE_MODEL = "voyage-3";
-const OPENAI_MODEL = "text-embedding-3-large";
-const VOYAGE_DIMENSION = 1024;
-const OPENAI_DIMENSION = 3072;
-
-type EmbeddingRequest = {
-  texts: string[];
-  tier: 0 | 1 | 2 | 3;
+const CORS = {
+  "Access-Control-Allow-Origin":  "*",
+  "Access-Control-Allow-Headers": "authorization, content-type",
+  "Content-Type":                 "application/json",
 };
 
-type ProviderConfig = {
-  apiKey: string;
-  url: string;
-  model: string;
-  dimension: number;
-  headers: Record<string, string>;
-  body: (texts: string[]) => Record<string, unknown>;
-};
+serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
 
-type ProviderEmbeddingItem = {
-  embedding?: unknown;
-  index?: unknown;
-};
-
-type ProviderResponse = {
-  data?: ProviderEmbeddingItem[];
-};
-
-function responseHeaders() {
-  return {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "authorization, content-type",
-    "Content-Type": "application/json",
-  };
-}
-
-function jsonResponse(body: Record<string, unknown>, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: responseHeaders(),
-  });
-}
-
-function isValidTier(value: unknown): value is 0 | 1 | 2 | 3 {
-  return typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= 3;
-}
-
-function parseRequestBody(body: unknown): EmbeddingRequest | null {
-  if (typeof body !== "object" || body === null) {
-    return null;
-  }
-
-  const texts = (body as { texts?: unknown }).texts;
-  const tier = (body as { tier?: unknown }).tier;
-
-  if (!Array.isArray(texts) || texts.length === 0 || texts.length > MAX_BATCH_SIZE) {
-    return null;
-  }
-
-  if (!texts.every((text) => typeof text === "string")) {
-    return null;
-  }
-
-  if (!isValidTier(tier)) {
-    return null;
-  }
-
-  return { texts, tier };
-}
-
-function providerConfigForTier(tier: 0 | 1 | 2 | 3): ProviderConfig | null {
-  if (tier === 0) {
-    const apiKey = Deno.env.get("VOYAGE_API_KEY");
-    if (!apiKey) {
-      return null;
-    }
-
-    return {
-      apiKey,
-      url: "https://api.voyageai.com/v1/embeddings",
-      model: VOYAGE_MODEL,
-      dimension: VOYAGE_DIMENSION,
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: (texts) => ({
-        model: VOYAGE_MODEL,
-        input: texts,
-        output_dimension: VOYAGE_DIMENSION,
-      }),
-    };
-  }
-
-  const apiKey = Deno.env.get("OPENAI_API_KEY");
-  if (!apiKey) {
-    return null;
-  }
-
-  return {
-    apiKey,
-    url: "https://api.openai.com/v1/embeddings",
-    model: OPENAI_MODEL,
-    dimension: OPENAI_DIMENSION,
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: (texts) => ({
-      model: OPENAI_MODEL,
-      input: texts,
-      dimensions: OPENAI_DIMENSION,
-    }),
-  };
-}
-
-function parseEmbeddingRows(data: ProviderEmbeddingItem[] | undefined, expectedCount: number): number[][] | null {
-  if (!Array.isArray(data) || data.length !== expectedCount) {
-    return null;
-  }
-
-  const sorted = [...data].sort((left, right) => {
-    const leftIndex = typeof left.index === "number" ? left.index : 0;
-    const rightIndex = typeof right.index === "number" ? right.index : 0;
-    return leftIndex - rightIndex;
-  });
-
-  const embeddings = sorted.map((item) => item.embedding);
-  if (!embeddings.every((embedding) => Array.isArray(embedding) && embedding.every((value) => typeof value === "number"))) {
-    return null;
-  }
-
-  return embeddings as number[][];
-}
-
-serve(async (req: Request) => {
-  const log = createRequestLogger("generate-embedding");
-  try {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: responseHeaders() });
-  }
-
-  try {
-    await verifyAuth(req);
-  } catch (err) {
-    if (err instanceof AuthError) return authErrorResponse(err);
-    throw err;
-  }
-
-  if (req.method !== "POST") {
-    return jsonResponse({ error: "Method not allowed" }, 405);
-  }
-
-  let parsedBody: EmbeddingRequest | null = null;
-  try {
-    parsedBody = parseRequestBody(await req.json());
-  } catch {
-    return jsonResponse({ error: "Invalid JSON body" }, 400);
-  }
-
-  if (parsedBody === null) {
-    return jsonResponse(
-      { error: "Expected { texts: string[1...10], tier: 0|1|2|3 }" },
-      400,
-    );
-  }
-
-  const provider = providerConfigForTier(parsedBody.tier);
-  if (provider === null) {
-    return jsonResponse({ error: "Embedding provider is not configured" }, 500);
-  }
-
-  try {
-    const upstreamResponse = await fetch(provider.url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...provider.headers,
-      },
-      body: JSON.stringify(provider.body(parsedBody.texts)),
-    });
-
-    if (!upstreamResponse.ok) {
-      const detail = await upstreamResponse.text();
-      return jsonResponse(
-        {
-          error: "Embedding provider request failed",
-          provider: provider.model,
-          detail,
-        },
-        502,
-      );
-    }
-
-    const payload = await upstreamResponse.json() as ProviderResponse;
-    const embeddings = parseEmbeddingRows(payload.data, parsedBody.texts.length);
-
-    if (embeddings === null || embeddings.some((embedding) => embedding.length !== provider.dimension)) {
-      return jsonResponse(
-        {
-          error: "Embedding provider returned an invalid payload",
-          provider: provider.model,
-        },
-        502,
-      );
-    }
-
-    log.info("complete", { tier: parsedBody.tier, texts: parsedBody.texts.length, dimension: provider.dimension });
-    return jsonResponse({
-      embeddings,
-      dimension: provider.dimension,
-      model: provider.model,
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown upstream error";
-    return jsonResponse(
-      {
-        error: "Embedding provider request failed",
-        provider: provider.model,
-        detail: message,
-      },
-      502,
-    );
-  }
-  } catch (err) {
-    log.error("unhandled", err);
-    return new Response(JSON.stringify({ error: err instanceof Error ? err.message : "Internal error", request_id: log.request_id }), { status: 500, headers: { "Content-Type": "application/json" } });
-  }
+  const body = await req.json().catch(() => ({})) as { texts?: string[] };
+  const n = body.texts?.length ?? 0;
+  return new Response(JSON.stringify({
+    embeddings: [],
+    dimension: 0,
+    count: n,
+    disabled: true,
+    reason: "generate-embedding is disabled until Haiku-tag retrieval is wired (Model Routing Amendment, Option B).",
+  }), { status: 200, headers: CORS });
 });

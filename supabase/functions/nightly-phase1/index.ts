@@ -329,8 +329,12 @@ async function runConflictDetection(client: SupabaseClient, executiveId: string)
 
 // ── Phase 1 Orchestrator ──
 
+// importance_scoring DROPPED per Dish-Me-Up Ship-It.md (Part 2): Sonnet batch
+// re-score writes to authoritative_score, but no consumer at Dish Me Up time
+// reads it. Opus reasons from raw task metadata instead. Re-add when a real
+// consumer is wired.
 const PHASE1_STEPS = [
-  { name: "importance_scoring", run: runImportanceScoring },
+  // { name: "importance_scoring", run: runImportanceScoring },
   { name: "conflict_detection", run: runConflictDetection },
 ];
 

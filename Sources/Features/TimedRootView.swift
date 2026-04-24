@@ -9,7 +9,7 @@ struct TimedRootView: View {
     @AppStorage("hasCompletedOnboarding")       private var hasCompletedOnboarding: Bool = false
     @AppStorage("lastMorningInterviewDate")     private var lastMorningInterviewDate: String = ""
 
-    @State private var selection: NavSection? = .today
+    @State private var selection: NavSection? = .dishMeUp
     @State private var triageItems: [TriageItem] = []
     @State private var tasks: [TimedTask] = []
     @State private var blocks: [CalendarBlock] = []
@@ -125,11 +125,17 @@ struct TimedRootView: View {
     }
 
     @ViewBuilder private var onboardingSheet: some View {
-        OnboardingFlow {
+        // Voice-led setup. The orb speaks, Yasser speaks, no typing, no clicking.
+        // voice-llm-proxy branches on executives.onboarded_at — null routes to
+        // the onboarding system prompt; the same ElevenLabs agent is reused.
+        VoiceOnboardingView {
             hasCompletedOnboarding = true
             lastMorningInterviewDate = Self.ymd.string(from: Date())
-            showMorningInterview = true
+            // Skip the old morning interview sheet on fresh setup — drop straight
+            // into Dish Me Up. Voice check-in is on the hero for manual trigger.
+            showMorningInterview = false
         }
+        .interactiveDismissDisabled()
     }
 
     @ViewBuilder private var morningInterviewSheet: some View {
@@ -237,10 +243,20 @@ struct TimedRootView: View {
     private var sidebar: some View {
         List(selection: $selection) {
 
+            // ── Dish Me Up ────────────────────────────────────────────
+            SidebarRow(
+                label: "Dish Me Up",
+                icon: "sparkles",
+                color: BrandColor.primary,
+                badge: 0,
+                isSelected: selection == .dishMeUp
+            )
+            .tag(NavSection.dishMeUp)
+
             // ── Today ──────────────────────────────────────────────────
             SidebarRow(
                 label: "Today",
-                icon: "sparkles",
+                icon: "calendar",
                 color: Color.Timed.accent,
                 badge: 0,
                 isSelected: selection == .today
@@ -319,7 +335,9 @@ struct TimedRootView: View {
 
     @ViewBuilder
     private var detailView: some View {
-        switch selection ?? .today {
+        switch selection ?? .dishMeUp {
+        case .dishMeUp:
+            DishMeUpHomeView()
         case .today:
             TodayPane(
                 tasks: $tasks,
@@ -445,6 +463,7 @@ struct TimedRootView: View {
 // MARK: - Nav section enum
 
 enum NavSection: Hashable {
+    case dishMeUp
     case today
     case triage
     case tasks(TaskBucket)

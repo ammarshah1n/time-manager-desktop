@@ -19,6 +19,8 @@ let package = Package(
         .package(url: "https://github.com/unum-cloud/usearch", from: "2.16.0"),
         // Swift Testing framework (for CLT environments without Xcode)
         .package(url: "https://github.com/swiftlang/swift-testing", from: "0.12.0"),
+        // ElevenLabs Conversational AI — LiveKit WebRTC wrapper, Custom LLM support.
+        .package(url: "https://github.com/elevenlabs/elevenlabs-swift-sdk", from: "2.0.0"),
     ],
     targets: [
         .executableTarget(
@@ -29,6 +31,7 @@ let package = Package(
                 .product(name: "MSAL",                   package: "microsoft-authentication-library-for-objc"),
                 .product(name: "GRDB",                   package: "GRDB.swift"),
                 .product(name: "USearch",                package: "usearch"),
+                .product(name: "ElevenLabs",             package: "elevenlabs-swift-sdk"),
             ],
             path: "Sources",
             exclude: ["Legacy"],

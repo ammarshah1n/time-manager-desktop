@@ -8,6 +8,20 @@ BIN="/tmp/timed-app-icon-renderer"
 
 mkdir -p "$OUT_DIR"
 
+# Short-circuit: this renderer swiftc-compiles the whole app, which fails
+# because SwiftPM deps (Supabase, ElevenLabs, MSAL, etc.) aren't resolvable
+# from a bare swiftc invocation. If the iconset already has its full set of
+# PNGs, skip the re-render — package_app.sh will copy them as-is.
+REQUIRED_ICONS=(icon_16x16.png icon_16x16@2x.png icon_32x32.png icon_32x32@2x.png icon_128x128.png icon_128x128@2x.png icon_256x256.png icon_256x256@2x.png icon_512x512.png icon_512x512@2x.png)
+ALL_PRESENT=true
+for f in "${REQUIRED_ICONS[@]}"; do
+  [[ -f "$OUT_DIR/$f" ]] || { ALL_PRESENT=false; break; }
+done
+if $ALL_PRESENT; then
+  echo "[render_app_icons] all icons present — skipping re-render"
+  exit 0
+fi
+
 cat >"$TMP_MAIN" <<'SWIFT'
 import AppKit
 import SwiftUI
@@ -67,11 +81,17 @@ struct TimedAppIconRenderer {
 }
 SWIFT
 
+# Swift sources live in subdirectories under Sources/; a flat glob matches
+# nothing and fails under `set -u pipefail`. Use find to list everything
+# except Sources/Legacy (which isn't in the SwiftPM target either).
+SOURCE_FILES=()
+while IFS= read -r f; do SOURCE_FILES+=("$f"); done < <(find "$ROOT_DIR/Sources" -name "*.swift" -not -path "*/Legacy/*")
+
 xcrun swiftc \
     -D SCREENSHOT_RENDERER \
     -target arm64-apple-macos15.0 \
     -sdk "$(xcrun --sdk macosx --show-sdk-path)" \
-    "$ROOT_DIR"/Sources/*.swift \
+    "${SOURCE_FILES[@]}" \
     "$TMP_MAIN" \
     -o "$BIN"
 

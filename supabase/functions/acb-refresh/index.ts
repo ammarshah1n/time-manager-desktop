@@ -98,36 +98,11 @@ Rules:
       refreshData = { acb_full: { raw: pass1Text }, acb_light: { raw: pass1Text.slice(0, 800) }, delta_tokens: 0 };
     }
 
-    // ── Pass 2: Adversarial critique (effort=medium, separate context) ──
-    const pass2Response = await callAnthropic({
-      model: "claude-sonnet-4-6",
-      max_tokens: 2048,
-      thinking: { type: "enabled", effort: "medium" },
-      messages: [{
-        role: "user",
-        content: `Review this ACB update for a C-suite executive's cognitive OS. Check for:
-1. Over-claimed confidence based on single observations
-2. Contradictions with prior context not flagged
-3. Stale information carried forward without update
-4. Missing high-importance observations from the input data
-
-ACB UPDATE:
-${JSON.stringify(refreshData.acb_light).slice(0, 3000)}
-
-NEW OBSERVATIONS THAT SHOULD BE REFLECTED:
-${newObsFormatted.slice(0, 2000)}
-
-Output JSON: {"issues_found": N, "issues": [{"type": "over-claim|contradiction|stale|missing", "detail": "..."}], "quality_score": 0-100}`,
-      }],
-    });
-
-    const pass2Text = extractText(pass2Response);
-    let critiqueResult;
-    try {
-      critiqueResult = JSON.parse(pass2Text);
-    } catch {
-      critiqueResult = { quality_score: 75, issues_found: 0 };
-    }
+    // ── Pass 2 DROPPED (Dish Me Up Ship-It.md, Part 2): Adversarial critique
+    // produced a quality_score that no consumer reads at Dish Me Up time. Re-add
+    // when the Dish Me Up Opus system prompt actually injects critique_score
+    // as a calibration signal.
+    const critiqueResult = { quality_score: null, issues_found: null };
 
     // Update ACB
     await client
@@ -148,7 +123,7 @@ Output JSON: {"issues_found": N, "issues": [{"type": "over-claim|contradiction|s
       critique_issues: critiqueResult.issues_found,
       tokens_used: {
         generation: pass1Response.usage.input_tokens + pass1Response.usage.output_tokens,
-        critique: pass2Response.usage.input_tokens + pass2Response.usage.output_tokens,
+        critique: 0,
       },
       duration_ms: Date.now() - start,
     };
