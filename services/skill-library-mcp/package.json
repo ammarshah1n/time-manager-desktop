@@ -1,0 +1,30 @@
+{
+  "name": "skill-library-mcp",
+  "version": "0.1.0",
+  "description": "MCP server exposing Timed's Voyager-style procedural skill library over Supabase + pgvector. Bearer-auth HTTP service for Fly.io.",
+  "private": true,
+  "type": "module",
+  "main": "dist/server.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "dev": "tsx watch src/server.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=20.11.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.20.0",
+    "@supabase/supabase-js": "^2.45.4",
+    "express": "^4.21.1",
+    "node-fetch": "^3.3.2",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.7.5",
+    "tsx": "^4.19.1",
+    "typescript": "^5.6.3"
+  }
+}

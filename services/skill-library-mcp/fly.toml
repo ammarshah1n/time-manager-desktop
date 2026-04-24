@@ -1,0 +1,41 @@
+# fly.toml — skill-library-mcp
+#
+# Deploy:
+#   cd services/skill-library-mcp
+#   fly launch --no-deploy --copy-config       # first time only
+#   fly secrets set \
+#       SKILL_LIBRARY_MCP_TOKEN=$(openssl rand -hex 32) \
+#       SUPABASE_URL=https://fpmjuufefhtlwbfinxlx.supabase.co \
+#       SUPABASE_SERVICE_ROLE_KEY=<secret> \
+#       VOYAGE_API_KEY=<secret>
+#   fly deploy
+
+app = "timed-skill-library-mcp"
+primary_region = "syd"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "8080"
+  VOYAGE_MODEL = "voyage-3"
+  VOYAGE_DIM = "1024"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "15s"
+    method = "GET"
+    path = "/healthz"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 256
