@@ -1,4 +1,4 @@
-# BUILD_STATE.md — Last updated: 2026-04-16 (ElevenLabs Onboarding + Intelligent Capture)
+# BUILD_STATE.md — Last updated: 2026-04-24 (Dish Me Up LIVE — voice onboarding + Opus plan shipped)
 
 ## What Exists and Works
 
@@ -149,7 +149,7 @@
 - **3 architecture syntheses:** `research/ARCHITECTURE-MEMORY.md`, `ARCHITECTURE-SIGNALS.md`, `ARCHITECTURE-DELIVERY.md`
 
 Any future build session should read `CLAUDE.md` → `BUILD_STATE.md` → relevant `ARCHITECTURE-*.md` → build.
-Last Session: 2026-04-18 — Cinematic launch intro + brand tokens
+Last Session: 2026-04-24 16:54
 
 ### Intro + Brand System (new)
 - [x] IntroFeature.swift — TCA 1.15+ @Reducer, phase machine (reveal → tagline → holding → exiting → finished)
@@ -157,3 +157,24 @@ Last Session: 2026-04-18 — Cinematic launch intro + brand tokens
 - [x] BrandTokens.swift — BrandColor/Motion/Type/Version + BrandAsset.logoImage loader via Bundle.module
 - [x] TimeManagerDesktopApp.swift — .windowStyle(.hiddenTitleBar), @AppStorage(BrandVersion.introSeenKey) gate
 - [x] Sources/Resources/BrandLogo.png — copied from white-clock AppIcon (placeholder, pending real logo)
+
+### Dish Me Up + Voice Onboarding ✅ (2026-04-24)
+- [x] `generate-dish-me-up` Edge Function — 7-parallel DB read, Opus 4.6 + extended thinking (budget 10k / max 14k), cache_control ephemeral, knapsack 5-min-buffer, last_viewed_at stamping. Deployed, smoke-tested, Signal 7 verified live.
+- [x] `voice-llm-proxy` — OpenAI SSE wrapper. Branches on `executives.onboarded_at`: null → Haiku (no thinking, ≤1s first token); set → Opus + thinking 4000. Filters thinking deltas so they never reach TTS.
+- [x] `extract-voice-learnings` + `extract-onboarding-profile` — Haiku structured extraction. Onboarding extractor flips `onboarded_at = NOW()`.
+- [x] `DishMeUpHomeView.swift` — eyebrow + headline hero (matches app scale), minute selector, primary button, collapsible voice check-in entry.
+- [x] `MorningCheckIn/{Manager, View, MicActivityBar, OrbView}.swift` — ElevenLabs Conversation observer, orb + synthetic mic activity bar + collapsible transcript.
+- [x] `VoiceOnboardingView.swift` — full-screen orb setup replacing the old 10-step form. Detects `[[ONBOARDING_COMPLETE]]` tag, posts transcript to extractor, flips hasCompletedOnboarding.
+- [x] Package.swift — ElevenLabs Swift SDK 2.0.16 (pulls LiveKit + async-algs). `scripts/package_app.sh` now embeds LiveKitWebRTC.framework. `scripts/render_app_icons.sh` short-circuits when iconset exists.
+- [x] Migrations 20260424000001 (voice_session_learnings, calendar_events view, tasks.last_viewed_at) + 20260424000002 (unschedule 4 no-consumer crons). Both pushed.
+- [x] ElevenLabs agent `agent_3501kpyz0cnrfj8tgbb2bmg5arfk` — voice = Charlotte, speed 0.8, stability 0.55, first_message cleared.
+- [x] Prompt hardening: "Timed never acts on the world" absolute boundary on all 3 prompts (onboarding, morning check-in, Dish Me Up). 3-field setup checklist (work hours / email cadence / transit). Single-turn rule (no hammering).
+- [x] Cut dead code: adversarial ACB critique removed from acb-refresh, importance_scoring stage commented out in nightly-phase1, generate-embedding stubbed (no OpenAI).
+- [x] Packaged `dist/Timed.app`, codesigned, launches cleanly with LiveKitWebRTC + MSAL embedded.
+
+### Remaining (as of 2026-04-24 wrap)
+- Yasser to complete a real onboarding conversation in the packaged app (not confirmed working end-to-end by user yet as of wrap).
+- Wire non-display-name profile fields (work_hours, transit_modes, email_cadence_pref) into a persistence target — currently extracted but not written.
+- Delete old OnboardingFlow.swift (unreachable from TimedRootView now).
+- Pre-existing `swift test` failure on `PlanTask` constructor mismatch (not Dish-Me-Up related).
+- ANTHROPIC_API_KEY was pasted in chat history; user declined rotation. Worth revisiting.

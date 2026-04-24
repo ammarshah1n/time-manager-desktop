@@ -968,3 +968,213 @@ logs/watchdog.log
 - Fix `scripts/render_app_icons.sh` glob
 - Deploy 6 new intelligence migrations + 7 new Edge Functions (still pending from Apr 14)
 - First end-to-end Outlook sign-in test with real account
+
+---
+## Session: 2026-04-24 14:14
+
+### Commits This Session
+(no recent commits)
+
+### Modified Files
+.build/.lock
+.build/workspace-state.json
+.build/plugins/cache/SwiftProtobufPlugin.dia
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Resources/Relocations/aarch64/SwiftProtobufPlugin.yml
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Resources/DWARF/SwiftProtobufPlugin
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Info.plist
+.build/plugins/cache/SwiftProtobufPlugin-state.json
+.build/plugins/cache/SwiftProtobufPlugin
+.build/checkouts/client-sdk-swift/LiveKitClient.podspec
+.build/checkouts/client-sdk-swift/.swift-version
+.build/checkouts/client-sdk-swift/LICENSE
+.build/checkouts/client-sdk-swift/CHANGELOG.md
+.build/checkouts/client-sdk-swift/Package@swift-6.0.swift
+.build/checkouts/client-sdk-swift/Makefile
+.build/checkouts/client-sdk-swift/Tests/LiveKitTests/AsyncFileStreamTests.swift
+
+---
+## Session: 2026-04-24 14:25
+
+### Commits This Session
+(no recent commits)
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-24 14:41
+
+### Commits This Session
+(no recent commits)
+
+### Modified Files
+supabase/functions/generate-dish-me-up/index.ts
+supabase/functions/voice-llm-proxy/index.ts
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-24 15:05
+
+### Commits This Session
+(no recent commits)
+
+### Modified Files
+.build/.lock
+.build/debug.yaml
+.build/plugin-tools.yaml
+.build/arm64-apple-macosx/debug/ElevenLabs.build/output-file-map.json
+.build/arm64-apple-macosx/debug/Crypto.build/output-file-map.json
+.build/arm64-apple-macosx/debug/USearch.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftOperators.build/output-file-map.json
+.build/arm64-apple-macosx/debug/Supabase.build/output-file-map.json
+.build/arm64-apple-macosx/debug/CasePathsCore.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftParser-tool.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftCompilerPluginMessageHandling-tool.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftUINavigation.build/output-file-map.json
+.build/arm64-apple-macosx/debug/time-manager-desktop
+.build/arm64-apple-macosx/debug/Functions.build/output-file-map.json
+.build/arm64-apple-macosx/debug/HTTPTypes.build/output-file-map.json
+
+---
+## Session: 2026-04-24 15:17
+
+### Commits This Session
+(no recent commits)
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-24 15:29
+
+### Commits This Session
+(no recent commits)
+
+### Modified Files
+.build/.lock
+.build/plugins/cache/SwiftProtobufPlugin.dia
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Resources/Relocations/aarch64/SwiftProtobufPlugin.yml
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Resources/DWARF/SwiftProtobufPlugin
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Resources/Swift/aarch64/PackagePlugin.swiftinterface
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Info.plist
+.build/plugins/cache/SwiftProtobufPlugin-state.json
+.build/plugins/cache/SwiftProtobufPlugin
+.build/plugin-tools.yaml
+.build/release.yaml
+.build/arm64-apple-macosx/release/ElevenLabs.build/TranscriptionStreamReceiver.swift.o
+.build/arm64-apple-macosx/release/ElevenLabs.build/DerivedSources/resource_bundle_accessor.swift
+.build/arm64-apple-macosx/release/ElevenLabs.build/IncomingEvents.swift.o
+.build/arm64-apple-macosx/release/ElevenLabs.build/Message.swift.o
+.build/arm64-apple-macosx/release/ElevenLabs.build/EventSerializer.swift.o
+
+---
+## Session: 2026-04-24 15:49
+
+### Commits This Session
+(no recent commits)
+
+### Modified Files
+.build/.lock
+.build/plugins/cache/SwiftProtobufPlugin.dia
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Resources/Relocations/aarch64/SwiftProtobufPlugin.yml
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Resources/DWARF/SwiftProtobufPlugin
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Resources/Swift/aarch64/PackagePlugin.swiftinterface
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Info.plist
+.build/plugins/cache/SwiftProtobufPlugin-state.json
+.build/plugins/cache/SwiftProtobufPlugin
+.build/debug.yaml
+.build/plugin-tools.yaml
+.build/release.yaml
+.build/arm64-apple-macosx/release/ElevenLabs.build/output-file-map.json
+.build/arm64-apple-macosx/release/Crypto.build/output-file-map.json
+.build/arm64-apple-macosx/release/USearch.build/output-file-map.json
+.build/arm64-apple-macosx/release/SwiftOperators.build/output-file-map.json
+
+---
+## Session: 2026-04-24 16:01
+
+### Commits This Session
+(no recent commits)
+
+### Modified Files
+.build/.lock
+.build/plugin-tools.yaml
+.build/release.yaml
+.build/arm64-apple-macosx/release/ElevenLabs.build/output-file-map.json
+.build/arm64-apple-macosx/release/Crypto.build/output-file-map.json
+.build/arm64-apple-macosx/release/USearch.build/output-file-map.json
+.build/arm64-apple-macosx/release/SwiftOperators.build/output-file-map.json
+.build/arm64-apple-macosx/release/Supabase.build/output-file-map.json
+.build/arm64-apple-macosx/release/CasePathsCore.build/output-file-map.json
+.build/arm64-apple-macosx/release/SwiftParser-tool.build/output-file-map.json
+.build/arm64-apple-macosx/release/SwiftCompilerPluginMessageHandling-tool.build/output-file-map.json
+.build/arm64-apple-macosx/release/SwiftUINavigation.build/output-file-map.json
+.build/arm64-apple-macosx/release/time-manager-desktop
+.build/arm64-apple-macosx/release/Functions.build/output-file-map.json
+.build/arm64-apple-macosx/release/HTTPTypes.build/output-file-map.json
+
+---
+## Session: 2026-04-24 16:54
+
+### Commits This Session
+27d68c3 feat: Dish Me Up end-to-end — voice onboarding, Opus plan, cut dead code
+
+### Modified Files
+.build/.lock
+.build/arm64-apple-macosx/release/time-manager-desktop
+.build/arm64-apple-macosx/release/time_manager_desktop.build/time_manager_desktop.dia
+.build/arm64-apple-macosx/release/time_manager_desktop.build/BrandTokens.swift.o
+.build/arm64-apple-macosx/release/time_manager_desktop.build/DishMeUpHomeView.swift.o
+.build/arm64-apple-macosx/release/time_manager_desktop.build/time_manager_desktop.d
+.build/arm64-apple-macosx/release/time-manager-desktop.dSYM/Contents/Resources/Relocations/aarch64/time-manager-desktop.yml
+.build/arm64-apple-macosx/release/time-manager-desktop.dSYM/Contents/Resources/DWARF/time-manager-desktop
+.build/arm64-apple-macosx/release/time-manager-desktop.dSYM/Contents/Resources/Swift/aarch64/MSAL.swiftinterface
+.build/arm64-apple-macosx/release/time-manager-desktop.dSYM/Contents/Info.plist
+.build/arm64-apple-macosx/release/Modules/time_manager_desktop.abi.json
+.build/arm64-apple-macosx/release/Modules/time_manager_desktop.swiftmodule
+.build/arm64-apple-macosx/release/Modules/time_manager_desktop.swiftsourceinfo
+dist/Timed.app/Contents/_CodeSignature/CodeResources
+dist/Timed.app/Contents/MacOS/timed
+
+---
+## Session: 2026-04-24 — Dish Me Up end-to-end + voice onboarding
+
+**Done**
+- generate-dish-me-up Edge Function (7-parallel DB read, Opus 4.6 + thinking 10k, cache_control, knapsack, last_viewed_at stamping). Deployed + smoke-tested: Opus picked OKRs over Legal review from a 6-task seed in 26s total / 323ms DB.
+- voice-llm-proxy: branches on executives.onboarded_at. Onboarding = Haiku no-thinking. Morning check-in = Opus w/ thinking 4000 (was 10k — overkill). Filters thinking deltas before streaming to ElevenLabs TTS.
+- extract-voice-learnings + extract-onboarding-profile Edge Functions (Haiku structured extraction).
+- Swift UI: DishMeUpHomeView (hero, minute selector, plan cards). MorningCheckIn/{Manager, View, MicActivityBar, OrbView}. VoiceOnboardingView (full-screen orb setup, replaces form-based OnboardingFlow).
+- ElevenLabs Swift SDK 2.0.16 integrated. Package.swift + Package.resolved updated. scripts/package_app.sh now embeds LiveKitWebRTC.framework alongside MSAL.
+- Migrations 20260424000001 (voice_session_learnings, calendar_events view, tasks.last_viewed_at) and 20260424000002 (unschedule 4 dead crons). Pushed to prod.
+- ANTHROPIC_API_KEY + YASSER_USER_ID + ELEVENLABS_MORNING_AGENT_ID wired: Supabase secrets, UserDefaults for bundle ids com.ammarshahin.timed and com.ammarshahin.timemanagerdesktop.
+- Bootstrap rows: auth.users, executives (5aa97c90-d954-4bc1-938b-bb9015e12b37), profiles, workspaces. Seeded 6 realistic tasks for smoke testing.
+- ElevenLabs agent `agent_3501kpyz0cnrfj8tgbb2bmg5arfk`: `first_message` cleared, voice = Charlotte (XB0fDUnXU5powFXDhCwa), speed 0.8, stability 0.55.
+- Onboarding system prompt: greeting + framing + privacy reassurance + "Let's get into it" bridge + first question. Hard "never acts on the world" boundary added across all 3 prompts. 3-field checklist (work hours, email cadence pref, transit modes) — no more PA question.
+- Hero redesigned: eyebrow + headline scale instead of 72pt display.
+- Packaged .app at `dist/Timed.app`, codesigned, launches cleanly (verified dyld + first frame).
+- Committed + pushed as `feat: Dish Me Up end-to-end — voice onboarding, Opus plan, cut dead code` (27d68c3) on ui/apple-v1-restore.
+- .learnings/LEARNINGS.md entries LRN-20260424-001 through -007 (ElevenLabs Custom LLM quirks, Anthropic max/budget rule, prompt-caching 1024-token minimum, Opus-wraps-JSON-in-prose gotcha, LiveKit embed rule, Haiku drift on multi-step prompts, permission-check hook bare-command gap).
+- .claude/rules/ai-assistant-rules.md hardened: "Timed never acts on the world" now absolute (not "without explicit approval"); voice-first UI rule; model routing discipline rule.
+- Memory: `feedback_timed_never_acts.md` saved.
+
+**In progress**
+- Yasser is testing the packaged .app. The redesigned hero + new opening line + Charlotte voice at 0.8× speed + no hammering are all live as of this push but not yet confirmed-good by Yasser.
+
+**Discovered**
+- ElevenLabs agents have a `first_message` field spoken BEFORE the LLM is called. Must null it via `PATCH /v1/convai/agents/{id}` if you want your prompt to drive the opening.
+- ElevenLabs appends `/chat/completions` to the Custom LLM URL; Supabase Edge Functions pass subpaths through to the handler so no routing logic needed.
+- Anthropic rejects `max_tokens <= thinking.budget_tokens` with 400. Prompt cache silently skips prompts under 1024 tokens on Opus.
+- Opus occasionally wraps JSON in prose or ```json fences despite explicit instructions. Balanced-brace JSON extractor is required, not regex.
+- ElevenLabs Swift SDK 2.0.16 transitively pulls LiveKitWebRTC.xcframework; must be embedded + codesigned in the .app bundle or dyld crash on launch.
+- Haiku (no thinking) drifts on ≥4-field conversational checklists. Opus stays on rails. Sonnet is the middle ground.
+- Codex CLI with ChatGPT-account auth cannot access GPT-5.5 ("model not supported when using Codex with a ChatGPT account" for every slug variant tried). GPT-5.4 likely works.
+
+**Next**
+- Confirm the relaunched .app actually delivers: IntroView → orb speaks with Charlotte 0.8× → "Let's get into it" bridge → 3 setup questions → [[ONBOARDING_COMPLETE]] → Dish Me Up hero.
+- If Yasser confirms onboarding works, test the morning check-in mode (proxy flips to Opus + thinking once onboarded_at gets set).
+- Wire non-display-name profile fields (work_hours, transit_modes, email_cadence_pref) into a preferences table — currently extracted but not persisted beyond display_name.
+- Remove the dead OnboardingFlow.swift (10-step form flow) — no longer reachable from TimedRootView.
+- Fix the pre-existing `PlanTask` constructor mismatch breaking `swift test` (not Dish-Me-Up-related).
