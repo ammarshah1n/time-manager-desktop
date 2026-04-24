@@ -193,8 +193,8 @@ function endpointFor(server: McpServerSelector): { url: string; token: string } 
 /**
  * Parse an SSE body down to the terminating JSON-RPC message. Streamable
  * HTTP MCP servers respond either with a single `application/json` body or
- * with a `text/event-stream` body carrying one or more `data:` events; for a
- * request/response JSON-RPC call the final `data:` frame is the answer.
+ * with a `text/event-stream` body carrying one or more `data:` events; for
+ * a request/response JSON-RPC call the final `data:` frame is the answer.
  */
 function parseSseToLastJson(body: string): unknown {
   const lines = body.split(/\r?\n/);
