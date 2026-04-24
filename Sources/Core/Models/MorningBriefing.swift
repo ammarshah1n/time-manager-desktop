@@ -10,7 +10,7 @@ struct MorningBriefing: Codable, Sendable, Identifiable {
     var wasViewed: Bool
     var firstViewedAt: Date?
     var engagementDurationSeconds: Int?
-    var sectionsInteracted: [String]
+    var sectionsInteracted: [[String: String]]
 
     enum CodingKeys: String, CodingKey {
         case id

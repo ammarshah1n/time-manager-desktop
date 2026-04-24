@@ -2,6 +2,7 @@
 // First-launch setup wizard with ElevenLabs voice narration. 10 steps, animated transitions.
 
 import SwiftUI
+import Dependencies
 
 // MARK: - OnboardingFlow
 
@@ -683,12 +684,60 @@ struct OnboardingFlow: View {
                 .tint(.primary)
             } else {
                 Button("Start my day →") {
-                    onComplete()
+                    Task {
+                        await persistExecutiveProfile()
+                        await MainActor.run { onComplete() }
+                    }
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
                 .tint(.primary)
             }
+        }
+    }
+
+    // MARK: - Persist Executive Profile (Task 20)
+
+    /// Upserts onboarding-collected state into `executive_profile`. AppStorage remains a local cache.
+    @MainActor
+    private func persistExecutiveProfile() async {
+        guard let execId = AuthService.shared.executiveId else {
+            // Auth hasn't bootstrapped — AppStorage cache is still written; server row lands on first signed-in launch.
+            TimedLogger.supabase.debug("Onboarding complete without executiveId — skipping executive_profile upsert")
+            return
+        }
+
+        let timeDefaults: [String: Int] = [
+            "reply": replyMins,
+            "action": actionMins,
+            "call": callMins,
+            "read": readMins,
+        ]
+
+        let transitList: [String] = transitModes
+            .split(separator: ",")
+            .map { String($0).trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+
+        let payload = ExecutiveProfileUpsert(
+            execId: execId,
+            displayName: userName.isEmpty ? nil : userName,
+            workHoursStart: String(format: "%02d:00", workStartHour),
+            workHoursEnd: String(format: "%02d:00", workEndHour),
+            typicalWorkdayHours: Double(workdayHours),
+            emailCadenceMode: emailCadence,
+            transitModes: transitList,
+            timeDefaults: timeDefaults,
+            paEmail: paEmail.isEmpty ? nil : paEmail,
+            paEnabled: paEnabled,
+            updatedAt: ISO8601DateFormatter().string(from: Date())
+        )
+
+        @Dependency(\.supabaseClient) var supa
+        do {
+            try await supa.upsertExecutiveProfile(payload)
+        } catch {
+            TimedLogger.supabase.error("executive_profile upsert failed: \(error.localizedDescription, privacy: .public)")
         }
     }
 
