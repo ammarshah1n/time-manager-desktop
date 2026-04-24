@@ -1,5 +1,8 @@
 # 01 — System Architecture
 
+> **Partially superseded 2026-04-10 by `NO-COST-CAP-AUDIT.md` + `MASTER-PLAN.md`.**
+> Pipeline cadence: this doc describes 6-phase real-time ingestion; current target is a 4-cron schedule (02:00 full, 05:15 refresh, 05:30 briefing, Sunday 03:00 weekly pruning). See `~/Timed-Brain/CLAUDE.md` "Pipeline Schedule Rules" for the authoritative cadence. All other layer descriptions remain current.
+>
 > **Updated 2026-04-03** from 14-report Deep Research synthesis.
 > Detailed specs: `research/ARCHITECTURE-MEMORY.md`, `research/ARCHITECTURE-SIGNALS.md`, `research/ARCHITECTURE-DELIVERY.md`
 

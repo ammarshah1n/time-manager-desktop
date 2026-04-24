@@ -99,7 +99,7 @@ final class VoiceCaptureService: NSObject, ObservableObject {
 
     func requestAuthorization() async {
         let speechStatus = await withCheckedContinuation { continuation in
-            SFSpeechRecognizer.requestAuthorization { status in
+            SFSpeechRecognizer.requestAuthorization { @Sendable status in
                 continuation.resume(returning: status)
             }
         }

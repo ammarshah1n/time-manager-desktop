@@ -10,3 +10,5 @@ DerivedData/
 .env
 .env.local
 .env.*.local
+logs/
+.claude/scheduled_tasks.lock

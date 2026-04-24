@@ -4,8 +4,8 @@
 - Repo: `/Users/integrale/time-manager-desktop`
 - Branch: `ui/apple-v1-restore`
 - Primary user: Yasser Shahin (C-suite executive, Ammar's dad)
-- Backend: Supabase project `fpmjuufefhtlwbfinxlx`, 8 Edge Functions ALL ACTIVE
-- THE GAP: No Supabase Auth. UI still uses local `DataStore`. `SupabaseClient` + `GraphClient` are implemented but not yet called from UI.
+- Backend: Supabase project `fpmjuufefhtlwbfinxlx`, 29 Edge Functions ALL ACTIVE (`ls supabase/functions/` verified 2026-04-22)
+- THE GAP: `AuthService.swift` is implemented (Supabase Auth + Microsoft OAuth, 30 call sites) but UI still reads/writes through local `DataStore`. Bridge to Supabase is the next priority.
 - Read order: `CLAUDE.md` → `BUILD_STATE.md` → `MASTER-PLAN.md` (see `.claude/rules/session-protocol.md` for full protocol)
 
 ## What Timed Is
@@ -30,7 +30,8 @@ It builds a deep, compounding model of how a specific C-suite executive (Yasser 
 | Nightly engine | Claude Opus 4.6 (max effort) | Recursive reflection, profile synthesis |
 | Morning director | Claude Opus 4.6 (max effort) | Cognitive briefing generation |
 | Profile cards | Claude Opus 4.6 (max effort) | Deep contact intelligence |
-| Embeddings | Jina AI `jina-embeddings-v3` (1024-dim) | Semantic search |
+| Embeddings — Tier 0 | Voyage `voyage-3` (1024-dim) | High-volume raw observations |
+| Embeddings — Tier 1–3 | OpenAI `text-embedding-3-large` (3072-dim) | Daily summaries, behavioural signatures, personality traits |
 
 ## Infrastructure
 - Auth: Microsoft OAuth (`Mail.Read` + `Calendars.Read` + `offline_access`)

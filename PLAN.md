@@ -4,7 +4,7 @@
 
 ## CURRENT STATE (2026-04-01)
 - **UI complete** — 10 screens + task detail modal + calendar drag-to-create + batch ops + voice morning interview
-- **Backend LIVE** — Supabase `fpmjuufefhtlwbfinxlx`, 8 edge functions ACTIVE, all secrets set
+- **Backend LIVE** — Supabase `fpmjuufefhtlwbfinxlx`, 29 edge functions ACTIVE, all secrets set
 - **Azure LIVE** — MSAL OAuth in GraphClient (silent + interactive)
 - **Auth flow built** — AuthService.swift: Microsoft OAuth sign-in, session restore, workspace/profile/email_account bootstrap
 - **All 3 ML loops CLOSED** — estimation write-back, email correction write-back, behaviour event logging

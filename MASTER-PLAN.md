@@ -196,7 +196,7 @@ Timed is a **cognitive intelligence system** for one C-suite executive (Yasser S
 - TimeSlotAllocator (calendar-aware, energy tiers)
 - SupabaseClient (20+ operations defined, 764 lines)
 - AuthService (Microsoft OAuth flow, 310 lines)
-- 9 Edge Functions deployed + 15 SQL migrations
+- 29 Edge Functions deployed + 48 SQL migrations
 - 49 tests passing, `swift build` clean
 
 **THE GAP (what makes this plan necessary):**

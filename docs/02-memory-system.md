@@ -1,5 +1,7 @@
 # 02 — Memory System Specification
 
+> **superseded-by:** `MASTER-PLAN.md` + `~/Timed-Brain/CLAUDE.md` (5-tier architecture: Tier 0 raw observations → Tier 1 daily summaries → Tier 2 behavioural signatures → Tier 3 personality traits, plus ACB-FULL 10–12K and ACB-LIGHT 500–800 active context buffers; 5-dimension retrieval). This doc describes the historical 3-tier (Episodic / Semantic / Procedural) + 3-axis retrieval design from the 2026-03 planning phase. Retained for lineage; do not design against this.
+
 ## Overview
 
 Three-tier memory architecture inspired by MemGPT (UC Berkeley, 2023) and

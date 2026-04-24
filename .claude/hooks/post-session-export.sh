@@ -22,18 +22,10 @@ echo "# Session $DATE" > "$OUTFILE"
 echo "Source: $LATEST" >> "$OUTFILE"
 echo "" >> "$OUTFILE"
 
-python3 - <<'PYEOF' >> "$OUTFILE" 2>/dev/null
+LATEST_JSONL="$LATEST" python3 - <<'PYEOF' >> "$OUTFILE" 2>/dev/null
 import json, sys, os
 
 latest = os.environ.get('LATEST_JSONL', '')
-if not latest:
-    # Find it again inside python
-    import glob
-    files = sorted(glob.glob(os.path.expanduser(
-        '~/.claude/projects/-Users-integrale-time-manager-desktop/*.jsonl'
-    )), key=os.path.getmtime, reverse=True)
-    latest = files[0] if files else ''
-
 if not latest:
     sys.exit(0)
 

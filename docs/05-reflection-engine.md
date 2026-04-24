@@ -1,12 +1,15 @@
 # 05 — Reflection Engine Specification
 
+> **Partially superseded 2026-04-10 by `NO-COST-CAP-AUDIT.md` + `MASTER-PLAN.md`.**
+> This doc describes a 3-stage recursive reflection design. Current production cadence is 4-cron: `nightly-consolidation-full` (02:00), `nightly-consolidation-refresh` (05:15), `generate-morning-briefing` (05:30), `weekly-pruning` (Sunday 03:00). Per-stage Opus 4.5/4.6 + extended thinking budgets are in `~/Timed-Brain/CLAUDE.md` Tier 1 table. Mental model and recursive-reflection intent remain correct.
+
 ## Overview
 
 The reflection engine is the heart of Timed. It is the mechanism by which the
 system gets genuinely smarter over time. Without it, Timed accumulates data.
 With it, Timed builds intelligence.
 
-**Status:** ❌ Not started — this is the primary build target.
+**Status:** ✅ 29 Edge Functions deployed as of 2026-04-14 (see `BUILD_STATE.md`). Nightly loop running on schedule; production wiring to UI pending Auth bridge.
 
 ## Architecture (from Research Pack 01)
 

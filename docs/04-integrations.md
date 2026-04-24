@@ -32,23 +32,17 @@
 - 11 row types, 20+ operations (tasks, emails, plans, behaviour rules,
   sender rules, voice captures, waiting items, pipeline runs, bucket stats)
 
-### Edge Functions (9 deployed)
-| Function | Purpose |
-|----------|---------|
-| classify-email | Claude Haiku email triage classification |
-| detect-reply | Reply detection for WOO tracking |
-| estimate-time | Claude Sonnet time estimation |
-| generate-daily-plan | Plan generation (to be replaced by intelligence engine) |
-| generate-profile-card | Claude Opus executive profile card |
-| graph-webhook | Microsoft Graph webhook receiver |
-| parse-voice-capture | Voice transcript parsing |
-| renew-graph-subscriptions | Graph webhook renewal cron |
+### Edge Functions (29 deployed — verified `ls supabase/functions/` 2026-04-22)
+Legacy triage / pipeline: `classify-email`, `detect-reply`, `estimate-time`, `generate-daily-plan`, `generate-embedding`, `generate-profile-card`, `generate-relationship-card`, `graph-webhook`, `parse-voice-capture`, `renew-graph-subscriptions`, `score-observation-realtime`.
+
+Intelligence engine (per NO-COST-CAP-AUDIT): `acb-refresh`, `bootstrap-executive`, `extract-voice-features`, `generate-morning-briefing`, `monthly-trait-synthesis`, `multi-agent-council`, `nightly-bias-detection`, `nightly-consolidation-full`, `nightly-consolidation-refresh`, `nightly-phase1`, `nightly-phase2`, `pipeline-health-check`, `poll-batch-results`, `thin-slice-inference`, `weekly-avoidance-synthesis`, `weekly-pattern-detection`, `weekly-pruning`, `weekly-strategic-synthesis`.
 
 ### Auth
-- **AuthService.swift:** Supabase Auth with Microsoft OAuth provider
-- Workspace/profile bootstrap on first sign-in
-- Graph token acquisition for API calls
-- ⚠️ AuthService creates its own SupabaseClient (violates DI — needs refactor)
+- **AuthService.swift:** Supabase Auth with Microsoft OAuth provider (310 lines, 30 call sites verified via grep 2026-04-22)
+- Workspace/profile bootstrap on first sign-in (`bootstrapExecutive` calls EF `bootstrap-executive`)
+- Graph token acquisition for API calls (dual token: Supabase JWT + MSAL token)
+- Uses `@Dependency(\.supabaseClient)` — DI refactor complete
+- ⚠️ UI panes still read/write through local `DataStore` — bridge layer is next priority
 
 ## Apple Speech Framework
 
@@ -57,13 +51,19 @@
   transcription. Local, on-device, no cloud processing.
 - **SpeechService.swift:** AVSpeechSynthesizer for TTS. British English voice.
 
-## Jina AI Embeddings
+## Embeddings — Dual Provider
 
-**Status:** ✅ Configured in Edge Functions
-- Model: jina-embeddings-v3
-- Dimensions: 1024
-- Used in: classify-email, estimate-time Edge Functions
-- API key stored in Supabase secrets + 1Password
+**Status:** ✅ Configured in Edge Functions (verified `supabase/functions/generate-embedding/index.ts` 2026-04-22)
+
+| Tier | Model | Dimensions | Use |
+|------|-------|------------|-----|
+| Tier 0 (raw observations) | Voyage `voyage-3` | 1024 | High-volume, recency-weighted |
+| Tier 1–3 (daily summaries, signatures, traits) | OpenAI `text-embedding-3-large` | 3072 | Narrative + cross-signature discrimination |
+
+- Used by: `generate-embedding`, plus downstream retrieval in nightly engine functions
+- API keys: `VOYAGE_API_KEY`, `OPENAI_API_KEY` in Supabase secrets
+- HNSW indexes dimensioned per tier (`m=32/48/64`, `ef_construction=200/256/300`)
+- **Superseded:** Jina v3 1024-dim was the original choice; replaced per NO-COST-CAP-AUDIT 2026-04-10
 
 ## Future Integrations (not started)
 - Apple HealthKit (HRV, sleep, activity — with user authorisation)

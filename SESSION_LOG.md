@@ -1178,3 +1178,15 @@ dist/Timed.app/Contents/MacOS/timed
 - Wire non-display-name profile fields (work_hours, transit_modes, email_cadence_pref) into a preferences table — currently extracted but not persisted beyond display_name.
 - Remove the dead OnboardingFlow.swift (10-step form flow) — no longer reachable from TimedRootView.
 - Fix the pre-existing `PlanTask` constructor mismatch breaking `swift test` (not Dish-Me-Up-related).
+
+---
+## Session: 2026-04-25 00:28
+
+### Commits This Session
+a4d8cc2 docs: session wrap — Dish Me Up shipped, learnings + rules updated
+27d68c3 feat: Dish Me Up end-to-end — voice onboarding, Opus plan, cut dead code
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+HANDOFF.md

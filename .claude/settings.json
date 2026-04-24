@@ -19,11 +19,6 @@
             "type": "command",
             "command": "bash /Users/integrale/time-manager-desktop/.claude/hooks/permission-check.sh \"$CLAUDE_TOOL_NAME\" \"$CLAUDE_TOOL_INPUT\"",
             "timeout": 5
-          },
-          {
-            "type": "command",
-            "command": "bash /Users/integrale/.claude/hooks/codex-triage-guard.sh",
-            "timeout": 5
           }
         ]
       }

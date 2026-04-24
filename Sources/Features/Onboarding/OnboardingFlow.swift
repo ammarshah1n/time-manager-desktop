@@ -9,8 +9,25 @@ struct OnboardingFlow: View {
     let onComplete: () -> Void
     @StateObject private var auth = AuthService.shared
     @StateObject private var speechService = SpeechService()
+    @StateObject private var voiceCapture = VoiceCaptureService()
+    @StateObject private var onboardingAI = OnboardingAIClient()
 
     @State private var currentStep: Int = 0
+    @State private var voiceState: VoiceState = .idle
+    @State private var silenceTimer: Task<Void, Never>?
+
+    private enum VoiceState: Equatable {
+        case idle
+        case speaking
+        case listening
+        case processing
+        case confirming
+    }
+
+    /// Steps that support voice input (mic activates after speech)
+    private var isVoiceStep: Bool {
+        [1, 4, 5, 6, 7].contains(currentStep)
+    }
 
     // Step 1 — Name
     @AppStorage("onboarding_userName") private var userName: String = ""
@@ -84,6 +101,13 @@ struct OnboardingFlow: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding(.horizontal, 40)
 
+            // Voice state indicator
+            if isVoiceStep && voiceState != .idle && voiceState != .speaking {
+                voiceIndicator
+                    .padding(.horizontal, 40)
+                    .padding(.bottom, 8)
+            }
+
             navigationButtons
                 .padding(.horizontal, 40)
                 .padding(.bottom, 28)
@@ -94,25 +118,58 @@ struct OnboardingFlow: View {
         .shadow(color: .black.opacity(0.35), radius: 24, x: 0, y: 8)
         .onChange(of: currentStep) { _, newStep in
             speechService.stop()
+            voiceCapture.stop()
+            silenceTimer?.cancel()
+            voiceState = .idle
             let name = userName.isEmpty ? "" : userName
             switch newStep {
             case 0: break // Hero handles its own speech
-            case 1: break // Name step handles its own speech
+            case 1: // Name step
+                voiceState = .speaking
+                speechService.speak("What's your name, before we get started?")
             case 2: break // Voice picker handles its own speech
             case 3:
+                voiceState = .speaking
                 speechService.speak("Let's connect your Outlook\(name.isEmpty ? "" : ", \(name)"). This is how I'll understand your calendar and your emails.")
             case 4:
+                voiceState = .speaking
                 speechService.speak("How long is your typical work day? This helps me tell you how much you can realistically fit in.")
             case 5:
+                voiceState = .speaking
                 speechService.speak("How often do you check email? I'll batch replies and surface them at your cadence.")
             case 6:
+                voiceState = .speaking
                 speechService.speak("Set your time defaults. You can always override — but here's where we start.")
             case 7:
+                voiceState = .speaking
                 speechService.speak("How do you travel? I'll surface the right tasks when you're in transit.")
             case 8: break // PA — placeholder
             case 9:
                 speechService.speak("You're ready\(name.isEmpty ? "" : ", \(name)"). Let's start your day.")
             default: break
+            }
+        }
+        // After speech finishes → activate mic on voice-enabled steps
+        .onChange(of: speechService.isSpeaking) { wasSpeaking, isSpeaking in
+            if wasSpeaking && !isSpeaking && voiceState == .speaking && isVoiceStep {
+                voiceState = .listening
+                Task { await voiceCapture.start() }
+                startSilenceTimer()
+            }
+            // After confirmation speech → auto-advance
+            if wasSpeaking && !isSpeaking && voiceState == .confirming {
+                voiceState = .idle
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    withAnimation(.spring(duration: 0.35)) {
+                        currentStep += 1
+                    }
+                }
+            }
+        }
+        // Watch transcript for silence detection reset
+        .onChange(of: voiceCapture.liveTranscript) { _, transcript in
+            if voiceState == .listening && !transcript.isEmpty {
+                startSilenceTimer() // Reset on new speech
             }
         }
     }
@@ -221,13 +278,18 @@ struct OnboardingFlow: View {
                 .font(.system(size: 16))
                 .frame(maxWidth: 280)
                 .multilineTextAlignment(.center)
+                .onChange(of: userName) { _, _ in
+                    // User typed manually — reset voice state
+                    if voiceState == .listening {
+                        voiceCapture.stop()
+                        silenceTimer?.cancel()
+                        voiceState = .idle
+                    }
+                }
 
             Spacer()
         }
         .frame(maxWidth: .infinity)
-        .onAppear {
-            speechService.speak("What's your name, before we get started?")
-        }
     }
 
     // MARK: - Step 2: Voice Picker
@@ -542,6 +604,48 @@ struct OnboardingFlow: View {
         }
     }
 
+    // MARK: - Voice Indicator
+
+    private var voiceIndicator: some View {
+        HStack(spacing: 10) {
+            switch voiceState {
+            case .listening:
+                Image(systemName: "mic.fill")
+                    .font(.system(size: 14))
+                    .foregroundStyle(.red)
+                    .symbolEffect(.pulse, isActive: true)
+                Text("Listening...")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.secondary)
+                // Mini waveform from audio level
+                HStack(spacing: 2) {
+                    ForEach(0..<8, id: \.self) { i in
+                        RoundedRectangle(cornerRadius: 1)
+                            .fill(Color.primary.opacity(0.4))
+                            .frame(width: 3, height: max(4, CGFloat(voiceCapture.audioLevel) * 20 * CGFloat.random(in: 0.5...1.5)))
+                    }
+                }
+                .frame(height: 20)
+            case .processing:
+                ProgressView()
+                    .controlSize(.small)
+                Text("Understanding...")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.secondary)
+            case .confirming:
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 14))
+                    .foregroundStyle(.green)
+                Text("Got it")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.secondary)
+            default:
+                EmptyView()
+            }
+        }
+        .frame(height: 24)
+    }
+
     // MARK: - Navigation Buttons
 
     private var navigationButtons: some View {
@@ -585,6 +689,88 @@ struct OnboardingFlow: View {
                 .controlSize(.large)
                 .tint(.primary)
             }
+        }
+    }
+
+    // MARK: - Voice Conversation
+
+    private func startSilenceTimer() {
+        silenceTimer?.cancel()
+        silenceTimer = Task {
+            try? await Task.sleep(for: .seconds(3))
+            guard !Task.isCancelled else { return }
+            if voiceState == .listening && !voiceCapture.liveTranscript.isEmpty {
+                finishListening()
+            }
+        }
+    }
+
+    private func finishListening() {
+        let transcript = voiceCapture.liveTranscript
+        voiceCapture.stop()
+        silenceTimer?.cancel()
+        guard !transcript.trimmingCharacters(in: .whitespaces).isEmpty else {
+            voiceState = .idle
+            return
+        }
+        voiceState = .processing
+        Task { await processVoiceResponse(transcript) }
+    }
+
+    private func processVoiceResponse(_ transcript: String) async {
+        guard onboardingAI.isAvailable else {
+            voiceState = .idle
+            return
+        }
+
+        switch currentStep {
+        case 1: // Name
+            if let result = await onboardingAI.extractName(transcript) {
+                userName = result.name
+                voiceState = .confirming
+                speechService.speak(result.spoken)
+            } else { voiceState = .idle }
+
+        case 4: // Work day
+            if let result = await onboardingAI.extractWorkday(transcript) {
+                workdayHours = result.workdayHours
+                if let t = result.todayHours { todayHours = t }
+                if let s = result.startHour { workStartHour = s }
+                if let e = result.endHour { workEndHour = e }
+                voiceState = .confirming
+                speechService.speak(result.spoken)
+            } else { voiceState = .idle }
+
+        case 5: // Email cadence
+            if let result = await onboardingAI.extractCadence(transcript) {
+                emailCadence = result.cadenceIndex
+                voiceState = .confirming
+                speechService.speak(result.spoken)
+            } else { voiceState = .idle }
+
+        case 6: // Time defaults
+            if let result = await onboardingAI.extractDefaults(transcript) {
+                if let v = result.replyMins { replyMins = v }
+                if let v = result.actionMins { actionMins = v }
+                if let v = result.callMins { callMins = v }
+                if let v = result.readMins { readMins = v }
+                voiceState = .confirming
+                speechService.speak(result.spoken)
+            } else { voiceState = .idle }
+
+        case 7: // Transit
+            if let result = await onboardingAI.extractTransit(transcript) {
+                transitChauffeur = result.chauffeur
+                transitTrain = result.train
+                transitPlane = result.plane
+                transitDrive = result.drive
+                saveTransitModes()
+                voiceState = .confirming
+                speechService.speak(result.spoken)
+            } else { voiceState = .idle }
+
+        default:
+            voiceState = .idle
         }
     }
 
