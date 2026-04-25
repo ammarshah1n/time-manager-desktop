@@ -54,6 +54,22 @@ enum TaskBucket: String, CaseIterable, Hashable, Codable {
         Color.Timed.labelSecondary
     }
 
+    /// The 8pt `BucketDot` colour — the single Apple-Reminders-style anchor
+    /// that's allowed to carry hue. Never use this anywhere larger than the dot.
+    /// For row icons / text / fills, use `Color.Timed.labelSecondary`.
+    var dotColor: Color {
+        switch self {
+        case .reply:        Color(.systemBlue)
+        case .action:       Color(.systemRed)
+        case .calls:        Color(.systemGreen)
+        case .readToday:    Color(.systemOrange)
+        case .readThisWeek: Color(.systemGray)
+        case .transit:      Color(.systemTeal)
+        case .waiting:      Color(.systemPurple)
+        case .ccFyi:        Color.Timed.labelTertiary
+        }
+    }
+
     var reviewCadence: String {
         switch self {
         case .reply:        "2–3× daily"

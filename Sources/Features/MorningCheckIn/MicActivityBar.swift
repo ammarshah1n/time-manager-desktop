@@ -22,7 +22,7 @@ struct MicActivityBar: View {
                 ForEach(0..<barCount, id: \.self) { i in
                     let level = synthLevel(time: time, index: i)
                     Capsule()
-                        .fill(BrandColor.primary.opacity(isListening ? 0.85 : 0.25))
+                        .fill(isListening ? Color.Timed.labelPrimary : Color.Timed.labelTertiary)
                         .frame(width: 3, height: 6 + CGFloat(level) * 22)
                         .animation(.easeOut(duration: 0.08), value: level)
                 }

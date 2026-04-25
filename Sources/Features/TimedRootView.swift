@@ -243,7 +243,7 @@ struct TimedRootView: View {
     private var sidebar: some View {
         List(selection: $selection) {
 
-            SidebarRow(label: "Dish Me Up", icon: "sparkles",
+            SidebarRow(label: "Dish Me Up", icon: "play.circle",
                        isSelected: selection == .dishMeUp)
                 .tag(NavSection.dishMeUp)
 
@@ -267,6 +267,7 @@ struct TimedRootView: View {
                     SidebarRow(
                         label: bucket.rawValue,
                         icon: bucket.icon,
+                        dotColor: bucket.dotColor,
                         badge: bucketTasks.count,
                         timeHint: totalMins > 0 ? timeHint(totalMins) : nil,
                         isSelected: selection == .tasks(bucket)
@@ -452,6 +453,7 @@ enum NavSection: Hashable {
 struct SidebarRow: View {
     let label: String
     let icon: String
+    var dotColor: Color? = nil
     var badge: Int = 0
     var timeHint: String? = nil
     var isSelected: Bool = false
@@ -463,6 +465,10 @@ struct SidebarRow: View {
                 .foregroundStyle(isSelected ? Color.Timed.labelPrimary : Color.Timed.labelSecondary)
                 .frame(width: 20)
                 .contentTransition(.symbolEffect(.replace))
+
+            if let dotColor {
+                BucketDot(color: dotColor)
+            }
 
             Text(label)
                 .font(TimedType.subheadline)

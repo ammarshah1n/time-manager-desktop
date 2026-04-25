@@ -444,9 +444,7 @@ struct TodayPane: View {
                 Divider().padding(.leading, 38)
                 ForEach(staleTasks) { task in
                     HStack(spacing: 12) {
-                        Circle()
-                            .fill(Color.Timed.labelSecondary)
-                            .frame(width: 6, height: 6)
+                        BucketDot(color: task.bucket.dotColor)
 
                         VStack(alignment: .leading, spacing: 2) {
                             Text(task.title)
@@ -455,7 +453,7 @@ struct TodayPane: View {
                             HStack(spacing: 4) {
                                 Text(task.bucket.rawValue)
                                     .font(.system(size: 10, weight: .medium))
-                                    .foregroundStyle(task.bucket.color)
+                                    .foregroundStyle(Color.Timed.labelSecondary)
                                 Text("·")
                                     .foregroundStyle(.secondary)
                                 Text("sitting \(task.daysInQueue) day\(task.daysInQueue == 1 ? "" : "s")")

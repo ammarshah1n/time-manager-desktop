@@ -337,10 +337,7 @@ struct TaskRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            // Color bar
-            RoundedRectangle(cornerRadius: 2)
-                .fill(task.bucket.color)
-                .frame(width: 3, height: 36)
+            BucketDot(color: task.bucket.dotColor)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(task.title)
