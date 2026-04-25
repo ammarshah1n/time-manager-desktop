@@ -1,0 +1,132 @@
+# XcodeGen spec — Timed.xcodeproj
+#
+# Mac + iOS app targets + Widgets/Share extensions, all linking against the
+# `TimedKit` library declared in Package.swift.
+#
+# To regenerate:    `xcodegen generate`
+# To build Mac:     `xcodebuild -project Timed.xcodeproj -scheme TimedMac -destination 'platform=macOS' build`
+# To build iOS sim: `xcodebuild -project Timed.xcodeproj -scheme TimediOS -destination 'platform=iOS Simulator,name=iPhone 15 Pro' build`
+# To build iPad:    `xcodebuild -project Timed.xcodeproj -scheme TimediOS -destination 'platform=iOS Simulator,name=iPad Air (M2)' build`
+
+name: Timed
+options:
+  bundleIdPrefix: com.timed
+  createIntermediateGroups: true
+  deploymentTarget:
+    macOS: "15.0"
+    iOS: "18.0"
+  developmentLanguage: en
+  groupSortPosition: top
+  generateEmptyDirectories: true
+
+configs:
+  Debug: debug
+  Release: release
+
+settings:
+  base:
+    SWIFT_VERSION: "6.1"
+    MARKETING_VERSION: "0.2.0"
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_STRICT_CONCURRENCY: complete
+    SWIFT_UPCOMING_FEATURE_BARE_SLASH_REGEX_LITERALS: YES
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+    DEAD_CODE_STRIPPING: YES
+    CLANG_ENABLE_MODULES: YES
+
+packages:
+  TimedKit:
+    path: .
+
+targets:
+  # ─── macOS app ────────────────────────────────────────────────
+  TimedMac:
+    type: application
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: Sources/TimedMacApp
+      - path: Assets.xcassets
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.ammarshahin.timed
+        PRODUCT_NAME: Timed
+        INFOPLIST_FILE: Platforms/Mac/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Platforms/Mac/Timed.entitlements
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: "-"
+        ENABLE_HARDENED_RUNTIME: YES
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        LD_RUNPATH_SEARCH_PATHS:
+          - "$(inherited)"
+          - "@executable_path/../Frameworks"
+    dependencies:
+      - package: TimedKit
+        product: TimedKit
+    scheme:
+      testTargets: []
+      gatherCoverageData: false
+
+  # ─── iOS app (universal — iPhone + iPad) ──────────────────────
+  TimediOS:
+    type: application
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources:
+      - path: Platforms/iOS/TimediOSAppMain.swift
+      - path: Platforms/iOS/Assets.xcassets
+        buildPhase: resources
+      - path: Platforms/iOS/PrivacyInfo.xcprivacy
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.timed.ios
+        PRODUCT_NAME: Timed
+        INFOPLIST_FILE: Platforms/iOS/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Platforms/iOS/Timed.entitlements
+        CODE_SIGN_STYLE: Automatic
+        TARGETED_DEVICE_FAMILY: "1,2"  # iPhone + iPad
+        SUPPORTS_MACCATALYST: NO
+        SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    dependencies:
+      - package: TimedKit
+        product: TimedKit
+      - target: TimedWidgets
+      - target: TimedShare
+    scheme:
+      testTargets: []
+      gatherCoverageData: false
+
+  # ─── Widgets + Live Activity (iOS only) ───────────────────────
+  TimedWidgets:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources:
+      - path: Extensions/Widgets
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.timed.ios.widgets
+        PRODUCT_NAME: TimedWidgets
+        INFOPLIST_FILE: Extensions/Widgets/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Extensions/Widgets/Widgets.entitlements
+        CODE_SIGN_STYLE: Automatic
+        SKIP_INSTALL: YES
+
+  # ─── Share Extension (iOS only) ───────────────────────────────
+  TimedShare:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources:
+      - path: Extensions/Share
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.timed.ios.share
+        PRODUCT_NAME: TimedShare
+        INFOPLIST_FILE: Extensions/Share/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Extensions/Share/Share.entitlements
+        CODE_SIGN_STYLE: Automatic
+        SKIP_INSTALL: YES

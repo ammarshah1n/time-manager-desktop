@@ -2,9 +2,14 @@
 import PackageDescription
 
 let package = Package(
-    name: "time-manager-desktop",
+    name: "Timed",
     platforms: [
-        .macOS(.v15)
+        .macOS(.v15),
+        .iOS(.v18)
+    ],
+    products: [
+        .library(name: "TimedKit", targets: ["TimedKit"]),
+        .executable(name: "time-manager-desktop", targets: ["TimedMacApp"]),
     ],
     dependencies: [
         // State management — TCA (The Composable Architecture)
@@ -23,8 +28,11 @@ let package = Package(
         .package(url: "https://github.com/elevenlabs/elevenlabs-swift-sdk", from: "2.0.0"),
     ],
     targets: [
-        .executableTarget(
-            name: "time-manager-desktop",
+        // Multiplatform-future library: Core/, Features/, Resources/.
+        // AppKit imports gated with #if canImport(AppKit) where unavoidable.
+        // For now this builds on macOS only; iOS readiness lands in Steps 3-5.
+        .target(
+            name: "TimedKit",
             dependencies: [
                 .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
                 .product(name: "Supabase",               package: "supabase-swift"),
@@ -33,8 +41,7 @@ let package = Package(
                 .product(name: "USearch",                package: "usearch"),
                 .product(name: "ElevenLabs",             package: "elevenlabs-swift-sdk"),
             ],
-            path: "Sources",
-            exclude: ["Legacy"],
+            path: "Sources/TimedKit",
             resources: [
                 .copy("Resources"),
             ],
@@ -42,10 +49,23 @@ let package = Package(
                 .enableExperimentalFeature("StrictConcurrency"),
             ]
         ),
-        .testTarget(
-            name: "time-manager-desktopTests",
+        // Thin Mac executable shim. Imports TimedKit, applies macOS-only Scene modifiers.
+        // iOS gets its own app target in Step 5 (Timed.xcodeproj).
+        .executableTarget(
+            name: "TimedMacApp",
             dependencies: [
-                "time-manager-desktop",
+                "TimedKit",
+                .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
+            ],
+            path: "Sources/TimedMacApp",
+            swiftSettings: [
+                .enableExperimentalFeature("StrictConcurrency"),
+            ]
+        ),
+        .testTarget(
+            name: "TimedKitTests",
+            dependencies: [
+                "TimedKit",
                 .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
                 .product(name: "Testing", package: "swift-testing"),
             ],

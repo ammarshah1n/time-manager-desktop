@@ -5,7 +5,7 @@
 import Foundation
 import Testing
 
-@testable import time_manager_desktop
+@testable import TimedKit
 
 @Suite("AlertEngine")
 struct AlertEngineTests {

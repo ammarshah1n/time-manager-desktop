@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!--
+        Mac entitlements — DMG distribution path (not App Store).
+        No sandbox: matches the existing ad-hoc-signed script build so
+        package_app.sh + notarize_app.sh continue to work end-to-end.
+        Sandbox + App Store entitlements would be added in a separate
+        target only if App Store distribution becomes a requirement.
+    -->
+    <key>com.apple.security.cs.allow-jit</key>
+    <false/>
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <false/>
+    <key>com.apple.security.cs.disable-library-validation</key>
+    <true/>
+</dict>
+</plist>

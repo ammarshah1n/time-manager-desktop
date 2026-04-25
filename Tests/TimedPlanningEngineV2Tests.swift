@@ -6,7 +6,7 @@
 import Foundation
 import Testing
 
-@testable import time_manager_desktop
+@testable import TimedKit
 
 @Suite("Timed v2 PlanningEngine")
 struct TimedPlanningEngineV2Tests {
@@ -41,7 +41,13 @@ struct TimedPlanningEngineV2Tests {
             isDailyUpdate: isDailyUpdate,
             isFamilyEmail: isFamilyEmail,
             deferredCount: deferredCount,
-            isTransitSafe: false
+            isTransitSafe: false,
+            urgency: 3,
+            importance: 3,
+            energyRequired: "medium",
+            context: "desk",
+            skipCount: 0,
+            createdAt: now
         )
     }
 
