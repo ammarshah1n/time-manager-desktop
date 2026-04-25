@@ -13,8 +13,6 @@ final class SpeechService: NSObject, ObservableObject {
     @Published private(set) var isSpeaking: Bool = false
     @AppStorage("elevenlabs_voice_id") private var voiceId: String = "pFZP5JQG7iQjIQuC4Bku" // Lily — velvety, warm female
 
-    private var apiKey: String { KeychainStore.string(for: .elevenlabsAPIKey) }
-
     // MARK: - Private
 
     private let synthesizer = AVSpeechSynthesizer()
@@ -60,52 +58,16 @@ final class SpeechService: NSObject, ObservableObject {
     // MARK: - ElevenLabs TTS
 
     private func elevenLabsSpeak(_ text: String) async -> Bool {
-        guard !apiKey.isEmpty else { return false }
-
-        let urlString = "https://api.elevenlabs.io/v1/text-to-speech/\(voiceId)"
-        guard let url = URL(string: urlString) else { return false }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue(apiKey, forHTTPHeaderField: "xi-api-key")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("audio/mpeg", forHTTPHeaderField: "Accept")
-
-        let body: [String: Any] = [
-            "text": text,
-            "model_id": "eleven_turbo_v2_5",
-            "voice_settings": [
-                "stability": 0.6,
-                "similarity_boost": 0.75,
-                "style": 0.15,
-                "use_speaker_boost": true
-            ]
-        ]
-
-        guard let httpBody = try? JSONSerialization.data(withJSONObject: body) else { return false }
-        request.httpBody = httpBody
-
-        // Stream bytes for lower perceived latency
         do {
-            let (asyncBytes, response) = try await URLSession.shared.bytes(for: request)
-
-            guard let httpResponse = response as? HTTPURLResponse,
-                  httpResponse.statusCode == 200 else {
-                return false
-            }
-
-            if Task.isCancelled { return false }
-
+            let stream = try await EdgeFunctions.shared.ttsBytes(text: text, voiceId: voiceId)
             var audioData = Data()
             audioData.reserveCapacity(128_000)
-
-            for try await byte in asyncBytes {
+            for try await chunk in stream {
                 if Task.isCancelled { return false }
-                audioData.append(byte)
+                audioData.append(chunk)
             }
 
             if Task.isCancelled { return false }
-
             return await playAudioData(audioData)
         } catch {
             return false

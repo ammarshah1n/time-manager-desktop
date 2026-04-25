@@ -1,0 +1,81 @@
+// deepgram-token
+//
+// Issues a short-lived (60s TTL) Deepgram temporary key scoped to "usage:write"
+// so the desktop client can open a streaming WebSocket directly to Deepgram
+// without ever holding the long-lived project key.
+//
+// Auth: JWT verified via _shared/auth.ts. The temp key is bound to the request,
+// not the user, so we don't store it.
+
+import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { requireEnv } from "../_shared/config.ts";
+import { verifyAuth, AuthError, authErrorResponse } from "../_shared/auth.ts";
+
+const CORS = {
+  "Access-Control-Allow-Origin":  "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+const DEEPGRAM_PROJECT_KEY = requireEnv("DEEPGRAM_API_KEY");
+const DEEPGRAM_PROJECT_ID  = requireEnv("DEEPGRAM_PROJECT_ID");
+const SUPABASE_URL         = requireEnv("SUPABASE_URL");
+const SERVICE_ROLE_KEY     = requireEnv("SUPABASE_SERVICE_ROLE_KEY");
+
+const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+
+async function resolveExecutiveId(authUserId: string): Promise<string> {
+  const { data, error } = await supabase
+    .from("executives")
+    .select("id")
+    .eq("auth_user_id", authUserId)
+    .maybeSingle();
+  if (error) throw new Error(`executive lookup failed: ${error.message}`);
+  if (!data) throw new AuthError("No executive row for this user — sign in first");
+  return data.id as string;
+}
+
+serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
+
+  try {
+    const authUserId = await verifyAuth(req);
+    const executiveId = await resolveExecutiveId(authUserId);
+
+    const ttl = 60; // seconds
+    const dgRes = await fetch(
+      `https://api.deepgram.com/v1/projects/${DEEPGRAM_PROJECT_ID}/keys`,
+      {
+        method: "POST",
+        headers: {
+          "Authorization": `Token ${DEEPGRAM_PROJECT_KEY}`,
+          "Content-Type":  "application/json",
+        },
+        body: JSON.stringify({
+          comment:       `timed-orb:${executiveId}`,
+          scopes:        ["usage:write"],
+          time_to_live_in_seconds: ttl,
+          tags:          ["timed", "orb", `exec:${executiveId}`],
+        }),
+      }
+    );
+
+    if (!dgRes.ok) {
+      const text = await dgRes.text();
+      throw new Error(`deepgram key issue failed: ${dgRes.status} ${text.slice(0, 200)}`);
+    }
+
+    const json = await dgRes.json() as { key: string; expiration_date?: string };
+    return new Response(JSON.stringify({
+      token: json.key,
+      expires_in: ttl,
+    }), { headers: { ...CORS, "Content-Type": "application/json" } });
+  } catch (err) {
+    if (err instanceof AuthError) return authErrorResponse(err);
+    console.error("[deepgram-token] ERROR:", err);
+    return new Response(JSON.stringify({ error: (err as Error).message }), {
+      status: 500, headers: { ...CORS, "Content-Type": "application/json" },
+    });
+  }
+});

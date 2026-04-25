@@ -10,22 +10,6 @@ enum ConversationAIEvent {
 
 @MainActor
 final class ConversationAIClient: ObservableObject {
-    enum ClientError: LocalizedError {
-        case missingAPIKey
-        case invalidURL
-        case badResponse(Int)
-
-        var errorDescription: String? {
-            switch self {
-            case .missingAPIKey: "Anthropic API key is not configured."
-            case .invalidURL: "Anthropic Messages URL is invalid."
-            case .badResponse(let code): "Anthropic returned HTTP \(code)."
-            }
-        }
-    }
-
-    private var apiKey: String { KeychainStore.string(for: .anthropicAPIKey) }
-
     private let tools: ConversationTools
     private var messages: [[String: Any]] = []
     private var activeTask: Task<Void, Never>?
@@ -47,7 +31,7 @@ final class ConversationAIClient: ObservableObject {
 
     func streamTurn(
         userText: String,
-        systemBlocks: [ConversationSystemBlock]
+        clientState: [String: Any]?
     ) -> AsyncThrowingStream<ConversationAIEvent, Error> {
         messages.append(["role": "user", "content": userText])
 
@@ -55,7 +39,7 @@ final class ConversationAIClient: ObservableObject {
             activeTask?.cancel()
             let task = Task { @MainActor in
                 do {
-                    try await runToolLoop(systemBlocks: systemBlocks, continuation: continuation)
+                    try await runToolLoop(clientState: clientState, continuation: continuation)
                     continuation.finish()
                 } catch {
                     continuation.finish(throwing: error)
@@ -67,12 +51,12 @@ final class ConversationAIClient: ObservableObject {
     }
 
     private func runToolLoop(
-        systemBlocks: [ConversationSystemBlock],
+        clientState: [String: Any]?,
         continuation: AsyncThrowingStream<ConversationAIEvent, Error>.Continuation
     ) async throws {
         for _ in 0..<5 {
             try Task.checkCancellation()
-            let turn = try await streamOnce(systemBlocks: systemBlocks, continuation: continuation)
+            let turn = try await streamOnce(clientState: clientState, continuation: continuation)
             if !turn.assistantContent.isEmpty {
                 messages.append(["role": "assistant", "content": turn.assistantContent])
             }
@@ -102,32 +86,13 @@ final class ConversationAIClient: ObservableObject {
     }
 
     private func streamOnce(
-        systemBlocks: [ConversationSystemBlock],
+        clientState: [String: Any]?,
         continuation: AsyncThrowingStream<ConversationAIEvent, Error>.Continuation
     ) async throws -> AnthropicTurn {
-        guard !apiKey.isEmpty else { throw ClientError.missingAPIKey }
-        guard let url = URL(string: "https://api.anthropic.com/v1/messages") else { throw ClientError.invalidURL }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
-        request.timeoutInterval = 90
-
-        let body: [String: Any] = [
-            "model": "claude-opus-4-7",
-            "max_tokens": 2048,
-            "stream": true,
-            "system": systemBlocks.map(\.payload),
-            "messages": messages,
-            "tools": ConversationTools.schemas(),
-        ]
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-
-        let (bytes, response) = try await URLSession.shared.bytes(for: request)
-        guard let httpResponse = response as? HTTPURLResponse else { throw ClientError.badResponse(-1) }
-        guard httpResponse.statusCode == 200 else { throw ClientError.badResponse(httpResponse.statusCode) }
+        let bytes = try await EdgeFunctions.shared.conversationStream(
+            messages: messages,
+            clientState: clientState
+        )
 
         var assistantText = ""
         var toolBuffers: [Int: ToolUseBuffer] = [:]

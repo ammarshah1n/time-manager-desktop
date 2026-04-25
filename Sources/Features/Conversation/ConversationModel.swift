@@ -29,12 +29,10 @@ final class ConversationModel: ObservableObject {
     private let freeTimeSlots: [FreeTimeSlot]
     private let stt = DeepgramSTTService()
     private let tts = StreamingTTSService()
-    private let contextBuilder = ConversationContextBuilder()
     private let aiClient: ConversationAIClient
 
     private var listenTask: Task<Void, Never>?
     private var turnTask: Task<Void, Never>?
-    private var systemBlocks: [ConversationSystemBlock] = []
     private var pendingFinalSegments: [String] = []
 
     init(tasks: Binding<[TimedTask]>, blocks: Binding<[CalendarBlock]>, freeTimeSlots: [FreeTimeSlot]) {
@@ -84,11 +82,6 @@ final class ConversationModel: ObservableObject {
     func start() async {
         guard listenTask == nil else { return }
         phase = .connecting
-        systemBlocks = await contextBuilder.build(
-            tasks: tasks.wrappedValue,
-            blocks: blocks.wrappedValue,
-            freeTimeSlots: freeTimeSlots
-        )
         phase = .listening
 
         listenTask = Task { @MainActor in
@@ -176,8 +169,9 @@ final class ConversationModel: ObservableObject {
 
         var firstDelta = true
 
+        let snapshot = clientSnapshot()
         do {
-            for try await event in aiClient.streamTurn(userText: trimmed, systemBlocks: systemBlocks) {
+            for try await event in aiClient.streamTurn(userText: trimmed, clientState: snapshot) {
                 try Task.checkCancellation()
                 switch event {
                 case .textDelta(let delta):
@@ -225,5 +219,42 @@ final class ConversationModel: ObservableObject {
                 phase = .failed(error.localizedDescription)
             }
         }
+    }
+
+    private func clientSnapshot() -> [String: Any] {
+        let activeTasks = tasks.wrappedValue.filter { !$0.isDone }
+        let taskRows: [[String: Any]] = activeTasks.map { t in
+            [
+                "id": t.id.uuidString,
+                "title": t.title,
+                "bucket": t.bucket.rawValue,
+                "estimatedMinutes": t.estimatedMinutes,
+                "isDoFirst": t.isDoFirst,
+                "isStale": t.isStale,
+                "urgency": t.urgency,
+                "importance": t.importance,
+                "planScore": t.planScore as Any,
+            ]
+        }
+        let blockRows: [[String: Any]] = blocks.wrappedValue.map { b in
+            [
+                "title": b.title,
+                "category": b.category.rawValue,
+                "startTime": ISO8601DateFormatter().string(from: b.startTime),
+                "endTime": ISO8601DateFormatter().string(from: b.endTime),
+            ]
+        }
+        let slotRows: [[String: Any]] = freeTimeSlots.map { s in
+            [
+                "start": ISO8601DateFormatter().string(from: s.start),
+                "end": ISO8601DateFormatter().string(from: s.end),
+                "durationMinutes": s.durationMinutes,
+            ]
+        }
+        return [
+            "tasks": taskRows,
+            "blocks": blockRows,
+            "freeTimeSlots": slotRows,
+        ]
     }
 }

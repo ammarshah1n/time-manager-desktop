@@ -42,15 +42,13 @@ final class InterviewAIClient: ObservableObject {
 
     @Published private(set) var isGenerating: Bool = false
 
-    private var apiKey: String { KeychainStore.string(for: .anthropicAPIKey) }
-
     private var cachedACB: String?
     private var cachedBriefing: String?
     private var systemBlocks: [[String: Any]]?
     private var conversationMessages: [[String: Any]] = []
     private var contextLoaded: Bool = false
 
-    var isAvailable: Bool { !apiKey.isEmpty }
+    var isAvailable: Bool { true } // Routed through Edge Function — always available when signed in.
 
     // MARK: - Context Loading
 
@@ -283,15 +281,6 @@ final class InterviewAIClient: ObservableObject {
     }
 
     private func callOpusRaw(useTools: Bool) async -> Data? {
-        guard let url = URL(string: "https://api.anthropic.com/v1/messages") else { return nil }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
-        request.timeoutInterval = 20
-
         var body: [String: Any] = [
             "model": "claude-opus-4-6",
             "max_tokens": 300,
@@ -304,15 +293,8 @@ final class InterviewAIClient: ObservableObject {
             body["tool_choice"] = ["type": "tool", "name": "resolve_intent"]
         }
 
-        guard let httpBody = try? JSONSerialization.data(withJSONObject: body) else { return nil }
-        request.httpBody = httpBody
-
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
-            guard let httpResponse = response as? HTTPURLResponse,
-                  httpResponse.statusCode == 200 else {
-                return nil
-            }
+            let data = try await EdgeFunctions.shared.anthropicRelay(body: body)
             return data
         } catch {
             TimedLogger.voice.error("InterviewAI: Opus call failed — \(error.localizedDescription)")

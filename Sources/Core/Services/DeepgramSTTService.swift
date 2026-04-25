@@ -9,12 +9,14 @@ enum DeepgramTranscriptEvent: Sendable, Equatable {
 @MainActor
 final class DeepgramSTTService {
     enum ServiceError: LocalizedError {
-        case missingAPIKey
+        case notSignedIn
+        case tokenIssueFailed(String)
         case invalidURL
 
         var errorDescription: String? {
             switch self {
-            case .missingAPIKey: "Transcription API key is not configured."
+            case .notSignedIn: "Sign in to Timed before using voice."
+            case .tokenIssueFailed(let detail): "Could not obtain a transcription token: \(detail)"
             case .invalidURL: "Deepgram WebSocket URL is invalid."
             }
         }
@@ -52,14 +54,13 @@ final class DeepgramSTTService {
     }
 
     private func connect(continuation: AsyncThrowingStream<DeepgramTranscriptEvent, Error>.Continuation) async throws {
-        let apiKey = try KeychainStore.string(for: .deepgramAPIKey)
-        guard !apiKey.isEmpty else { throw ServiceError.missingAPIKey }
+        let token = try await EdgeFunctions.shared.fetchDeepgramToken()
         guard let url = URL(string: "wss://api.deepgram.com/v1/listen?model=nova-3&interim_results=true&endpointing=300&smart_format=true&language=en&encoding=linear16&sample_rate=16000&channels=1") else {
             throw ServiceError.invalidURL
         }
 
         var request = URLRequest(url: url)
-        request.setValue("Token \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("Token \(token)", forHTTPHeaderField: "Authorization")
 
         let task = URLSession.shared.webSocketTask(with: request)
         webSocketTask = task

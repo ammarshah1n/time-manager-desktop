@@ -21,8 +21,7 @@ final class OnboardingAIClient: ObservableObject {
 
     @Published private(set) var isProcessing: Bool = false
 
-    private var apiKey: String { KeychainStore.string(for: .anthropicAPIKey) }
-    var isAvailable: Bool { !apiKey.isEmpty }
+    var isAvailable: Bool { true } // Routed through Edge Function — always available when signed in.
 
     // MARK: - Step Extractors
 
@@ -167,15 +166,6 @@ final class OnboardingAIClient: ObservableObject {
         You are setting up a productivity app for a C-suite executive. They are answering setup questions by voice. Extract the structured data from their spoken response. If something is ambiguous, make a reasonable assumption and confirm in your spoken_response. Keep spoken_response under 20 words, warm and conversational.
         """
 
-        guard let url = URL(string: "https://api.anthropic.com/v1/messages") else { return nil }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
-        request.timeoutInterval = 15
-
         let toolName = (tool["name"] as? String) ?? "extract"
 
         let body: [String: Any] = [
@@ -191,19 +181,12 @@ final class OnboardingAIClient: ObservableObject {
             "tool_choice": ["type": "tool", "name": toolName]
         ]
 
-        guard let httpBody = try? JSONSerialization.data(withJSONObject: body) else { return nil }
-        request.httpBody = httpBody
-
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
-            guard let httpResponse = response as? HTTPURLResponse,
-                  httpResponse.statusCode == 200 else { return nil }
-
+            let data = try await EdgeFunctions.shared.anthropicRelay(body: body)
             guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                   let content = json["content"] as? [[String: Any]],
                   let toolBlock = content.first(where: { ($0["type"] as? String) == "tool_use" }),
                   let input = toolBlock["input"] as? [String: Any] else { return nil }
-
             return input
         } catch {
             return nil

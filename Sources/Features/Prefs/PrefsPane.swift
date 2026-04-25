@@ -269,64 +269,25 @@ struct AppearanceTab: View {
 
 struct VoiceTab: View {
     @AppStorage("elevenlabs_voice_id") private var voiceId = ""
-    @State private var deepgramKey = ""
-    @State private var elevenlabsKey = ""
-    @State private var anthropicKey = ""
-    @State private var savedKey: KeychainStore.Account?
 
     var body: some View {
         Form {
-            Section("Transcription (Deepgram)") {
-                SecureField("API Key", text: $deepgramKey)
-                    .textFieldStyle(.roundedBorder)
-                Button(savedKey == .deepgramAPIKey ? "Saved" : "Save") {
-                    try? KeychainStore.setString(deepgramKey, for: .deepgramAPIKey)
-                    savedKey = .deepgramAPIKey
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                Text("Powers the Today conversation orb. Sign up at console.deepgram.com.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            Section("Voice (ElevenLabs)") {
-                SecureField("API Key", text: $elevenlabsKey)
-                    .textFieldStyle(.roundedBorder)
-                Button(savedKey == .elevenlabsAPIKey ? "Saved" : "Save") {
-                    try? KeychainStore.setString(elevenlabsKey, for: .elevenlabsAPIKey)
-                    savedKey = .elevenlabsAPIKey
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
+            Section("Voice") {
                 TextField("Voice ID", text: $voiceId)
                     .textFieldStyle(.roundedBorder)
                 Text("Lily (warm British female) is the default. Change the Voice ID to use a different ElevenLabs voice.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            Section("Intelligence (Anthropic)") {
-                SecureField("API Key", text: $anthropicKey)
-                    .textFieldStyle(.roundedBorder)
-                Button(savedKey == .anthropicAPIKey ? "Saved" : "Save") {
-                    try? KeychainStore.setString(anthropicKey, for: .anthropicAPIKey)
-                    savedKey = .anthropicAPIKey
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                Text("Powers the Today conversation orb, morning interview, and capture extraction. Required for all AI features.")
+            Section {
+                Text("All AI services run through Timed's secure backend. You never need to enter API keys.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            } header: {
+                Text("Intelligence")
             }
         }
         .formStyle(.grouped)
-        .onAppear {
-            deepgramKey = KeychainStore.string(for: .deepgramAPIKey)
-            elevenlabsKey = KeychainStore.string(for: .elevenlabsAPIKey)
-            anthropicKey = KeychainStore.string(for: .anthropicAPIKey)
-        }
-        .onChange(of: deepgramKey) { _, _ in if savedKey == .deepgramAPIKey { savedKey = nil } }
-        .onChange(of: elevenlabsKey) { _, _ in if savedKey == .elevenlabsAPIKey { savedKey = nil } }
-        .onChange(of: anthropicKey) { _, _ in if savedKey == .anthropicAPIKey { savedKey = nil } }
     }
 }
 
