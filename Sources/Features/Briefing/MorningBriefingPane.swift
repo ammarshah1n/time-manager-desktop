@@ -123,7 +123,7 @@ struct MorningBriefingPane: View {
             confidenceBadge(section.confidence)
         }
         .padding(16)
-        .background(.blue.opacity(0.05))
+        .background(Color.Timed.backgroundSecondary)
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
@@ -170,7 +170,7 @@ struct MorningBriefingPane: View {
                 .lineSpacing(3)
         }
         .padding(12)
-        .background(.green.opacity(0.05))
+        .background(Color.Timed.backgroundSecondary)
         .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 
@@ -179,7 +179,7 @@ struct MorningBriefingPane: View {
             .font(.caption2)
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
-            .background(confidence == .high ? Color.green.opacity(0.15) : Color.orange.opacity(0.15))
+            .background(Color.Timed.backgroundSecondary)
             .clipShape(Capsule())
     }
 

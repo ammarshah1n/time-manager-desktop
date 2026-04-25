@@ -367,7 +367,7 @@ private struct PlanCard: View {
                         Image(systemName: "flag.fill").font(.system(size: 10))
                         Text(flag).font(.system(size: 12, weight: .medium))
                     }
-                    .foregroundStyle(Color.orange)
+                    .foregroundStyle(Color.Timed.labelSecondary)
                     .padding(.top, 2)
                 }
             }

@@ -167,7 +167,7 @@ struct TriagePane: View {
                 ZStack(alignment: .leading) {
                     Rectangle().fill(Color(.separatorColor).opacity(0.5)).frame(height: 2)
                     Rectangle()
-                        .fill(Color.blue)
+                        .fill(Color.Timed.accent)
                         .frame(width: items.isEmpty ? 0 : geo.size.width * CGFloat(processed) / CGFloat(items.count), height: 2)
                         .animation(.easeInOut(duration: 0.3), value: processed)
                 }
@@ -292,7 +292,7 @@ struct TriagePane: View {
         VStack(spacing: 14) {
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 40, weight: .thin))
-                .foregroundStyle(.green)
+                .foregroundStyle(Color.Timed.labelSecondary)
             Text("Triage complete")
                 .font(.system(size: 17, weight: .medium))
             Text("All \(items.count) emails processed this session.")
@@ -341,7 +341,7 @@ struct TriagePane: View {
         }
         .padding(.horizontal, 14).padding(.vertical, 6)
         .frame(maxWidth: 580)
-        .background(Color.yellow.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+        .background(Color.Timed.backgroundSecondary, in: RoundedRectangle(cornerRadius: 8))
         .padding(.horizontal, 32).padding(.top, 8)
     }
 

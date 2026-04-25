@@ -28,11 +28,11 @@ struct WaitingPane: View {
                 VStack(alignment: .leading, spacing: 20) {
 
                     if !overdue.isEmpty {
-                        wooSection("OVERDUE", items: overdue, accent: .red)
+                        wooSection("OVERDUE", items: overdue, accent: Color.Timed.destructive)
                     }
 
                     if !active.isEmpty {
-                        wooSection("WAITING", items: active, accent: .teal)
+                        wooSection("WAITING", items: active, accent: Color.Timed.labelSecondary)
                     }
 
                     if !replied.isEmpty {
@@ -67,7 +67,6 @@ struct WaitingPane: View {
                                         }
                                         .buttonStyle(.bordered)
                                         .controlSize(.mini)
-                                        .tint(.teal)
                                     }
                                     .padding(.horizontal, 14).padding(.vertical, 10)
                                     .background(Color(.controlBackgroundColor),
@@ -110,13 +109,13 @@ struct WaitingPane: View {
                 HStack(spacing: 5) {
                     Image(systemName: "exclamationmark.circle.fill")
                         .font(.system(size: 12))
-                        .foregroundStyle(.red)
+                        .foregroundStyle(Color.Timed.destructive)
                     Text("\(overdueCount) overdue")
                         .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.red)
+                        .foregroundStyle(Color.Timed.destructive)
                 }
                 .padding(.horizontal, 10).padding(.vertical, 5)
-                .background(Color.red.opacity(0.08), in: Capsule())
+                .background(Color.Timed.backgroundSecondary, in: Capsule())
             }
 
             Button {
@@ -187,14 +186,14 @@ struct WOORow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            // Contact avatar
+            // Contact avatar — overdue gets the destructive signal, active is neutral grey.
             ZStack {
                 Circle()
-                    .fill(item.isOverdue ? Color.red.opacity(0.12) : Color.teal.opacity(0.1))
+                    .fill(item.isOverdue ? Color.Timed.destructive.opacity(0.12) : Color.Timed.backgroundSecondary)
                     .frame(width: 36, height: 36)
                 Text(item.contact.prefix(2).uppercased())
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(item.isOverdue ? .red : .teal)
+                    .foregroundStyle(item.isOverdue ? Color.Timed.destructive : Color.Timed.labelSecondary)
             }
 
             VStack(alignment: .leading, spacing: 3) {
@@ -211,7 +210,7 @@ struct WOORow: View {
                             .font(.system(size: 10, weight: .semibold))
                             .foregroundStyle(.white)
                             .padding(.horizontal, 6).padding(.vertical, 2)
-                            .background(Color.red, in: Capsule())
+                            .background(Color.Timed.destructive, in: Capsule())
                     }
                 }
                 Text(item.description)
@@ -225,10 +224,10 @@ struct WOORow: View {
             VStack(alignment: .trailing, spacing: 3) {
                 Text("Asked \(askedLabel)")
                     .font(.system(size: 11))
-                    .foregroundStyle(item.isOverdue ? .red : .secondary)
+                    .foregroundStyle(item.isOverdue ? Color.Timed.destructive : .secondary)
                 Text("\(ageLabel) ago")
                     .font(.system(size: 10))
-                    .foregroundStyle(item.isOverdue ? Color.red.opacity(0.8) : Color(.tertiaryLabelColor))
+                    .foregroundStyle(item.isOverdue ? Color.Timed.destructive.opacity(0.8) : Color(.tertiaryLabelColor))
             }
 
             HStack(spacing: 6) {
@@ -240,7 +239,7 @@ struct WOORow: View {
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.mini)
-                .tint(item.isOverdue ? .red : .teal)
+                .tint(item.isOverdue ? Color.Timed.destructive : Color.Timed.labelSecondary)
 
                 Button {
                     onMarkReplied()
@@ -255,12 +254,12 @@ struct WOORow: View {
         }
         .padding(.horizontal, 14).padding(.vertical, 10)
         .background(
-            item.isOverdue ? Color.red.opacity(0.04) : Color(.controlBackgroundColor),
+            item.isOverdue ? Color.Timed.destructive.opacity(0.04) : Color(.controlBackgroundColor),
             in: RoundedRectangle(cornerRadius: 10)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 10)
-                .strokeBorder(item.isOverdue ? Color.red.opacity(0.15) : Color.clear, lineWidth: 1)
+                .strokeBorder(item.isOverdue ? Color.Timed.destructive.opacity(0.15) : Color.clear, lineWidth: 1)
         )
     }
 }
@@ -333,7 +332,7 @@ struct FollowUpSheet: View {
                     onDismiss()
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(.teal)
+                .tint(Color.Timed.accent)
                 .keyboardShortcut(.return)
                 Button("Copy to Clipboard") {
                     NSPasteboard.general.clearContents()
@@ -432,7 +431,7 @@ struct AddWaitingItemSheet: View {
                     onAdd(item)
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(.teal)
+                .tint(Color.Timed.accent)
                 .keyboardShortcut(.return)
                 .disabled(!canSubmit)
             }

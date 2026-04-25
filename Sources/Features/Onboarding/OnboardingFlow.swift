@@ -398,7 +398,7 @@ struct OnboardingFlow: View {
                     }
                     .padding(.horizontal, 24).padding(.vertical, 16)
                     .frame(maxWidth: 320)
-                    .background(Color.green.opacity(0.08))
+                    .background(Color.Timed.backgroundSecondary)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                 } else {
                     Button {
@@ -585,7 +585,7 @@ struct OnboardingFlow: View {
                 }
                 .padding(.horizontal, 24).padding(.vertical, 16)
                 .frame(maxWidth: 320)
-                .background(Color.teal.opacity(0.06))
+                .background(Color.Timed.backgroundSecondary)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
             }
         }
