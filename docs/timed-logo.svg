@@ -1,0 +1,11 @@
+<svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background: Apple-icon squircle, white. Reads on both light + dark docks. -->
+  <rect x="0" y="0" width="1024" height="1024" rx="230" ry="230" fill="#FFFFFF"/>
+
+  <!-- Single thin ring: the clock-dial motif, monochrome. -->
+  <circle cx="512" cy="512" r="340" fill="none" stroke="#1A1A1A" stroke-width="56"/>
+
+  <!-- Single accent dot at 12 o'clock: the BucketDot signature, Apple system blue.
+       This is the "single accent per screen" rule applied to the icon itself. -->
+  <circle cx="512" cy="172" r="70" fill="#007AFF"/>
+</svg>
