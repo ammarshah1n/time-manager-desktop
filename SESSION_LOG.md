@@ -1431,3 +1431,30 @@ logs/watchdog.log
 .build/arm64-apple-macosx/debug/time_manager_desktop.build/MicActivityBar.swift.o
 .build/arm64-apple-macosx/debug/time_manager_desktop.build/DishMeUpSheet.swiftdeps
 .build/arm64-apple-macosx/debug/time_manager_desktop.build/VoiceOnboardingView.dia
+
+---
+## Session: 2026-04-25 22:39
+
+### Commits This Session
+caa0501 chore: deploy script lists new orb Edge Functions + prereqs (DEEPGRAM_PROJECT_ID)
+6ad1b7f feat: production-grade — pull all third-party API keys server-side
+5166e1d chore: gitignore dist.noindex/ and untrack the bundle accidentally committed
+4236ae2 feat: redesign icon as iWork-style T mark + dedupe Spotlight build artifacts
+24d1c92 feat: redesign app icon to match Apple-native monochrome aesthetic
+
+### Modified Files
+research/feedback-loops/loop-01-insights-engine.md
+research/feedback-loops/loop-02-email-classification.md
+research/feedback-loops/loop-03-time-estimation.md
+research/perplexity-outputs/05-time-slot-engine.md
+research/perplexity-outputs/04-cold-start.md
+research/perplexity-outputs/13-architecture-report.md
+research/perplexity-outputs/02-intelligence-architecture.md
+research/perplexity-outputs/12-build-process.md
+research/perplexity-outputs/01-research-programme.md
+research/perplexity-outputs/06-scoring-model.md
+research/perplexity-outputs/09-build-state-comprehensive.md
+research/perplexity-outputs/08-market-viability.md
+research/perplexity-outputs/v2/v2-11-privacy-trust.md
+research/perplexity-outputs/v2/v2-04-csuite-cognitive-science.md
+research/perplexity-outputs/v2/v2-08-communication-relationships.md

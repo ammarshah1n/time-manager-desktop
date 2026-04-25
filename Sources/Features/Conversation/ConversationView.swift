@@ -5,6 +5,7 @@ struct ConversationView: View {
     @Binding private var blocks: [CalendarBlock]
     @StateObject private var model: ConversationModel
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.scenePhase) private var scenePhase
     @State private var transcriptCollapsed = true
 
     init(tasks: Binding<[TimedTask]>, blocks: Binding<[CalendarBlock]>, freeTimeSlots: [FreeTimeSlot]) {
@@ -64,6 +65,11 @@ struct ConversationView: View {
         .task { await model.start() }
         .onDisappear {
             Task { await model.end() }
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase != .active {
+                Task { await model.end() }
+            }
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)

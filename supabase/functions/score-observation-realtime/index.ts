@@ -24,8 +24,9 @@ serve(async (req: Request) => {
     return new Response("ok", { status: 200 });
   }
 
+  let authUserId: string;
   try {
-    await verifyAuth(req);
+    authUserId = await verifyAuth(req);
   } catch (err) {
     if (err instanceof AuthError) return authErrorResponse(err);
     throw err;
@@ -34,16 +35,32 @@ serve(async (req: Request) => {
   const client = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
   const start = Date.now();
 
+  // Bind to the authenticated executive — service role bypasses RLS, so all
+  // observation fetches must be filtered by the caller's profile_id.
+  const { data: exec, error: execErr } = await client
+    .from("executives")
+    .select("id")
+    .eq("auth_user_id", authUserId)
+    .maybeSingle();
+  if (execErr || !exec) {
+    return new Response(JSON.stringify({ error: "No executive row for this user" }), {
+      status: 401, headers: { "Content-Type": "application/json" },
+    });
+  }
+  const executiveId = exec.id as string;
+
   const { observation_ids } = await req.json() as { observation_ids: string[] };
   if (!observation_ids?.length) {
     return new Response(JSON.stringify({ error: "No observation_ids provided" }), { status: 400 });
   }
 
-  // Fetch the observations to score
+  // Fetch the observations to score — scoped to the caller's profile so a user
+  // can never trigger scoring on rows they don't own.
   const { data: observations, error: fetchError } = await client
     .from("tier0_observations")
     .select("id, profile_id, summary, source, event_type, raw_data, occurred_at")
     .in("id", observation_ids)
+    .eq("profile_id", executiveId)
     .is("rt_score", null);
 
   if (fetchError || !observations?.length) {

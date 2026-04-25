@@ -36,12 +36,26 @@ const SCORE = {
 const BUFFER_MINUTES = 5;
 
 serve(async (req: Request) => {
+  let authUserId: string;
   try {
-    await verifyAuth(req);
+    authUserId = await verifyAuth(req);
   } catch (err) {
     if (err instanceof AuthError) return authErrorResponse(err);
     throw err;
   }
+
+  // Resolve and bind to the authenticated executive — service role bypasses RLS.
+  const { data: exec, error: execErr } = await supabase
+    .from("executives")
+    .select("id")
+    .eq("auth_user_id", authUserId)
+    .maybeSingle();
+  if (execErr || !exec) {
+    return new Response(JSON.stringify({ error: "No executive row for this user" }), {
+      status: 401, headers: { "Content-Type": "application/json" },
+    });
+  }
+  const executiveId = exec.id as string;
 
   const {
     workspaceId,
@@ -55,6 +69,11 @@ serve(async (req: Request) => {
     return new Response(JSON.stringify({ error: "Missing required fields" }), {
       status: 400,
       headers: { "Content-Type": "application/json" },
+    });
+  }
+  if (workspaceId !== executiveId || profileId !== executiveId) {
+    return new Response(JSON.stringify({ error: "Tenant mismatch" }), {
+      status: 403, headers: { "Content-Type": "application/json" },
     });
   }
 

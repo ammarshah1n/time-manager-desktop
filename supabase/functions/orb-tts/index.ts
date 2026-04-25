@@ -21,6 +21,13 @@ const CORS = {
 const ELEVENLABS_KEY     = requireEnv("ELEVENLABS_API_KEY");
 const DEFAULT_VOICE_ID   = "pFZP5JQG7iQjIQuC4Bku"; // Lily — warm British female
 const DEFAULT_MODEL_ID   = "eleven_turbo_v2_5";
+const MAX_TEXT_CHARS     = 4000;
+const ALLOWED_VOICE_IDS  = new Set<string>([
+  "pFZP5JQG7iQjIQuC4Bku", // Lily
+  "21m00Tcm4TlvDq8ikWAM", // Rachel
+  "AZnzlk1XvdvUeBnXmlld", // Domi
+  "TX3LPaxmHKxFdv7VOQHJ", // Liam
+]);
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
@@ -31,7 +38,6 @@ serve(async (req) => {
     const body = await req.json().catch(() => ({})) as {
       text?: string;
       voice_id?: string;
-      model_id?: string;
     };
     const text = (body.text ?? "").trim();
     if (!text) {
@@ -39,9 +45,17 @@ serve(async (req) => {
         status: 400, headers: { ...CORS, "Content-Type": "application/json" },
       });
     }
+    if (text.length > MAX_TEXT_CHARS) {
+      return new Response(JSON.stringify({ error: `text exceeds ${MAX_TEXT_CHARS} chars` }), {
+        status: 413, headers: { ...CORS, "Content-Type": "application/json" },
+      });
+    }
 
-    const voiceId = (body.voice_id ?? DEFAULT_VOICE_ID).trim() || DEFAULT_VOICE_ID;
-    const modelId = (body.model_id ?? DEFAULT_MODEL_ID).trim() || DEFAULT_MODEL_ID;
+    // Server-side voice/model allowlist — clients cannot pick arbitrary
+    // ElevenLabs voices or models that would shift cost or content profile.
+    const requestedVoice = (body.voice_id ?? "").trim();
+    const voiceId = ALLOWED_VOICE_IDS.has(requestedVoice) ? requestedVoice : DEFAULT_VOICE_ID;
+    const modelId = DEFAULT_MODEL_ID;
 
     const elevenRes = await fetch(
       `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream?output_format=mp3_44100_128`,

@@ -23,13 +23,28 @@ const anthropic = new Anthropic({ apiKey: requireEnv("ANTHROPIC_API_KEY") });
 const classifyBreaker = new CircuitBreaker(5, 2 * 60 * 1000, "classify-email-anthropic");
 
 serve(async (req: Request) => {
-  // JWT auth
+  // JWT auth + tenant resolution. Body-supplied workspaceId/profileId is
+  // validated against the authenticated executive — service role bypasses
+  // RLS, so we cannot trust body-supplied tenant IDs.
+  let authUserId: string;
   try {
-    await verifyAuth(req);
+    authUserId = await verifyAuth(req);
   } catch (err) {
     if (err instanceof AuthError) return authErrorResponse(err);
     return new Response(JSON.stringify({ error: "Auth failed" }), { status: 401, headers: { "Content-Type": "application/json" } });
   }
+
+  const { data: exec, error: execErr } = await supabase
+    .from("executives")
+    .select("id")
+    .eq("auth_user_id", authUserId)
+    .maybeSingle();
+  if (execErr || !exec) {
+    return new Response(JSON.stringify({ error: "No executive row for this user" }), {
+      status: 401, headers: { "Content-Type": "application/json" },
+    });
+  }
+  const executiveId = exec.id as string;
 
   const { emailMessageId, workspaceId, profileId, sender_importance: senderImportance } = await req.json();
   if (!emailMessageId || !workspaceId || !profileId) {
@@ -37,6 +52,12 @@ serve(async (req: Request) => {
       JSON.stringify({ error: "Missing required fields" }),
       { status: 400, headers: { "Content-Type": "application/json" } }
     );
+  }
+  // Reject any cross-tenant ID in the body.
+  if (workspaceId !== executiveId || profileId !== executiveId) {
+    return new Response(JSON.stringify({ error: "Tenant mismatch" }), {
+      status: 403, headers: { "Content-Type": "application/json" },
+    });
   }
 
   // Log pipeline start

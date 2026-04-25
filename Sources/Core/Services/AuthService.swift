@@ -132,6 +132,12 @@ final class AuthService: ObservableObject {
     // MARK: - Sign out
 
     func signOut() async {
+        // Halt every background loop that holds session-bearing state BEFORE
+        // we tear down the Supabase session, so no in-flight sync writes leak
+        // post-sign-out events. Order matters: stop producers, then sign out.
+        await EmailSyncService.shared.stop()
+        await CalendarSyncService.shared.stop()
+
         guard let client else { return }
         do {
             try await client.auth.signOut()

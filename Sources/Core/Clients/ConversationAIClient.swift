@@ -14,6 +14,10 @@ final class ConversationAIClient: ObservableObject {
     private var messages: [[String: Any]] = []
     private var activeTask: Task<Void, Never>?
 
+    /// Cap on retained turns before older entries get dropped. Prevents
+    /// runaway token cost on long conversations.
+    private static let maxRetainedMessages = 24
+
     init(tools: ConversationTools) {
         self.tools = tools
     }
@@ -34,6 +38,8 @@ final class ConversationAIClient: ObservableObject {
         clientState: [String: Any]?
     ) -> AsyncThrowingStream<ConversationAIEvent, Error> {
         messages.append(["role": "user", "content": userText])
+        trimHistory()
+        tools.resetTurnCounters()
 
         return AsyncThrowingStream { continuation in
             activeTask?.cancel()
@@ -166,6 +172,14 @@ final class ConversationAIClient: ObservableObject {
             return [:]
         }
         return json
+    }
+
+    /// Drops the oldest turns when retained history exceeds the cap, preserving
+    /// pairing of user/assistant turns where possible.
+    private func trimHistory() {
+        guard messages.count > Self.maxRetainedMessages else { return }
+        let overflow = messages.count - Self.maxRetainedMessages
+        messages.removeFirst(overflow)
     }
 }
 

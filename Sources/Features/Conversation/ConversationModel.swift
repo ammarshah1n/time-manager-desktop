@@ -92,10 +92,14 @@ final class ConversationModel: ObservableObject {
                     case .partial(let text):
                         let combined = combinedTranscript(with: text)
                         liveTranscript = combined
-                        if (isSpeaking || isThinking) && combined.count >= 3 {
+                        // Don't barge-in on partials — they trip on background
+                        // noise / coughs. Only `final` interrupts.
+                    case .final(let text, let confidence, let speechFinal):
+                        if (isSpeaking || isThinking),
+                           confidence >= 0.4,
+                           text.split(separator: " ").count >= 2 {
                             interruptCurrentTurn()
                         }
-                    case .final(let text, _, let speechFinal):
                         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
                         if !trimmed.isEmpty {
                             pendingFinalSegments.append(trimmed)

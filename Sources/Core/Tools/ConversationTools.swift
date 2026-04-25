@@ -12,9 +12,17 @@ final class ConversationTools {
     @Dependency(\.supabaseClient) private var supabase
 
     private let publishTasks: ([TimedTask]) -> Void
+    private var replansThisTurn = 0
+    private static let maxReplansPerTurn = 1
 
     init(publishTasks: @escaping ([TimedTask]) -> Void = { _ in }) {
         self.publishTasks = publishTasks
+    }
+
+    /// Called by the AI client at the start of each user turn. Resets
+    /// per-turn counters that throttle expensive tool calls.
+    func resetTurnCounters() {
+        replansThisTurn = 0
     }
 
     static func schemas() -> [[String: Any]] {
@@ -140,25 +148,49 @@ final class ConversationTools {
         }
     }
 
+    // MARK: - Validation helpers
+
+    private static let maxTitleChars = 280
+    private static let maxNotesChars = 2_000
+    private static let maxEstimatedMinutes = 480
+    private static let urgencyRange = 1...5
+    private static let importanceRange = 1...5
+
+    private func clean(_ string: String, maxChars: Int) -> String {
+        let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+        return String(trimmed.prefix(maxChars))
+    }
+
+    private func clamp<T: Comparable>(_ value: T, to range: ClosedRange<T>) -> T {
+        min(max(value, range.lowerBound), range.upperBound)
+    }
+
     private func addTask(_ input: [String: Any]) async throws -> String {
-        guard let title = input["title"] as? String,
+        guard let rawTitle = input["title"] as? String,
               let bucketString = input["bucket"] as? String,
               let bucket = parseBucket(bucketString) else {
             return "missing title or bucket"
         }
+        let title = clean(rawTitle, maxChars: Self.maxTitleChars)
+        if title.isEmpty { return "title cannot be empty" }
+        let estimatedMinutes = clamp(int(input["estimatedMinutes"]) ?? 15, to: 1...Self.maxEstimatedMinutes)
+        let urgency = clamp(int(input["urgency"]) ?? 3, to: Self.urgencyRange)
+        let importance = clamp(int(input["importance"]) ?? 3, to: Self.importanceRange)
+        let notes = clean((input["notes"] as? String) ?? "voice", maxChars: Self.maxNotesChars)
+
         var tasks = try await DataBridge.shared.loadTasks()
         let task = TimedTask(
             id: UUID(),
             title: title,
             sender: "Voice",
-            estimatedMinutes: int(input["estimatedMinutes"]) ?? 15,
+            estimatedMinutes: estimatedMinutes,
             bucket: bucket,
             emailCount: 0,
             receivedAt: Date(),
             isDoFirst: bool(input["isDoFirst"]) ?? false,
-            urgency: int(input["urgency"]) ?? 3,
-            importance: int(input["importance"]) ?? 3,
-            context: (input["notes"] as? String) ?? "voice"
+            urgency: urgency,
+            importance: importance,
+            context: notes
         )
         tasks.append(task)
         try await DataBridge.shared.saveTasks(tasks)
@@ -169,16 +201,21 @@ final class ConversationTools {
     private func updateTask(_ input: [String: Any]) async throws -> String {
         guard let id = uuid(input["taskId"]) else { return "invalid task id" }
         var tasks = try await DataBridge.shared.loadTasks()
-        guard let index = tasks.firstIndex(where: { $0.id == id }) else { return "task not found" }
+        guard let index = tasks.firstIndex(where: { $0.id == id }) else {
+            return "task not found — no change applied"
+        }
 
         var task = tasks[index]
-        let title = input["title"] as? String
+        let title = (input["title"] as? String).map { clean($0, maxChars: Self.maxTitleChars) }
         let bucket = (input["bucket"] as? String).flatMap(parseBucket)
-        if let estimatedMinutes = int(input["estimatedMinutes"]) { task.estimatedMinutes = estimatedMinutes }
+        if let estimatedMinutes = int(input["estimatedMinutes"]) {
+            task.estimatedMinutes = clamp(estimatedMinutes, to: 1...Self.maxEstimatedMinutes)
+        }
         if let isDoFirst = bool(input["isDoFirst"]) { task.isDoFirst = isDoFirst }
-        if let urgency = int(input["urgency"]) { task.urgency = urgency }
-        if let importance = int(input["importance"]) { task.importance = importance }
-        if let notes = input["notes"] as? String { task.context = notes }
+        if let urgency = int(input["urgency"]) { task.urgency = clamp(urgency, to: Self.urgencyRange) }
+        if let importance = int(input["importance"]) { task.importance = clamp(importance, to: Self.importanceRange) }
+        if let notes = input["notes"] as? String { task.context = clean(notes, maxChars: Self.maxNotesChars) }
+        if title?.isEmpty == true { return "title cannot be empty — no change applied" }
         if title != nil || bucket != nil {
             task = rebuilt(task, title: title, bucket: bucket)
         }
@@ -194,6 +231,10 @@ final class ConversationTools {
               let bucket = parseBucket(newBucketString) else {
             return "invalid task id or bucket"
         }
+        let tasksBefore = try await DataBridge.shared.loadTasks()
+        guard tasksBefore.contains(where: { $0.id == id }) else {
+            return "task not found — no change applied"
+        }
         let tasks = try await DataBridge.shared.moveBucket(id: id, to: bucket)
         publishTasks(tasks)
         return "moved task \(id.uuidString) to \(bucket.rawValue)"
@@ -201,6 +242,10 @@ final class ConversationTools {
 
     private func markDone(_ input: [String: Any]) async throws -> String {
         guard let id = uuid(input["taskId"]) else { return "invalid task id" }
+        let tasksBefore = try await DataBridge.shared.loadTasks()
+        guard tasksBefore.contains(where: { $0.id == id }) else {
+            return "task not found — no change applied"
+        }
         let tasks = try await DataBridge.shared.markDone(id: id)
         publishTasks(tasks)
         return "marked task \(id.uuidString) done"
@@ -212,13 +257,21 @@ final class ConversationTools {
               let until = ISO8601DateFormatter().date(from: rawUntil) else {
             return "invalid task id or snooze date"
         }
+        let tasksBefore = try await DataBridge.shared.loadTasks()
+        guard tasksBefore.contains(where: { $0.id == id }) else {
+            return "task not found — no change applied"
+        }
         let tasks = try await DataBridge.shared.snooze(id: id, until: until)
         publishTasks(tasks)
         return "snoozed task \(id.uuidString) until \(rawUntil)"
     }
 
     private func requestReplan(_ input: [String: Any]) async throws -> String {
-        let minutes = int(input["availableMinutes"]) ?? 60
+        guard replansThisTurn < Self.maxReplansPerTurn else {
+            return "already replanned this turn — ask the principal first before another replan"
+        }
+        replansThisTurn += 1
+        let minutes = clamp(int(input["availableMinutes"]) ?? 60, to: 5...480)
         let plan = try await supabase.generateDishMeUp(minutes)
         let sequence = plan.plan.enumerated().map { index, item in
             "\(index + 1). \(item.title) (\(item.estimatedMinutes)m): \(item.reason)"

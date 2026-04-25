@@ -10,11 +10,22 @@ final class EdgeFunctions {
         case missingURL
         case http(Int, String)
 
+        /// Sanitised, user-safe message. Internal body text is logged separately,
+        /// not surfaced to users — provider error bodies could leak prompt
+        /// fragments, internal IDs, or other diagnostic content.
         var errorDescription: String? {
             switch self {
-            case .notSignedIn: "Sign in to Timed before using this feature."
-            case .missingURL: "Supabase project URL not configured."
-            case .http(let status, let body): "Edge Function returned HTTP \(status): \(body.prefix(160))"
+            case .notSignedIn: return "Sign in to Timed before using this feature."
+            case .missingURL:  return "Timed is not properly configured. Please reinstall."
+            case .http(let status, let body):
+                TimedLogger.supabase.error("Edge Function HTTP \(status): \(body, privacy: .private)")
+                switch status {
+                case 401, 403:  return "Your session has expired. Please sign in again."
+                case 413:       return "That request was too large. Please try something shorter."
+                case 429:       return "Too many requests. Please wait a moment and try again."
+                case 500...599: return "Timed's backend is having a moment. Please try again shortly."
+                default:        return "Something went wrong talking to Timed's backend."
+                }
             }
         }
     }

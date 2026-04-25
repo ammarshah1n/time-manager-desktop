@@ -392,11 +392,18 @@ serve(async (req) => {
     const fitted = applyConstraints(parsed.plan ?? [], availableMinutes);
 
     // Signal 7: stamp everything the principal saw, even the overflow.
-    const seenIds = [...fitted.selected, ...fitted.overflow].map(p => p.task_id);
+    // Tenant scope: intersect model-returned IDs with the IDs we actually fed
+    // into the prompt (src.tasks). This blocks prompt injection from mutating
+    // rows the principal does not own — service role would otherwise bypass RLS.
+    const ownedIds = new Set(src.tasks.map((t: { id: string }) => t.id));
+    const seenIds = [...fitted.selected, ...fitted.overflow]
+      .map(p => p.task_id)
+      .filter(id => ownedIds.has(id));
     if (seenIds.length > 0) {
       await supabase.from("tasks")
         .update({ last_viewed_at: new Date().toISOString() })
-        .in("id", seenIds);
+        .in("id", seenIds)
+        .or(`workspace_id.eq.${executive.id},profile_id.eq.${executive.id}`);
     }
 
     return new Response(JSON.stringify({
