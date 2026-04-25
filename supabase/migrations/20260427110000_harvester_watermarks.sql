@@ -28,9 +28,7 @@ CREATE POLICY harvester_watermarks_service_all
 REVOKE ALL ON public.harvester_watermarks FROM anon, authenticated;
 
 COMMENT ON TABLE public.harvester_watermarks IS
-  'Persistent cursor per background harvester (e.g. outcome-harvester). '
-  || 'Stores the max(occurred_at, id) of the last successfully processed '
-  || 'behaviour_events page so the next run resumes without duplication.';
+  'Persistent cursor per background harvester (e.g. outcome-harvester). Stores the max(occurred_at, id) of the last successfully processed behaviour_events page so the next run resumes without duplication.';
 
 -- Seed the outcome-harvester row so its first run backfills the last 7 days.
 INSERT INTO public.harvester_watermarks (harvester, last_event_at)
