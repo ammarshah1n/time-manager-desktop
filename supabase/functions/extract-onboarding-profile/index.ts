@@ -9,6 +9,7 @@ import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireEnv } from "../_shared/config.ts";
 import { callAnthropic, extractText } from "../_shared/anthropic.ts";
+import { verifyAuth, AuthError, authErrorResponse } from "../_shared/auth.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin":  "*",
@@ -16,11 +17,21 @@ const CORS = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const YASSER_USER_ID   = requireEnv("YASSER_USER_ID");
 const SUPABASE_URL     = requireEnv("SUPABASE_URL");
 const SERVICE_ROLE_KEY = requireEnv("SUPABASE_SERVICE_ROLE_KEY");
 
 const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+
+async function resolveExecutiveId(authUserId: string): Promise<string> {
+  const { data, error } = await supabase
+    .from("executives")
+    .select("id")
+    .eq("auth_user_id", authUserId)
+    .maybeSingle();
+  if (error) throw new Error(`executive lookup failed: ${error.message}`);
+  if (!data) throw new AuthError("No executive row for this user — sign in first");
+  return data.id as string;
+}
 
 const SYSTEM_PROMPT = `You extract structured profile fields from a voice onboarding transcript.
 Return ONLY a JSON object, no markdown, no prose.
@@ -48,6 +59,9 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
 
   try {
+    const authUserId = await verifyAuth(req);
+    const executiveId = await resolveExecutiveId(authUserId);
+
     const body = await req.json().catch(() => ({})) as { transcript?: string };
     const transcript = (body.transcript ?? "").trim();
     if (!transcript) {
@@ -74,13 +88,14 @@ serve(async (req) => {
     if (profile.display_name && typeof profile.display_name === "string") {
       updates.display_name = profile.display_name;
     }
-    const { error } = await supabase.from("executives").update(updates).eq("id", YASSER_USER_ID);
+    const { error } = await supabase.from("executives").update(updates).eq("id", executiveId);
     if (error) throw new Error(`executives update failed: ${error.message}`);
 
     return new Response(JSON.stringify({ ok: true, profile, applied: updates }), {
       headers: { ...CORS, "Content-Type": "application/json" },
     });
   } catch (err) {
+    if (err instanceof AuthError) return authErrorResponse(err);
     console.error("[extract-onboarding-profile] ERROR:", err);
     return new Response(JSON.stringify({ error: (err as Error).message }), {
       status: 500, headers: { ...CORS, "Content-Type": "application/json" },

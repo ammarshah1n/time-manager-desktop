@@ -21,8 +21,10 @@ enum KeychainStore {
         case keychain(OSStatus)
     }
 
-    private static let service = "com.ammarshahin.timed.keys"
+    private static let service = "com.timed.app.keys"
+    private static let legacyService = "com.ammarshahin.timed.keys"
     private static let migrationFlagKey = "keychainStore.migratedFromAppStorage.v1"
+    private static let serviceMigrationFlagKey = "keychainStore.serviceRenamed.v1"
 
     static func string(for account: Account) -> String {
         let query: [String: Any] = [
@@ -68,25 +70,67 @@ enum KeychainStore {
     @discardableResult
     static func migrateLegacyKeysIfNeeded() -> Bool {
         let defaults = UserDefaults.standard
-        if defaults.bool(forKey: migrationFlagKey) { return false }
-
         var migrated = false
-        for account in Account.allCases {
-            guard let legacyKey = account.legacyAppStorageKey,
-                  let legacyValue = defaults.string(forKey: legacyKey),
-                  !legacyValue.isEmpty,
-                  string(for: account).isEmpty else {
-                continue
+
+        if !defaults.bool(forKey: serviceMigrationFlagKey) {
+            for account in Account.allCases {
+                if string(for: account).isEmpty,
+                   let legacyValue = readFromLegacyService(account: account),
+                   !legacyValue.isEmpty {
+                    try? setString(legacyValue, for: account)
+                    deleteFromLegacyService(account: account)
+                    migrated = true
+                }
             }
-            do {
-                try setString(legacyValue, for: account)
-                defaults.removeObject(forKey: legacyKey)
-                migrated = true
-            } catch {
-                continue
-            }
+            defaults.set(true, forKey: serviceMigrationFlagKey)
         }
-        defaults.set(true, forKey: migrationFlagKey)
+
+        if !defaults.bool(forKey: migrationFlagKey) {
+            for account in Account.allCases {
+                guard let legacyKey = account.legacyAppStorageKey,
+                      let legacyValue = defaults.string(forKey: legacyKey),
+                      !legacyValue.isEmpty,
+                      string(for: account).isEmpty else {
+                    continue
+                }
+                do {
+                    try setString(legacyValue, for: account)
+                    defaults.removeObject(forKey: legacyKey)
+                    migrated = true
+                } catch {
+                    continue
+                }
+            }
+            defaults.set(true, forKey: migrationFlagKey)
+        }
+
         return migrated
+    }
+
+    private static func readFromLegacyService(account: Account) -> String? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: legacyService,
+            kSecAttrAccount as String: account.rawValue,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+        ]
+        var result: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        guard status == errSecSuccess,
+              let data = result as? Data,
+              let value = String(data: data, encoding: .utf8) else {
+            return nil
+        }
+        return value
+    }
+
+    private static func deleteFromLegacyService(account: Account) {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: legacyService,
+            kSecAttrAccount as String: account.rawValue,
+        ]
+        SecItemDelete(query as CFDictionary)
     }
 }

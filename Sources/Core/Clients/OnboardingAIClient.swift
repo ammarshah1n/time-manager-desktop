@@ -34,7 +34,7 @@ final class OnboardingAIClient: ObservableObject {
                 "type": "object",
                 "properties": [
                     "name": ["type": "string", "description": "The user's first name."],
-                    "spoken_response": ["type": "string", "description": "Short confirmation, e.g. 'Nice to meet you, Yasser.'"]
+                    "spoken_response": ["type": "string", "description": "Short confirmation that uses the principal's name if known, e.g. 'Nice to meet you, Alex.'"]
                 ],
                 "required": ["name", "spoken_response"]
             ]

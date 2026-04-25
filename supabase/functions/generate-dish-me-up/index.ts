@@ -1,21 +1,22 @@
 // generate-dish-me-up
 //
-// The ONE intelligent call. Yasser taps a button. 7 parallel DB reads.
+// The ONE intelligent call. The principal taps a button. 7 parallel DB reads.
 // One Opus call with extended thinking. 3–6 tasks in priority order with
 // honest per-task reasoning. Knapsack only fits; Opus orders.
 //
 // Architecture: Dish-Me-Up-Intelligence-Architecture.md + Ship-It.md
 //   - budget_tokens: 10000 (user prompt override)
 //   - ephemeral cache on system prompt (7-day TTL)
-//   - YASSER_USER_ID env var, no auth (login built last)
+//   - JWT-verified; executive resolved from auth_user_id
 //   - last_viewed_at stamp after plan returns (Signal 7)
 //   - no Zod; JSON.parse throws = plenty of signal during dev
 //
-// Run:  supabase functions deploy generate-dish-me-up --no-verify-jwt
+// Run:  supabase functions deploy generate-dish-me-up
 
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireEnv } from "../_shared/config.ts";
+import { verifyAuth, AuthError, authErrorResponse } from "../_shared/auth.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin":  "*",
@@ -23,16 +24,27 @@ const CORS = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const YASSER_USER_ID   = requireEnv("YASSER_USER_ID");
 const ANTHROPIC_KEY    = requireEnv("ANTHROPIC_API_KEY");
 const SUPABASE_URL     = requireEnv("SUPABASE_URL");
 const SERVICE_ROLE_KEY = requireEnv("SUPABASE_SERVICE_ROLE_KEY");
 
 const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
+async function resolveExecutive(authUserId: string): Promise<{ id: string; displayName: string }> {
+  const { data, error } = await supabase
+    .from("executives")
+    .select("id, display_name")
+    .eq("auth_user_id", authUserId)
+    .maybeSingle();
+  if (error) throw new Error(`executive lookup failed: ${error.message}`);
+  if (!data) throw new AuthError("No executive row for this user — sign in first");
+  return { id: data.id as string, displayName: (data.display_name as string) ?? "" };
+}
+
 // ─── System prompt (cached block) ──────────────────────────────────────────
 // Changes only when ACB summary or rules change → long cache hits.
 function buildSystemPrompt(
+  displayName: string,
   acbSummary: string | null,
   rules: Array<{ rule_key: string; evidence: string | null; confidence: number; sample_size: number }>,
 ): string {
@@ -42,27 +54,29 @@ function buildSystemPrompt(
       ).join("\n")
     : " • (no high-confidence rules yet — be honest about this in your reasoning when relevant)";
 
-  return `You are Yasser's operating system — not a task manager, not a scheduler.
-You know him deeply. You make calls he'd make if he could see everything at once.
+  const principal = displayName?.trim() ? displayName.trim() : "the principal";
 
-WHO YASSER IS:
+  return `You are ${principal}'s operating system — not a task manager, not a scheduler.
+You know them deeply. You make calls they'd make if they could see everything at once.
+
+WHO ${principal.toUpperCase()} IS:
 ${acbSummary ?? "(no weekly synthesis yet — reason from first principles)"}
 
-HIS PATTERNS (confidence-weighted):
+THEIR PATTERNS (confidence-weighted):
 ${rulesBlock}
 
 YOUR CONSTRAINTS:
 - Only suggest tasks from the provided list. Never invent tasks.
 - Never suggest more tasks than fit in available_minutes.
 - Be honest about why something is on the list. Don't flatter.
-- If you see something Yasser is avoiding, name it directly.
+- If you see something ${principal} is avoiding, name it directly.
 - If today looks reactive (inbox-heavy), say so and suggest one proactive task.
 - If source mix shows >70% reactive tasks in the last 7 days, include at least one self-initiated task in the plan if one exists.
 
 ABSOLUTE BOUNDARY: Timed observes, reflects, and recommends. It never sends
 email, never CCs anyone, never contacts anyone, never books anything, never
-"handles" or "delegates" anything on Yasser's behalf. All reasoning in the
-"reason" field must describe WHY Yasser should do a task himself — never what
+"handles" or "delegates" anything on ${principal}'s behalf. All reasoning in the
+"reason" field must describe WHY ${principal} should do a task themselves — never what
 Timed will do. If the reason you're about to write implies Timed taking action,
 rewrite it.
 
@@ -84,6 +98,7 @@ Return a single JSON object, no prose, no markdown fences:
 
 // ─── User message (not cached) ─────────────────────────────────────────────
 function buildUserMessage(args: {
+  displayName: string;
   availableMinutes: number;
   currentTime: string;
   tasks: any[];
@@ -146,7 +161,7 @@ source mix (last 7 days): ${mixLine}
 TASKS (unordered — you decide):
 ${JSON.stringify(taskList, null, 2)}
 
-What should Yasser do in the next ${args.availableMinutes} minutes, in order?`;
+What should ${args.displayName?.trim() || "the principal"} do in the next ${args.availableMinutes} minutes, in order?`;
 }
 
 // ─── 7-source parallel read ────────────────────────────────────────────────
@@ -335,11 +350,14 @@ serve(async (req) => {
 
   const t0 = Date.now();
   try {
+    const authUserId = await verifyAuth(req);
+    const executive = await resolveExecutive(authUserId);
+
     const body = await req.json().catch(() => ({}));
     const availableMinutes: number = body.available_minutes ?? 60;
     const currentTime: string = body.current_time ?? new Date().toISOString();
 
-    const src = await readAllSources(YASSER_USER_ID);
+    const src = await readAllSources(executive.id);
 
     if (src.tasks.length === 0) {
       return new Response(JSON.stringify({
@@ -350,8 +368,9 @@ serve(async (req) => {
       }), { headers: { ...CORS, "Content-Type": "application/json" } });
     }
 
-    const systemPrompt = buildSystemPrompt(src.acbSummary, src.rules);
+    const systemPrompt = buildSystemPrompt(executive.displayName, src.acbSummary, src.rules);
     const userMessage  = buildUserMessage({
+      displayName: executive.displayName,
       availableMinutes, currentTime,
       tasks: src.tasks,
       calendarEvents: src.calendarEvents,
@@ -372,7 +391,7 @@ serve(async (req) => {
 
     const fitted = applyConstraints(parsed.plan ?? [], availableMinutes);
 
-    // Signal 7: stamp everything Yasser saw, even the overflow.
+    // Signal 7: stamp everything the principal saw, even the overflow.
     const seenIds = [...fitted.selected, ...fitted.overflow].map(p => p.task_id);
     if (seenIds.length > 0) {
       await supabase.from("tasks")
@@ -393,6 +412,7 @@ serve(async (req) => {
       },
     }), { headers: { ...CORS, "Content-Type": "application/json" } });
   } catch (err) {
+    if (err instanceof AuthError) return authErrorResponse(err);
     console.error("[generate-dish-me-up] ERROR:", err);
     return new Response(JSON.stringify({
       error: (err as Error).message,

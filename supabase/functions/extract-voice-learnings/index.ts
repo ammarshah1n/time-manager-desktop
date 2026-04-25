@@ -11,6 +11,7 @@ import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireEnv } from "../_shared/config.ts";
 import { callAnthropic, extractText } from "../_shared/anthropic.ts";
+import { verifyAuth, AuthError, authErrorResponse } from "../_shared/auth.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin":  "*",
@@ -18,11 +19,21 @@ const CORS = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const YASSER_USER_ID   = requireEnv("YASSER_USER_ID");
 const SUPABASE_URL     = requireEnv("SUPABASE_URL");
 const SERVICE_ROLE_KEY = requireEnv("SUPABASE_SERVICE_ROLE_KEY");
 
 const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+
+async function resolveExecutiveId(authUserId: string): Promise<string> {
+  const { data, error } = await supabase
+    .from("executives")
+    .select("id")
+    .eq("auth_user_id", authUserId)
+    .maybeSingle();
+  if (error) throw new Error(`executive lookup failed: ${error.message}`);
+  if (!data) throw new AuthError("No executive row for this user — sign in first");
+  return data.id as string;
+}
 
 const SYSTEM_PROMPT = `You extract structured learnings from a morning voice check-in transcript.
 You return ONLY a JSON object. No markdown fences. No prose outside the JSON.
@@ -37,10 +48,10 @@ Schema:
 }
 
 Rules:
-- perceived_priorities: if Yasser said which task/topic he feels is most important today, capture up to 3 in his stated order.
+- perceived_priorities: if the principal said which task/topic they feel is most important today, capture up to 3 in their stated order.
 - hidden_context: one sentence of information NOT already in tasks or calendar (e.g. "co-founder is coming in unannounced this afternoon"). null if nothing new.
-- new_tasks_to_create: tasks he explicitly said he needs to do but that likely don't exist in his system yet.
-- acb_delta: one sentence describing a change in how Yasser described himself or his priorities compared to what you'd expect.
+- new_tasks_to_create: tasks they explicitly said they need to do but that likely don't exist in their system yet.
+- acb_delta: one sentence describing a change in how the principal described themselves or their priorities compared to what you'd expect.
 - rule_updates: behavioural rules this session confirms, contradicts, or suggests anew. "rule_key" follows the pattern category.short_handle (e.g. "timing.legal_morning_avoidance").
 
 If a field has no content, return an empty array or null — never omit keys.`;
@@ -49,6 +60,9 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
 
   try {
+    const authUserId = await verifyAuth(req);
+    const executiveId = await resolveExecutiveId(authUserId);
+
     const body = await req.json().catch(() => ({})) as {
       session_date?: string;
       transcript?: string;
@@ -81,7 +95,7 @@ serve(async (req) => {
     const sessionDate = (body.session_date ?? new Date().toISOString().slice(0, 10));
 
     const insert = {
-      executive_id:         YASSER_USER_ID,
+      executive_id:         executiveId,
       session_date:         sessionDate,
       perceived_priorities: parsed.perceived_priorities ?? [],
       hidden_context:       parsed.hidden_context ?? null,
@@ -98,6 +112,7 @@ serve(async (req) => {
       headers: { ...CORS, "Content-Type": "application/json" },
     });
   } catch (err) {
+    if (err instanceof AuthError) return authErrorResponse(err);
     console.error("[extract-voice-learnings] ERROR:", err);
     return new Response(JSON.stringify({ error: (err as Error).message }), {
       status: 500,
