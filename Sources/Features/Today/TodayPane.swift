@@ -29,6 +29,7 @@ struct TodayPane: View {
     @AppStorage("insights.dismissedUntil") private var insightsDismissedUntil: String = ""
     @State private var insightsExpanded: Bool = false
     @State private var correctionToast: String? = nil
+    @State private var showConversation = false
 
     // Stale items
     private var staleTasks: [TimedTask] {
@@ -94,9 +95,21 @@ struct TodayPane: View {
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
-                    Button("Dish Me Up", action: onDishMeUp)
-                        .buttonStyle(.bordered)
-                        .controlSize(.regular)
+                    HStack(spacing: TimedLayout.Spacing.xs) {
+                        Button("Talk through today", systemImage: "mic") {
+                            showConversation = true
+                        }
+                        .labelStyle(.iconOnly)
+                        .buttonStyle(.plain)
+                        .foregroundStyle(Color.Timed.labelSecondary)
+                        .frame(width: TimedLayout.Height.iconButton, height: TimedLayout.Height.iconButton)
+                        .contentShape(Rectangle())
+                        .help("Talk through today")
+
+                        Button("Dish Me Up", action: onDishMeUp)
+                            .buttonStyle(.bordered)
+                            .controlSize(.regular)
+                    }
                 }
                 .padding(.horizontal, 28).padding(.top, 24).padding(.bottom, 16)
 
@@ -381,6 +394,10 @@ struct TodayPane: View {
                     }
                 )
             }
+        }
+        .sheet(isPresented: $showConversation) {
+            ConversationView(tasks: $tasks, blocks: $blocks, freeTimeSlots: freeTimeSlots)
+                .frame(minWidth: 720, minHeight: 640)
         }
         .onAppear {
             completedIds = Set(tasks.filter { $0.isDone }.map { $0.id })

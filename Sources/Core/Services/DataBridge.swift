@@ -64,6 +64,37 @@ actor DataBridge {
         }
     }
 
+    func markDone(id: UUID) async throws -> [TimedTask] {
+        var tasks = try await loadTasks()
+        guard let index = tasks.firstIndex(where: { $0.id == id }) else { return tasks }
+        tasks[index].isDone = true
+        try await saveTasks(tasks)
+        return tasks
+    }
+
+    func snooze(id: UUID, until: Date) async throws -> [TimedTask] {
+        var tasks = try await loadTasks()
+        guard let index = tasks.firstIndex(where: { $0.id == id }) else { return tasks }
+        tasks[index].snoozedUntil = until
+        try await saveTasks(tasks)
+        return tasks
+    }
+
+    func moveBucket(id: UUID, to bucket: TaskBucket) async throws -> [TimedTask] {
+        var tasks = try await loadTasks()
+        guard let index = tasks.firstIndex(where: { $0.id == id }) else { return tasks }
+        tasks[index] = rebuilt(tasks[index], bucket: bucket)
+        try await saveTasks(tasks)
+        return tasks
+    }
+
+    func delete(id: UUID) async throws -> [TimedTask] {
+        var tasks = try await loadTasks()
+        tasks.removeAll { $0.id == id }
+        try await saveTasks(tasks)
+        return tasks
+    }
+
     // MARK: - Triage Items
 
     func loadTriageItems() async throws -> [TriageItem] {
@@ -158,5 +189,35 @@ actor DataBridge {
 
     private var authProfileId: UUID? {
         get async { await MainActor.run { AuthService.shared.profileId } }
+    }
+
+    private func rebuilt(_ task: TimedTask, bucket: TaskBucket) -> TimedTask {
+        TimedTask(
+            id: task.id,
+            title: task.title,
+            sender: task.sender,
+            estimatedMinutes: task.estimatedMinutes,
+            bucket: bucket,
+            emailCount: task.emailCount,
+            receivedAt: task.receivedAt,
+            priority: task.priority,
+            replyMedium: task.replyMedium,
+            dueToday: task.dueToday,
+            isDoFirst: task.isDoFirst,
+            isTransitSafe: task.isTransitSafe,
+            waitingOn: task.waitingOn,
+            askedDate: task.askedDate,
+            expectedByDate: task.expectedByDate,
+            isDone: task.isDone,
+            estimateUncertainty: task.estimateUncertainty,
+            planScore: task.planScore,
+            scheduledStartTime: task.scheduledStartTime,
+            urgency: task.urgency,
+            importance: task.importance,
+            energyRequired: task.energyRequired,
+            context: task.context,
+            skipCount: task.skipCount,
+            snoozedUntil: task.snoozedUntil
+        )
     }
 }

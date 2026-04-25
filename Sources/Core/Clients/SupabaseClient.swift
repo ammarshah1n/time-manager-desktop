@@ -407,6 +407,26 @@ struct BehaviourEventInsert: Codable, Sendable {
     }
 }
 
+struct Tier0Row: Codable, Identifiable, Sendable {
+    let id: UUID
+    let profileId: UUID
+    let occurredAt: Date
+    let source: String
+    let eventType: String
+    let summary: String?
+    let importanceScore: Double
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case profileId = "profile_id"
+        case occurredAt = "occurred_at"
+        case source
+        case eventType = "event_type"
+        case summary
+        case importanceScore = "importance_score"
+    }
+}
+
 // MARK: - Dependency Client
 
 struct WorkspaceMemberRow: Codable, Identifiable, Sendable {
@@ -479,6 +499,9 @@ struct SupabaseClientDependency: Sendable {
 
     /// Single-shot behaviour event write — fire-and-forget from UI interactions.
     var logBehaviourEvent: @Sendable (_ event: BehaviourEventInsert) async throws -> Void = { _ in }
+
+    /// Recent Tier 0 observations for prompt context.
+    var recentObservations: @Sendable (_ hours: Int) async throws -> [Tier0Row] = { _ in [] }
 
     // MARK: - Realtime
     var subscribeToTaskChanges: @Sendable (_ workspaceId: UUID, _ onChange: @escaping @Sendable () -> Void) async -> Void = { _, _ in }
@@ -806,6 +829,22 @@ extension SupabaseClientDependency {
                     .from("behaviour_events")
                     .insert(event)
                     .execute()
+            },
+            recentObservations: { hours in
+                guard let executiveId = await MainActor.run(body: { AuthService.shared.executiveId }) else {
+                    return []
+                }
+                let since = Date().addingTimeInterval(-Double(hours) * 3600)
+                let rows: [Tier0Row] = try await client
+                    .from("tier0_observations")
+                    .select("id, profile_id, occurred_at, source, event_type, summary, importance_score")
+                    .eq("profile_id", value: executiveId)
+                    .gte("occurred_at", value: ISO8601DateFormatter().string(from: since))
+                    .order("occurred_at", ascending: false)
+                    .limit(50)
+                    .execute()
+                    .value
+                return rows
             },
             subscribeToTaskChanges: { workspaceId, onChange in
                 let channel = client.channel("tasks:\(workspaceId.uuidString)")

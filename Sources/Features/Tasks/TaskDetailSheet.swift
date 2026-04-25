@@ -195,7 +195,16 @@ struct TaskDetailSheet: View {
                     waitingOn: task.waitingOn,
                     askedDate: task.askedDate,
                     expectedByDate: task.expectedByDate,
-                    isDone: task.isDone
+                    isDone: task.isDone,
+                    estimateUncertainty: task.estimateUncertainty,
+                    planScore: task.planScore,
+                    scheduledStartTime: task.scheduledStartTime,
+                    urgency: task.urgency,
+                    importance: task.importance,
+                    energyRequired: task.energyRequired,
+                    context: task.context,
+                    skipCount: task.skipCount,
+                    snoozedUntil: task.snoozedUntil
                 )
             }
         )

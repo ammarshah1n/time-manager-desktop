@@ -132,6 +132,7 @@ struct TimedTask: Identifiable, Codable, Sendable, Equatable {
     var energyRequired: String = "medium"  // high/medium/low
     var context: String = "anywhere"       // desk/transit/anywhere
     var skipCount: Int = 0        // times skipped when ranked highly
+    var snoozedUntil: Date? = nil
 
     /// True when uncertainty exceeds 25% of the estimated time
     var isUncertain: Bool {
@@ -152,6 +153,7 @@ struct TimedTask: Identifiable, Codable, Sendable, Equatable {
     }
 
     var isStale: Bool {
+        if let snoozedUntil, snoozedUntil > Date() { return false }
         !isDone && daysInQueue >= bucket.staleAfterDays
     }
 }

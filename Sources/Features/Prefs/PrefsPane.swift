@@ -271,9 +271,21 @@ struct VoiceTab: View {
     @AppStorage("elevenlabs_api_key")     private var elevenlabsKey = ""
     @AppStorage("elevenlabs_voice_id")    private var voiceId = ""
     @AppStorage("anthropic_api_key")      private var anthropicKey = ""
+    @State private var deepgramKey = ""
+    @State private var deepgramSaved = false
 
     var body: some View {
         Form {
+            Section("Conversation") {
+                SecureField("Transcription API Key", text: $deepgramKey)
+                    .textFieldStyle(.roundedBorder)
+                Button(deepgramSaved ? "Saved" : "Save") {
+                    try? KeychainStore.setString(deepgramKey, for: .deepgramAPIKey)
+                    deepgramSaved = true
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
             Section("Voice (ElevenLabs)") {
                 SecureField("API Key", text: $elevenlabsKey)
                     .textFieldStyle(.roundedBorder)
@@ -292,6 +304,10 @@ struct VoiceTab: View {
             }
         }
         .formStyle(.grouped)
+        .onAppear {
+            deepgramKey = (try? KeychainStore.string(for: .deepgramAPIKey)) ?? ""
+        }
+        .onChange(of: deepgramKey) { _, _ in deepgramSaved = false }
     }
 }
 
