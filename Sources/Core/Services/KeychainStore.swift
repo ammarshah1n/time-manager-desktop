@@ -2,8 +2,18 @@ import Foundation
 import Security
 
 enum KeychainStore {
-    enum Account: String {
+    enum Account: String, CaseIterable {
         case deepgramAPIKey = "DEEPGRAM_API_KEY"
+        case anthropicAPIKey = "ANTHROPIC_API_KEY"
+        case elevenlabsAPIKey = "ELEVENLABS_API_KEY"
+
+        var legacyAppStorageKey: String? {
+            switch self {
+            case .deepgramAPIKey: nil
+            case .anthropicAPIKey: "anthropic_api_key"
+            case .elevenlabsAPIKey: "elevenlabs_api_key"
+            }
+        }
     }
 
     enum StoreError: Error {
@@ -12,8 +22,9 @@ enum KeychainStore {
     }
 
     private static let service = "com.ammarshahin.timed.keys"
+    private static let migrationFlagKey = "keychainStore.migratedFromAppStorage.v1"
 
-    static func string(for account: Account) throws -> String {
+    static func string(for account: Account) -> String {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -24,10 +35,10 @@ enum KeychainStore {
 
         var result: AnyObject?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
-        if status == errSecItemNotFound { return "" }
-        guard status == errSecSuccess else { throw StoreError.keychain(status) }
-        guard let data = result as? Data, let value = String(data: data, encoding: .utf8) else {
-            throw StoreError.invalidString
+        guard status == errSecSuccess,
+              let data = result as? Data,
+              let value = String(data: data, encoding: .utf8) else {
+            return ""
         }
         return value
     }
@@ -52,5 +63,30 @@ enum KeychainStore {
         add[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
         let addStatus = SecItemAdd(add as CFDictionary, nil)
         guard addStatus == errSecSuccess else { throw StoreError.keychain(addStatus) }
+    }
+
+    @discardableResult
+    static func migrateLegacyKeysIfNeeded() -> Bool {
+        let defaults = UserDefaults.standard
+        if defaults.bool(forKey: migrationFlagKey) { return false }
+
+        var migrated = false
+        for account in Account.allCases {
+            guard let legacyKey = account.legacyAppStorageKey,
+                  let legacyValue = defaults.string(forKey: legacyKey),
+                  !legacyValue.isEmpty,
+                  string(for: account).isEmpty else {
+                continue
+            }
+            do {
+                try setString(legacyValue, for: account)
+                defaults.removeObject(forKey: legacyKey)
+                migrated = true
+            } catch {
+                continue
+            }
+        }
+        defaults.set(true, forKey: migrationFlagKey)
+        return migrated
     }
 }

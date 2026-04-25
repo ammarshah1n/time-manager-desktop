@@ -11,8 +11,9 @@ final class SpeechService: NSObject, ObservableObject {
     // MARK: - Published state
 
     @Published private(set) var isSpeaking: Bool = false
-    @AppStorage("elevenlabs_api_key") private var apiKey: String = "sk_b1779a2f714a1022e0800a7d4aa097892cde5f440f8d44f2"
     @AppStorage("elevenlabs_voice_id") private var voiceId: String = "pFZP5JQG7iQjIQuC4Bku" // Lily — velvety, warm female
+
+    private var apiKey: String { KeychainStore.string(for: .elevenlabsAPIKey) }
 
     // MARK: - Private
 

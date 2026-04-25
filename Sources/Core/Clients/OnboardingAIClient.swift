@@ -19,9 +19,9 @@ struct TransitResult { let chauffeur: Bool; let train: Bool; let plane: Bool; le
 @MainActor
 final class OnboardingAIClient: ObservableObject {
 
-    @AppStorage("anthropic_api_key") private var apiKey: String = ""
     @Published private(set) var isProcessing: Bool = false
 
+    private var apiKey: String { KeychainStore.string(for: .anthropicAPIKey) }
     var isAvailable: Bool { !apiKey.isEmpty }
 
     // MARK: - Step Extractors

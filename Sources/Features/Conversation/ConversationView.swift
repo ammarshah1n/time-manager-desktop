@@ -27,6 +27,15 @@ struct ConversationView: View {
                     .font(TimedType.title)
                     .foregroundStyle(phaseColor)
 
+                if let detail = model.phaseDetail {
+                    Text(detail)
+                        .font(TimedType.footnote)
+                        .foregroundStyle(Color.Timed.destructive)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, TimedLayout.Spacing.xl)
+                        .frame(maxWidth: 520)
+                }
+
                 MicActivityBar(isListening: model.isListening)
                     .frame(width: 72, height: 30)
 

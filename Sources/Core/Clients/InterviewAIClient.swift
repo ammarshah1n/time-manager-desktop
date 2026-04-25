@@ -40,8 +40,9 @@ struct ResolvedIntent: Sendable {
 @MainActor
 final class InterviewAIClient: ObservableObject {
 
-    @AppStorage("anthropic_api_key") private var apiKey: String = ""
     @Published private(set) var isGenerating: Bool = false
+
+    private var apiKey: String { KeychainStore.string(for: .anthropicAPIKey) }
 
     private var cachedACB: String?
     private var cachedBriefing: String?

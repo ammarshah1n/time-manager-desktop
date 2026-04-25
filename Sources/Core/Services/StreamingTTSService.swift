@@ -34,7 +34,7 @@ final class StreamingTTSService: ObservableObject {
     private var sessionClosed = true
     private var fallbackTask: Task<Void, Never>?
 
-    private var apiKey: String { UserDefaults.standard.string(forKey: "elevenlabs_api_key") ?? "" }
+    private var apiKey: String { KeychainStore.string(for: .elevenlabsAPIKey) }
     private var voiceId: String {
         let stored = UserDefaults.standard.string(forKey: "elevenlabs_voice_id") ?? ""
         return stored.isEmpty ? "pFZP5JQG7iQjIQuC4Bku" : stored

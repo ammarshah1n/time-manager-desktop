@@ -24,7 +24,7 @@ final class ConversationAIClient: ObservableObject {
         }
     }
 
-    @AppStorage("anthropic_api_key") private var apiKey = ""
+    private var apiKey: String { KeychainStore.string(for: .anthropicAPIKey) }
 
     private let tools: ConversationTools
     private var messages: [[String: Any]] = []

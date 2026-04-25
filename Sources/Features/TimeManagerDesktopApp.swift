@@ -9,6 +9,10 @@ struct TimeManagerDesktopApp: App {
     @StateObject private var menuBarManager = MenuBarManager()
     private let hotkeyManager = GlobalHotkeyManager()
 
+    init() {
+        KeychainStore.migrateLegacyKeysIfNeeded()
+    }
+
     private var colorScheme: ColorScheme? {
         switch theme {
         case "light": return .light

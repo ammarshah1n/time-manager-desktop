@@ -268,46 +268,65 @@ struct AppearanceTab: View {
 // MARK: - Voice
 
 struct VoiceTab: View {
-    @AppStorage("elevenlabs_api_key")     private var elevenlabsKey = ""
-    @AppStorage("elevenlabs_voice_id")    private var voiceId = ""
-    @AppStorage("anthropic_api_key")      private var anthropicKey = ""
+    @AppStorage("elevenlabs_voice_id") private var voiceId = ""
     @State private var deepgramKey = ""
-    @State private var deepgramSaved = false
+    @State private var elevenlabsKey = ""
+    @State private var anthropicKey = ""
+    @State private var savedKey: KeychainStore.Account?
 
     var body: some View {
         Form {
-            Section("Conversation") {
-                SecureField("Transcription API Key", text: $deepgramKey)
+            Section("Transcription (Deepgram)") {
+                SecureField("API Key", text: $deepgramKey)
                     .textFieldStyle(.roundedBorder)
-                Button(deepgramSaved ? "Saved" : "Save") {
+                Button(savedKey == .deepgramAPIKey ? "Saved" : "Save") {
                     try? KeychainStore.setString(deepgramKey, for: .deepgramAPIKey)
-                    deepgramSaved = true
+                    savedKey = .deepgramAPIKey
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
+                Text("Powers the Today conversation orb. Sign up at console.deepgram.com.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
             Section("Voice (ElevenLabs)") {
                 SecureField("API Key", text: $elevenlabsKey)
                     .textFieldStyle(.roundedBorder)
+                Button(savedKey == .elevenlabsAPIKey ? "Saved" : "Save") {
+                    try? KeychainStore.setString(elevenlabsKey, for: .elevenlabsAPIKey)
+                    savedKey = .elevenlabsAPIKey
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
                 TextField("Voice ID", text: $voiceId)
                     .textFieldStyle(.roundedBorder)
-                Text("George (warm British male) is the default. Change the Voice ID to use a different ElevenLabs voice.")
+                Text("Lily (warm British female) is the default. Change the Voice ID to use a different ElevenLabs voice.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            Section("Interview Intelligence") {
-                SecureField("Anthropic API Key", text: $anthropicKey)
+            Section("Intelligence (Anthropic)") {
+                SecureField("API Key", text: $anthropicKey)
                     .textFieldStyle(.roundedBorder)
-                Text("Personalises morning interview prompts using your executive profile. Leave empty for standard scripts.")
+                Button(savedKey == .anthropicAPIKey ? "Saved" : "Save") {
+                    try? KeychainStore.setString(anthropicKey, for: .anthropicAPIKey)
+                    savedKey = .anthropicAPIKey
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                Text("Powers the Today conversation orb, morning interview, and capture extraction. Required for all AI features.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
         .onAppear {
-            deepgramKey = (try? KeychainStore.string(for: .deepgramAPIKey)) ?? ""
+            deepgramKey = KeychainStore.string(for: .deepgramAPIKey)
+            elevenlabsKey = KeychainStore.string(for: .elevenlabsAPIKey)
+            anthropicKey = KeychainStore.string(for: .anthropicAPIKey)
         }
-        .onChange(of: deepgramKey) { _, _ in deepgramSaved = false }
+        .onChange(of: deepgramKey) { _, _ in if savedKey == .deepgramAPIKey { savedKey = nil } }
+        .onChange(of: elevenlabsKey) { _, _ in if savedKey == .elevenlabsAPIKey { savedKey = nil } }
+        .onChange(of: anthropicKey) { _, _ in if savedKey == .anthropicAPIKey { savedKey = nil } }
     }
 }
 

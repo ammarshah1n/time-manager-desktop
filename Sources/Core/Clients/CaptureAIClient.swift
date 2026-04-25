@@ -27,9 +27,9 @@ struct ExtractedTask: Sendable {
 @MainActor
 final class CaptureAIClient: ObservableObject {
 
-    @AppStorage("anthropic_api_key") private var apiKey: String = ""
     @Published private(set) var isProcessing: Bool = false
 
+    private var apiKey: String { KeychainStore.string(for: .anthropicAPIKey) }
     var isAvailable: Bool { !apiKey.isEmpty }
 
     // MARK: - Extract Tasks
