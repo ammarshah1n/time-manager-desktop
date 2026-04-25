@@ -652,7 +652,7 @@ actor EmailSyncService {
                 senderReplyLatencies[sender, default: []].append(latencyMinutes)
 
                 TimedLogger.triage.info(
-                    "Reply latency to \(sender, privacy: .public): \(String(format: "%.1f", latencyMinutes)) min"
+                    "Reply latency to \(sender, privacy: .private): \(String(format: "%.1f", latencyMinutes)) min"
                 )
 
                 // Persist to Supabase
@@ -708,7 +708,7 @@ actor EmailSyncService {
             )
         } catch {
             TimedLogger.triage.error(
-                "Failed to persist sender latency for \(fromAddress, privacy: .public): \(error.localizedDescription, privacy: .public)"
+                "Failed to persist sender latency for \(fromAddress, privacy: .private): \(error.localizedDescription, privacy: .public)"
             )
         }
     }
@@ -760,14 +760,14 @@ actor EmailSyncService {
         }
 
         TimedLogger.triage.info(
-            "Folder move detected: \(fromAddress, privacy: .public) → '\(folderName, privacy: .public)' → rule '\(ruleType, privacy: .public)'"
+            "Folder move detected: \(fromAddress, privacy: .private) → '\(folderName, privacy: .private)' → rule '\(ruleType, privacy: .public)'"
         )
 
         do {
             try await supabaseClient.upsertSenderRule(workspaceId, profileId, fromAddress, ruleType)
         } catch {
             TimedLogger.triage.error(
-                "Failed to upsert sender rule for \(fromAddress, privacy: .public): \(error.localizedDescription, privacy: .public)"
+                "Failed to upsert sender rule for \(fromAddress, privacy: .private): \(error.localizedDescription, privacy: .public)"
             )
         }
     }

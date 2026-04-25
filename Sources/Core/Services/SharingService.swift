@@ -73,7 +73,7 @@ actor SharingService {
             throw SharingError.notConnected
         }
 
-        logger.info("Accepting invite code \(code, privacy: .public) for profile \(profileId.uuidString, privacy: .public)")
+        logger.info("Accepting invite code \(code, privacy: .private) for profile \(profileId.uuidString, privacy: .public)")
 
         // TODO: Validate invite code against workspace_invites table,
         // then insert workspace_members row via SupabaseClientDependency.

@@ -147,6 +147,88 @@ async function buildTodayState(executiveId: string, displayName: string, clientS
 const MAX_FIELD_CHARS = 2000;
 const MAX_OBSERVATION_CHARS = 280;
 
+// SSE event types we forward to the client. Anything else (thinking blocks,
+// internal Anthropic metadata, future block types we haven't audited) is
+// dropped at the proxy boundary. Strict allowlist.
+const FORWARDED_SSE_TYPES = new Set([
+  "message_start",
+  "content_block_start",
+  "content_block_delta",
+  "content_block_stop",
+  "message_delta",
+  "message_stop",
+  "ping",
+]);
+
+function filterAnthropicSSE(body: ReadableStream<Uint8Array>): ReadableStream<Uint8Array> {
+  const decoder = new TextDecoder();
+  const encoder = new TextEncoder();
+  let buffer = "";
+  return new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const reader = body.getReader();
+      try {
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          let nl: number;
+          while ((nl = buffer.indexOf("\n")) >= 0) {
+            const line = buffer.slice(0, nl);
+            buffer = buffer.slice(nl + 1);
+            if (!line.startsWith("data: ")) {
+              // Pass through event: lines and blank lines unchanged.
+              controller.enqueue(encoder.encode(line + "\n"));
+              continue;
+            }
+            const payload = line.slice(6);
+            if (payload === "[DONE]") {
+              controller.enqueue(encoder.encode(line + "\n"));
+              continue;
+            }
+            try {
+              const json = JSON.parse(payload);
+              const type = json?.type as string | undefined;
+              if (!type || !FORWARDED_SSE_TYPES.has(type)) continue;
+              // Reject thinking blocks specifically (we do not enable thinking
+              // for the orb, but if Anthropic ever adds them by default, do
+              // not let them reach TTS).
+              if (type === "content_block_start") {
+                const blockType = json?.content_block?.type as string | undefined;
+                if (blockType === "thinking") continue;
+              }
+              if (type === "content_block_delta") {
+                const deltaType = json?.delta?.type as string | undefined;
+                if (deltaType === "thinking_delta") continue;
+              }
+              // Strip usage / id / model fields from message_start to avoid
+              // leaking provider metadata.
+              if (type === "message_start" && json.message) {
+                json.message = {
+                  role: json.message.role,
+                  content: [],
+                };
+              }
+              if (type === "message_delta" && json.usage) {
+                delete json.usage;
+              }
+              controller.enqueue(encoder.encode("data: " + JSON.stringify(json) + "\n"));
+            } catch {
+              // Drop malformed lines silently.
+            }
+          }
+        }
+        if (buffer.length > 0) {
+          controller.enqueue(encoder.encode(buffer));
+        }
+        controller.close();
+      } catch (err) {
+        controller.error(err);
+      }
+    },
+  });
+}
+
 function fence(label: string, content: string): string {
   // Wrap untrusted content in clearly delimited fences. Tells the model the
   // contents are data, not instructions — defends against prompt injection
@@ -253,10 +335,18 @@ serve(async (req) => {
 
     if (!upstream.ok || !upstream.body) {
       const txt = await upstream.text();
-      throw new Error(`anthropic failed: ${upstream.status} ${txt.slice(0, 300)}`);
+      console.error(`[orb-conversation] upstream ${upstream.status}: ${txt.slice(0, 300)}`);
+      return new Response(JSON.stringify({ error: "conversation service unavailable" }), {
+        status: 502, headers: { ...CORS, "Content-Type": "application/json" },
+      });
     }
 
-    return new Response(upstream.body, {
+    // Filter the upstream SSE: strip usage stats, internal IDs, and any
+    // future block types we haven't audited (e.g. thinking blocks). Only
+    // forward content_block events plus message_start/stop framing.
+    const filtered = filterAnthropicSSE(upstream.body);
+
+    return new Response(filtered, {
       headers: {
         ...CORS,
         "Content-Type":  "text/event-stream",

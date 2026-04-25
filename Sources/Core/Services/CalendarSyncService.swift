@@ -89,7 +89,7 @@ actor CalendarSyncService {
         let parsedEvents = graphEvents.compactMap { event -> ParsedCalendarEvent? in
             guard let startDate = parseGraphDateTime(event.start),
                   let endDate = parseGraphDateTime(event.end) else {
-                TimedLogger.calendar.warning("Skipping event with unparseable dates: \(event.subject ?? "untitled", privacy: .public)")
+                TimedLogger.calendar.warning("Skipping event with unparseable dates: \(event.subject ?? "untitled", privacy: .private)")
                 return nil
             }
             return ParsedCalendarEvent(event: event, startDate: startDate, endDate: endDate)

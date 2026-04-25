@@ -81,7 +81,10 @@ serve(async (req) => {
 
     if (!elevenRes.ok || !elevenRes.body) {
       const txt = await elevenRes.text();
-      throw new Error(`elevenlabs failed: ${elevenRes.status} ${txt.slice(0, 200)}`);
+      console.error(`[orb-tts] upstream ${elevenRes.status}: ${txt.slice(0, 200)}`);
+      return new Response(JSON.stringify({ error: "voice service unavailable" }), {
+        status: 502, headers: { ...CORS, "Content-Type": "application/json" },
+      });
     }
 
     return new Response(elevenRes.body, {

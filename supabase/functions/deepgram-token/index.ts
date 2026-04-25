@@ -53,17 +53,23 @@ serve(async (req) => {
           "Content-Type":  "application/json",
         },
         body: JSON.stringify({
-          comment:       `timed-orb:${executiveId}`,
+          // Use opaque tags — internal tenant UUIDs should not leak to
+          // Deepgram's audit log. The Edge Function logs the executiveId
+          // privately if correlation is needed for support.
+          comment:       "timed-orb-session",
           scopes:        ["usage:write"],
           time_to_live_in_seconds: ttl,
-          tags:          ["timed", "orb", `exec:${executiveId}`],
+          tags:          ["timed", "orb"],
         }),
       }
     );
 
     if (!dgRes.ok) {
       const text = await dgRes.text();
-      throw new Error(`deepgram key issue failed: ${dgRes.status} ${text.slice(0, 200)}`);
+      console.error(`[deepgram-token] upstream ${dgRes.status}: ${text.slice(0, 200)}`);
+      return new Response(JSON.stringify({ error: "transcription service unavailable" }), {
+        status: 502, headers: { ...CORS, "Content-Type": "application/json" },
+      });
     }
 
     const json = await dgRes.json() as { key: string; expiration_date?: string };
