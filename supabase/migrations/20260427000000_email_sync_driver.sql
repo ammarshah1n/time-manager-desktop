@@ -12,7 +12,4 @@ ALTER TABLE public.executives
     CHECK (email_sync_driver IN ('client', 'server'));
 
 COMMENT ON COLUMN public.executives.email_sync_driver IS
-  'Driver for Graph email/calendar sync. '
-  || '`client` = Swift EmailSyncService polls with delegated MSAL token. '
-  || '`server` = Trigger.dev graph-delta-sync polls with app-only token. '
-  || 'Flipping to `server` disables Swift-side polling on the next start() call.';
+  'Driver for Graph email/calendar sync. `client` = Swift EmailSyncService polls with delegated MSAL token. `server` = Trigger.dev graph-delta-sync polls with app-only token. Flipping to `server` disables Swift-side polling on the next start() call.';
