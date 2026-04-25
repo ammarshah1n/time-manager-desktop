@@ -1,5 +1,33 @@
 # SESSION_LOG.md
 
+### 2026-04-26 — Today orb shipped + production refactor + audit/collab fixes
+**Done**: Shipped the Today conversational orb (mic on Today pane → multi-turn Opus 4.7 streaming with tool use). Pulled every third-party API key off the client — 4 new Edge Functions (orb-conversation, orb-tts, deepgram-token, anthropic-relay) + Swift services rerouted. Migrated 4 single-tenant Edge Functions to JWT-resolved executive_id. Tightened 3 service-role functions against body-supplied tenant IDs. RLS hardening migration deployed (behaviour_events partitions, executives insert, SECURITY DEFINER, view security_invoker, pipeline_health_log). Untrusted-content fencing on observations/ACB/client_state. Tool arg validation + clamping; replan throttle; conversation history cap. Mic + sync stop on app deactivate / sign-out. Anthropic SSE filter strips thinking + usage. iWork-style T icon. /collab convergence: ~250 lines of dead Intro/Brand/Tier0 surfaces deleted.
+
+**In progress**: nothing blocking — feature is live end-to-end on production Supabase.
+
+**Discovered**:
+- Project hook `.claude/hooks/permission-check.sh` hard-denies certain infra commands regardless of chat authorization. Print, don't promise autonomous run.
+- macOS `.noindex` directory suffix excludes from Spotlight — applied to dist/ to clean Cmd+Space.
+- ElevenLabs SDK + LiveKitWebRTC.framework dep is unused at runtime now (TTS is server-proxied) — ~50MB drop available.
+
+**Next**: `Sources/Features/Conversation/ConversationView.swift` if any UI follow-up; otherwise pursue the 5 deferred prod-readiness items in TickTick (Developer ID + notarization, local-file encryption, per-user rate limits, OAuth callback hardening, GDPR deletes).
+
+### Commits this session
+b718bc3 chore: apply /collab convergence — drop dead Intro / Brand / Tier0 surfaces
+2e41afd sec: privacy logs + provider error sanitisation + SSE filter
+ed32588 sec: production hardening — close findings from 4-pass audit
+caa0501 chore: deploy script lists new orb Edge Functions + prereqs
+6ad1b7f feat: production-grade — pull all third-party API keys server-side
+5166e1d chore: gitignore dist.noindex/ and untrack the bundle accidentally committed
+4236ae2 feat: redesign icon as iWork-style T mark + dedupe Spotlight build artifacts
+24d1c92 feat: redesign app icon to match Apple-native monochrome aesthetic
+7fa807a feat: multi-user — strip Yasser hardcoding from app + edge functions
+bea9528 feat: package-ready Today orb — Keychain for all keys, dynamic principal name, error surfacing
+5839f8c fix: tighten Today orb — true streaming TTS, correct end-of-utterance, real Dish Me Up plan, rich persona
+2ecc5bb feat: add Today conversation orb
+
+---
+
 ### 2026-04-16 — ElevenLabs Onboarding Voice + Intelligent Capture + Hero Screen
 **Done**:
 - Redesigned onboarding from 8 to 10 steps: hero animation, name entry, voice picker

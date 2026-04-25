@@ -1,4 +1,21 @@
-# BUILD_STATE.md — Last updated: 2026-04-24 (Dish Me Up LIVE — voice onboarding + Opus plan shipped)
+# BUILD_STATE.md — Last updated: 2026-04-26 (production refactor LIVE — Today orb + server-side keys + multi-user)
+
+## Production Refactor (2026-04-26)
+- [x] Today conversational orb shipped — `Sources/Features/Conversation/{ConversationView, ConversationModel}.swift`
+- [x] All third-party API keys moved server-side. Client holds only the user's Supabase JWT.
+  - Anthropic → `orb-conversation` (streaming) + `anthropic-relay` (non-streaming)
+  - ElevenLabs → `orb-tts` (REST proxy, MP3 stream)
+  - Deepgram → `deepgram-token` (60s scoped temp tokens, client connects WS direct)
+- [x] 4 single-tenant Edge Functions migrated to JWT-resolved executive_id (generate-dish-me-up, voice-llm-proxy, extract-onboarding-profile, extract-voice-learnings)
+- [x] 3 service-role functions tightened to reject body-supplied tenant IDs (classify-email, generate-daily-plan, score-observation-realtime)
+- [x] RLS hardening migration `20260425230000_production_security_hardening.sql` deployed
+- [x] Untrusted prompt fencing on observations/ACB/client_state with `<untrusted_*>` tags + length caps
+- [x] Tool argument validation + clamping; replan throttle 1/turn; history capped at 24 messages
+- [x] Mic releases on app deactivate; sign-out halts EmailSync + CalendarSync
+- [x] Anthropic SSE allowlist filter — drops thinking blocks, strips usage/IDs
+- [x] iWork-style T mark icon (Apple-blue squircle, white T)
+- [x] dist.noindex/ build path keeps Spotlight clean
+- [x] /collab convergence: ~250 lines of dead splash/Brand/Tier0 client surfaces deleted
 
 ## What Exists and Works
 
