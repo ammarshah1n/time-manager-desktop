@@ -1,54 +1,110 @@
 // TimedColors.swift — Timed macOS
-// Centralised dark-mode palette. Uses NSColor so values adapt correctly
-// on macOS. Light mode falls back to system semantic colours via
-// Environment.colorScheme checks where needed.
+// Design tokens per DESIGN.md. Black/white first. A single accent — Apple system
+// blue — used at most once per screen. Every semantic role below is adaptive
+// light/dark. Back-compat aliases at the bottom map old token names onto the
+// new semantic roles so call sites continue to compile unchanged.
 
 import SwiftUI
 
 extension Color {
     enum Timed {
+        // MARK: - Accent (single, adaptive)
+
+        /// Apple system blue — light #007AFF / dark #0A84FF.
+        /// Use at most once per screen. Never for decoration.
+        static let accent = Color.dynamic(
+            light: Color(red: 0/255,  green: 122/255, blue: 255/255),
+            dark:  Color(red: 10/255, green: 132/255, blue: 255/255)
+        )
+
         // MARK: - Backgrounds
-        static let windowBackground  = Color(nsColor: NSColor(red: 0.082, green: 0.086, blue: 0.094, alpha: 1)) // #151618
-        static let elevatedSurface   = Color(nsColor: NSColor(red: 0.110, green: 0.114, blue: 0.129, alpha: 1)) // #1C1D21
-        static let sidebar           = Color(nsColor: NSColor(red: 0.094, green: 0.098, blue: 0.110, alpha: 1)) // #18191C
 
-        // MARK: - Borders & Dividers
-        static let hairline          = Color.white.opacity(0.08)
+        /// Pure white (light) / pure black (dark, OLED-native).
+        static let backgroundPrimary = Color.dynamic(
+            light: Color.white,
+            dark:  Color.black
+        )
+        /// Apple systemGroupedBackground.
+        static let backgroundSecondary = Color.dynamic(
+            light: Color(red: 242/255, green: 242/255, blue: 247/255),
+            dark:  Color(red: 28/255,  green: 28/255,  blue: 30/255)
+        )
+        /// Card surface on grouped background.
+        static let backgroundTertiary = Color.dynamic(
+            light: Color.white,
+            dark:  Color(red: 44/255, green: 44/255, blue: 46/255)
+        )
 
-        // MARK: - Text
-        static let primaryText       = Color.white.opacity(0.92)
-        static let secondaryText     = Color.white.opacity(0.62)
-        static let tertiaryText      = Color.white.opacity(0.38)
+        // MARK: - Labels
 
-        // MARK: - Accent & Selection
-        static let accent            = Color(red: 0.298, green: 0.553, blue: 1.0)   // #4C8DFF
-        static let selection         = Color(red: 0.298, green: 0.553, blue: 1.0).opacity(0.22)
+        static let labelPrimary = Color.dynamic(
+            light: Color.black,
+            dark:  Color.white
+        )
+        static let labelSecondary = Color.dynamic(
+            light: Color(red: 60/255, green: 60/255, blue: 67/255).opacity(0.60),
+            dark:  Color(red: 235/255, green: 235/255, blue: 245/255).opacity(0.60)
+        )
+        static let labelTertiary = Color.dynamic(
+            light: Color(red: 60/255, green: 60/255, blue: 67/255).opacity(0.30),
+            dark:  Color(red: 235/255, green: 235/255, blue: 245/255).opacity(0.30)
+        )
+        static let labelQuaternary = Color.dynamic(
+            light: Color(red: 60/255, green: 60/255, blue: 67/255).opacity(0.18),
+            dark:  Color(red: 235/255, green: 235/255, blue: 245/255).opacity(0.18)
+        )
 
-        // MARK: - Semantic
-        static let success           = Color(red: 0.298, green: 0.800, blue: 0.498)
-        static let warning           = Color(red: 1.000, green: 0.757, blue: 0.298)
-        static let danger            = Color(red: 1.000, green: 0.373, blue: 0.373)
-    }
-}
+        // MARK: - Separators
 
-// MARK: - Adaptive helpers
+        static let separator = Color.dynamic(
+            light: Color(red: 60/255, green: 60/255, blue: 67/255).opacity(0.29),
+            dark:  Color(red: 84/255, green: 84/255, blue: 88/255).opacity(0.60)
+        )
+        static let separatorOpaque = Color.dynamic(
+            light: Color(red: 198/255, green: 198/255, blue: 200/255),
+            dark:  Color(red: 56/255,  green: 56/255,  blue: 58/255)
+        )
 
-/// Returns the Timed dark palette value when in dark mode, otherwise the
-/// provided light-mode fallback. Use for surfaces that must look correct
-/// in both schemes.
-struct AdaptiveSurface: ViewModifier {
-    @Environment(\.colorScheme) private var scheme
-    let dark: Color
-    let light: Color
+        // MARK: - Semantic (contextual only, never as branding)
 
-    func body(content: Content) -> some View {
-        content.background(scheme == .dark ? dark : light)
-    }
-}
+        /// Errors / destructive actions only.
+        static let destructive = Color.dynamic(
+            light: Color(red: 255/255, green: 59/255, blue: 48/255),
+            dark:  Color(red: 255/255, green: 69/255, blue: 58/255)
+        )
+        /// Completion states only.
+        static let success = Color.dynamic(
+            light: Color(red: 52/255, green: 199/255, blue: 89/255),
+            dark:  Color(red: 48/255, green: 209/255, blue: 88/255)
+        )
 
-extension View {
-    /// Convenience: apply `Color.Timed.*` in dark mode, semantic colour in light.
-    func timedBackground(dark: Color, light: Color = Color(.controlBackgroundColor)) -> some View {
-        modifier(AdaptiveSurface(dark: dark, light: light))
+        // MARK: - Back-compat aliases
+
+        /// @available alias — prefer `backgroundPrimary`.
+        static let windowBackground  = backgroundPrimary
+        /// @available alias — prefer `backgroundSecondary`.
+        static let elevatedSurface   = backgroundSecondary
+        /// @available alias — prefer `backgroundSecondary`.
+        static let sidebar           = backgroundSecondary
+        /// @available alias — prefer `separator`.
+        static let hairline          = separator
+        /// @available alias — prefer `labelPrimary`.
+        static let primaryText       = labelPrimary
+        /// @available alias — prefer `labelSecondary`.
+        static let secondaryText     = labelSecondary
+        /// @available alias — prefer `labelTertiary`.
+        static let tertiaryText      = labelTertiary
+        /// @available alias — use `accent.opacity(0.18)` directly.
+        static let selection         = Color.dynamic(
+            light: Color(red: 0/255,  green: 122/255, blue: 255/255).opacity(0.18),
+            dark:  Color(red: 10/255, green: 132/255, blue: 255/255).opacity(0.18)
+        )
+        /// @available alias — system orange. Kept only for one-off warning contexts.
+        static let warning           = Color.dynamic(
+            light: Color(red: 255/255, green: 149/255, blue: 0/255),
+            dark:  Color(red: 255/255, green: 159/255, blue: 10/255)
+        )
+        /// @available alias — prefer `destructive`.
+        static let danger            = destructive
     }
 }

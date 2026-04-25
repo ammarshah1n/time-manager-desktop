@@ -270,7 +270,7 @@ struct TasksPane: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
-            .foregroundStyle(.red)
+            .foregroundStyle(Color.Timed.destructive)
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 10)
@@ -356,7 +356,7 @@ struct TaskRow: View {
                             .font(.system(size: 11))
                         Text("Waiting on \(waiting)")
                             .font(.system(size: 11))
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(Color.Timed.labelSecondary)
                     }
                 }
             }
@@ -368,14 +368,14 @@ struct TaskRow: View {
                 if task.isStale {
                     HStack(spacing: 3) {
                         Circle()
-                            .fill(Color.orange)
+                            .fill(Color.Timed.labelSecondary)
                             .frame(width: 6, height: 6)
                         Text("\(task.daysInQueue)d")
                             .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(Color.Timed.labelSecondary)
                     }
                     .padding(.horizontal, 6).padding(.vertical, 2)
-                    .background(Color.orange.opacity(0.1), in: Capsule())
+                    .background(Color.Timed.backgroundSecondary, in: Capsule())
                 }
 
                 if task.emailCount > 1 {
@@ -430,7 +430,7 @@ struct TaskRow: View {
                 } label: {
                     Image(systemName: "calendar.badge.plus")
                         .font(.system(size: 13))
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(Color.Timed.labelSecondary)
                 }
                 .buttonStyle(.plain)
                 .help("Block time on calendar")

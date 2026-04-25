@@ -19,11 +19,8 @@ enum ReplyMedium: String, CaseIterable, Codable {
     }
 
     var color: Color {
-        switch self {
-        case .email:    .blue
-        case .whatsApp: Color(red: 0.18, green: 0.71, blue: 0.36)
-        case .other:    .gray
-        }
+        // Monochrome — panes are black/white/grey. No reply-medium tint.
+        Color.Timed.labelSecondary
     }
 }
 
@@ -53,16 +50,8 @@ enum TaskBucket: String, CaseIterable, Hashable, Codable {
     }
 
     var color: Color {
-        switch self {
-        case .reply:        .blue
-        case .action:       .orange
-        case .calls:        .green
-        case .readToday:    .gray
-        case .readThisWeek: Color(.systemGray)
-        case .transit:      Color(red: 0.2, green: 0.6, blue: 0.45)
-        case .waiting:      .teal
-        case .ccFyi:        Color(NSColor.systemGray)
-        }
+        // Monochrome — buckets are distinguished by icon + label, never colour.
+        Color.Timed.labelSecondary
     }
 
     var reviewCadence: String {
@@ -465,11 +454,9 @@ struct TriageItem: Identifiable, Codable, Sendable, Equatable {
         return f.string(from: receivedAt)
     }
 
-    /// Deterministic color derived from sender name — no stored state needed.
+    /// Monochrome — all avatars share one secondary-label tint.
     var avatarColor: Color {
-        let palette: [Color] = [.blue, .gray, .teal, .orange, .primary, .red, .green, .cyan]
-        let hash = abs(sender.unicodeScalars.reduce(0) { $0 &+ Int($1.value) })
-        return palette[hash % palette.count]
+        Color.Timed.labelSecondary
     }
 }
 
@@ -511,12 +498,11 @@ extension CalendarBlock {
     var durationHours: Double { endTime.timeIntervalSince(startTime) / 3_600 }
     var weekdayIndex: Int     { (Calendar.current.component(.weekday, from: startTime) + 5) % 7 }
     var categoryColor: Color  {
+        // Focus is the single accent-bearing category (the "one thing that matters").
+        // Every other block is rendered monochrome.
         switch category {
-        case .focus:   .blue
-        case .meeting: .secondary
-        case .admin:   .orange
-        case .break:   Color(.systemGreen)
-        case .transit: Color(red: 0.2, green: 0.6, blue: 0.45)
+        case .focus:                            return Color.Timed.accent
+        case .meeting, .admin, .break, .transit: return Color.Timed.labelSecondary
         }
     }
     var startLabel: String { formatHour(startHour) }

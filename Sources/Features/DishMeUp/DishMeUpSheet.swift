@@ -364,12 +364,12 @@ struct DishMeUpSheet: View {
             // Warning
             if let warning = warningMessage {
                 HStack(spacing: 5) {
-                    Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 10)).foregroundStyle(.orange)
+                    Image(systemName: "exclamationmark.triangle").font(.system(size: 10)).foregroundStyle(Color.Timed.labelSecondary)
                     Text(warning)
-                        .font(.system(size: 11)).foregroundStyle(.secondary)
+                        .font(.system(size: 11)).foregroundStyle(Color.Timed.labelSecondary)
                 }
                 .padding(.horizontal, 10).padding(.vertical, 6)
-                .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+                .background(Color.Timed.backgroundSecondary, in: RoundedRectangle(cornerRadius: 8))
             }
 
             // Deferred / overflow

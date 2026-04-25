@@ -106,7 +106,7 @@ struct TodayPane: View {
                         HStack(spacing: 10) {
                             Image(systemName: "sunrise.fill")
                                 .font(.system(size: 13))
-                                .foregroundStyle(.orange)
+                                .foregroundStyle(Color.Timed.labelSecondary)
                             VStack(alignment: .leading, spacing: 1) {
                                 Text("Morning review not done yet")
                                     .font(.system(size: 13, weight: .semibold))
@@ -117,7 +117,7 @@ struct TodayPane: View {
                             Spacer()
                             Text("Start →")
                                 .font(.system(size: 12, weight: .semibold))
-                                .foregroundStyle(.orange)
+                                .foregroundStyle(Color.Timed.accent)
                         }
                         .padding(.horizontal, 16).padding(.vertical, 12)
                         .background(Color(.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
@@ -129,7 +129,9 @@ struct TodayPane: View {
                 // ── Triage alert ─────────────────────────────────────────
                 if triageCount > 0 {
                     HStack(spacing: 8) {
-                        Image(systemName: "tray.and.arrow.down.fill").font(.system(size: 12)).foregroundStyle(.red)
+                        Image(systemName: "tray.and.arrow.down.fill")
+                            .font(.system(size: 12))
+                            .foregroundStyle(Color.Timed.destructive)
                         Text("\(triageCount) emails unprocessed in Triage")
                             .font(.system(size: 12))
                         Spacer()
@@ -150,17 +152,17 @@ struct TodayPane: View {
                     HStack(spacing: 10) {
                         Image(systemName: "clock.badge.checkmark")
                             .font(.system(size: 13))
-                            .foregroundStyle(.blue)
+                            .foregroundStyle(Color.Timed.accent)
                         Text("You have \(nextFree.durationMinutes)min free at \(nextFree.start.formatted(date: .omitted, time: .shortened)) — want a plan?")
                             .font(.system(size: 12))
                         Spacer()
                         Button("Dish Me Up", action: onDishMeUp)
                             .buttonStyle(.bordered)
                             .controlSize(.mini)
-                            .tint(.blue)
+                            .tint(Color.Timed.accent)
                     }
                     .padding(.horizontal, 16).padding(.vertical, 12)
-                    .background(Color.blue.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+                    .background(Color.Timed.backgroundSecondary, in: RoundedRectangle(cornerRadius: 10))
                     .padding(.horizontal, 28).padding(.bottom, 14)
                 }
 
@@ -210,7 +212,7 @@ struct TodayPane: View {
                         Button("Add") { submitQuickTask() }
                             .buttonStyle(.borderedProminent)
                             .controlSize(.small)
-                            .tint(quickBucket.color)
+                            .tint(Color.Timed.accent)
                             .transition(.opacity)
                     }
                 }
@@ -252,7 +254,7 @@ struct TodayPane: View {
                             id: "action",
                             icon: "bolt.fill",
                             title: "ACTION",
-                            color: .orange,
+                            color: Color.Timed.labelSecondary,
                             tasks: actions,
                             expanded: expandedSections.contains("action"),
                             completedIds: $completedIds,
@@ -272,7 +274,7 @@ struct TodayPane: View {
                             id: "calls",
                             icon: "phone.fill",
                             title: "CALLS",
-                            color: .green,
+                            color: Color.Timed.labelSecondary,
                             tasks: calls,
                             expanded: expandedSections.contains("calls"),
                             completedIds: $completedIds,
@@ -292,7 +294,7 @@ struct TodayPane: View {
                             id: "transit",
                             icon: "car.fill",
                             title: "TRANSIT",
-                            color: Color(red: 0.2, green: 0.6, blue: 0.45),
+                            color: Color.Timed.labelSecondary,
                             tasks: transit,
                             expanded: expandedSections.contains("transit"),
                             completedIds: $completedIds,
@@ -312,7 +314,7 @@ struct TodayPane: View {
                             id: "readToday",
                             icon: "doc.text.fill",
                             title: "READ TODAY",
-                            color: .secondary,
+                            color: Color.Timed.labelSecondary,
                             tasks: readsToday,
                             expanded: expandedSections.contains("readToday"),
                             completedIds: $completedIds,
@@ -332,7 +334,7 @@ struct TodayPane: View {
                             id: "readWeek",
                             icon: "doc.text",
                             title: "READ THIS WEEK",
-                            color: Color(.systemGray),
+                            color: Color.Timed.labelTertiary,
                             tasks: readsWeek,
                             expanded: expandedSections.contains("readWeek"),
                             completedIds: $completedIds,
@@ -407,7 +409,7 @@ struct TodayPane: View {
                 HStack(spacing: 10) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.system(size: 13))
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(Color.Timed.labelSecondary)
                     VStack(alignment: .leading, spacing: 1) {
                         Text("\(staleTasks.count) item\(staleTasks.count == 1 ? "" : "s") need\(staleTasks.count == 1 ? "s" : "") attention")
                             .font(.system(size: 13, weight: .semibold))
@@ -426,7 +428,6 @@ struct TodayPane: View {
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.mini)
-                        .tint(.orange)
 
                         Image(systemName: "chevron.right")
                             .font(.system(size: 10))
@@ -444,7 +445,7 @@ struct TodayPane: View {
                 ForEach(staleTasks) { task in
                     HStack(spacing: 12) {
                         Circle()
-                            .fill(Color.orange)
+                            .fill(Color.Timed.labelSecondary)
                             .frame(width: 6, height: 6)
 
                         VStack(alignment: .leading, spacing: 2) {
@@ -459,7 +460,7 @@ struct TodayPane: View {
                                     .foregroundStyle(.secondary)
                                 Text("sitting \(task.daysInQueue) day\(task.daysInQueue == 1 ? "" : "s")")
                                     .font(.system(size: 10))
-                                    .foregroundStyle(.orange)
+                                    .foregroundStyle(Color.Timed.labelSecondary)
                             }
                         }
 
@@ -467,7 +468,7 @@ struct TodayPane: View {
 
                         Text("Review")
                             .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(Color.Timed.labelSecondary)
                     }
                     .padding(.horizontal, 16).padding(.vertical, 6)
                     .contentShape(Rectangle())
@@ -487,7 +488,7 @@ struct TodayPane: View {
                 HStack(spacing: 10) {
                     Image(systemName: "lightbulb.fill")
                         .font(.system(size: 13))
-                        .foregroundStyle(.yellow)
+                        .foregroundStyle(Color.Timed.labelSecondary)
                     Text("Insights")
                         .font(.system(size: 13, weight: .semibold))
                     Spacer()
@@ -542,8 +543,12 @@ struct TodayPane: View {
 
                 if let toast = correctionToast {
                     HStack(spacing: 6) {
-                        Image(systemName: "checkmark.circle.fill").font(.system(size: 10)).foregroundStyle(.green)
-                        Text(toast).font(.system(size: 11, weight: .medium)).foregroundStyle(.green)
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 10))
+                            .foregroundStyle(Color.Timed.labelSecondary)
+                        Text(toast)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(Color.Timed.labelSecondary)
                     }
                     .padding(.horizontal, 16).padding(.vertical, 6)
                     .transition(.opacity)
@@ -559,7 +564,6 @@ struct TodayPane: View {
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.mini)
-                .tint(.yellow)
                 .padding(.horizontal, 16).padding(.vertical, 8)
             }
         }
@@ -573,9 +577,9 @@ struct TodayPane: View {
         HStack(spacing: 0) {
             totalCell("Planned", formatMins(plannedMins + doneMins), .primary)
             Divider().frame(height: 32)
-            totalCell("Done", formatMins(doneMins), .green)
+            totalCell("Done", formatMins(doneMins), Color.Timed.labelSecondary)
             Divider().frame(height: 32)
-            totalCell("Remaining", formatMins(plannedMins), .orange)
+            totalCell("Remaining", formatMins(plannedMins), Color.Timed.labelSecondary)
         }
         .padding(.horizontal, 16).padding(.vertical, 10)
         .background(Color(.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
@@ -606,12 +610,12 @@ struct TodayPane: View {
                 HStack(spacing: 10) {
                     Image(systemName: "arrowshape.turn.up.left.fill")
                         .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(Color.Timed.labelSecondary)
                         .frame(width: 14)
 
                     Text("REPLIES")
                         .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(Color.Timed.labelSecondary)
                         .tracking(0.8)
 
                     Text("·  \(replies.count) item\(replies.count == 1 ? "" : "s")")
@@ -622,7 +626,7 @@ struct TodayPane: View {
 
                     Text(formatMins(replies.reduce(0) { $0 + $1.estimatedMinutes }))
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(Color.Timed.labelSecondary)
                         .monospacedDigit()
 
                     Image(systemName: "chevron.right")
@@ -702,18 +706,18 @@ struct TodayPane: View {
                 HStack(spacing: 10) {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.system(size: 11))
-                        .foregroundStyle(.green)
+                        .foregroundStyle(Color.Timed.labelSecondary)
                         .frame(width: 14)
                     Text("COMPLETED")
                         .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(.green)
+                        .foregroundStyle(Color.Timed.labelSecondary)
                         .tracking(0.8)
                     Text("·  \(completed.count)")
                         .font(.system(size: 12)).foregroundStyle(.secondary)
                     Spacer()
                     Text(formatMins(doneMins))
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.green).monospacedDigit()
+                        .foregroundStyle(Color.Timed.labelSecondary).monospacedDigit()
                     Image(systemName: "chevron.right")
                         .font(.system(size: 10)).foregroundStyle(.secondary)
                         .rotationEffect(.degrees(expandedSections.contains("completed") ? 90 : 0))
@@ -749,7 +753,7 @@ struct TodayPane: View {
                         } label: {
                             Image(systemName: "checkmark.circle.fill")
                                 .font(.system(size: 16))
-                                .foregroundStyle(.green)
+                                .foregroundStyle(Color.Timed.labelSecondary)
                         }
                         .buttonStyle(.plain)
                         Text(task.title)
@@ -970,7 +974,7 @@ struct TodayTaskRow: View {
             } label: {
                 Image(systemName: isCompleted ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 17))
-                    .foregroundStyle(isCompleted ? .green : Color(.separatorColor))
+                    .foregroundStyle(isCompleted ? Color.Timed.labelSecondary : Color(.separatorColor))
                     .scaleEffect(checkboxScale)
                     .contentTransition(.symbolEffect(.replace))
             }
@@ -1083,7 +1087,7 @@ struct TodayTaskRow: View {
             if task.dueToday && !task.isDoFirst {
                 Text("Due")
                     .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.red)
+                    .foregroundStyle(Color.Timed.destructive)
             }
 
             if task.emailCount > 1 {
@@ -1098,7 +1102,7 @@ struct TodayTaskRow: View {
                abs(acc.avgActual - acc.avgEstimated) / acc.avgEstimated > 0.15 {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .font(.system(size: 10))
-                    .foregroundStyle(.yellow)
+                    .foregroundStyle(Color.Timed.labelSecondary)
                     .help("Usually takes \(Int(acc.avgActual))m")
             }
 

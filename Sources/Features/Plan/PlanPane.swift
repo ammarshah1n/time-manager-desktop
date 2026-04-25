@@ -131,24 +131,27 @@ struct PlanPane: View {
 
             HStack(spacing: 8) {
                 ForEach(DishMeUpMood.allCases, id: \.self) { m in
+                    let selected = mood == m
                     Button {
                         mood = m
                         if planGenerated { generate() }
                     } label: {
                         HStack(spacing: 5) {
-                            Image(systemName: m.icon).font(.system(size: 10)).foregroundStyle(m.color)
+                            Image(systemName: m.icon)
+                                .font(.system(size: 10))
+                                .foregroundStyle(selected ? Color.Timed.accent : Color.Timed.labelSecondary)
                             Text(m.rawValue).font(.system(size: 11, weight: .medium))
                         }
                         .padding(.horizontal, 10).padding(.vertical, 6)
                         .background(
-                            mood == m ? m.color.opacity(0.12) : Color(.controlBackgroundColor),
+                            selected ? Color.Timed.accent.opacity(0.12) : Color(.controlBackgroundColor),
                             in: RoundedRectangle(cornerRadius: 8)
                         )
                         .overlay(
                             RoundedRectangle(cornerRadius: 8)
-                                .strokeBorder(mood == m ? m.color.opacity(0.5) : Color.clear, lineWidth: 1)
+                                .strokeBorder(selected ? Color.Timed.accent.opacity(0.5) : Color.clear, lineWidth: 1)
                         )
-                        .foregroundStyle(mood == m ? m.color : .primary)
+                        .foregroundStyle(selected ? Color.Timed.accent : .primary)
                     }
                     .buttonStyle(.plain)
                 }
@@ -318,13 +321,13 @@ struct PlanPane: View {
                 HStack(spacing: 6) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.system(size: 11))
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(Color.Timed.labelSecondary)
                     Text(warning)
                         .font(.system(size: 12))
                         .foregroundStyle(.secondary)
                 }
                 .padding(.horizontal, 12).padding(.vertical, 8)
-                .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+                .background(Color.Timed.backgroundSecondary, in: RoundedRectangle(cornerRadius: 8))
             }
 
             // Deferred tasks notice
@@ -350,7 +353,7 @@ struct PlanPane: View {
             HStack(spacing: 5) {
                 Image(systemName: "clock")
                     .font(.system(size: 11))
-                    .foregroundStyle(.teal)
+                    .foregroundStyle(Color.Timed.labelSecondary)
                 Text("\(formatMins(totalFreeMinutes)) free across \(freeTimeGapCount) block\(freeTimeGapCount == 1 ? "" : "s")")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
@@ -360,7 +363,7 @@ struct PlanPane: View {
             HStack(spacing: 5) {
                 Image(systemName: "chart.bar.fill")
                     .font(.system(size: 11))
-                    .foregroundStyle(utilizationPercent > 90 ? .orange : .green)
+                    .foregroundStyle(Color.Timed.labelSecondary)
                 Text("Plan is \(Int(utilizationPercent))% of free time")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
