@@ -75,7 +75,11 @@ def build_graphiti() -> Graphiti:
         )
     )
 
-    cross_encoder = OpenAIRerankerClient(client=llm_client, config=llm_config)
+    # `OpenAIRerankerClient` builds its own `AsyncOpenAI` from this config, so the
+    # reranker hits the same INFERENCE_PROXY_URL as the LLM/embedder seam. We
+    # deliberately do NOT pass `client=llm_client` — that kwarg expects an
+    # `AsyncOpenAI`, not Graphiti's `OpenAIGenericClient` wrapper.
+    cross_encoder = OpenAIRerankerClient(config=llm_config)
 
     return Graphiti(
         _required("NEO4J_URI"),
@@ -150,7 +154,7 @@ async def add_episode(body: EpisodeIn) -> dict[str, Any]:
             source_description=body.source_description,
             reference_time=body.reference_time,
             source=source_map[body.source],
-            group_id=body.group_id,
+            group_id=body.group_id or "",
         )
     except Exception as exc:  # noqa: BLE001
         logger.exception("add_episode failed")
