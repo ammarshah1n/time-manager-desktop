@@ -93,7 +93,11 @@ struct TimedConversationLiveActivity: Widget {
                         .font(.system(size: 13, weight: .semibold))
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    Text(context.state.transcriptLine)
+                    // Dynamic Island can render on the Lock Screen via the
+                    // Lock Screen presentation when the device is locked.
+                    // Redact the transcript line here too — the user can
+                    // tap to open the app for the full transcript.
+                    Text(redactedSummary(of: context.state.transcriptLine))
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)

@@ -10,14 +10,44 @@ import SwiftUI
 struct TimediOSRootView: View {
 
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.scenePhase) private var scenePhase
     @State private var selectedTab: TimedTab = .today
     @State private var showOrb = false
 
+    private static let appGroupSuite = "group.com.timed.shared"
+
     var body: some View {
-        if sizeClass == .regular {
-            ipadSplitLayout
-        } else {
-            iphoneTabLayout
+        Group {
+            if sizeClass == .regular {
+                ipadSplitLayout
+            } else {
+                iphoneTabLayout
+            }
+        }
+        .onAppear { consumeIntentFlags() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { consumeIntentFlags() }
+        }
+    }
+
+    /// Read-and-clear App Group intent flags written by AppIntents
+    /// (`CaptureForTimedIntent`, `OpenTimedTabIntent`) and the URL scheme
+    /// route in TimedAppShell. One-shot semantics — flags are wiped after
+    /// they fire so subsequent launches don't re-open the orb / switch tabs.
+    private func consumeIntentFlags() {
+        guard let defaults = UserDefaults(suiteName: Self.appGroupSuite) else { return }
+
+        if defaults.bool(forKey: "intent.openCapture") {
+            defaults.removeObject(forKey: "intent.openCapture")
+            showOrb = true
+        }
+
+        if let raw = defaults.string(forKey: "intent.openTab") {
+            defaults.removeObject(forKey: "intent.openTab")
+            // Clamp via TimedTab(rawValue:) — unknown enum values are dropped.
+            if let tab = TimedTab(rawValue: raw) {
+                selectedTab = tab
+            }
         }
     }
 

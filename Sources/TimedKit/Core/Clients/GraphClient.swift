@@ -180,8 +180,15 @@ private enum AzureConfig {
     static let tenantId  = ProcessInfo.processInfo.environment["GRAPH_TENANT_ID"]
                         ?? "d20d9117-7f0f-45e9-87b3-2bb194f6be6b"
     static let redirectUri = "msauth.com.timed.app://auth"
-    static let scopes    = ["Mail.Read", "Mail.ReadWrite", "Mail.Send",
-                            "Calendars.Read", "Calendars.ReadWrite", "offline_access", "User.Read"]
+    // Strictly read-only scopes — Timed observes / reflects / recommends and
+    // NEVER acts on the world (no mail send, no calendar write, no booking).
+    // Anything broader violates the Anti-Pattern in
+    // .claude/rules/ai-assistant-rules.md and risks an MSAL consent grant
+    // that future code could silently exploit.
+    static let scopes    = ["Mail.Read",
+                            "Calendars.Read",
+                            "offline_access",
+                            "User.Read"]
 }
 
 // MARK: - Sendable box for ObjC types

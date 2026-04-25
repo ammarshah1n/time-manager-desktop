@@ -21,11 +21,30 @@ public struct TimedAppShell: View {
     public var body: some View {
         rootContent
             .onOpenURL { url in
-                if url.host == "auth" {
-                    Task { await auth.handleAuthCallback(url: url) }
-                }
+                routeIncoming(url: url)
             }
             .task { await auth.restoreSession() }
+    }
+
+    /// Strict URL gate. The previous `host == "auth"` check accepted any
+    /// scheme — including the MSAL fallback `msauth.com.timed.app://auth` —
+    /// and routed it into the Supabase callback. Lock down to:
+    ///   timed://auth/callback?code=…  → Supabase OAuth (only)
+    ///   timed://capture                → orb-launch (no params)
+    /// Anything else is dropped silently.
+    @MainActor
+    private func routeIncoming(url: URL) {
+        guard url.scheme == "timed" else { return }
+        switch (url.host, url.path) {
+        case ("auth", "/callback"):
+            Task { await auth.handleAuthCallback(url: url) }
+        case ("capture", _), (.some(""), "/capture"):
+            // Set the App-Group flag the iOS root view consumes-and-clears.
+            UserDefaults(suiteName: "group.com.timed.shared")?
+                .set(true, forKey: "intent.openCapture")
+        default:
+            return
+        }
     }
 
     @ViewBuilder

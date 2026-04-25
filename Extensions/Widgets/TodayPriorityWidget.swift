@@ -25,17 +25,34 @@ struct TodayPriorityProvider: TimelineProvider {
     }
 
     func getSnapshot(in context: Context, completion: @escaping (TodayEntry) -> Void) {
-        let snap = SharedSnapshot.read() ?? .placeholder
+        // Only fall back to the demo placeholder for the widget gallery
+        // (`context.isPreview == true`). Real users get `.empty` when no
+        // snapshot is available — never the bland-but-fake demo content.
+        let snap: TodaySnapshot
+        if context.isPreview {
+            snap = SharedSnapshot.read() ?? .placeholder
+        } else {
+            snap = SharedSnapshot.read()?.takeIfFresh() ?? .empty
+        }
         completion(TodayEntry(date: Date(), snapshot: snap))
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<TodayEntry>) -> Void) {
-        let snap = SharedSnapshot.read() ?? .empty
+        let snap = SharedSnapshot.read()?.takeIfFresh() ?? .empty
         let entry = TodayEntry(date: Date(), snapshot: snap)
-        // Refresh hint — main app forces reload via WidgetCenter.shared.reloadAllTimelines()
-        // on every persist. Fallback: 15min refresh budget.
-        let refresh = Date().addingTimeInterval(15 * 60)
+        // Reload at next 15min OR at midnight, whichever is sooner — so a
+        // stale "yesterday's priorities" widget never lingers into a new day.
+        let refresh = min(
+            Date().addingTimeInterval(15 * 60),
+            Calendar.current.startOfDay(for: Date().addingTimeInterval(86_400))
+        )
         completion(Timeline(entries: [entry], policy: .after(refresh)))
+    }
+}
+
+private extension TodaySnapshot {
+    func takeIfFresh() -> TodaySnapshot? {
+        isFreshToday ? self : nil
     }
 }
 

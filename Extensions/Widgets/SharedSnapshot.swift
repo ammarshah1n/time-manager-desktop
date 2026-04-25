@@ -26,16 +26,28 @@ struct TodaySnapshot: Codable, Hashable {
         nextEventStartsAt: nil
     )
 
+    /// Bland demo content for widget gallery / context.isPreview only.
+    /// Never use as a fallback when the real snapshot is missing — that
+    /// would leak fake "executive-flavoured" tasks into a real user's
+    /// widget pre-onboarding.
     static let placeholder = TodaySnapshot(
         generatedAt: Date(),
         topPriorities: [
-            Priority(id: "p1", title: "Reply to David — board pre-read", bucket: "reply", estimatedMinutes: 12),
-            Priority(id: "p2", title: "Approve Q2 budget shift", bucket: "decision", estimatedMinutes: 8),
-            Priority(id: "p3", title: "Read: legal counsel summary", bucket: "read", estimatedMinutes: 15),
+            Priority(id: "p1", title: "First priority", bucket: "reply", estimatedMinutes: 10),
+            Priority(id: "p2", title: "Second priority", bucket: "decision", estimatedMinutes: 10),
+            Priority(id: "p3", title: "Third priority", bucket: "read", estimatedMinutes: 10),
         ],
-        nextEventTitle: "Strategy review with Mark",
+        nextEventTitle: "Next event",
         nextEventStartsAt: Date().addingTimeInterval(45 * 60)
     )
+
+    /// Same-day-only freshness check. Returns true if the snapshot was
+    /// generated today, in the user's current timezone. Stale snapshots
+    /// (yesterday's plan still showing on a Lock Screen at 7am) are a
+    /// confidentiality + UX failure.
+    var isFreshToday: Bool {
+        Calendar.current.isDateInToday(generatedAt)
+    }
 }
 
 enum SharedSnapshot {

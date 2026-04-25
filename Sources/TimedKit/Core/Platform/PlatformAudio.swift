@@ -28,17 +28,27 @@ public final class PlatformAudio {
     /// Activate the play-and-record session. Idempotent: safe to call
     /// repeatedly from multiple components; the matching `release()` count
     /// drops the session.
+    ///
+    /// Reference-count rollback: if `setCategory` or `setActive` throws, we
+    /// undo the increment so a failed acquire doesn't leak a phantom ref
+    /// (which would keep the session "active" forever in our accounting and
+    /// silently swallow the next caller's release).
     public func acquirePlayAndRecord() throws {
         activeRefs += 1
         guard activeRefs == 1 else { return }
         #if os(iOS)
-        let session = AVAudioSession.sharedInstance()
-        try session.setCategory(
-            .playAndRecord,
-            mode: .voiceChat,
-            options: [.duckOthers, .allowBluetoothA2DP, .defaultToSpeaker]
-        )
-        try session.setActive(true, options: [])
+        do {
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(
+                .playAndRecord,
+                mode: .voiceChat,
+                options: [.duckOthers, .allowBluetoothA2DP, .defaultToSpeaker]
+            )
+            try session.setActive(true, options: [])
+        } catch {
+            activeRefs -= 1
+            throw error
+        }
         #endif
     }
 
