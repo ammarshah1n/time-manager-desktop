@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Render the Timed app icon at all required sizes from a single design spec.
+"""Render the Timed app icon at all required macOS sizes.
 
-The design follows the project's design system rules:
-- White Apple-icon squircle (corner radius = 22.4% of width)
-- One thin black ring (the clock-dial motif)
-- One Apple system blue dot at 12 o'clock (BucketDot signature, single accent)
+Design (v2 — iWork-style typographic mark):
+- Apple-icon squircle (corner radius 22.4% of width)
+- Solid Apple system blue background
+- Bold geometric white "T" centered, sized for 16x16 legibility
+- One color, one shape — confident and Apple-native (Pages/Numbers/Keynote vocabulary)
 """
 from __future__ import annotations
 
@@ -29,20 +30,23 @@ SPECS = [
     ("icon_512x512@2x.png", 1024),
 ]
 
-# Design ratios (relative to icon side length)
+# Squircle (Apple icon shape)
 CORNER_RADIUS = 0.2244
-RING_RADIUS = 0.332
-RING_STROKE = 0.0547
-DOT_RADIUS = 0.0683
-DOT_OFFSET_Y = -0.332
 
-BG = (255, 255, 255, 255)
-RING = (26, 26, 26, 255)
-ACCENT = (0, 122, 255, 255)
+# T geometry — proportions chosen so the T fills the canvas confidently and
+# survives the downsample to 16x16 without losing the crossbar.
+T_BAR_WIDTH = 0.580   # horizontal bar width
+T_BAR_HEIGHT = 0.130  # horizontal bar thickness
+T_STEM_WIDTH = 0.150  # vertical stem thickness
+T_TOTAL_HEIGHT = 0.520
+T_BAR_TOP_OFFSET = 0.245  # top edge of horizontal bar from icon top
+
+BG = (0, 122, 255, 255)   # Apple system blue
+FG = (255, 255, 255, 255)
 
 
 def render(side: int) -> Image.Image:
-    # Render at 4x then downsample for smoother edges at small sizes.
+    # Render at 4x and downsample for clean edges at small sizes.
     scale = 4
     s = side * scale
     img = Image.new("RGBA", (s, s), (0, 0, 0, 0))
@@ -51,22 +55,33 @@ def render(side: int) -> Image.Image:
     radius = int(CORNER_RADIUS * s)
     draw.rounded_rectangle([(0, 0), (s - 1, s - 1)], radius=radius, fill=BG)
 
-    cx, cy = s / 2, s / 2
-    ring_r = RING_RADIUS * s
-    ring_stroke = max(1, int(round(RING_STROKE * s)))
-    draw.ellipse(
-        [(cx - ring_r, cy - ring_r), (cx + ring_r, cy + ring_r)],
-        outline=RING,
-        width=ring_stroke,
-    )
+    # Unified T as a single 8-vertex polygon — joint at the stem/bar
+    # intersection is perfectly seamless.
+    bar_w = T_BAR_WIDTH * s
+    bar_h = T_BAR_HEIGHT * s
+    stem_w = T_STEM_WIDTH * s
+    bar_top = T_BAR_TOP_OFFSET * s
+    total_h = T_TOTAL_HEIGHT * s
+    cx = s / 2
 
-    dot_r = DOT_RADIUS * s
-    dot_cx = cx
-    dot_cy = cy + DOT_OFFSET_Y * s
-    draw.ellipse(
-        [(dot_cx - dot_r, dot_cy - dot_r), (dot_cx + dot_r, dot_cy + dot_r)],
-        fill=ACCENT,
-    )
+    bar_left = cx - bar_w / 2
+    bar_right = cx + bar_w / 2
+    stem_left = cx - stem_w / 2
+    stem_right = cx + stem_w / 2
+    bar_bottom = bar_top + bar_h
+    stem_bottom = bar_top + total_h
+
+    polygon = [
+        (bar_left, bar_top),
+        (bar_right, bar_top),
+        (bar_right, bar_bottom),
+        (stem_right, bar_bottom),
+        (stem_right, stem_bottom),
+        (stem_left, stem_bottom),
+        (stem_left, bar_bottom),
+        (bar_left, bar_bottom),
+    ]
+    draw.polygon(polygon, fill=FG)
 
     return img.resize((side, side), Image.LANCZOS)
 

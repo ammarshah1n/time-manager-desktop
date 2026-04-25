@@ -2,8 +2,8 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")\/.." && pwd)"
-APP_DIR="$ROOT_DIR/dist/Timed.app"
-DMG_PATH="$ROOT_DIR/dist/Timed.dmg"
+APP_DIR="$ROOT_DIR/dist.noindex/Timed.app"
+DMG_PATH="$ROOT_DIR/dist.noindex/Timed.dmg"
 VOLUME_NAME="Timed"
 
 if [[ ! -d "$APP_DIR" ]]; then

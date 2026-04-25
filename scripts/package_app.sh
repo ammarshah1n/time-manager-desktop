@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BUILD_DIR="$ROOT_DIR/.build/release"
-APP_DIR="$ROOT_DIR/dist/Timed.app"
+APP_DIR="$ROOT_DIR/dist.noindex/Timed.app"
 EXECUTABLE_NAME="timed"
 ICON_SOURCE="$ROOT_DIR/docs/timed-logo.svg"
 ICONSET_SOURCE="$ROOT_DIR/Assets.xcassets/AppIcon.appiconset"
