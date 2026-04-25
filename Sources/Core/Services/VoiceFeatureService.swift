@@ -52,17 +52,12 @@ actor VoiceFeatureService {
 
         do {
             // Call Gemini via Edge Function using URLSession
-            let supabaseURL = ProcessInfo.processInfo.environment["SUPABASE_URL"]
-                ?? "https://fpmjuufefhtlwbfinxlx.supabase.co"
-            let anonKey = ProcessInfo.processInfo.environment["SUPABASE_ANON_KEY"]
-                ?? "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZwbWp1dWZlZmh0bHdiZmlueGx4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5MTMxMDEsImV4cCI6MjA5MDQ4OTEwMX0.VUtjezhFMpwrcVMXltyYmU2n0Xazi9lvhuwAQlKOTO4"
-            guard let url = URL(string: "\(supabaseURL)/functions/v1/extract-voice-features")
-            else { return }
+            guard let url = SupabaseEndpoints.functionURL("extract-voice-features") else { return }
 
             var request = URLRequest(url: url)
             request.httpMethod = "POST"
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
+            request.setValue(SupabaseEndpoints.authHeader, forHTTPHeaderField: "Authorization")
 
             let payload: [String: Any] = [
                 "executive_id": executiveId.uuidString,

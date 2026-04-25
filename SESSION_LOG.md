@@ -1431,3 +1431,303 @@ logs/watchdog.log
 .build/arm64-apple-macosx/debug/time_manager_desktop.build/MicActivityBar.swift.o
 .build/arm64-apple-macosx/debug/time_manager_desktop.build/DishMeUpSheet.swiftdeps
 .build/arm64-apple-macosx/debug/time_manager_desktop.build/VoiceOnboardingView.dia
+
+---
+## Session: 2026-04-25 14:18
+
+### Commits This Session
+af808fc docs: session-log + build-state snapshot for monochrome UI session
+04470fd ui: rebuild Dish Me Up; introduce BucketDot pattern; bottle design system as skill
+74b43b0 ui: strip raw colour app-wide; neutralise sidebar/buckets; kill cinematic splash
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-25 14:29
+
+### Commits This Session
+af808fc docs: session-log + build-state snapshot for monochrome UI session
+04470fd ui: rebuild Dish Me Up; introduce BucketDot pattern; bottle design system as skill
+74b43b0 ui: strip raw colour app-wide; neutralise sidebar/buckets; kill cinematic splash
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-25 14:40
+
+### Commits This Session
+af808fc docs: session-log + build-state snapshot for monochrome UI session
+04470fd ui: rebuild Dish Me Up; introduce BucketDot pattern; bottle design system as skill
+74b43b0 ui: strip raw colour app-wide; neutralise sidebar/buckets; kill cinematic splash
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-25 15:16
+
+### Commits This Session
+af808fc docs: session-log + build-state snapshot for monochrome UI session
+04470fd ui: rebuild Dish Me Up; introduce BucketDot pattern; bottle design system as skill
+74b43b0 ui: strip raw colour app-wide; neutralise sidebar/buckets; kill cinematic splash
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-25 15:26
+
+### Commits This Session
+af808fc docs: session-log + build-state snapshot for monochrome UI session
+04470fd ui: rebuild Dish Me Up; introduce BucketDot pattern; bottle design system as skill
+74b43b0 ui: strip raw colour app-wide; neutralise sidebar/buckets; kill cinematic splash
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-25 15:36
+
+### Commits This Session
+af808fc docs: session-log + build-state snapshot for monochrome UI session
+04470fd ui: rebuild Dish Me Up; introduce BucketDot pattern; bottle design system as skill
+74b43b0 ui: strip raw colour app-wide; neutralise sidebar/buckets; kill cinematic splash
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-25 15:47
+
+### Commits This Session
+af808fc docs: session-log + build-state snapshot for monochrome UI session
+04470fd ui: rebuild Dish Me Up; introduce BucketDot pattern; bottle design system as skill
+74b43b0 ui: strip raw colour app-wide; neutralise sidebar/buckets; kill cinematic splash
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-25 15:57
+
+### Commits This Session
+af808fc docs: session-log + build-state snapshot for monochrome UI session
+04470fd ui: rebuild Dish Me Up; introduce BucketDot pattern; bottle design system as skill
+74b43b0 ui: strip raw colour app-wide; neutralise sidebar/buckets; kill cinematic splash
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-25 18:18
+
+### Commits This Session
+af808fc docs: session-log + build-state snapshot for monochrome UI session
+04470fd ui: rebuild Dish Me Up; introduce BucketDot pattern; bottle design system as skill
+74b43b0 ui: strip raw colour app-wide; neutralise sidebar/buckets; kill cinematic splash
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-25 18:36
+
+### Commits This Session
+af808fc docs: session-log + build-state snapshot for monochrome UI session
+04470fd ui: rebuild Dish Me Up; introduce BucketDot pattern; bottle design system as skill
+74b43b0 ui: strip raw colour app-wide; neutralise sidebar/buckets; kill cinematic splash
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-25 18:50
+
+### Commits This Session
+af808fc docs: session-log + build-state snapshot for monochrome UI session
+04470fd ui: rebuild Dish Me Up; introduce BucketDot pattern; bottle design system as skill
+74b43b0 ui: strip raw colour app-wide; neutralise sidebar/buckets; kill cinematic splash
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-25 19:09
+
+### Commits This Session
+af808fc docs: session-log + build-state snapshot for monochrome UI session
+04470fd ui: rebuild Dish Me Up; introduce BucketDot pattern; bottle design system as skill
+74b43b0 ui: strip raw colour app-wide; neutralise sidebar/buckets; kill cinematic splash
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-25 19:22
+
+### Commits This Session
+af808fc docs: session-log + build-state snapshot for monochrome UI session
+04470fd ui: rebuild Dish Me Up; introduce BucketDot pattern; bottle design system as skill
+74b43b0 ui: strip raw colour app-wide; neutralise sidebar/buckets; kill cinematic splash
+
+### Modified Files
+supabase/.temp/cli-latest
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-25 19:34
+
+### Commits This Session
+af808fc docs: session-log + build-state snapshot for monochrome UI session
+04470fd ui: rebuild Dish Me Up; introduce BucketDot pattern; bottle design system as skill
+74b43b0 ui: strip raw colour app-wide; neutralise sidebar/buckets; kill cinematic splash
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-25 21:07
+
+### Commits This Session
+af808fc docs: session-log + build-state snapshot for monochrome UI session
+04470fd ui: rebuild Dish Me Up; introduce BucketDot pattern; bottle design system as skill
+74b43b0 ui: strip raw colour app-wide; neutralise sidebar/buckets; kill cinematic splash
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-25 22:36
+
+### Commits This Session
+(no recent commits)
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-25 22:54
+
+### Commits This Session
+(no recent commits)
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-25 23:11
+
+### Commits This Session
+(no recent commits)
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-26 01:46
+
+### Commits This Session
+(no recent commits)
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-26 02:03
+
+### Commits This Session
+(no recent commits)
+
+### Modified Files
+.build/.lock
+.build/plugins/cache/SwiftProtobufPlugin.dia
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Resources/Relocations/aarch64/SwiftProtobufPlugin.yml
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Resources/DWARF/SwiftProtobufPlugin
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Resources/Swift/aarch64/PackagePlugin.swiftinterface
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Info.plist
+.build/plugins/cache/SwiftProtobufPlugin-state.json
+.build/plugins/cache/SwiftProtobufPlugin
+.build/debug.yaml
+.build/plugin-tools.yaml
+.build/arm64-apple-macosx/debug/ElevenLabs.build/output-file-map.json
+.build/arm64-apple-macosx/debug/Crypto.build/output-file-map.json
+.build/arm64-apple-macosx/debug/USearch.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftOperators.build/output-file-map.json
+.build/arm64-apple-macosx/debug/Supabase.build/output-file-map.json
+
+---
+## Session: 2026-04-26 02:19
+
+### Commits This Session
+(no recent commits)
+
+### Modified Files
+.build/.lock
+.build/plugins/cache/SwiftProtobufPlugin.dia
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Resources/Relocations/aarch64/SwiftProtobufPlugin.yml
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Resources/DWARF/SwiftProtobufPlugin
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Resources/Swift/aarch64/PackagePlugin.swiftinterface
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Info.plist
+.build/plugins/cache/SwiftProtobufPlugin-state.json
+.build/plugins/cache/SwiftProtobufPlugin
+.build/debug.yaml
+.build/plugin-tools.yaml
+.build/release.yaml
+.build/arm64-apple-macosx/release/ElevenLabs.build/output-file-map.json
+.build/arm64-apple-macosx/release/Crypto.build/output-file-map.json
+.build/arm64-apple-macosx/release/USearch.build/output-file-map.json
+.build/arm64-apple-macosx/release/SwiftOperators.build/output-file-map.json
+
+---
+## Session: 2026-04-26 02:34
+
+### Commits This Session
+(no recent commits)
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-26 02:45
+
+### Commits This Session
+(no recent commits)
+
+### Modified Files
+.build/.lock
+.build/plugins/cache/SwiftProtobufPlugin.dia
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Resources/Relocations/aarch64/SwiftProtobufPlugin.yml
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Resources/DWARF/SwiftProtobufPlugin
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Info.plist
+.build/plugins/cache/SwiftProtobufPlugin-state.json
+.build/plugins/cache/SwiftProtobufPlugin
+.build/plugin-tools.yaml
+.build/release.yaml
+.build/arm64-apple-macosx/release/ElevenLabs.build/TranscriptionStreamReceiver.swift.o
+.build/arm64-apple-macosx/release/ElevenLabs.build/IncomingEvents.swift.o
+.build/arm64-apple-macosx/release/ElevenLabs.build/Message.swift.o
+.build/arm64-apple-macosx/release/ElevenLabs.build/EventSerializer.swift.o
+.build/arm64-apple-macosx/release/ElevenLabs.build/ConversationConfig.swift.o
+.build/arm64-apple-macosx/release/ElevenLabs.build/LocalMessageSender.swift.o

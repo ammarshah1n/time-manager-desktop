@@ -11,8 +11,8 @@
 // first user message so Opus speaks from his actual day, not a blank canvas.
 //
 // Architecture: Voice-And-Learning-Engine.md Part 5.
-//   - model:      claude-opus-4-6
-//   - thinking:   { type: "enabled", budget_tokens: 10000 }
+//   - model:      claude-opus-4-7
+//   - thinking:   { type: "enabled", budget_tokens: 4000 }
 //   - user:       YASSER_USER_ID (env var, no auth, login built last)
 
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
@@ -335,7 +335,7 @@ serve(async (req) => {
     const contextIntro = buildContextIntro(ctx);
     anthropicMessages = convertMessages(body.messages ?? [], contextIntro);
     modelCfg = {
-      model: "claude-opus-4-6",
+      model: "claude-opus-4-7",
       max_tokens: 6000,
       thinking: { type: "enabled", budget_tokens: 4000 },
     };

@@ -268,25 +268,14 @@ struct AppearanceTab: View {
 // MARK: - Voice
 
 struct VoiceTab: View {
-    @AppStorage("elevenlabs_api_key")     private var elevenlabsKey = ""
-    @AppStorage("elevenlabs_voice_id")    private var voiceId = ""
-    @AppStorage("anthropic_api_key")      private var anthropicKey = ""
+    @AppStorage("elevenlabs_voice_id") private var voiceId = "pFZP5JQG7iQjIQuC4Bku"
 
     var body: some View {
         Form {
-            Section("Voice (ElevenLabs)") {
-                SecureField("API Key", text: $elevenlabsKey)
-                    .textFieldStyle(.roundedBorder)
+            Section("Voice") {
                 TextField("Voice ID", text: $voiceId)
                     .textFieldStyle(.roundedBorder)
-                Text("George (warm British male) is the default. Change the Voice ID to use a different ElevenLabs voice.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            Section("Interview Intelligence") {
-                SecureField("Anthropic API Key", text: $anthropicKey)
-                    .textFieldStyle(.roundedBorder)
-                Text("Personalises morning interview prompts using your executive profile. Leave empty for standard scripts.")
+                Text("ElevenLabs voice used for one-shot confirmations (Capture, Dish Me Up). Default is Lily — paste a different ElevenLabs voice ID to change it. The conversational orb uses the voice baked into your agent.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

@@ -5,18 +5,23 @@
 // conversation ends, we call /functions/v1/extract-voice-learnings to persist
 // perceived priorities, hidden context, and rule updates.
 //
-// Agent config (ops task):
-//   ELEVENLABS_MORNING_AGENT_ID env var → the agent in the ElevenLabs dashboard
-//   whose Custom LLM URL points at https://<supa>.supabase.co/functions/v1/voice-llm-proxy
+// Agent config:
+//   The agent ID is baked into the binary as `kBakedInAgentID` so a fresh
+//   install just works — no env vars, no `defaults write`, no Settings field.
+//   The agent in the ElevenLabs dashboard has its Custom-LLM URL pointed at
+//   https://fpmjuufefhtlwbfinxlx.supabase.co/functions/v1/voice-llm-proxy
+//   and Deepgram set as its ASR provider. Public ID — not a secret.
+//
+//   Override order (for testing/dev): UserDefaults > env var > baked-in constant.
 
 import Foundation
 import Combine
 import SwiftUI
 import ElevenLabs
 
-// UserDefaults key — matches what `defaults write com.ammarshahin.timed
-// elevenlabs_morning_agent_id <id>` writes, so Yasser can provision the
-// agent ID without rebuilding the app.
+// Baked-in default. Override locally with:
+//   defaults write com.ammarshahin.timed elevenlabs_morning_agent_id <id>
+private let kBakedInAgentID = "agent_3501kpyz0cnrfj8tgbb2bmg5arfk"
 private let kAgentIdDefaultsKey = "elevenlabs_morning_agent_id"
 
 @MainActor
@@ -49,20 +54,24 @@ final class MorningCheckInManager: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private var lastMessageCount = 0
 
-    // Resolution order: UserDefaults (set via `defaults write`) → env var.
-    // Finder-launched macOS apps don't inherit shell env, so UserDefaults wins.
+    // Resolution order: UserDefaults override → env var → baked-in constant.
+    // Finder-launched macOS apps don't inherit shell env, so the baked-in
+    // constant is what fresh installs actually hit.
     private var agentId: String {
         if let stored = UserDefaults.standard.string(forKey: kAgentIdDefaultsKey), !stored.isEmpty {
             return stored
         }
-        return ProcessInfo.processInfo.environment["ELEVENLABS_MORNING_AGENT_ID"] ?? ""
+        if let env = ProcessInfo.processInfo.environment["ELEVENLABS_MORNING_AGENT_ID"], !env.isEmpty {
+            return env
+        }
+        return kBakedInAgentID
     }
 
     // MARK: - Start / End
 
     func start() async {
         guard !agentId.isEmpty else {
-            phase = .failed("ELEVENLABS_MORNING_AGENT_ID not configured. Set the env var to the Custom-LLM agent created in the ElevenLabs dashboard (URL → /functions/v1/voice-llm-proxy).")
+            phase = .failed("ElevenLabs Agent ID not set. Open Settings → Voice and paste the Agent ID from your ElevenLabs dashboard (the agent whose Custom-LLM URL points at /functions/v1/voice-llm-proxy).")
             return
         }
         phase = .connecting
@@ -142,14 +151,11 @@ final class MorningCheckInManager: ObservableObject {
         guard !transcriptText.isEmpty else { return }
 
         Task.detached {
-            let url = Self.supabaseFunctionURL("extract-voice-learnings")
-            guard let u = url else { return }
-            var req = URLRequest(url: u)
+            guard let url = SupabaseEndpoints.functionURL("extract-voice-learnings") else { return }
+            var req = URLRequest(url: url)
             req.httpMethod = "POST"
             req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            if let key = ProcessInfo.processInfo.environment["SUPABASE_ANON_KEY"] {
-                req.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
-            }
+            req.setValue(SupabaseEndpoints.authHeader, forHTTPHeaderField: "Authorization")
             let body: [String: Any] = [
                 "session_date": ISO8601DateFormatter().string(from: Date()).prefix(10),
                 "transcript":   transcriptText,
@@ -157,11 +163,5 @@ final class MorningCheckInManager: ObservableObject {
             req.httpBody = try? JSONSerialization.data(withJSONObject: body)
             _ = try? await URLSession.shared.data(for: req)
         }
-    }
-
-    nonisolated private static func supabaseFunctionURL(_ name: String) -> URL? {
-        let base = ProcessInfo.processInfo.environment["SUPABASE_URL"]
-            ?? "https://fpmjuufefhtlwbfinxlx.supabase.co"
-        return URL(string: "\(base)/functions/v1/\(name)")
     }
 }

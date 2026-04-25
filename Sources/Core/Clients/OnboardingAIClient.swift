@@ -19,10 +19,10 @@ struct TransitResult { let chauffeur: Bool; let train: Bool; let plane: Bool; le
 @MainActor
 final class OnboardingAIClient: ObservableObject {
 
-    @AppStorage("anthropic_api_key") private var apiKey: String = ""
     @Published private(set) var isProcessing: Bool = false
 
-    var isAvailable: Bool { !apiKey.isEmpty }
+    /// Always available — proxied through anthropic-proxy Edge Function.
+    var isAvailable: Bool { true }
 
     // MARK: - Step Extractors
 
@@ -167,19 +167,18 @@ final class OnboardingAIClient: ObservableObject {
         You are setting up a productivity app for a C-suite executive. They are answering setup questions by voice. Extract the structured data from their spoken response. If something is ambiguous, make a reasonable assumption and confirm in your spoken_response. Keep spoken_response under 20 words, warm and conversational.
         """
 
-        guard let url = URL(string: "https://api.anthropic.com/v1/messages") else { return nil }
+        guard let url = SupabaseEndpoints.functionURL("anthropic-proxy") else { return nil }
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
+        request.setValue(SupabaseEndpoints.authHeader, forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
         request.timeoutInterval = 15
 
         let toolName = (tool["name"] as? String) ?? "extract"
 
         let body: [String: Any] = [
-            "model": "claude-opus-4-6",
+            "model": "claude-opus-4-7",
             "max_tokens": 300,
             "system": [
                 ["type": "text", "text": systemPrompt, "cache_control": ["type": "ephemeral"]]

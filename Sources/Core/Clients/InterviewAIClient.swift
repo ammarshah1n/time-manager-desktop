@@ -40,7 +40,6 @@ struct ResolvedIntent: Sendable {
 @MainActor
 final class InterviewAIClient: ObservableObject {
 
-    @AppStorage("anthropic_api_key") private var apiKey: String = ""
     @Published private(set) var isGenerating: Bool = false
 
     private var cachedACB: String?
@@ -49,7 +48,8 @@ final class InterviewAIClient: ObservableObject {
     private var conversationMessages: [[String: Any]] = []
     private var contextLoaded: Bool = false
 
-    var isAvailable: Bool { !apiKey.isEmpty }
+    /// Always available — proxied through anthropic-proxy Edge Function.
+    var isAvailable: Bool { true }
 
     // MARK: - Context Loading
 
@@ -282,17 +282,16 @@ final class InterviewAIClient: ObservableObject {
     }
 
     private func callOpusRaw(useTools: Bool) async -> Data? {
-        guard let url = URL(string: "https://api.anthropic.com/v1/messages") else { return nil }
+        guard let url = SupabaseEndpoints.functionURL("anthropic-proxy") else { return nil }
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
+        request.setValue(SupabaseEndpoints.authHeader, forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
         request.timeoutInterval = 20
 
         var body: [String: Any] = [
-            "model": "claude-opus-4-6",
+            "model": "claude-opus-4-7",
             "max_tokens": 300,
             "system": systemBlocks ?? [],
             "messages": conversationMessages

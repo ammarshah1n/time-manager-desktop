@@ -1,4 +1,18 @@
-# BUILD_STATE.md — Last updated: 2026-04-24 (Dish Me Up LIVE — voice onboarding + Opus plan shipped)
+# BUILD_STATE.md — Last updated: 2026-04-26 (Voice path locked: ElevenLabs Agent + Opus 4.7, Apple TTS removed)
+
+## Voice Architecture (current)
+| Layer | Tech | Where |
+|---|---|---|
+| ASR (orb conversation) | ElevenLabs Scribe v2 Turbo | inside the Conversational Agent |
+| LLM (orb conversation) | Claude **Opus 4.7** | `supabase/functions/voice-llm-proxy/index.ts` |
+| TTS (orb conversation) | ElevenLabs voice (agent-baked) | inside the Conversational Agent |
+| LLM (Capture / Onboarding / Interview) | Claude Opus 4.7 via proxy | `supabase/functions/anthropic-proxy/index.ts` |
+| TTS (one-shot, Capture / Dish Me Up) | ElevenLabs Lily via proxy | `supabase/functions/elevenlabs-tts-proxy/index.ts` |
+| Batch ASR (parked, non-conversational) | Deepgram Nova-3 via proxy | `supabase/functions/deepgram-transcribe/index.ts` |
+
+**Zero per-machine setup**: Agent ID, Supabase URL, anon JWT, Graph client/tenant IDs are all baked-in constants. All third-party API keys live server-side (Anthropic, ElevenLabs, Deepgram, Gemini) — the binary holds none.
+
+**Why no Deepgram in the orb**: ElevenLabs Conversational AI locks ASR to their own models — Deepgram isn't a selectable provider. Deepgram subscription preserved for batch / non-conversational paths.
 
 ## What Exists and Works
 
@@ -149,7 +163,7 @@
 - **3 architecture syntheses:** `research/ARCHITECTURE-MEMORY.md`, `ARCHITECTURE-SIGNALS.md`, `ARCHITECTURE-DELIVERY.md`
 
 Any future build session should read `CLAUDE.md` → `BUILD_STATE.md` → relevant `ARCHITECTURE-*.md` → build.
-Last Session: 2026-04-25 14:08
+Last Session: 2026-04-26 02:45
 
 ### Intro + Brand System (new)
 - [x] IntroFeature.swift — TCA 1.15+ @Reducer, phase machine (reveal → tagline → holding → exiting → finished)
