@@ -1407,3 +1407,27 @@ logs/watchdog.log
 .build/arm64-apple-macosx/debug/time-manager-desktop
 .build/arm64-apple-macosx/debug/Functions.build/output-file-map.json
 .build/arm64-apple-macosx/debug/HTTPTypes.build/output-file-map.json
+
+---
+## Session: 2026-04-25 14:08
+
+### Commits This Session
+04470fd ui: rebuild Dish Me Up; introduce BucketDot pattern; bottle design system as skill
+74b43b0 ui: strip raw colour app-wide; neutralise sidebar/buckets; kill cinematic splash
+
+### Modified Files
+.build/.lock
+.build/arm64-apple-macosx/debug/time-manager-desktop
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/CommandPalette.swift.o
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/VoiceOnboardingView.d
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/MicActivityBar.swiftdeps
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/MicActivityBar.dia
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/VoiceOnboardingView.swiftdeps
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/MicActivityBar.d
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/FocusPane.swiftdeps
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/time_manager_desktop.emit-module.d
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/MorningCheckInView.d
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/FocusPane.dia
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/MicActivityBar.swift.o
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/DishMeUpSheet.swiftdeps
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/VoiceOnboardingView.dia
