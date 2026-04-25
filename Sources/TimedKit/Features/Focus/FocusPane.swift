@@ -1,3 +1,4 @@
+#if os(macOS)
 // FocusPane.swift — Timed macOS Preview
 // Circular countdown. Focuses on a single TimedTask.
 // @Observable timer drives the arc + digit display.
@@ -525,3 +526,5 @@ enum FocusNotificationManager {
         }
     }
 }
+
+#endif

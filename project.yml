@@ -114,6 +114,10 @@ targets:
         CODE_SIGN_ENTITLEMENTS: Extensions/Widgets/Widgets.entitlements
         CODE_SIGN_STYLE: Automatic
         SKIP_INSTALL: YES
+        # Disable Xcode 26's __preview.dylib generation for extensions —
+        # extensions don't host SwiftUI previews and the linker step fails
+        # when the previews stub references main-app symbols.
+        ENABLE_DEBUG_DYLIB: NO
 
   # ─── Share Extension (iOS only) ───────────────────────────────
   TimedShare:
@@ -130,3 +134,4 @@ targets:
         CODE_SIGN_ENTITLEMENTS: Extensions/Share/Share.entitlements
         CODE_SIGN_STYLE: Automatic
         SKIP_INSTALL: YES
+        ENABLE_DEBUG_DYLIB: NO

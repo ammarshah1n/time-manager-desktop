@@ -1,3 +1,4 @@
+#if os(macOS)
 // TodayPane.swift — Timed macOS
 // The day plan. Output of the morning interview. Running totals. Sections by type.
 // Transcript D1-D9, Expanded PRD: due today vs total, reply sub-types, batch time totals.
@@ -1187,3 +1188,5 @@ struct TodayTaskRow: View {
         .animation(TimedMotion.smooth, value: isCompleted)
     }
 }
+
+#endif

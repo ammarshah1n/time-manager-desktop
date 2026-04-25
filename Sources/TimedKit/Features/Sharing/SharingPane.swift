@@ -1,3 +1,4 @@
+#if os(macOS)
 // SharingPane.swift — Timed Features
 // Settings tab for workspace sharing: invite links, active PA members, status.
 
@@ -256,3 +257,5 @@ struct SharingPane: View {
         }
     }
 }
+
+#endif

@@ -420,6 +420,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = Extensions/Share/Share.entitlements;
 				CODE_SIGN_STYLE = Automatic;
+				ENABLE_DEBUG_DYLIB = NO;
 				INFOPLIST_FILE = Extensions/Share/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -440,6 +441,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = Extensions/Share/Share.entitlements;
 				CODE_SIGN_STYLE = Automatic;
+				ENABLE_DEBUG_DYLIB = NO;
 				INFOPLIST_FILE = Extensions/Share/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -503,6 +505,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = Extensions/Widgets/Widgets.entitlements;
 				CODE_SIGN_STYLE = Automatic;
+				ENABLE_DEBUG_DYLIB = NO;
 				INFOPLIST_FILE = Extensions/Widgets/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -585,6 +588,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = Extensions/Widgets/Widgets.entitlements;
 				CODE_SIGN_STYLE = Automatic;
+				ENABLE_DEBUG_DYLIB = NO;
 				INFOPLIST_FILE = Extensions/Widgets/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = (

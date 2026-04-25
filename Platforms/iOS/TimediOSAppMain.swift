@@ -50,7 +50,11 @@ struct TimediOSAppMain: App {
 
 // MARK: - AppDelegate (only for APNs + remote notification callbacks)
 
-final class TimediOSAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
+// `@preconcurrency` on the UNUserNotificationCenterDelegate conformance
+// lets Swift 6 strict concurrency accept the inherited @MainActor isolation
+// from UIApplicationDelegate without flagging every delegate method.
+@MainActor
+final class TimediOSAppDelegate: NSObject, UIApplicationDelegate, @preconcurrency UNUserNotificationCenterDelegate {
 
     func application(
         _ application: UIApplication,

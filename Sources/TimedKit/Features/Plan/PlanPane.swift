@@ -1,3 +1,4 @@
+#if os(macOS)
 // PlanPane.swift — Timed macOS
 // "Dish me up" — declare available time, get a sequenced work plan.
 // Sequences tasks by bucket priority: Reply → Action → Read Today → Read This Week → Waiting
@@ -630,3 +631,5 @@ struct PlanItemRow: View {
         }
     }
 }
+
+#endif

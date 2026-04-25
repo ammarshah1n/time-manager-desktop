@@ -1,3 +1,4 @@
+#if os(macOS)
 import ApplicationServices
 import CoreGraphics
 import Foundation
@@ -201,3 +202,5 @@ actor AgentCoordinator {
         return hour >= workdayStartHour && hour < workdayEndHour
     }
 }
+
+#endif

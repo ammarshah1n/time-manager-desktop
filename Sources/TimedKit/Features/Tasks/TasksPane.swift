@@ -1,3 +1,4 @@
+#if os(macOS)
 // TasksPane.swift — Timed macOS
 // Per-bucket task list. Shows time totals, review cadence, and quick-block action.
 
@@ -540,3 +541,5 @@ struct BlockTimeSheet: View {
         return min == 0 ? "\(disp)\(sfx)" : "\(disp):\(String(format: "%02d", min))\(sfx)"
     }
 }
+
+#endif

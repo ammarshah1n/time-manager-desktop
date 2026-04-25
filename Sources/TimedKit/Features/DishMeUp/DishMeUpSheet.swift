@@ -1,3 +1,4 @@
+#if os(macOS)
 // DishMeUpSheet.swift — Timed macOS
 // "I have X minutes — give me the most efficient thing I can do right now."
 // Transcript D1: "I'm prepared to do an hour right now, and it dishes me up the right work in the right order."
@@ -562,3 +563,5 @@ extension Text {
             .tracking(1.2)
     }
 }
+
+#endif

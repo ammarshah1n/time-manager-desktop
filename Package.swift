@@ -42,9 +42,10 @@ let package = Package(
                 .product(name: "ElevenLabs",             package: "elevenlabs-swift-sdk"),
             ],
             path: "Sources/TimedKit",
-            resources: [
-                .copy("Resources"),
-            ],
+            // Resources/ is currently empty (.gitkeep only). Adding it back
+            // when there are real resources to ship — Xcode 26 codesigns an
+            // empty resource bundle as "bundle format unrecognized" and
+            // breaks iOS sim builds.
             swiftSettings: [
                 .enableExperimentalFeature("StrictConcurrency"),
             ]

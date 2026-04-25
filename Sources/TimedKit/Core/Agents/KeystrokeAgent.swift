@@ -1,3 +1,4 @@
+#if os(macOS)
 import ApplicationServices
 import CoreGraphics
 import Foundation
@@ -174,3 +175,5 @@ actor KeystrokeAgent {
         windowStart = Date()
     }
 }
+
+#endif

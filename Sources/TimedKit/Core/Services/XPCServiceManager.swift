@@ -1,3 +1,4 @@
+#if os(macOS)
 import Foundation
 import ServiceManagement
 
@@ -137,3 +138,5 @@ actor XPCServiceManager {
         return 100 // Default: assume plugged in
     }
 }
+
+#endif

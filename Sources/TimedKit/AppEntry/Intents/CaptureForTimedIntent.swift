@@ -12,11 +12,11 @@ import SwiftUI
 
 @available(iOS 18.0, *)
 public struct CaptureForTimedIntent: AppIntent {
-    public static var title: LocalizedStringResource = "Capture for Timed"
-    public static var description: IntentDescription = IntentDescription(
+    public static let title: LocalizedStringResource = "Capture for Timed"
+    public static let description: IntentDescription = IntentDescription(
         "Open Timed and start the orb in capture mode."
     )
-    public static var openAppWhenRun: Bool = true
+    public static let openAppWhenRun: Bool = true
 
     public init() {}
 
@@ -32,8 +32,8 @@ public struct CaptureForTimedIntent: AppIntent {
 
 @available(iOS 18.0, *)
 public struct OpenTimedTabIntent: AppIntent {
-    public static var title: LocalizedStringResource = "Open Timed Tab"
-    public static var openAppWhenRun: Bool = true
+    public static let title: LocalizedStringResource = "Open Timed Tab"
+    public static let openAppWhenRun: Bool = true
 
     @Parameter(title: "Tab")
     public var tab: TimedIntentTab
@@ -52,8 +52,8 @@ public struct OpenTimedTabIntent: AppIntent {
 public enum TimedIntentTab: String, AppEnum {
     case today, plan, briefing, triage, settings
 
-    public static var typeDisplayRepresentation: TypeDisplayRepresentation = "Timed Tab"
-    public static var caseDisplayRepresentations: [TimedIntentTab: DisplayRepresentation] = [
+    public static let typeDisplayRepresentation: TypeDisplayRepresentation = "Timed Tab"
+    public static let caseDisplayRepresentations: [TimedIntentTab: DisplayRepresentation] = [
         .today:    "Today",
         .plan:     "Plan",
         .briefing: "Briefing",

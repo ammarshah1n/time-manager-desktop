@@ -1,3 +1,4 @@
+#if os(macOS)
 import ApplicationServices
 import CoreGraphics
 import Foundation
@@ -188,3 +189,5 @@ actor FirstLastActivityAgent {
         try? await Tier0Writer.shared.recordObservation(observation)
     }
 }
+
+#endif

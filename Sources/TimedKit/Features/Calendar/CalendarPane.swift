@@ -1,3 +1,4 @@
+#if os(macOS)
 // CalendarPane.swift — Timed macOS Preview
 // Weekly calendar grid. Click a time block to see detail in a popover.
 // Blocks are positioned by absolute hour offset within a ZStack.
@@ -654,3 +655,5 @@ struct NewBlockEditor: View {
         .frame(width: 340)
     }
 }
+
+#endif

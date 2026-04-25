@@ -1,3 +1,4 @@
+#if os(macOS)
 // CapturePane.swift — Timed macOS
 // Voice/text quick capture. Replaces Recap → Dropbox → PA transcription workflow.
 // Transcript E3: "If I could just transcribe that straight to the app."
@@ -558,3 +559,5 @@ struct CaptureRow: View {
         )
     }
 }
+
+#endif

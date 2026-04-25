@@ -1,3 +1,4 @@
+#if os(macOS)
 // TaskBundleSheet.swift — Timed Features/Triage
 // FR-03: Bundle preview sheet for extracted task bundles.
 // Shows grouped emails with editable title, bucket, and time estimate.
@@ -197,3 +198,5 @@ struct BundleRow: View {
         return "From: \(senders.sorted().joined(separator: ", "))"
     }
 }
+
+#endif

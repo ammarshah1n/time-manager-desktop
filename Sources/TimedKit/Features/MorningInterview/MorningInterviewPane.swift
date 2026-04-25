@@ -1,3 +1,4 @@
+#if os(macOS)
 // MorningInterviewPane.swift — Timed macOS
 // The morning ritual. 5–10 min guided review that replaces the 30-min manual rewrite.
 // Transcript D4: "You could spend 10 minutes answering questions, then it creates your day plan while you make your coffee."
@@ -2100,3 +2101,5 @@ struct InterviewTaskRow: View {
         .buttonStyle(.plain)
     }
 }
+
+#endif

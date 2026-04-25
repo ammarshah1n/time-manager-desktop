@@ -77,9 +77,14 @@ struct TimediOSRootView: View {
 
     private var ipadSplitLayout: some View {
         NavigationSplitView {
-            List(TimedTab.allCases, selection: $selectedTab) { tab in
-                Label(tab.title, systemImage: tab.icon)
-                    .tag(tab)
+            List(selection: Binding<TimedTab?>(
+                get: { selectedTab },
+                set: { if let new = $0 { selectedTab = new } }
+            )) {
+                ForEach(TimedTab.allCases) { tab in
+                    Label(tab.title, systemImage: tab.icon)
+                        .tag(tab as TimedTab?)
+                }
             }
             .navigationTitle("Timed")
             .listStyle(.sidebar)
@@ -148,13 +153,36 @@ enum TimedTab: String, CaseIterable, Identifiable, Hashable {
 
     @ViewBuilder
     var destination: some View {
+        // Each pane needs richly-injected state (tasks, blocks, triageCount,
+        // morningDone, callbacks). The Mac god-view in TimedRootView.swift
+        // owns that state today; the iOS port will introduce a TimediOSAppState
+        // observable that lifts it out so each pane can be instantiated from
+        // both shells. For Step 6's deliverable we ship a placeholder per tab
+        // — the actual pane wiring is a follow-up commit gated on the iOS
+        // state-management refactor.
         switch self {
-        case .today:    TodayPane()
-        case .plan:     PlanPane()
-        case .briefing: MorningBriefingPane()
-        case .triage:   TriagePane()
-        case .settings: PrefsPane()
+        case .today:    PlaceholderPane(title: "Today")
+        case .plan:     PlaceholderPane(title: "Plan")
+        case .briefing: PlaceholderPane(title: "Briefing")
+        case .triage:   PlaceholderPane(title: "Triage")
+        case .settings: PlaceholderPane(title: "Settings")
         }
+    }
+}
+
+private struct PlaceholderPane: View {
+    let title: String
+    var body: some View {
+        VStack(spacing: 12) {
+            Text(title)
+                .font(.system(size: 28, weight: .semibold))
+            Text("iOS pane wiring lands once TimediOSAppState lifts feature-pane state out of TimedRootView.")
+                .font(.system(size: 14))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 

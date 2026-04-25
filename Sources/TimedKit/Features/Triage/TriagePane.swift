@@ -1,3 +1,4 @@
+#if os(macOS)
 // TriagePane.swift — Timed macOS V2
 // One-at-a-time keyboard-driven triage. Like SaneBox's drag-to-train — minimal effort, maximum learning.
 // Transcript A1-A8: "All I have to do is drag any email I never want to see again into black hole"
@@ -617,3 +618,5 @@ extension Text {
             .background(color.opacity(0.1), in: RoundedRectangle(cornerRadius: 3))
     }
 }
+
+#endif

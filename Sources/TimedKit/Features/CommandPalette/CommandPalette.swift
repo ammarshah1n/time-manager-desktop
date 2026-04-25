@@ -1,3 +1,4 @@
+#if os(macOS)
 // CommandPalette.swift — Timed macOS V2
 // Global command palette triggered by Cmd+K.
 // Fuzzy-filtered action list with keyboard navigation.
@@ -261,3 +262,5 @@ struct CommandPaletteView: View {
         action.action()
     }
 }
+
+#endif

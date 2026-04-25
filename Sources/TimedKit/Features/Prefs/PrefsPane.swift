@@ -1,3 +1,4 @@
+#if os(macOS)
 // PrefsPane.swift — Timed macOS Preview
 // Settings: email accounts, sync, time blocks, notifications, appearance, voice.
 
@@ -409,3 +410,5 @@ struct LearningTab: View {
         }
     }
 }
+
+#endif

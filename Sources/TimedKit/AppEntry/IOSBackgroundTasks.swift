@@ -38,7 +38,9 @@ public enum TimedBackgroundTasks {
             using: nil
         ) { task in
             guard let task = task as? BGAppRefreshTask else { return }
-            handle(task: task, worker: emailRefreshWorker, scheduleNext: scheduleNextEmailRefresh)
+            handle(task: task, worker: emailRefreshWorker) {
+                scheduleNextEmailRefresh()
+            }
         }
 
         BGTaskScheduler.shared.register(
@@ -46,7 +48,9 @@ public enum TimedBackgroundTasks {
             using: nil
         ) { task in
             guard let task = task as? BGProcessingTask else { return }
-            handle(task: task, worker: synthesisProcessingWorker, scheduleNext: scheduleNextSynthesisProcessing)
+            handle(task: task, worker: synthesisProcessingWorker) {
+                scheduleNextSynthesisProcessing()
+            }
         }
     }
 
@@ -69,30 +73,32 @@ public enum TimedBackgroundTasks {
 
     // MARK: - Internal
 
+    /// Box that lets us hand non-Sendable system types (BGTask) across an
+    /// explicit isolation boundary. Safe because BGTask handlers run on the
+    /// main thread per Apple's contract.
+    private struct UnsafeSendableBox<T>: @unchecked Sendable {
+        let value: T
+    }
+
     private static func handle<T: BGTask>(
         task: T,
         worker: @Sendable @escaping (T) async -> Void,
-        scheduleNext: @escaping (TimeInterval) -> Void
+        scheduleNext: @escaping () -> Void
     ) {
         // Schedule next *before* doing work — even if the work errors, the
         // schedule should advance so we don't fall off the cycle.
-        scheduleNext(15 * 60)
+        scheduleNext()
 
-        let workTask = Task { @Sendable in
-            await worker(task)
+        // BGTask is non-Sendable but the system delivers handlers on the
+        // main thread per Apple docs. Wrap the task in an @unchecked Sendable
+        // box so Swift 6 strict concurrency lets us hand it across the
+        // explicit MainActor boundary; the capture is provably safe because
+        // we're already on main.
+        let box = UnsafeSendableBox(value: task)
+        let workTask = Task { @MainActor in
+            await worker(box.value)
         }
         task.expirationHandler = { workTask.cancel() }
-    }
-
-    // The two non-defaulted scheduleNext variants aren't directly referenced
-    // here because `handle(...)` accepts a generic closure. The two overloads
-    // above are still public for direct call sites.
-    private static func scheduleNextEmailRefresh(_ seconds: TimeInterval) {
-        scheduleNextEmailRefresh(after: seconds)
-    }
-
-    private static func scheduleNextSynthesisProcessing(_ seconds: TimeInterval) {
-        scheduleNextSynthesisProcessing(after: seconds)
     }
 }
 #endif

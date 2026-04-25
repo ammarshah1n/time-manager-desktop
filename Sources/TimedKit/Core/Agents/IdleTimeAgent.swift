@@ -1,3 +1,4 @@
+#if os(macOS)
 import Foundation
 import IOKit
 
@@ -96,3 +97,5 @@ actor IdleTimeAgent {
         return nil
     }
 }
+
+#endif
