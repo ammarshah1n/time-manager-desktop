@@ -33,7 +33,7 @@ struct ActionRegistry {
     ) -> [PaletteAction] {
         [
             // Navigation
-            PaletteAction(title: "Go to Today",    shortcut: "\u{2318}1", icon: "sparkles",               category: .navigation) { navigate(.today) },
+            PaletteAction(title: "Go to Today",    shortcut: "\u{2318}1", icon: "calendar",               category: .navigation) { navigate(.today) },
             PaletteAction(title: "Go to Triage",   shortcut: "\u{2318}2", icon: "tray.and.arrow.down.fill", category: .navigation) { navigate(.triage) },
             PaletteAction(title: "Go to Action",   shortcut: "\u{2318}3", icon: "bolt.fill",               category: .navigation) { navigate(.tasks(.action)) },
             PaletteAction(title: "Go to Calendar",  shortcut: "\u{2318}4", icon: "calendar",               category: .navigation) { navigate(.calendar) },

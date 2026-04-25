@@ -1384,3 +1384,26 @@ logs/watchdog.log
 ### Modified Files
 logs/watchdog-launchd.log
 logs/watchdog.log
+
+---
+## Session: 2026-04-25 13:55
+
+### Commits This Session
+74b43b0 ui: strip raw colour app-wide; neutralise sidebar/buckets; kill cinematic splash
+
+### Modified Files
+.build/.lock
+.build/debug.yaml
+.build/plugin-tools.yaml
+.build/arm64-apple-macosx/debug/ElevenLabs.build/output-file-map.json
+.build/arm64-apple-macosx/debug/Crypto.build/output-file-map.json
+.build/arm64-apple-macosx/debug/USearch.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftOperators.build/output-file-map.json
+.build/arm64-apple-macosx/debug/Supabase.build/output-file-map.json
+.build/arm64-apple-macosx/debug/CasePathsCore.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftParser-tool.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftCompilerPluginMessageHandling-tool.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftUINavigation.build/output-file-map.json
+.build/arm64-apple-macosx/debug/time-manager-desktop
+.build/arm64-apple-macosx/debug/Functions.build/output-file-map.json
+.build/arm64-apple-macosx/debug/HTTPTypes.build/output-file-map.json

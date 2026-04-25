@@ -157,19 +157,11 @@ struct PlanPane: View {
                 }
             }
 
-            Button {
+            Button("Dish me up \(formatMins(totalAvailable)) of work") {
                 generate()
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "sparkles")
-                    Text("Dish me up \(formatMins(totalAvailable)) of work")
-                }
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 18).padding(.vertical, 9)
-                .background(Color.Timed.accent, in: RoundedRectangle(cornerRadius: 9))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.borderedProminent)
+            .controlSize(.regular)
             .padding(.top, 4)
         }
     }
@@ -181,9 +173,6 @@ struct PlanPane: View {
             // Preview card — shows what a generated plan looks like
             VStack(spacing: 0) {
                 HStack(spacing: 10) {
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 16))
-                        .foregroundStyle(Color.Timed.accent)
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Your plan will appear here")
                             .font(.system(size: 14, weight: .semibold))

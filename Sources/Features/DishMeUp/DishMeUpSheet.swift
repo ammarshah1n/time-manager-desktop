@@ -140,7 +140,7 @@ struct DishMeUpSheet: View {
             Button { onDismiss() } label: {
                 Image(systemName: "xmark.circle.fill")
                     .font(.system(size: 18))
-                    .foregroundStyle(Color(.tertiaryLabelColor))
+                    .foregroundStyle(Color.Timed.labelTertiary)
             }
             .buttonStyle(.plain)
         }
@@ -237,19 +237,17 @@ struct DishMeUpSheet: View {
                         if generated { generate() }
                     } label: {
                         HStack(spacing: 5) {
-                            Image(systemName: m.icon).font(.system(size: 10)).foregroundStyle(m.color)
+                            Image(systemName: m.icon)
+                                .font(.system(size: 10))
+                                .foregroundStyle(mood == m ? Color.Timed.accent : Color.Timed.labelSecondary)
                             Text(m.rawValue).font(.system(size: 11, weight: .medium))
                         }
                         .padding(.horizontal, 10).padding(.vertical, 6)
                         .background(
-                            mood == m ? m.color.opacity(0.12) : Color(.controlBackgroundColor),
+                            mood == m ? Color.Timed.accent.opacity(0.10) : Color(.controlBackgroundColor),
                             in: RoundedRectangle(cornerRadius: 8)
                         )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8)
-                                .strokeBorder(mood == m ? m.color.opacity(0.5) : Color.clear, lineWidth: 1)
-                        )
-                        .foregroundStyle(mood == m ? m.color : .primary)
+                        .foregroundStyle(mood == m ? Color.Timed.accent : Color.Timed.labelPrimary)
                     }
                     .buttonStyle(.plain)
                 }
@@ -291,13 +289,10 @@ struct DishMeUpSheet: View {
                     HStack(spacing: 10) {
                         Text("\(idx + 1)")
                             .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.Timed.labelTertiary)
                             .frame(width: 16, alignment: .trailing)
 
-                        Image(systemName: task.bucket.icon)
-                            .font(.system(size: 10))
-                            .foregroundStyle(task.bucket.color)
-                            .frame(width: 14)
+                        BucketDot(color: task.bucket.dotColor)
 
                         VStack(alignment: .leading, spacing: 2) {
                             Text(task.title)
@@ -305,7 +300,7 @@ struct DishMeUpSheet: View {
                                 .lineLimit(1)
                             Text(taskReasons[task.id] ?? whySelected(task))
                                 .font(.system(size: 10))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Color.Timed.labelSecondary)
                         }
 
                         Spacer()
@@ -313,7 +308,7 @@ struct DishMeUpSheet: View {
                         Text(task.timeLabel)
                             .font(.system(size: 12, weight: .semibold))
                             .monospacedDigit()
-                            .foregroundStyle(task.bucket.color)
+                            .foregroundStyle(Color.Timed.labelSecondary)
 
                         Button {
                             // Training signal: user skipped a task the algorithm ranked highly
@@ -347,15 +342,16 @@ struct DishMeUpSheet: View {
             // Allocation stats
             HStack(spacing: 12) {
                 HStack(spacing: 4) {
-                    Image(systemName: "clock").font(.system(size: 10)).foregroundStyle(.teal)
+                    Image(systemName: "clock").font(.system(size: 10)).foregroundStyle(Color.Timed.labelSecondary)
                     Text("\(formatMins(totalFreeMinutes)) free across \(freeTimeGapCount) block\(freeTimeGapCount == 1 ? "" : "s")")
-                        .font(.system(size: 11)).foregroundStyle(.secondary)
+                        .font(.system(size: 11)).foregroundStyle(Color.Timed.labelSecondary)
                 }
                 HStack(spacing: 4) {
-                    Image(systemName: "chart.bar.fill").font(.system(size: 10))
-                        .foregroundStyle(utilizationPercent > 90 ? .orange : .green)
+                    Image(systemName: "chart.bar").font(.system(size: 10))
+                        .foregroundStyle(Color.Timed.labelSecondary)
                     Text("\(Int(utilizationPercent))% utilised")
-                        .font(.system(size: 11)).foregroundStyle(.secondary)
+                        .font(.system(size: 11, weight: utilizationPercent > 90 ? .semibold : .regular))
+                        .foregroundStyle(Color.Timed.labelSecondary)
                 }
                 Spacer()
             }
@@ -389,35 +385,21 @@ struct DishMeUpSheet: View {
     private var sheetFooter: some View {
         HStack {
             if !generated {
-                Button {
+                Button("Dish Me Up \(formatMins(minutes)) of work") {
                     generate()
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "sparkles").font(.system(size: 13))
-                        Text("Dish Me Up \(formatMins(minutes)) of work")
-                            .font(.system(size: 14, weight: .semibold))
-                    }
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                    .background(.primary, in: RoundedRectangle(cornerRadius: 10))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .frame(maxWidth: .infinity)
+                .keyboardShortcut(.return, modifiers: [])
             } else {
                 Button("Cancel", role: .cancel) { onDismiss() }
                     .keyboardShortcut(.escape)
                 Spacer()
-                Button {
+                Button("Accept & Start") {
                     onAccept(stack.first)
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "checkmark")
-                        Text("Accept & Start")
-                            .font(.system(size: 13, weight: .semibold))
-                    }
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(.primary)
                 .keyboardShortcut(.return)
             }
         }

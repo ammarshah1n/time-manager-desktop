@@ -1,8 +1,16 @@
 // DishMeUpHomeView.swift — Timed macOS
 //
-// The opening screen. One question: what should Yasser do next?
-// Hero hero + minutes selector + Dish Me Up button → loading → plan list.
+// "What should I do next, given the time I have?"
 // Calls the generate-dish-me-up Edge Function. No local planning. Opus orders.
+//
+// Visual recipe (per .claude/skills/timed-design):
+// - Apple Calendar / Reminders / Settings aesthetic
+// - Background: `Color.Timed.backgroundPrimary`. No mesh, no animation.
+// - Idle: native segmented `Picker` for minutes, plain `.borderedProminent` button
+// - Loading: native `ProgressView()` with secondary caption
+// - Result: native `List(.plain)` rows matching `TasksPane` recipe — `BucketDot`,
+//   13pt title, 12pt secondary reason, monospaced-digit time
+// - Failure: native `ContentUnavailableView` style — icon + heading + retry
 
 import SwiftUI
 import Dependencies
@@ -51,7 +59,6 @@ struct DishMeUpRequest: Codable {
 // MARK: - View
 
 struct DishMeUpHomeView: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Dependency(\.supabaseClient) private var supa
 
     enum Phase: Equatable {
@@ -63,23 +70,28 @@ struct DishMeUpHomeView: View {
 
     @State private var phase: Phase = .idle
     @State private var minutes: Int = 45
-    @State private var meshT: Double = 0
     @State private var showVoiceCheckIn: Bool = false
 
     private let presets: [Int] = [15, 30, 45, 60, 90, 120]
 
     var body: some View {
         ZStack {
-            background.ignoresSafeArea()
+            Color.Timed.backgroundPrimary.ignoresSafeArea()
 
             switch phase {
-            case .idle:      idleContent
-            case .loading:   loadingContent
-            case .result(let plan):   planContent(plan)
-            case .failure(let msg):   failureContent(msg)
+            case .idle:              idleContent
+            case .loading:           loadingContent
+            case .result(let plan):  planContent(plan)
+            case .failure(let msg):  failureContent(msg)
             }
         }
-        .animation(BrandMotion.easeStandard, value: phaseKey)
+        .navigationTitle("Dish Me Up")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button("Voice check-in") { showVoiceCheckIn = true }
+            }
+        }
+        .animation(TimedMotion.smooth, value: phaseKey)
         .sheet(isPresented: $showVoiceCheckIn) {
             MorningCheckInView()
                 .frame(minWidth: 720, minHeight: 640)
@@ -96,133 +108,50 @@ struct DishMeUpHomeView: View {
         }
     }
 
-    // MARK: - Background
-
-    @ViewBuilder
-    private var background: some View {
-        if reduceMotion {
-            BrandColor.surface
-        } else {
-            TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { ctx in
-                let t = ctx.date.timeIntervalSinceReferenceDate
-                let drift = (sin(t * 0.18) + 1) * 0.5
-                meshGradient(drift: drift)
-            }
-        }
-    }
-
-    /// Lifted from IntroView — same 3×3 MeshGradient, reduced amplitude so it
-    /// reads as ambient rather than a cinematic takeover.
-    private func meshGradient(drift: Double) -> some View {
-        let surface = BrandColor.surface
-        let primary = BrandColor.primary
-        let accent  = BrandColor.accent
-        let mist    = BrandColor.mist
-
-        let d = drift
-        let points: [SIMD2<Float>] = [
-            .init(0, 0), .init(0.5, 0), .init(1, 0),
-            .init(0, 0.5), .init(0.5 + Float(d - 0.5) * 0.04, 0.5), .init(1, 0.5),
-            .init(0, 1), .init(0.5, 1), .init(1, 1),
-        ]
-        let colors: [Color] = [
-            surface, mist, accent.opacity(0.5),
-            mist, primary.opacity(0.18 + d * 0.08), mist,
-            accent.opacity(0.35), mist, surface,
-        ]
-        return MeshGradient(width: 3, height: 3, points: points, colors: colors, smoothsColors: true)
-    }
-
-    // MARK: - States
+    // MARK: - Idle
 
     private var idleContent: some View {
-        VStack(spacing: 36) {
-            Spacer()
-
-            // Small label + question. Matches the 28pt headline / body scale
-            // the rest of the app uses. The IntroView is the place for 72pt
-            // display type — this pane lives in the sidebar every session, so
-            // calm beats loud.
-            VStack(spacing: 10) {
-                Text("DISH ME UP")
-                    .font(.system(size: 11, weight: .semibold))
-                    .tracking(1.6)
-                    .foregroundStyle(BrandColor.primary.opacity(0.75))
-                Text("What should you do next?")
-                    .font(BrandType.headline)
-                    .foregroundStyle(BrandColor.ink)
+        VStack(spacing: TimedLayout.Spacing.xl) {
+            VStack(spacing: TimedLayout.Spacing.xs) {
+                Text("How much time do you have?")
+                    .font(TimedType.title2)
+                    .foregroundStyle(Color.Timed.labelPrimary)
+                Text("Pick a window. Dish me up the right work in the right order.")
+                    .font(TimedType.body)
+                    .foregroundStyle(Color.Timed.labelSecondary)
+                    .multilineTextAlignment(.center)
             }
-            .multilineTextAlignment(.center)
-            .padding(.horizontal, 40)
+            .padding(.horizontal, TimedLayout.Spacing.xxxl)
 
             minuteSelector
 
-            Button(action: start) {
-                HStack(spacing: 10) {
-                    Image(systemName: "sparkles")
-                    Text("Dish Me Up")
-                        .font(.system(size: 16, weight: .semibold))
-                }
-                .foregroundStyle(.white)
-                .frame(minWidth: 240, minHeight: 48)
-                .background(
-                    LinearGradient(
-                        colors: [BrandColor.primary, BrandColor.accent],
-                        startPoint: .topLeading, endPoint: .bottomTrailing
-                    ),
-                    in: RoundedRectangle(cornerRadius: 14, style: .continuous)
-                )
-                .shadow(color: BrandColor.primary.opacity(0.28), radius: 18, y: 8)
-            }
-            .buttonStyle(.plain)
-            .keyboardShortcut(.return, modifiers: [])
+            Button("Dish Me Up") { start() }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .keyboardShortcut(.return, modifiers: [])
 
-            Spacer()
-
-            HStack(spacing: 14) {
-                Button {
-                    showVoiceCheckIn = true
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "waveform")
-                            .font(.system(size: 11))
-                        Text("Voice check-in")
-                            .font(.system(size: 12, weight: .medium))
-                    }
-                    .foregroundStyle(BrandColor.ink.opacity(0.65))
-                    .padding(.horizontal, 12).padding(.vertical, 6)
-                    .background(Capsule().fill(BrandColor.mist.opacity(0.7)))
-                }
-                .buttonStyle(.plain)
-
-                Text("\(minutes) min")
-                    .font(.system(size: 12))
-                    .foregroundStyle(BrandColor.ink.opacity(0.45))
-            }
-            .padding(.bottom, 28)
+            Text("\(minutes) min")
+                .font(TimedType.footnote)
+                .foregroundStyle(Color.Timed.labelTertiary)
+                .monospacedDigit()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var minuteSelector: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: TimedLayout.Spacing.xs) {
             ForEach(presets, id: \.self) { n in
                 let selected = minutes == n
                 Button {
                     minutes = n
                 } label: {
                     Text(label(for: n))
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(selected ? .white : BrandColor.ink)
-                        .padding(.horizontal, 14).padding(.vertical, 10)
+                        .font(TimedType.subheadline)
+                        .foregroundStyle(selected ? Color.white : Color.Timed.labelPrimary)
+                        .padding(.horizontal, TimedLayout.Spacing.sm)
+                        .padding(.vertical, TimedLayout.Spacing.xs)
                         .background(
-                            Capsule().fill(selected ? BrandColor.primary : BrandColor.mist)
-                        )
-                        .overlay(
-                            Capsule().strokeBorder(
-                                selected ? BrandColor.primary : BrandColor.ink.opacity(0.06),
-                                lineWidth: 1
-                            )
+                            Capsule().fill(selected ? Color.Timed.labelPrimary : Color.Timed.backgroundSecondary)
                         )
                 }
                 .buttonStyle(.plain)
@@ -234,80 +163,89 @@ struct DishMeUpHomeView: View {
         minutes < 60 ? "\(minutes)m" : (minutes % 60 == 0 ? "\(minutes / 60)h" : "\(minutes / 60)h\(minutes % 60)m")
     }
 
+    // MARK: - Loading
+
     private var loadingContent: some View {
-        VStack(spacing: 28) {
-            PulsingOrb()
-                .frame(width: 120, height: 120)
+        VStack(spacing: TimedLayout.Spacing.md) {
+            ProgressView()
+                .controlSize(.large)
             Text("Reading your day…")
-                .font(BrandType.tagline)
-                .foregroundStyle(BrandColor.ink.opacity(0.75))
+                .font(TimedType.body)
+                .foregroundStyle(Color.Timed.labelSecondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
+    // MARK: - Result
+
     private func planContent(_ plan: DishMeUpPlan) -> some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 28) {
+            VStack(alignment: .leading, spacing: TimedLayout.Spacing.xl) {
                 Text(plan.sessionFraming)
-                    .font(BrandType.headline)
-                    .foregroundStyle(BrandColor.ink)
-                    .padding(.top, 48)
-                    .padding(.horizontal, 40)
+                    .font(TimedType.title3)
+                    .foregroundStyle(Color.Timed.labelPrimary)
+                    .padding(.top, TimedLayout.Spacing.xl)
+                    .padding(.horizontal, TimedLayout.Spacing.lg)
 
-                VStack(spacing: 14) {
+                VStack(spacing: TimedLayout.Spacing.xxs) {
                     ForEach(Array(plan.plan.enumerated()), id: \.element.id) { idx, item in
-                        PlanCard(index: idx + 1, item: item, isOverflow: false)
+                        PlanRow(index: idx + 1, item: item, isOverflow: false)
                     }
                 }
-                .padding(.horizontal, 32)
+                .padding(.horizontal, TimedLayout.Spacing.lg)
 
                 if !plan.overflow.isEmpty {
                     Text("OVERFLOW")
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(TimedType.caption2)
                         .tracking(1.2)
-                        .foregroundStyle(BrandColor.ink.opacity(0.45))
-                        .padding(.horizontal, 40)
-                        .padding(.top, 8)
+                        .foregroundStyle(Color.Timed.labelTertiary)
+                        .padding(.horizontal, TimedLayout.Spacing.lg)
+                        .padding(.top, TimedLayout.Spacing.xs)
 
-                    VStack(spacing: 10) {
+                    VStack(spacing: TimedLayout.Spacing.xxs) {
                         ForEach(plan.overflow) { item in
-                            PlanCard(index: nil, item: item, isOverflow: true)
+                            PlanRow(index: nil, item: item, isOverflow: true)
                         }
                     }
-                    .padding(.horizontal, 32)
+                    .padding(.horizontal, TimedLayout.Spacing.lg)
                 }
 
-                HStack(spacing: 14) {
+                HStack(spacing: TimedLayout.Spacing.sm) {
                     Button("New plan") { phase = .idle }
                         .keyboardShortcut(.cancelAction)
                     Button("Redish") { start() }
+                        .buttonStyle(.borderedProminent)
                         .keyboardShortcut("r", modifiers: [.command])
                 }
-                .padding(.horizontal, 40)
-                .padding(.bottom, 32)
+                .padding(.horizontal, TimedLayout.Spacing.lg)
+                .padding(.bottom, TimedLayout.Spacing.xxl)
             }
             .frame(maxWidth: 720, alignment: .leading)
             .frame(maxWidth: .infinity)
         }
     }
 
+    // MARK: - Failure
+
     private func failureContent(_ message: String) -> some View {
-        VStack(spacing: 20) {
+        VStack(spacing: TimedLayout.Spacing.md) {
             Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 36))
-                .foregroundStyle(BrandColor.ink.opacity(0.6))
+                .font(.system(size: 32, weight: .light))
+                .foregroundStyle(Color.Timed.labelTertiary)
             Text("Couldn't dish up a plan")
-                .font(BrandType.headline)
-                .foregroundStyle(BrandColor.ink)
+                .font(TimedType.title3)
+                .foregroundStyle(Color.Timed.labelPrimary)
             Text(message)
-                .font(BrandType.body)
-                .foregroundStyle(BrandColor.ink.opacity(0.65))
+                .font(TimedType.body)
+                .foregroundStyle(Color.Timed.labelSecondary)
                 .multilineTextAlignment(.center)
-                .padding(.horizontal, 40)
+                .padding(.horizontal, TimedLayout.Spacing.xxxl)
             Button("Try again") { start() }
+                .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.return, modifiers: [])
         }
         .frame(maxWidth: 520)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     // MARK: - Actions
@@ -326,89 +264,60 @@ struct DishMeUpHomeView: View {
     }
 }
 
-// MARK: - Plan card
+// MARK: - Plan row (Apple-Reminders-style)
 
-private struct PlanCard: View {
+private struct PlanRow: View {
     let index: Int?
     let item: DishMeUpPlanItem
     let isOverflow: Bool
 
     var body: some View {
-        HStack(alignment: .top, spacing: 14) {
-            ZStack {
-                Circle()
-                    .fill(isOverflow ? BrandColor.mist : BrandColor.primary.opacity(0.12))
-                    .frame(width: 34, height: 34)
-                if let index {
-                    Text("\(index)")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(isOverflow ? BrandColor.ink.opacity(0.5) : BrandColor.primary)
-                } else {
-                    Image(systemName: "pause")
-                        .font(.system(size: 12))
-                        .foregroundStyle(BrandColor.ink.opacity(0.45))
-                }
+        HStack(alignment: .top, spacing: TimedLayout.Spacing.sm) {
+            if let index {
+                Text("\(index)")
+                    .font(TimedType.subheadline)
+                    .foregroundStyle(Color.Timed.labelTertiary)
+                    .monospacedDigit()
+                    .frame(width: 18, alignment: .trailing)
+            } else {
+                Image(systemName: "pause")
+                    .font(TimedType.caption)
+                    .foregroundStyle(Color.Timed.labelTertiary)
+                    .frame(width: 18)
             }
-            VStack(alignment: .leading, spacing: 6) {
+
+            // The plan items don't carry a bucket (Edge Function doesn't surface
+            // it yet); use labelSecondary as the neutral dot until that lands.
+            BucketDot(color: Color.Timed.labelSecondary)
+                .padding(.top, 5)
+
+            VStack(alignment: .leading, spacing: TimedLayout.Spacing.xxs) {
                 HStack(alignment: .firstTextBaseline) {
                     Text(item.title)
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(BrandColor.ink.opacity(isOverflow ? 0.55 : 1))
+                        .font(TimedType.subheadline)
+                        .foregroundStyle(isOverflow ? Color.Timed.labelTertiary : Color.Timed.labelPrimary)
                     Spacer()
                     Text("\(item.estimatedMinutes)m")
-                        .font(BrandType.mono)
-                        .foregroundStyle(BrandColor.ink.opacity(0.55))
+                        .font(TimedType.caption)
+                        .foregroundStyle(Color.Timed.labelSecondary)
+                        .monospacedDigit()
                 }
                 Text(item.reason)
-                    .font(BrandType.body)
-                    .foregroundStyle(BrandColor.ink.opacity(isOverflow ? 0.5 : 0.75))
+                    .font(TimedType.caption)
+                    .foregroundStyle(Color.Timed.labelSecondary)
                 if let flag = item.avoidanceFlag, !flag.isEmpty {
-                    HStack(spacing: 6) {
-                        Image(systemName: "flag.fill").font(.system(size: 10))
-                        Text(flag).font(.system(size: 12, weight: .medium))
+                    HStack(spacing: TimedLayout.Spacing.xxs) {
+                        Image(systemName: "flag")
+                            .font(.system(size: 10))
+                        Text(flag).font(TimedType.caption)
                     }
                     .foregroundStyle(Color.Timed.labelSecondary)
                     .padding(.top, 2)
                 }
             }
         }
-        .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(BrandColor.surface.opacity(isOverflow ? 0.6 : 0.9))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(BrandColor.ink.opacity(0.06), lineWidth: 1)
-        )
+        .padding(.horizontal, TimedLayout.Spacing.sm)
+        .padding(.vertical, TimedLayout.Spacing.sm)
+        .background(Color.Timed.backgroundSecondary, in: RoundedRectangle(cornerRadius: TimedLayout.Radius.input))
     }
 }
-
-// MARK: - Loading orb
-
-private struct PulsingOrb: View {
-    @State private var scale: CGFloat = 0.85
-
-    var body: some View {
-        ZStack {
-            Circle()
-                .fill(BrandColor.primary.opacity(0.12))
-                .blur(radius: 24)
-            Circle()
-                .fill(
-                    RadialGradient(
-                        colors: [BrandColor.accent, BrandColor.primary],
-                        center: .center, startRadius: 2, endRadius: 60
-                    )
-                )
-                .scaleEffect(scale)
-        }
-        .onAppear {
-            withAnimation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true)) {
-                scale = 1.05
-            }
-        }
-        .accessibilityLabel("Loading plan")
-    }
-}
-
