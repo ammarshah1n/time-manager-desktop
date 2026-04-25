@@ -154,7 +154,7 @@ struct TimedTask: Identifiable, Codable, Sendable, Equatable {
 
     var isStale: Bool {
         if let snoozedUntil, snoozedUntil > Date() { return false }
-        !isDone && daysInQueue >= bucket.staleAfterDays
+        return !isDone && daysInQueue >= bucket.staleAfterDays
     }
 }
 

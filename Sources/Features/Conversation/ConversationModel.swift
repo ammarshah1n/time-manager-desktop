@@ -35,6 +35,7 @@ final class ConversationModel: ObservableObject {
     private var listenTask: Task<Void, Never>?
     private var turnTask: Task<Void, Never>?
     private var systemBlocks: [ConversationSystemBlock] = []
+    private var pendingFinalSegments: [String] = []
 
     init(tasks: Binding<[TimedTask]>, blocks: Binding<[CalendarBlock]>, freeTimeSlots: [FreeTimeSlot]) {
         self.tasks = tasks
@@ -60,6 +61,11 @@ final class ConversationModel: ObservableObject {
         }
     }
 
+    var phaseDetail: String? {
+        if case .failed(let message) = phase { return message }
+        return nil
+    }
+
     var isListening: Bool {
         if case .listening = phase { return true }
         return false
@@ -67,6 +73,11 @@ final class ConversationModel: ObservableObject {
 
     var isSpeaking: Bool {
         if case .speaking = phase { return true }
+        return false
+    }
+
+    var isThinking: Bool {
+        if case .thinking = phase { return true }
         return false
     }
 
@@ -86,19 +97,25 @@ final class ConversationModel: ObservableObject {
                     try Task.checkCancellation()
                     switch event {
                     case .partial(let text):
-                        liveTranscript = text
-                        if isSpeaking, text.count > 2 {
-                            turnTask?.cancel()
-                            tts.stop()
-                            aiClient.cancelCurrentTurn()
-                            phase = .listening
+                        let combined = combinedTranscript(with: text)
+                        liveTranscript = combined
+                        if (isSpeaking || isThinking) && combined.count >= 3 {
+                            interruptCurrentTurn()
                         }
                     case .final(let text, _, let speechFinal):
-                        liveTranscript = text
-                        if speechFinal || !text.isEmpty {
+                        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if !trimmed.isEmpty {
+                            pendingFinalSegments.append(trimmed)
+                        }
+                        liveTranscript = pendingFinalSegments.joined(separator: " ")
+                        if speechFinal {
+                            let combined = pendingFinalSegments.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+                            pendingFinalSegments.removeAll()
+                            liveTranscript = ""
+                            guard !combined.isEmpty else { continue }
                             turnTask?.cancel()
                             turnTask = Task { @MainActor in
-                                await handleFinalTranscript(text)
+                                await handleFinalTranscript(combined)
                             }
                         }
                     }
@@ -120,7 +137,23 @@ final class ConversationModel: ObservableObject {
         stt.stop()
         tts.stop()
         aiClient.cancelCurrentTurn()
+        pendingFinalSegments.removeAll()
         phase = .ended
+    }
+
+    private func interruptCurrentTurn() {
+        turnTask?.cancel()
+        tts.stop()
+        aiClient.cancelCurrentTurn()
+        phase = .listening
+    }
+
+    private func combinedTranscript(with partial: String) -> String {
+        let confirmed = pendingFinalSegments.joined(separator: " ")
+        let trimmedPartial = partial.trimmingCharacters(in: .whitespacesAndNewlines)
+        if confirmed.isEmpty { return trimmedPartial }
+        if trimmedPartial.isEmpty { return confirmed }
+        return confirmed + " " + trimmedPartial
     }
 
     private func handleFinalTranscript(_ text: String) async {
@@ -130,7 +163,6 @@ final class ConversationModel: ObservableObject {
         transcript.append(TranscriptMessage(role: "You", content: trimmed))
         liveTranscript = ""
         phase = .thinking
-        try? await Task.sleep(for: .milliseconds(250))
 
         var chunker = SentenceChunker()
         var responseText = ""
@@ -142,14 +174,19 @@ final class ConversationModel: ObservableObject {
             ttsStreaming = false
         }
 
+        var firstDelta = true
+
         do {
             for try await event in aiClient.streamTurn(userText: trimmed, systemBlocks: systemBlocks) {
                 try Task.checkCancellation()
                 switch event {
                 case .textDelta(let delta):
                     responseText += delta
+                    if firstDelta {
+                        phase = .speaking
+                        firstDelta = false
+                    }
                     let chunks = chunker.append(delta)
-                    if !chunks.isEmpty { phase = .speaking }
                     for chunk in chunks where ttsStreaming {
                         try? await tts.send(sentence: chunk)
                     }
@@ -172,12 +209,14 @@ final class ConversationModel: ObservableObject {
             let spoken = responseText.trimmingCharacters(in: .whitespacesAndNewlines)
             if !spoken.isEmpty {
                 transcript.append(TranscriptMessage(role: "Timed", content: spoken))
-                phase = .speaking
                 if ttsStreaming {
                     await tts.finish()
                 } else {
+                    phase = .speaking
                     tts.speakFallback(spoken)
-                    try? await Task.sleep(for: .seconds(2))
+                    while tts.isSpeaking, !Task.isCancelled {
+                        try? await Task.sleep(for: .milliseconds(150))
+                    }
                 }
             }
             if phase != .ended { phase = .listening }

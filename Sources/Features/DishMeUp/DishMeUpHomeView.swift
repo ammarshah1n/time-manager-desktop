@@ -256,6 +256,7 @@ struct DishMeUpHomeView: View {
         Task { @MainActor in
             do {
                 let plan = try await supa.generateDishMeUp(m)
+                DishMeUpStore.shared.update(plan: plan, minutes: m)
                 phase = .result(plan)
             } catch {
                 phase = .failure(error.localizedDescription)
