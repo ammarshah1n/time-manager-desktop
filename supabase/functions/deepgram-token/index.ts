@@ -8,7 +8,6 @@
 // not the user, so we don't store it.
 
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireEnv } from "../_shared/config.ts";
 import { verifyAuth, AuthError, authErrorResponse } from "../_shared/auth.ts";
 
@@ -20,28 +19,14 @@ const CORS = {
 
 const DEEPGRAM_PROJECT_KEY = requireEnv("DEEPGRAM_API_KEY");
 const DEEPGRAM_PROJECT_ID  = requireEnv("DEEPGRAM_PROJECT_ID");
-const SUPABASE_URL         = requireEnv("SUPABASE_URL");
-const SERVICE_ROLE_KEY     = requireEnv("SUPABASE_SERVICE_ROLE_KEY");
-
-const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
-
-async function resolveExecutiveId(authUserId: string): Promise<string> {
-  const { data, error } = await supabase
-    .from("executives")
-    .select("id")
-    .eq("auth_user_id", authUserId)
-    .maybeSingle();
-  if (error) throw new Error(`executive lookup failed: ${error.message}`);
-  if (!data) throw new AuthError("No executive row for this user — sign in first");
-  return data.id as string;
-}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
 
   try {
-    const authUserId = await verifyAuth(req);
-    const executiveId = await resolveExecutiveId(authUserId);
+    // Auth is the only check we need — this function does not touch the
+    // database, so there is no reason to resolve the executive row here.
+    await verifyAuth(req);
 
     const ttl = 60; // seconds
     const dgRes = await fetch(

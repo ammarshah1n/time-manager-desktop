@@ -42,12 +42,4 @@ enum TimedType {
     /// 72pt Thin, SF Pro Rounded. The hero timer numeral. The one allowed
     /// hard-sized display style in the app.
     static let timerDisplay  = Font.system(size: 72, weight: .thin, design: .rounded)
-
-    /// 48pt Thin, SF Pro Rounded. Compact timer variant (menu bar, focus pill).
-    static let timerCompact  = Font.system(size: 48, weight: .thin, design: .rounded)
-
-    // MARK: - Wordmark
-
-    /// 24pt Regular, Default. The "Timed" wordmark on the splash.
-    static let wordmark      = Font.system(size: 24, weight: .regular, design: .default)
 }

@@ -1485,3 +1485,30 @@ caa0501 chore: deploy script lists new orb Edge Functions + prereqs (DEEPGRAM_PR
 .build/arm64-apple-macosx/release/USearch.build/output-file-map.json
 .build/arm64-apple-macosx/release/SwiftOperators.build/output-file-map.json
 .build/arm64-apple-macosx/release/Supabase.build/output-file-map.json
+
+---
+## Session: 2026-04-25 23:01
+
+### Commits This Session
+2e41afd sec: privacy logs + provider error sanitisation + SSE filter
+ed32588 sec: production hardening — close findings from 4-pass audit
+caa0501 chore: deploy script lists new orb Edge Functions + prereqs (DEEPGRAM_PROJECT_ID)
+6ad1b7f feat: production-grade — pull all third-party API keys server-side
+5166e1d chore: gitignore dist.noindex/ and untrack the bundle accidentally committed
+
+### Modified Files
+.build/.lock
+.build/plugins/cache/SwiftProtobufPlugin.dia
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Resources/Relocations/aarch64/SwiftProtobufPlugin.yml
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Resources/DWARF/SwiftProtobufPlugin
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Resources/Swift/aarch64/PackagePlugin.swiftinterface
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Info.plist
+.build/plugins/cache/SwiftProtobufPlugin-state.json
+.build/plugins/cache/SwiftProtobufPlugin
+.build/debug.yaml
+.build/plugin-tools.yaml
+.build/release.yaml
+.build/arm64-apple-macosx/release/ElevenLabs.build/output-file-map.json
+.build/arm64-apple-macosx/release/Crypto.build/output-file-map.json
+.build/arm64-apple-macosx/release/USearch.build/output-file-map.json
+.build/arm64-apple-macosx/release/SwiftOperators.build/output-file-map.json
