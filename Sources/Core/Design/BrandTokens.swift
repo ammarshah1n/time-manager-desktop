@@ -19,24 +19,33 @@ enum BrandVersion {
 // MARK: - Brand Colour
 
 enum BrandColor {
-    // Anchor values
-    static let primary  = Color(red: 0.298, green: 0.553, blue: 1.000)   // #4C8DFF
-    static let accent   = Color(red: 0.478, green: 0.690, blue: 1.000)   // #7AB0FF
+    /// Apple system blue — the only accent. Light #007AFF / dark #0A84FF.
+    /// Use at most once per screen. Never as decoration.
+    static let primary: Color = .dynamic(
+        light: Color(red: 0/255,  green: 122/255, blue: 255/255),
+        dark:  Color(red: 10/255, green: 132/255, blue: 255/255)
+    )
 
-    // Dynamic light/dark pairs
+    /// Alias of `primary`. Kept so existing call sites compile.
+    /// New code: use `BrandColor.primary`.
+    static let accent: Color = primary
+
+    /// Page surface. Pure white (light) / pure black (dark, OLED-native).
     static let surface: Color = .dynamic(
-        light: Color(red: 0.980, green: 0.980, blue: 0.982),             // #FAFAFA
-        dark:  Color(red: 0.043, green: 0.047, blue: 0.059)              // #0B0C0F
+        light: Color.white,
+        dark:  Color.black
     )
 
+    /// Foreground text / wordmark.
     static let ink: Color = .dynamic(
-        light: Color(red: 0.043, green: 0.047, blue: 0.059),
-        dark:  Color(red: 0.961, green: 0.961, blue: 0.969)
+        light: Color.black,
+        dark:  Color.white
     )
 
+    /// Muted surface — systemGroupedBackground.
     static let mist: Color = .dynamic(
-        light: Color(red: 0.918, green: 0.929, blue: 0.969),
-        dark:  Color(red: 0.110, green: 0.114, blue: 0.129)
+        light: Color(red: 242/255, green: 242/255, blue: 247/255),
+        dark:  Color(red: 28/255,  green: 28/255,  blue: 30/255)
     )
 }
 

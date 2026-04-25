@@ -10,6 +10,10 @@
 //   2. POSTs the transcript to /functions/v1/extract-onboarding-profile
 //      (Haiku parses → writes to executives + sets onboarded_at)
 //   3. Calls onComplete() so the app drops into Dish Me Up
+//
+// Visual pass: Apple Calendar / System Settings aesthetic. No gradients, no
+// decorative chrome, no oversized display type. The orb is the one feature
+// element on the screen.
 
 import SwiftUI
 
@@ -23,36 +27,36 @@ struct VoiceOnboardingView: View {
 
     var body: some View {
         ZStack {
-            // Same hero treatment as IntroView so the handoff feels continuous.
-            background.ignoresSafeArea()
+            // Plain system-app surface. No gradient, no radial tint.
+            Color.Timed.backgroundPrimary.ignoresSafeArea()
 
-            VStack(spacing: 28) {
-                Spacer(minLength: 56)
+            VStack(spacing: TimedLayout.Spacing.xl) {
+                Spacer(minLength: TimedLayout.Spacing.hero)
 
                 OrbView(isActive: manager.isAgentSpeaking, phase: manager.phase)
-                    .frame(width: 220, height: 220)
+                    .frame(width: orbSize, height: orbSize)
 
                 // Mic activity bar — pulses only while the user is speaking
                 // (agent is NOT speaking and the conversation is active).
                 MicActivityBar(isListening: isUserSpeaking)
-                    .frame(width: 80)
+                    .frame(width: micBarWidth)
 
                 phaseLabel
-                    .frame(height: 22)
+                    .frame(height: phaseLabelHeight)
 
                 transcriptSection
-                    .frame(maxWidth: 640)
+                    .frame(maxWidth: transcriptMaxWidth)
 
                 Spacer()
 
                 if isFinalising {
                     Text("Saving your setup…")
-                        .font(BrandType.body)
-                        .foregroundStyle(BrandColor.ink.opacity(0.55))
-                        .padding(.bottom, 36)
+                        .font(TimedType.body)
+                        .foregroundStyle(Color.Timed.labelSecondary)
+                        .padding(.bottom, TimedLayout.Spacing.xxl)
                 } else {
                     skipControl
-                        .padding(.bottom, 36)
+                        .padding(.bottom, TimedLayout.Spacing.xxl)
                 }
             }
         }
@@ -64,18 +68,14 @@ struct VoiceOnboardingView: View {
         }
     }
 
-    // MARK: - Background (matches IntroView ambience)
+    // MARK: - Layout constants (named here because OrbView/MicActivityBar are
+    // feature components, not general tokens — kept local and semantic.)
 
-    @ViewBuilder
-    private var background: some View {
-        ZStack {
-            BrandColor.surface
-            RadialGradient(
-                colors: [BrandColor.primary.opacity(0.28), .clear],
-                center: .center, startRadius: 40, endRadius: 620
-            )
-        }
-    }
+    private var orbSize: CGFloat { 220 }
+    private var micBarWidth: CGFloat { 80 }
+    private var phaseLabelHeight: CGFloat { 22 }
+    private var transcriptMaxWidth: CGFloat { 640 }
+    private var transcriptMaxHeight: CGFloat { 240 }
 
     // MARK: - Phase label
 
@@ -84,31 +84,32 @@ struct VoiceOnboardingView: View {
         switch manager.phase {
         case .idle:
             Text("Ready")
-                .font(BrandType.body)
-                .foregroundStyle(BrandColor.ink.opacity(0.55))
+                .font(TimedType.body)
+                .foregroundStyle(Color.Timed.labelSecondary)
         case .connecting:
             Text("Connecting…")
-                .font(BrandType.body)
-                .foregroundStyle(BrandColor.ink.opacity(0.55))
+                .font(TimedType.body)
+                .foregroundStyle(Color.Timed.labelSecondary)
         case .active:
+            // The only element on this screen allowed to use the accent.
             Text(manager.isAgentSpeaking ? "Timed is speaking" : "Listening")
-                .font(BrandType.body)
-                .foregroundStyle(BrandColor.primary)
+                .font(TimedType.body)
+                .foregroundStyle(Color.Timed.accent)
                 .contentTransition(.opacity)
         case .ending:
             Text("Saving…")
-                .font(BrandType.body)
-                .foregroundStyle(BrandColor.ink.opacity(0.55))
+                .font(TimedType.body)
+                .foregroundStyle(Color.Timed.labelSecondary)
         case .ended:
             Text("Done")
-                .font(BrandType.body)
-                .foregroundStyle(BrandColor.ink.opacity(0.55))
+                .font(TimedType.body)
+                .foregroundStyle(Color.Timed.labelSecondary)
         case .failed(let msg):
             Text(msg)
-                .font(BrandType.body)
-                .foregroundStyle(.orange)
+                .font(TimedType.body)
+                .foregroundStyle(Color.Timed.destructive)
                 .multilineTextAlignment(.center)
-                .padding(.horizontal, 48)
+                .padding(.horizontal, TimedLayout.Spacing.hero)
         }
     }
 
@@ -123,17 +124,17 @@ struct VoiceOnboardingView: View {
     // MARK: - Transcript (collapsible — default hidden so the orb is the focus)
 
     private var transcriptSection: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: TimedLayout.Spacing.xs) {
             Button {
                 withAnimation(.easeInOut(duration: 0.25)) { transcriptCollapsed.toggle() }
             } label: {
-                HStack(spacing: 6) {
+                HStack(spacing: TimedLayout.Spacing.xxs) {
                     Image(systemName: transcriptCollapsed ? "chevron.down" : "chevron.up")
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(TimedType.caption2)
                     Text(transcriptCollapsed ? "Show transcript" : "Hide transcript")
-                        .font(.system(size: 12, weight: .medium))
+                        .font(TimedType.caption)
                 }
-                .foregroundStyle(BrandColor.ink.opacity(0.5))
+                .foregroundStyle(Color.Timed.labelTertiary)
             }
             .buttonStyle(.plain)
 
@@ -147,29 +148,24 @@ struct VoiceOnboardingView: View {
     private var transcriptScroll: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 10) {
+                LazyVStack(alignment: .leading, spacing: TimedLayout.Spacing.sm) {
                     ForEach(manager.transcript) { msg in
-                        HStack(alignment: .top, spacing: 10) {
+                        HStack(alignment: .top, spacing: TimedLayout.Spacing.sm) {
                             Text(msg.role.lowercased().contains("user") ? "You" : "Timed")
-                                .font(.system(size: 11, weight: .semibold))
-                                .tracking(1.0)
-                                .foregroundStyle(
-                                    msg.role.lowercased().contains("user")
-                                    ? BrandColor.ink.opacity(0.45)
-                                    : BrandColor.primary
-                                )
+                                .font(TimedType.caption2)
+                                .foregroundStyle(Color.Timed.labelTertiary)
                                 .frame(width: 44, alignment: .leading)
                             Text(cleanForDisplay(msg.content))
-                                .font(BrandType.body)
-                                .foregroundStyle(BrandColor.ink.opacity(0.88))
+                                .font(TimedType.body)
+                                .foregroundStyle(Color.Timed.labelPrimary)
                         }
                         .id(msg.id)
                     }
                 }
-                .padding(.horizontal, 28)
-                .padding(.vertical, 12)
+                .padding(.horizontal, TimedLayout.Spacing.xl)
+                .padding(.vertical, TimedLayout.Spacing.sm)
             }
-            .frame(maxHeight: 240)
+            .frame(maxHeight: transcriptMaxHeight)
             .onChange(of: manager.transcript.count) { _, _ in
                 if let last = manager.transcript.last {
                     withAnimation(.easeOut(duration: 0.25)) {
@@ -186,15 +182,15 @@ struct VoiceOnboardingView: View {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    // MARK: - Skip control (escape hatch for dev; fades once the orb settles in)
+    // MARK: - Skip control (escape hatch for dev; native-styled, quiet)
 
     private var skipControl: some View {
         Button("Skip setup") {
             Task { await finalise(extractProfile: false) }
         }
         .buttonStyle(.plain)
-        .font(BrandType.body)
-        .foregroundStyle(BrandColor.ink.opacity(0.4))
+        .font(TimedType.body)
+        .foregroundStyle(Color.Timed.labelTertiary)
     }
 
     // MARK: - Completion detection

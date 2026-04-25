@@ -232,17 +232,11 @@ struct FocusPane: View {
 
                 Spacer().frame(height: 8)
 
-                Button {
+                Button("Go to Today") {
                     onComplete()
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "sparkles")
-                        Text("Go to Today")
-                    }
-                    .font(.system(size: 13, weight: .semibold))
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(Color.Timed.accent)
+                .controlSize(.regular)
             }
 
             Spacer()

@@ -36,7 +36,7 @@ struct AlertDeliveryView: View {
                     .font(.caption2)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
-                    .background(confidence > 0.7 ? Color.green.opacity(0.15) : Color.orange.opacity(0.15))
+                    .background(Color.Timed.backgroundSecondary)
                     .clipShape(Capsule())
             }
 
@@ -50,7 +50,7 @@ struct AlertDeliveryView: View {
                         .font(.caption)
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(.green)
+                .foregroundStyle(Color.Timed.labelSecondary)
 
                 Button(action: {
                     onActionable(false)
@@ -73,9 +73,9 @@ struct AlertDeliveryView: View {
     }
 
     private var urgencyColor: Color {
-        if alert.compositeScore > 0.7 { return .red }
-        if alert.compositeScore > 0.5 { return .orange }
-        return .yellow
+        // High-urgency alerts are the one place `destructive` speaks. Everything else is grey.
+        if alert.compositeScore > 0.7 { return Color.Timed.destructive }
+        return Color.Timed.labelSecondary
     }
 
     private func confidenceLabel(_ confidence: Double) -> String {

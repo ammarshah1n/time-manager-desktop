@@ -355,7 +355,7 @@ struct MorningInterviewPane: View {
                     if showConfirmationBanner {
                         HStack(spacing: 8) {
                             Image(systemName: "questionmark.circle.fill")
-                                .foregroundStyle(.orange)
+                                .foregroundStyle(Color.Timed.labelSecondary)
                             Text("Did you mean: \"\(pendingTranscript)\"?")
                                 .font(.system(size: 12))
                                 .lineLimit(2)
@@ -369,7 +369,7 @@ struct MorningInterviewPane: View {
                                 .controlSize(.mini)
                         }
                         .padding(.horizontal, 12).padding(.vertical, 8)
-                        .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+                        .background(Color.Timed.backgroundSecondary, in: RoundedRectangle(cornerRadius: 8))
                     }
 
                     // Text fallback input
@@ -432,9 +432,10 @@ struct MorningInterviewPane: View {
                 .frame(height: 32)
 
             HStack(spacing: 8) {
+                // Live recording dot — destructive token for the "live" signal.
                 Image(systemName: "mic.fill")
                     .font(.system(size: 12))
-                    .foregroundStyle(.red)
+                    .foregroundStyle(Color.Timed.destructive)
                 if !voiceCapture.liveTranscript.isEmpty {
                     Text(voiceCapture.liveTranscript)
                         .font(.system(size: 11))
@@ -453,7 +454,7 @@ struct MorningInterviewPane: View {
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(.white)
                         .padding(.horizontal, 10).padding(.vertical, 4)
-                        .background(.red, in: Capsule())
+                        .background(Color.Timed.destructive, in: Capsule())
                 }
                 .buttonStyle(.plain)
             }
@@ -498,11 +499,11 @@ struct MorningInterviewPane: View {
         HStack(spacing: 8) {
             Image(systemName: "questionmark.circle.fill")
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(.orange)
+                .foregroundStyle(Color.Timed.labelSecondary)
             if case .ambiguous(_, let prompt) = conversationState {
                 Text(prompt)
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(Color.Timed.labelSecondary)
                     .lineLimit(2)
             }
             Spacer()
@@ -510,11 +511,12 @@ struct MorningInterviewPane: View {
     }
 
     private var voiceStatusBackground: Color {
+        // Live-listening is the one destructive-coded state; everything else is monochrome.
         switch conversationState {
         case .appSpeaking, .waitingToListen: return Color.primary.opacity(0.06)
-        case .listening, .correcting: return Color.red.opacity(0.06)
+        case .listening, .correcting: return Color.Timed.destructive.opacity(0.06)
         case .processing, .interrupted: return Color(.controlBackgroundColor)
-        case .ambiguous: return Color.orange.opacity(0.06)
+        case .ambiguous: return Color.Timed.backgroundSecondary
         case .idle: return Color(.controlBackgroundColor)
         }
     }
@@ -547,7 +549,7 @@ struct MorningInterviewPane: View {
                                     .lineLimit(1)
                                 Text("\(task.daysInQueue) days in queue")
                                     .font(.system(size: 10))
-                                    .foregroundStyle(.orange)
+                                    .foregroundStyle(Color.Timed.labelSecondary)
                             }
 
                             Spacer()
@@ -620,25 +622,25 @@ struct MorningInterviewPane: View {
                     .foregroundStyle(.secondary)
             }
 
-            // Prominent free time display
+            // Prominent free time display — one value carries the accent, the rest sit in grey.
             HStack(spacing: 20) {
                 freeTimeStat(
                     value: formatMins(effectiveFreeMinutes),
                     label: "Free",
                     icon: "clock.fill",
-                    color: .primary
+                    color: Color.Timed.accent
                 )
                 freeTimeStat(
                     value: "\(computedGapCount)",
                     label: computedGapCount == 1 ? "Block" : "Blocks",
                     icon: "square.split.2x1.fill",
-                    color: .teal
+                    color: Color.Timed.labelSecondary
                 )
                 freeTimeStat(
                     value: formatMins(computedMeetingMinutes),
                     label: "Meetings",
                     icon: "person.2.fill",
-                    color: .orange
+                    color: Color.Timed.labelSecondary
                 )
             }
 
@@ -653,7 +655,7 @@ struct MorningInterviewPane: View {
                 if workEndOverride != nil {
                     Text("(adjusted)")
                         .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(Color.Timed.labelSecondary)
                 }
             }
             .padding(10)
@@ -664,7 +666,7 @@ struct MorningInterviewPane: View {
                 HStack(spacing: 8) {
                     Image(systemName: "minus.circle.fill")
                         .font(.system(size: 11))
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(Color.Timed.labelSecondary)
                     Text("\(formatMins(manualSubtract)) subtracted for off-calendar commitments")
                         .font(.system(size: 12))
                         .foregroundStyle(.secondary)
@@ -675,12 +677,12 @@ struct MorningInterviewPane: View {
                     } label: {
                         Text("Reset")
                             .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(Color.Timed.labelSecondary)
                     }
                     .buttonStyle(.plain)
                 }
                 .padding(10)
-                .background(Color.orange.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+                .background(Color.Timed.backgroundSecondary, in: RoundedRectangle(cornerRadius: 8))
             }
 
             // Override actions (non-voice)
@@ -782,11 +784,11 @@ struct MorningInterviewPane: View {
             }
 
             VStack(spacing: 10) {
-                energyButton(range: 9...10, label: "Peak energy",       desc: "Deep analytical work, big decisions", icon: "bolt.fill",             tint: .green)
-                energyButton(range: 7...8,  label: "Good energy",       desc: "Focused work, meetings, calls",       icon: "sun.max.fill",          tint: .blue)
-                energyButton(range: 5...6,  label: "Moderate",          desc: "Mix of focused and routine tasks",     icon: "cloud.sun.fill",        tint: .primary)
-                energyButton(range: 3...4,  label: "Low energy",        desc: "Quick replies, light admin, reading",  icon: "moon.fill",             tint: .orange)
-                energyButton(range: 1...2,  label: "Running on empty",  desc: "Only essentials — defer what you can", icon: "battery.25percent",     tint: .red)
+                energyButton(range: 9...10, label: "Peak energy",       desc: "Deep analytical work, big decisions", icon: "bolt.fill",             tint: Color.Timed.labelSecondary)
+                energyButton(range: 7...8,  label: "Good energy",       desc: "Focused work, meetings, calls",       icon: "sun.max.fill",          tint: Color.Timed.labelSecondary)
+                energyButton(range: 5...6,  label: "Moderate",          desc: "Mix of focused and routine tasks",     icon: "cloud.sun.fill",        tint: Color.Timed.labelSecondary)
+                energyButton(range: 3...4,  label: "Low energy",        desc: "Quick replies, light admin, reading",  icon: "moon.fill",             tint: Color.Timed.labelSecondary)
+                energyButton(range: 1...2,  label: "Running on empty",  desc: "Only essentials — defer what you can", icon: "battery.25percent",     tint: Color.Timed.labelSecondary)
             }
             .padding(.top, 4)
         }
@@ -841,9 +843,9 @@ struct MorningInterviewPane: View {
             }
 
             VStack(spacing: 10) {
-                interruptButton(.low,    "No — protected time",    "lock.shield.fill",  .green)
-                interruptButton(.medium, "A few interruptions",     "bell.badge.fill",   .orange)
-                interruptButton(.high,   "Frequent interruptions",  "bell.and.waves.left.and.right.fill", .red)
+                interruptButton(.low,    "No — protected time",    "lock.shield.fill",  Color.Timed.labelSecondary)
+                interruptButton(.medium, "A few interruptions",     "bell.badge.fill",   Color.Timed.labelSecondary)
+                interruptButton(.high,   "Frequent interruptions",  "bell.and.waves.left.and.right.fill", Color.Timed.labelSecondary)
             }
             .padding(.top, 8)
         }
@@ -893,7 +895,7 @@ struct MorningInterviewPane: View {
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(.white)
                         .frame(width: 28, height: 28)
-                        .background(Color.orange, in: Circle())
+                        .background(Color.Timed.labelPrimary, in: Circle())
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text("You have travel today")
@@ -908,12 +910,12 @@ struct MorningInterviewPane: View {
 
                     Text("Transit tasks prioritised")
                         .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(Color.Timed.labelSecondary)
                         .padding(.horizontal, 8).padding(.vertical, 3)
-                        .background(Color.orange.opacity(0.12), in: Capsule())
+                        .background(Color.Timed.backgroundSecondary, in: Capsule())
                 }
                 .padding(12)
-                .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+                .background(Color.Timed.backgroundSecondary, in: RoundedRectangle(cornerRadius: 10))
                 .padding(.bottom, 4)
             }
 
@@ -997,9 +999,9 @@ struct MorningInterviewPane: View {
                                     Text("uncertain")
                                         .font(.system(size: 10, weight: .medium))
                                 }
-                                .foregroundStyle(.orange)
+                                .foregroundStyle(Color.Timed.labelSecondary)
                                 .padding(.horizontal, 6).padding(.vertical, 2)
-                                .background(Color.orange.opacity(0.12), in: Capsule())
+                                .background(Color.Timed.backgroundSecondary, in: Capsule())
                                 .help("Low confidence estimate (\u{00B1}\(task.estimateUncertainty ?? 0)m) — consider overriding")
                             }
 
@@ -1814,14 +1816,14 @@ struct MorningInterviewPane: View {
             HStack(spacing: 6) {
                 Image(systemName: isListening ? "mic.fill" : "mic")
                     .font(.system(size: 12))
-                    .foregroundStyle(isListening ? .red : .secondary)
+                    .foregroundStyle(isListening ? Color.Timed.destructive : .secondary)
                 Text(isListening ? "Listening..." : "Speak instead")
                     .font(.system(size: 12))
-                    .foregroundStyle(isListening ? .red : .secondary)
+                    .foregroundStyle(isListening ? Color.Timed.destructive : .secondary)
             }
             .padding(.horizontal, 12).padding(.vertical, 6)
             .background(
-                isListening ? Color.red.opacity(0.08) : Color(.controlBackgroundColor),
+                isListening ? Color.Timed.destructive.opacity(0.08) : Color(.controlBackgroundColor),
                 in: Capsule()
             )
         }
@@ -2042,7 +2044,7 @@ struct AudioWaveformView: View {
     }
 
     private func barColor(for height: CGFloat) -> Color {
-        if height > 0.6 { return .red.opacity(0.8) }
+        // Live audio meter stays monochrome — intensity conveyed by height, not hue.
         if height > 0.3 { return .primary.opacity(0.7) }
         return .primary.opacity(0.35)
     }
@@ -2086,7 +2088,7 @@ struct InterviewTaskRow: View {
                         .font(.system(size: 9, weight: .bold))
                         .foregroundStyle(.white)
                         .padding(.horizontal, 5).padding(.vertical, 2)
-                        .background(.red, in: Capsule())
+                        .background(Color.Timed.destructive, in: Capsule())
                 }
             }
             .padding(.horizontal, 12).padding(.vertical, 9)

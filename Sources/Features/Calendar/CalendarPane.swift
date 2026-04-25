@@ -218,9 +218,9 @@ struct CalendarHeaderRow: View {
                 VStack(spacing: 3) {
                     Text(dayF.string(from: date).uppercased())
                         .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(isToday ? .blue : .secondary)
+                        .foregroundStyle(isToday ? Color.Timed.accent : .secondary)
                     ZStack {
-                        if isToday { Circle().fill(.blue).frame(width: 26, height: 26) }
+                        if isToday { Circle().fill(Color.Timed.accent).frame(width: 26, height: 26) }
                         Text(numF.string(from: date))
                             .font(.system(size: 15, weight: isToday ? .semibold : .regular))
                             .foregroundStyle(isToday ? .white : .primary)
@@ -296,10 +296,10 @@ struct CalendarGrid: View {
                     }
                 }
 
-                // Today column tint
+                // Today column tint — monochrome surface wash, no accent flood.
                 if let ti = todayIdx {
                     Rectangle()
-                        .fill(Color.blue.opacity(0.03))
+                        .fill(Color.Timed.backgroundSecondary.opacity(0.6))
                         .frame(width: colW, height: CGFloat(totalHours) * kHourH)
                         .offset(x: kTimeW + colW * CGFloat(ti))
                 }
@@ -334,12 +334,13 @@ struct CalendarGrid: View {
                     }
                 }
 
-                // Current-time line
+                // Current-time line — Apple Calendar uses a red "now" indicator;
+                // route it through our destructive token so it stays within the palette.
                 if let yOff = nowOffset, let ti = todayIdx {
                     HStack(spacing: 0) {
                         Color.clear.frame(width: kTimeW + colW * CGFloat(ti) - 4)
-                        Circle().fill(.red).frame(width: 8, height: 8)
-                        Rectangle().fill(.red).frame(width: colW, height: 1.5)
+                        Circle().fill(Color.Timed.destructive).frame(width: 8, height: 8)
+                        Rectangle().fill(Color.Timed.destructive).frame(width: colW, height: 1.5)
                     }
                     .offset(y: yOff - 4)
                     .zIndex(10)
@@ -354,15 +355,15 @@ struct CalendarGrid: View {
 
                     ZStack(alignment: .topLeading) {
                         RoundedRectangle(cornerRadius: 5)
-                            .fill(Color.blue.opacity(0.12))
+                            .fill(Color.Timed.accent.opacity(0.12))
                             .overlay(
                                 RoundedRectangle(cornerRadius: 5)
                                     .strokeBorder(style: StrokeStyle(lineWidth: 1.5, dash: [5, 3]))
-                                    .foregroundStyle(.blue.opacity(0.5))
+                                    .foregroundStyle(Color.Timed.accent.opacity(0.5))
                             )
                         Text(dragTimeLabel(startY: startY, currentY: curY))
                             .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(.blue)
+                            .foregroundStyle(Color.Timed.accent)
                             .padding(.leading, 6).padding(.top, 4)
                     }
                     .frame(width: colW - 4, height: previewH)
@@ -535,7 +536,7 @@ struct BlockPopover: View {
             // Actions
             HStack {
                 Button("Start Focus") { onStartFocus() }
-                    .buttonStyle(.borderedProminent).tint(.blue).controlSize(.small)
+                    .buttonStyle(.borderedProminent).tint(Color.Timed.accent).controlSize(.small)
                 Spacer()
                 Button("Remove", role: .destructive) { onRemove() }
                     .controlSize(.small)
@@ -564,19 +565,19 @@ struct FreeTimeSlotCell: View {
     var body: some View {
         ZStack(alignment: .topLeading) {
             RoundedRectangle(cornerRadius: 5)
-                .fill(Color.green.opacity(0.06))
+                .fill(Color.Timed.backgroundSecondary)
                 .overlay(
                     RoundedRectangle(cornerRadius: 5)
                         .strokeBorder(style: StrokeStyle(lineWidth: 1.5, dash: [6, 4]))
-                        .foregroundStyle(.green.opacity(0.5))
+                        .foregroundStyle(Color.Timed.separator)
                 )
             VStack(alignment: .leading, spacing: 1) {
                 Text("Free time")
                     .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(.green)
+                    .foregroundStyle(Color.Timed.labelSecondary)
                 Text("\(slot.durationMinutes) min")
                     .font(.system(size: 9))
-                    .foregroundStyle(.green.opacity(0.75))
+                    .foregroundStyle(Color.Timed.labelTertiary)
             }
             .padding(.leading, 6).padding(.top, 4)
         }

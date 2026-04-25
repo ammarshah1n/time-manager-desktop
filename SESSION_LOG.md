@@ -1250,3 +1250,160 @@ The three auto-appended entries above are passive hook noise — this session wa
 - Tightened `~/CLAUDE.md` Tool Dispatch item #1 to auto-route any complex research / fresh-info query to `/comet`.
 
 **Done outside this repo, so no commit here.** Next Timed session should resume from the existing Timed HANDOFF.md unchanged.
+
+---
+## Session: 2026-04-25 01:37
+
+### Commits This Session
+ab49787 docs(session-log): clarify 2026-04-25 entries are Comet-MCP session, not Timed
+74a379c chore: voice-first onboarding bridge, hook refactor, archive .codex/ralph
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-25 01:47
+
+### Commits This Session
+ab49787 docs(session-log): clarify 2026-04-25 entries are Comet-MCP session, not Timed
+74a379c chore: voice-first onboarding bridge, hook refactor, archive .codex/ralph
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-25 01:59
+
+### Commits This Session
+ab49787 docs(session-log): clarify 2026-04-25 entries are Comet-MCP session, not Timed
+74a379c chore: voice-first onboarding bridge, hook refactor, archive .codex/ralph
+
+### Modified Files
+.build/.lock
+.build/plugins/cache/SwiftProtobufPlugin.dia
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Resources/Relocations/aarch64/SwiftProtobufPlugin.yml
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Resources/DWARF/SwiftProtobufPlugin
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Resources/Swift/aarch64/PackagePlugin.swiftinterface
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Info.plist
+.build/plugins/cache/SwiftProtobufPlugin-state.json
+.build/plugins/cache/SwiftProtobufPlugin
+.build/debug.yaml
+.build/plugin-tools.yaml
+.build/arm64-apple-macosx/debug/ElevenLabs.build/output-file-map.json
+.build/arm64-apple-macosx/debug/Crypto.build/output-file-map.json
+.build/arm64-apple-macosx/debug/USearch.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftOperators.build/output-file-map.json
+.build/arm64-apple-macosx/debug/Supabase.build/output-file-map.json
+
+---
+## Session: 2026-04-25 02:10
+
+### Commits This Session
+ab49787 docs(session-log): clarify 2026-04-25 entries are Comet-MCP session, not Timed
+74a379c chore: voice-first onboarding bridge, hook refactor, archive .codex/ralph
+
+### Modified Files
+research/stitch-mocks/splash-v1/splash-dark.png
+research/stitch-mocks/splash-v1/splash-light.png
+logs/watchdog-launchd.log
+logs/watchdog.log
+DESIGN.md
+
+---
+## Session: 2026-04-25 02:40
+
+### Commits This Session
+ab49787 docs(session-log): clarify 2026-04-25 entries are Comet-MCP session, not Timed
+74a379c chore: voice-first onboarding bridge, hook refactor, archive .codex/ralph
+
+### Modified Files
+.build/.lock
+.build/arm64-apple-macosx/debug/time-manager-desktop
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/OnboardingFlow.dia
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/VoiceOnboardingView.d
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/AlertDeliveryView.d
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/TimeManagerDesktopApp.swift.o
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/AlertDeliveryView.dia
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/MorningBriefingPane.d
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/VoiceOnboardingView.swiftdeps
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/time_manager_desktop.emit-module.d
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/MorningInterviewPane.d
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/TasksPane.swift.o
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/TriagePane.dia
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/PreviewData.d
+.build/arm64-apple-macosx/debug/time_manager_desktop.build/CalendarPane.swiftdeps
+
+---
+## Session: 2026-04-25 12:39
+
+### Commits This Session
+(no recent commits)
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-25 12:52
+
+### Commits This Session
+(no recent commits)
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-25 13:17
+
+### Commits This Session
+(no recent commits)
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-25 13:27
+
+### Commits This Session
+(no recent commits)
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-25 13:41
+
+### Commits This Session
+(no recent commits)
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-25 13:55
+
+### Commits This Session
+74b43b0 ui: strip raw colour app-wide; neutralise sidebar/buckets; kill cinematic splash
+
+### Modified Files
+.build/.lock
+.build/debug.yaml
+.build/plugin-tools.yaml
+.build/arm64-apple-macosx/debug/ElevenLabs.build/output-file-map.json
+.build/arm64-apple-macosx/debug/Crypto.build/output-file-map.json
+.build/arm64-apple-macosx/debug/USearch.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftOperators.build/output-file-map.json
+.build/arm64-apple-macosx/debug/Supabase.build/output-file-map.json
+.build/arm64-apple-macosx/debug/CasePathsCore.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftParser-tool.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftCompilerPluginMessageHandling-tool.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftUINavigation.build/output-file-map.json
+.build/arm64-apple-macosx/debug/time-manager-desktop
+.build/arm64-apple-macosx/debug/Functions.build/output-file-map.json
+.build/arm64-apple-macosx/debug/HTTPTypes.build/output-file-map.json

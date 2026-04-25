@@ -131,11 +131,12 @@ struct CapturePane: View {
             } label: {
                 HStack(spacing: 10) {
                     ZStack {
+                        // Recording = live destructive signal; idle = primary (black/white).
                         Circle()
-                            .fill(voice.isRecording ? Color.red : Color.primary)
+                            .fill(voice.isRecording ? Color.Timed.destructive : Color.primary)
                             .frame(width: 48, height: 48)
                         Circle()
-                            .fill(voice.isRecording ? Color.red.opacity(0.3) : Color.clear)
+                            .fill(voice.isRecording ? Color.Timed.destructive.opacity(0.3) : Color.clear)
                             .frame(width: 48, height: 48)
                             .scaleEffect(pulseAnimation ? 1.5 : 1.0)
                             .opacity(pulseAnimation ? 0 : 0.6)
@@ -149,7 +150,7 @@ struct CapturePane: View {
                             .font(.system(size: 18, weight: .medium))
                             .foregroundStyle(.white)
                     }
-                    .shadow(color: voice.isRecording ? .red.opacity(0.4) : .primary.opacity(0.3), radius: voice.isRecording ? 8 : 4)
+                    .shadow(color: voice.isRecording ? Color.Timed.destructive.opacity(0.4) : .primary.opacity(0.3), radius: voice.isRecording ? 8 : 4)
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text(voice.isRecording ? "Recording… tap to stop" : "Hold to record")
@@ -172,12 +173,12 @@ struct CapturePane: View {
                 }
                 .padding(.horizontal, 16).padding(.vertical, 12)
                 .background(
-                    voice.isRecording ? Color.red.opacity(0.06) : Color(.controlBackgroundColor),
+                    Color(.controlBackgroundColor),
                     in: RoundedRectangle(cornerRadius: 12)
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 12)
-                        .strokeBorder(voice.isRecording ? Color.red.opacity(0.3) : Color.clear, lineWidth: 1.5)
+                        .strokeBorder(voice.isRecording ? Color.Timed.destructive.opacity(0.3) : Color.clear, lineWidth: 1.5)
                 )
             }
             .buttonStyle(.plain)
@@ -186,10 +187,10 @@ struct CapturePane: View {
                 HStack(spacing: 6) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.system(size: 11))
-                        .foregroundStyle(.red)
+                        .foregroundStyle(Color.Timed.destructive)
                     Text("Voice capture unavailable. Check microphone permissions in System Settings.")
                         .font(.system(size: 11))
-                        .foregroundStyle(.red)
+                        .foregroundStyle(Color.Timed.destructive)
                         .lineLimit(2)
                 }
                 .padding(.horizontal, 4)
@@ -529,7 +530,7 @@ struct CaptureRow: View {
 
                 if item.isConverted {
                     Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
+                        .foregroundStyle(Color.Timed.labelSecondary)
                         .font(.system(size: 13))
                 }
 

@@ -48,13 +48,7 @@ struct MorningCheckInView: View {
 
     @ViewBuilder
     private var background: some View {
-        ZStack {
-            BrandColor.surface
-            RadialGradient(
-                colors: [BrandColor.primary.opacity(0.22), .clear],
-                center: .center, startRadius: 40, endRadius: 520
-            )
-        }
+        Color.Timed.backgroundPrimary
     }
 
     @ViewBuilder
@@ -62,29 +56,29 @@ struct MorningCheckInView: View {
         switch manager.phase {
         case .idle:
             Text("Ready when you are")
-                .font(BrandType.body)
-                .foregroundStyle(BrandColor.ink.opacity(0.55))
+                .font(TimedType.body)
+                .foregroundStyle(Color.Timed.labelSecondary)
         case .connecting:
             Text("Connecting…")
-                .font(BrandType.body)
-                .foregroundStyle(BrandColor.ink.opacity(0.55))
+                .font(TimedType.body)
+                .foregroundStyle(Color.Timed.labelSecondary)
         case .active:
             Text(manager.isAgentSpeaking ? "Speaking" : "Listening")
-                .font(BrandType.body)
-                .foregroundStyle(BrandColor.primary)
+                .font(TimedType.body)
+                .foregroundStyle(Color.Timed.labelPrimary)
                 .contentTransition(.opacity)
         case .ending:
             Text("Saving your session…")
-                .font(BrandType.body)
-                .foregroundStyle(BrandColor.ink.opacity(0.55))
+                .font(TimedType.body)
+                .foregroundStyle(Color.Timed.labelSecondary)
         case .ended:
             Text("Done")
-                .font(BrandType.body)
-                .foregroundStyle(BrandColor.ink.opacity(0.55))
+                .font(TimedType.body)
+                .foregroundStyle(Color.Timed.labelSecondary)
         case .failed(let msg):
             Text(msg)
-                .font(BrandType.body)
-                .foregroundStyle(.orange)
+                .font(TimedType.body)
+                .foregroundStyle(Color.Timed.destructive)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 40)
         }
@@ -101,7 +95,7 @@ struct MorningCheckInView: View {
                     Text(transcriptCollapsed ? "Show transcript" : "Hide transcript")
                         .font(.system(size: 12, weight: .medium))
                 }
-                .foregroundStyle(BrandColor.ink.opacity(0.5))
+                .foregroundStyle(Color.Timed.labelTertiary)
             }
             .buttonStyle(.plain)
 
@@ -121,15 +115,11 @@ struct MorningCheckInView: View {
                             Text(msg.role.lowercased().contains("user") ? "You" : "Timed")
                                 .font(.system(size: 11, weight: .semibold))
                                 .tracking(1.0)
-                                .foregroundStyle(
-                                    msg.role.lowercased().contains("user")
-                                    ? BrandColor.ink.opacity(0.45)
-                                    : BrandColor.primary
-                                )
+                                .foregroundStyle(Color.Timed.labelTertiary)
                                 .frame(width: 42, alignment: .leading)
                             Text(msg.content)
-                                .font(BrandType.body)
-                                .foregroundStyle(BrandColor.ink.opacity(0.85))
+                                .font(TimedType.body)
+                                .foregroundStyle(Color.Timed.labelPrimary)
                         }
                         .id(msg.id)
                     }
@@ -175,66 +165,60 @@ struct MorningCheckInView: View {
     }
 }
 
-// MARK: - Orb
+// MARK: - Voice indicator
+//
+// Static, state-aware system icon. No gradients, no decorative pulse — every
+// animation here is bound to a real signal (the phase changes, or
+// `.symbolEffect(.variableColor.iterative)` while the agent speaks).
+// Apple's Voice Memos / Siri use the same idiom.
 
 struct OrbView: View {
     let isActive: Bool
     let phase: MorningCheckInManager.Phase
 
-    @State private var pulse: CGFloat = 1.0
-    @State private var hue: Double = 0.0
-
     var body: some View {
         ZStack {
-            // Glow halo — amplitude reacts to isActive.
-            Circle()
-                .fill(BrandColor.primary.opacity(isActive ? 0.35 : 0.18))
-                .blur(radius: isActive ? 48 : 28)
-                .scaleEffect(isActive ? 1.2 : 1.0)
+            switch phase {
+            case .idle, .ended:
+                Image(systemName: "mic")
+                    .font(.system(size: 56, weight: .light))
+                    .foregroundStyle(Color.Timed.labelTertiary)
 
-            // Main orb — radial gradient + slow rotation.
-            Circle()
-                .fill(
-                    AngularGradient(
-                        colors: [
-                            BrandColor.primary,
-                            BrandColor.accent,
-                            BrandColor.primary.opacity(0.75),
-                            BrandColor.primary,
-                        ],
-                        center: .center,
-                        angle: .degrees(hue)
-                    )
-                )
-                .scaleEffect(pulse)
+            case .connecting, .ending:
+                ProgressView()
+                    .controlSize(.large)
 
-            // Specular highlight — a cheap illusion of depth.
-            Circle()
-                .fill(
-                    RadialGradient(
-                        colors: [.white.opacity(0.55), .clear],
-                        center: UnitPoint(x: 0.35, y: 0.30),
-                        startRadius: 2,
-                        endRadius: 70
-                    )
-                )
-                .blendMode(.plusLighter)
+            case .active:
+                if isActive {
+                    Image(systemName: "waveform")
+                        .font(.system(size: 56, weight: .light))
+                        .foregroundStyle(Color.Timed.labelPrimary)
+                        .symbolEffect(.variableColor.iterative, options: .repeating)
+                        .contentTransition(.symbolEffect(.replace))
+                } else {
+                    Image(systemName: "mic.fill")
+                        .font(.system(size: 56, weight: .light))
+                        .foregroundStyle(Color.Timed.destructive)
+                        .contentTransition(.symbolEffect(.replace))
+                }
+
+            case .failed:
+                Image(systemName: "exclamationmark.triangle")
+                    .font(.system(size: 48, weight: .light))
+                    .foregroundStyle(Color.Timed.destructive)
+            }
         }
-        .onAppear { startAnimations() }
-        .onChange(of: isActive) { _, _ in restartPulse() }
+        .frame(width: 96, height: 96)
+        .accessibilityLabel(accessibilityLabel)
     }
 
-    private func startAnimations() {
-        // Slow rotation always running; hue communicates "alive".
-        withAnimation(.linear(duration: 10).repeatForever(autoreverses: false)) {
-            hue = 360
-        }
-        restartPulse()
-    }
-
-    private func restartPulse() {
-        withAnimation(.easeInOut(duration: isActive ? 0.5 : 1.2).repeatForever(autoreverses: true)) {
-            pulse = isActive ? 1.08 : 1.02
+    private var accessibilityLabel: String {
+        switch phase {
+        case .idle, .ended:    return "Microphone idle"
+        case .connecting:      return "Connecting"
+        case .ending:          return "Saving session"
+        case .active:          return isActive ? "Speaking" : "Listening"
+        case .failed:          return "Error"
         }
     }
 }

@@ -53,11 +53,11 @@ struct TimedRootView: View {
         .overlay(alignment: .topTrailing) {
             if !network.isConnected {
                 Text("Offline")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 10).padding(.vertical, 4)
-                    .background(.orange, in: Capsule())
-                    .padding(12)
+                    .font(TimedType.caption2)
+                    .foregroundStyle(Color.Timed.labelSecondary)
+                    .padding(.horizontal, TimedLayout.Spacing.sm)
+                    .padding(.vertical, TimedLayout.Spacing.xxs)
+                    .padding(TimedLayout.Spacing.sm)
             }
         }
         .onChange(of: auth.graphAccessToken) { _, newToken in
@@ -243,40 +243,21 @@ struct TimedRootView: View {
     private var sidebar: some View {
         List(selection: $selection) {
 
-            // ── Dish Me Up ────────────────────────────────────────────
-            SidebarRow(
-                label: "Dish Me Up",
-                icon: "sparkles",
-                color: BrandColor.primary,
-                badge: 0,
-                isSelected: selection == .dishMeUp
-            )
-            .tag(NavSection.dishMeUp)
+            SidebarRow(label: "Dish Me Up", icon: "play.circle",
+                       isSelected: selection == .dishMeUp)
+                .tag(NavSection.dishMeUp)
 
-            // ── Today ──────────────────────────────────────────────────
-            SidebarRow(
-                label: "Today",
-                icon: "calendar",
-                color: Color.Timed.accent,
-                badge: 0,
-                isSelected: selection == .today
-            )
-            .tag(NavSection.today)
+            SidebarRow(label: "Today", icon: "calendar",
+                       isSelected: selection == .today)
+                .tag(NavSection.today)
 
-            // ── Triage ─────────────────────────────────────────────────
-            // Hidden in v1 beta — email triage is a separate product
             if !v1BetaMode {
-                SidebarRow(
-                    label: "Triage",
-                    icon: "tray.and.arrow.down.fill",
-                    color: .red,
-                    badge: triageItems.count,
-                    isSelected: selection == .triage
-                )
-                .tag(NavSection.triage)
+                SidebarRow(label: "Triage", icon: "tray.and.arrow.down",
+                           badge: triageItems.count,
+                           isSelected: selection == .triage)
+                    .tag(NavSection.triage)
             }
 
-            // ── WORK ───────────────────────────────────────────────────
             Section {
                 let workBuckets: [TaskBucket] = [.action, .calls, .reply, .readToday, .readThisWeek, .transit]
                 ForEach(workBuckets, id: \.self) { bucket in
@@ -286,7 +267,7 @@ struct TimedRootView: View {
                     SidebarRow(
                         label: bucket.rawValue,
                         icon: bucket.icon,
-                        color: bucket.color,
+                        dotColor: bucket.dotColor,
                         badge: bucketTasks.count,
                         timeHint: totalMins > 0 ? timeHint(totalMins) : nil,
                         isSelected: selection == .tasks(bucket)
@@ -294,37 +275,31 @@ struct TimedRootView: View {
                     .tag(NavSection.tasks(bucket))
                 }
 
-                // Waiting on Others — hidden in v1 beta (delegation feature)
                 if !v1BetaMode {
-                    SidebarRow(
-                        label: "Waiting",
-                        icon: "clock.badge.questionmark",
-                        color: .teal,
-                        badge: overdueWOOCount,
-                        isSelected: selection == .waiting
-                    )
-                    .tag(NavSection.waiting)
+                    SidebarRow(label: "Waiting", icon: "clock.badge.questionmark",
+                               badge: overdueWOOCount,
+                               isSelected: selection == .waiting)
+                        .tag(NavSection.waiting)
                 }
-
             } header: {
                 sidebarHeader("WORK")
             }
 
-            // ── TOOLS ──────────────────────────────────────────────────
             Section {
-                SidebarRow(label: "Capture", icon: "mic.fill", color: .primary, badge: 0, isSelected: selection == .capture)
+                SidebarRow(label: "Capture", icon: "mic",
+                           isSelected: selection == .capture)
                     .tag(NavSection.capture)
 
-                SidebarRow(label: "Calendar", icon: "calendar", color: .blue, badge: 0, isSelected: selection == .calendar)
+                SidebarRow(label: "Calendar", icon: "calendar",
+                           isSelected: selection == .calendar)
                     .tag(NavSection.calendar)
-
             } header: {
                 sidebarHeader("TOOLS")
             }
 
-            // ── Settings ───────────────────────────────────────────────
             Section {
-                SidebarRow(label: "Settings", icon: "gear", color: Color(.systemGray), badge: 0, isSelected: selection == .prefs)
+                SidebarRow(label: "Settings", icon: "gearshape",
+                           isSelected: selection == .prefs)
                     .tag(NavSection.prefs)
             }
         }
@@ -379,8 +354,8 @@ struct TimedRootView: View {
     @ViewBuilder
     private func sidebarHeader(_ title: String) -> some View {
         Text(title)
-            .font(.system(size: 10, weight: .semibold))
-            .foregroundStyle(.secondary)
+            .font(TimedType.caption2)
+            .foregroundStyle(Color.Timed.labelTertiary)
             .tracking(1.2)
     }
 
@@ -478,34 +453,40 @@ enum NavSection: Hashable {
 struct SidebarRow: View {
     let label: String
     let icon: String
-    let color: Color
-    let badge: Int
+    var dotColor: Color? = nil
+    var badge: Int = 0
     var timeHint: String? = nil
     var isSelected: Bool = false
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: TimedLayout.Spacing.xs) {
             Image(systemName: icon)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(color)
+                .font(TimedType.subheadline)
+                .foregroundStyle(isSelected ? Color.Timed.labelPrimary : Color.Timed.labelSecondary)
                 .frame(width: 20)
                 .contentTransition(.symbolEffect(.replace))
 
+            if let dotColor {
+                BucketDot(color: dotColor)
+            }
+
             Text(label)
-                .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
+                .font(TimedType.subheadline)
+                .foregroundStyle(Color.Timed.labelPrimary)
+                .fontWeight(isSelected ? .semibold : .regular)
 
             Spacer()
 
             if let hint = timeHint {
                 Text(hint)
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.secondary)
+                    .font(TimedType.caption2)
+                    .foregroundStyle(Color.Timed.labelTertiary)
             }
 
             if badge > 0 {
                 Text("\(badge)")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
+                    .font(TimedType.caption)
+                    .foregroundStyle(Color.Timed.labelTertiary)
             }
         }
         .animation(TimedMotion.smooth, value: isSelected)
