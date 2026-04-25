@@ -38,8 +38,7 @@ CREATE POLICY email_sync_state_service_all
 REVOKE ALL ON public.email_sync_state FROM anon, authenticated;
 
 COMMENT ON TABLE public.email_sync_state IS
-  'Per-executive delta pagination state for server-side Graph sync. '
-  || 'Written only by Trigger.dev tasks under the service role.';
+  'Per-executive delta pagination state for server-side Graph sync. Written only by Trigger.dev tasks under the service role.';
 
 -- 2. graph_subscriptions ----------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.graph_subscriptions (
@@ -71,8 +70,7 @@ CREATE POLICY graph_subscriptions_service_all
 REVOKE ALL ON public.graph_subscriptions FROM anon, authenticated;
 
 COMMENT ON TABLE public.graph_subscriptions IS
-  'Live Microsoft Graph change-notification subscriptions. '
-  || 'Renewed every 2 hours by the graph-webhook-renewal Trigger.dev task.';
+  'Live Microsoft Graph change-notification subscriptions. Renewed every 2 hours by the graph-webhook-renewal Trigger.dev task.';
 
 -- 3. calendar_observations: Graph event id for dedup ------------------------
 -- calendar_observations has no natural key today (no graph_event_id, no
@@ -88,6 +86,4 @@ CREATE UNIQUE INDEX IF NOT EXISTS calendar_observations_exec_graph_event_uidx
     WHERE graph_event_id IS NOT NULL;
 
 COMMENT ON COLUMN public.calendar_observations.graph_event_id IS
-  'Microsoft Graph event id. Nullable because pre-Wave-2 rows were inserted '
-  || 'from the Swift client without it. Used by graph-calendar-delta-sync '
-  || 'for ON CONFLICT dedup via calendar_observations_exec_graph_event_uidx.';
+  'Microsoft Graph event id. Nullable because pre-Wave-2 rows were inserted from the Swift client without it. Used by graph-calendar-delta-sync for ON CONFLICT dedup via calendar_observations_exec_graph_event_uidx.';
