@@ -1,4 +1,3 @@
-#if os(macOS)
 // PrefsPane.swift — Timed macOS Preview
 // Settings: email accounts, sync, time blocks, notifications, appearance, voice.
 
@@ -269,23 +268,16 @@ struct AppearanceTab: View {
 // MARK: - Voice
 
 struct VoiceTab: View {
-    @AppStorage("elevenlabs_voice_id") private var voiceId = ""
+    @AppStorage("elevenlabs_voice_id") private var voiceId = "pFZP5JQG7iQjIQuC4Bku"
 
     var body: some View {
         Form {
             Section("Voice") {
                 TextField("Voice ID", text: $voiceId)
                     .textFieldStyle(.roundedBorder)
-                Text("Lily (warm British female) is the default. Change the Voice ID to use a different ElevenLabs voice.")
+                Text("ElevenLabs voice used for one-shot confirmations (Capture, Dish Me Up). Default is Lily — paste a different ElevenLabs voice ID to change it. The conversational orb uses the voice baked into your agent.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-            }
-            Section {
-                Text("All AI services run through Timed's secure backend. You never need to enter API keys.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } header: {
-                Text("Intelligence")
             }
         }
         .formStyle(.grouped)
@@ -410,5 +402,3 @@ struct LearningTab: View {
         }
     }
 }
-
-#endif

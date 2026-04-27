@@ -1,6 +1,8 @@
 // SpeechService.swift — Timed Core
-// Text-to-speech via ElevenLabs REST API with AVSpeechSynthesizer fallback.
-// British English voice, executive-appropriate tone and pacing.
+// Text-to-speech via the elevenlabs-tts-proxy Edge Function. The ElevenLabs
+// API key lives server-side; the client never holds it. No Apple TTS fallback
+// — if the proxy is unreachable, the failure surfaces visibly so we can fix
+// the real cause instead of silently switching to AVSpeechSynthesizer.
 
 import AVFoundation
 import SwiftUI
@@ -11,35 +13,32 @@ final class SpeechService: NSObject, ObservableObject {
     // MARK: - Published state
 
     @Published private(set) var isSpeaking: Bool = false
+    @Published private(set) var lastError: String?
     @AppStorage("elevenlabs_voice_id") private var voiceId: String = "pFZP5JQG7iQjIQuC4Bku" // Lily — velvety, warm female
 
     // MARK: - Private
 
-    private let synthesizer = AVSpeechSynthesizer()
     private var audioPlayer: AVAudioPlayer?
     private var activeTask: Task<Void, Never>?
 
-    // MARK: - Init
-
-    override init() {
-        super.init()
-        synthesizer.delegate = self
-    }
-
     // MARK: - Public API
 
+    /// Speak `text` via the elevenlabs-tts-proxy Edge Function. The `rate`
+    /// parameter is ignored (kept for source compatibility with prior callers
+    /// that passed an AVSpeech rate value).
     func speak(_ text: String, rate: Float = 0.50) {
+        _ = rate
         stop()
         isSpeaking = true
+        lastError = nil
 
         activeTask = Task {
-            let success = await elevenLabsSpeak(text)
+            let success = await proxiedSpeak(text)
             if !success, !Task.isCancelled {
-                fallbackSpeak(text, rate: rate)
-                return
-            }
-            if Task.isCancelled {
-                isSpeaking = false
+                self.isSpeaking = false
+                if self.lastError == nil {
+                    self.lastError = "Voice playback unavailable. Check connection."
+                }
             }
         }
     }
@@ -49,27 +48,57 @@ final class SpeechService: NSObject, ObservableObject {
         activeTask = nil
         audioPlayer?.stop()
         audioPlayer = nil
-        if synthesizer.isSpeaking {
-            synthesizer.stopSpeaking(at: .immediate)
-        }
         isSpeaking = false
     }
 
-    // MARK: - ElevenLabs TTS
+    // MARK: - Edge Function call
 
-    private func elevenLabsSpeak(_ text: String) async -> Bool {
+    private func proxiedSpeak(_ text: String) async -> Bool {
+        guard let url = SupabaseEndpoints.functionURL("elevenlabs-tts-proxy") else {
+            lastError = "Invalid TTS endpoint."
+            return false
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue(SupabaseEndpoints.authHeader, forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("audio/mpeg", forHTTPHeaderField: "Accept")
+
+        let body: [String: Any] = [
+            "text": text,
+            "voice_id": voiceId,
+        ]
+        guard let httpBody = try? JSONSerialization.data(withJSONObject: body) else { return false }
+        request.httpBody = httpBody
+
         do {
-            let stream = try await EdgeFunctions.shared.ttsBytes(text: text, voiceId: voiceId)
-            var audioData = Data()
-            audioData.reserveCapacity(128_000)
-            for try await chunk in stream {
-                if Task.isCancelled { return false }
-                audioData.append(chunk)
+            let (asyncBytes, response) = try await URLSession.shared.bytes(for: request)
+
+            guard let httpResponse = response as? HTTPURLResponse else {
+                lastError = "TTS proxy: no HTTP response."
+                return false
+            }
+            guard httpResponse.statusCode == 200 else {
+                lastError = "TTS proxy HTTP \(httpResponse.statusCode)."
+                return false
             }
 
             if Task.isCancelled { return false }
+
+            var audioData = Data()
+            audioData.reserveCapacity(128_000)
+
+            for try await byte in asyncBytes {
+                if Task.isCancelled { return false }
+                audioData.append(byte)
+            }
+
+            if Task.isCancelled { return false }
+
             return await playAudioData(audioData)
         } catch {
+            lastError = "TTS error: \(error.localizedDescription)"
             return false
         }
     }
@@ -82,7 +111,6 @@ final class SpeechService: NSObject, ObservableObject {
             player.prepareToPlay()
             player.play()
 
-            // Wait for playback to finish
             while player.isPlaying {
                 if Task.isCancelled {
                     player.stop()
@@ -96,45 +124,8 @@ final class SpeechService: NSObject, ObservableObject {
             self.isSpeaking = false
             return true
         } catch {
+            lastError = "Audio playback failed: \(error.localizedDescription)"
             return false
-        }
-    }
-
-    // MARK: - AVSpeechSynthesizer Fallback
-
-    private func fallbackSpeak(_ text: String, rate: Float) {
-        let utterance = AVSpeechUtterance(string: text)
-        utterance.rate = rate
-        utterance.voice = resolveVoice()
-        utterance.pitchMultiplier = 1.0
-        utterance.preUtteranceDelay = 0.15
-        utterance.postUtteranceDelay = 0.1
-        synthesizer.speak(utterance)
-    }
-
-    private func resolveVoice() -> AVSpeechSynthesisVoice? {
-        AVSpeechSynthesisVoice(language: "en-GB")
-    }
-}
-
-// MARK: - AVSpeechSynthesizerDelegate
-
-extension SpeechService: AVSpeechSynthesizerDelegate {
-    nonisolated func speechSynthesizer(
-        _ synthesizer: AVSpeechSynthesizer,
-        didFinish utterance: AVSpeechUtterance
-    ) {
-        Task { @MainActor in
-            self.isSpeaking = false
-        }
-    }
-
-    nonisolated func speechSynthesizer(
-        _ synthesizer: AVSpeechSynthesizer,
-        didCancel utterance: AVSpeechUtterance
-    ) {
-        Task { @MainActor in
-            self.isSpeaking = false
         }
     }
 }

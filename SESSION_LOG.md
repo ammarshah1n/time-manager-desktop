@@ -1,33 +1,5 @@
 # SESSION_LOG.md
 
-### 2026-04-26 — Today orb shipped + production refactor + audit/collab fixes
-**Done**: Shipped the Today conversational orb (mic on Today pane → multi-turn Opus 4.7 streaming with tool use). Pulled every third-party API key off the client — 4 new Edge Functions (orb-conversation, orb-tts, deepgram-token, anthropic-relay) + Swift services rerouted. Migrated 4 single-tenant Edge Functions to JWT-resolved executive_id. Tightened 3 service-role functions against body-supplied tenant IDs. RLS hardening migration deployed (behaviour_events partitions, executives insert, SECURITY DEFINER, view security_invoker, pipeline_health_log). Untrusted-content fencing on observations/ACB/client_state. Tool arg validation + clamping; replan throttle; conversation history cap. Mic + sync stop on app deactivate / sign-out. Anthropic SSE filter strips thinking + usage. iWork-style T icon. /collab convergence: ~250 lines of dead Intro/Brand/Tier0 surfaces deleted.
-
-**In progress**: nothing blocking — feature is live end-to-end on production Supabase.
-
-**Discovered**:
-- Project hook `.claude/hooks/permission-check.sh` hard-denies certain infra commands regardless of chat authorization. Print, don't promise autonomous run.
-- macOS `.noindex` directory suffix excludes from Spotlight — applied to dist/ to clean Cmd+Space.
-- ElevenLabs SDK + LiveKitWebRTC.framework dep is unused at runtime now (TTS is server-proxied) — ~50MB drop available.
-
-**Next**: `Sources/Features/Conversation/ConversationView.swift` if any UI follow-up; otherwise pursue the 5 deferred prod-readiness items in TickTick (Developer ID + notarization, local-file encryption, per-user rate limits, OAuth callback hardening, GDPR deletes).
-
-### Commits this session
-b718bc3 chore: apply /collab convergence — drop dead Intro / Brand / Tier0 surfaces
-2e41afd sec: privacy logs + provider error sanitisation + SSE filter
-ed32588 sec: production hardening — close findings from 4-pass audit
-caa0501 chore: deploy script lists new orb Edge Functions + prereqs
-6ad1b7f feat: production-grade — pull all third-party API keys server-side
-5166e1d chore: gitignore dist.noindex/ and untrack the bundle accidentally committed
-4236ae2 feat: redesign icon as iWork-style T mark + dedupe Spotlight build artifacts
-24d1c92 feat: redesign app icon to match Apple-native monochrome aesthetic
-7fa807a feat: multi-user — strip Yasser hardcoding from app + edge functions
-bea9528 feat: package-ready Today orb — Keychain for all keys, dynamic principal name, error surfacing
-5839f8c fix: tighten Today orb — true streaming TTS, correct end-of-utterance, real Dish Me Up plan, rich persona
-2ecc5bb feat: add Today conversation orb
-
----
-
 ### 2026-04-16 — ElevenLabs Onboarding Voice + Intelligent Capture + Hero Screen
 **Done**:
 - Redesigned onboarding from 8 to 10 steps: hero animation, name entry, voice picker
@@ -1461,41 +1433,231 @@ logs/watchdog.log
 .build/arm64-apple-macosx/debug/time_manager_desktop.build/VoiceOnboardingView.dia
 
 ---
-## Session: 2026-04-25 22:39
+## Session: 2026-04-25 14:18
 
 ### Commits This Session
-caa0501 chore: deploy script lists new orb Edge Functions + prereqs (DEEPGRAM_PROJECT_ID)
-6ad1b7f feat: production-grade — pull all third-party API keys server-side
-5166e1d chore: gitignore dist.noindex/ and untrack the bundle accidentally committed
-4236ae2 feat: redesign icon as iWork-style T mark + dedupe Spotlight build artifacts
-24d1c92 feat: redesign app icon to match Apple-native monochrome aesthetic
+af808fc docs: session-log + build-state snapshot for monochrome UI session
+04470fd ui: rebuild Dish Me Up; introduce BucketDot pattern; bottle design system as skill
+74b43b0 ui: strip raw colour app-wide; neutralise sidebar/buckets; kill cinematic splash
 
 ### Modified Files
-research/feedback-loops/loop-01-insights-engine.md
-research/feedback-loops/loop-02-email-classification.md
-research/feedback-loops/loop-03-time-estimation.md
-research/perplexity-outputs/05-time-slot-engine.md
-research/perplexity-outputs/04-cold-start.md
-research/perplexity-outputs/13-architecture-report.md
-research/perplexity-outputs/02-intelligence-architecture.md
-research/perplexity-outputs/12-build-process.md
-research/perplexity-outputs/01-research-programme.md
-research/perplexity-outputs/06-scoring-model.md
-research/perplexity-outputs/09-build-state-comprehensive.md
-research/perplexity-outputs/08-market-viability.md
-research/perplexity-outputs/v2/v2-11-privacy-trust.md
-research/perplexity-outputs/v2/v2-04-csuite-cognitive-science.md
-research/perplexity-outputs/v2/v2-08-communication-relationships.md
+logs/watchdog-launchd.log
+logs/watchdog.log
 
 ---
-## Session: 2026-04-25 22:51
+## Session: 2026-04-25 14:29
 
 ### Commits This Session
-ed32588 sec: production hardening — close findings from 4-pass audit
-caa0501 chore: deploy script lists new orb Edge Functions + prereqs (DEEPGRAM_PROJECT_ID)
-6ad1b7f feat: production-grade — pull all third-party API keys server-side
-5166e1d chore: gitignore dist.noindex/ and untrack the bundle accidentally committed
-4236ae2 feat: redesign icon as iWork-style T mark + dedupe Spotlight build artifacts
+af808fc docs: session-log + build-state snapshot for monochrome UI session
+04470fd ui: rebuild Dish Me Up; introduce BucketDot pattern; bottle design system as skill
+74b43b0 ui: strip raw colour app-wide; neutralise sidebar/buckets; kill cinematic splash
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-25 14:40
+
+### Commits This Session
+af808fc docs: session-log + build-state snapshot for monochrome UI session
+04470fd ui: rebuild Dish Me Up; introduce BucketDot pattern; bottle design system as skill
+74b43b0 ui: strip raw colour app-wide; neutralise sidebar/buckets; kill cinematic splash
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-25 15:16
+
+### Commits This Session
+af808fc docs: session-log + build-state snapshot for monochrome UI session
+04470fd ui: rebuild Dish Me Up; introduce BucketDot pattern; bottle design system as skill
+74b43b0 ui: strip raw colour app-wide; neutralise sidebar/buckets; kill cinematic splash
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-25 15:26
+
+### Commits This Session
+af808fc docs: session-log + build-state snapshot for monochrome UI session
+04470fd ui: rebuild Dish Me Up; introduce BucketDot pattern; bottle design system as skill
+74b43b0 ui: strip raw colour app-wide; neutralise sidebar/buckets; kill cinematic splash
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-25 15:36
+
+### Commits This Session
+af808fc docs: session-log + build-state snapshot for monochrome UI session
+04470fd ui: rebuild Dish Me Up; introduce BucketDot pattern; bottle design system as skill
+74b43b0 ui: strip raw colour app-wide; neutralise sidebar/buckets; kill cinematic splash
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-25 15:47
+
+### Commits This Session
+af808fc docs: session-log + build-state snapshot for monochrome UI session
+04470fd ui: rebuild Dish Me Up; introduce BucketDot pattern; bottle design system as skill
+74b43b0 ui: strip raw colour app-wide; neutralise sidebar/buckets; kill cinematic splash
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-25 15:57
+
+### Commits This Session
+af808fc docs: session-log + build-state snapshot for monochrome UI session
+04470fd ui: rebuild Dish Me Up; introduce BucketDot pattern; bottle design system as skill
+74b43b0 ui: strip raw colour app-wide; neutralise sidebar/buckets; kill cinematic splash
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-25 18:18
+
+### Commits This Session
+af808fc docs: session-log + build-state snapshot for monochrome UI session
+04470fd ui: rebuild Dish Me Up; introduce BucketDot pattern; bottle design system as skill
+74b43b0 ui: strip raw colour app-wide; neutralise sidebar/buckets; kill cinematic splash
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-25 18:36
+
+### Commits This Session
+af808fc docs: session-log + build-state snapshot for monochrome UI session
+04470fd ui: rebuild Dish Me Up; introduce BucketDot pattern; bottle design system as skill
+74b43b0 ui: strip raw colour app-wide; neutralise sidebar/buckets; kill cinematic splash
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-25 18:50
+
+### Commits This Session
+af808fc docs: session-log + build-state snapshot for monochrome UI session
+04470fd ui: rebuild Dish Me Up; introduce BucketDot pattern; bottle design system as skill
+74b43b0 ui: strip raw colour app-wide; neutralise sidebar/buckets; kill cinematic splash
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-25 19:09
+
+### Commits This Session
+af808fc docs: session-log + build-state snapshot for monochrome UI session
+04470fd ui: rebuild Dish Me Up; introduce BucketDot pattern; bottle design system as skill
+74b43b0 ui: strip raw colour app-wide; neutralise sidebar/buckets; kill cinematic splash
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-25 19:22
+
+### Commits This Session
+af808fc docs: session-log + build-state snapshot for monochrome UI session
+04470fd ui: rebuild Dish Me Up; introduce BucketDot pattern; bottle design system as skill
+74b43b0 ui: strip raw colour app-wide; neutralise sidebar/buckets; kill cinematic splash
+
+### Modified Files
+supabase/.temp/cli-latest
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-25 19:34
+
+### Commits This Session
+af808fc docs: session-log + build-state snapshot for monochrome UI session
+04470fd ui: rebuild Dish Me Up; introduce BucketDot pattern; bottle design system as skill
+74b43b0 ui: strip raw colour app-wide; neutralise sidebar/buckets; kill cinematic splash
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-25 21:07
+
+### Commits This Session
+af808fc docs: session-log + build-state snapshot for monochrome UI session
+04470fd ui: rebuild Dish Me Up; introduce BucketDot pattern; bottle design system as skill
+74b43b0 ui: strip raw colour app-wide; neutralise sidebar/buckets; kill cinematic splash
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-25 22:36
+
+### Commits This Session
+(no recent commits)
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-25 22:54
+
+### Commits This Session
+(no recent commits)
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-25 23:11
+
+### Commits This Session
+(no recent commits)
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-26 01:46
+
+### Commits This Session
+(no recent commits)
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-26 02:03
+
+### Commits This Session
+(no recent commits)
 
 ### Modified Files
 .build/.lock
@@ -1506,23 +1668,19 @@ caa0501 chore: deploy script lists new orb Edge Functions + prereqs (DEEPGRAM_PR
 .build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Info.plist
 .build/plugins/cache/SwiftProtobufPlugin-state.json
 .build/plugins/cache/SwiftProtobufPlugin
+.build/debug.yaml
 .build/plugin-tools.yaml
-.build/release.yaml
-.build/arm64-apple-macosx/release/ElevenLabs.build/output-file-map.json
-.build/arm64-apple-macosx/release/Crypto.build/output-file-map.json
-.build/arm64-apple-macosx/release/USearch.build/output-file-map.json
-.build/arm64-apple-macosx/release/SwiftOperators.build/output-file-map.json
-.build/arm64-apple-macosx/release/Supabase.build/output-file-map.json
+.build/arm64-apple-macosx/debug/ElevenLabs.build/output-file-map.json
+.build/arm64-apple-macosx/debug/Crypto.build/output-file-map.json
+.build/arm64-apple-macosx/debug/USearch.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftOperators.build/output-file-map.json
+.build/arm64-apple-macosx/debug/Supabase.build/output-file-map.json
 
 ---
-## Session: 2026-04-25 23:01
+## Session: 2026-04-26 02:19
 
 ### Commits This Session
-2e41afd sec: privacy logs + provider error sanitisation + SSE filter
-ed32588 sec: production hardening — close findings from 4-pass audit
-caa0501 chore: deploy script lists new orb Edge Functions + prereqs (DEEPGRAM_PROJECT_ID)
-6ad1b7f feat: production-grade — pull all third-party API keys server-side
-5166e1d chore: gitignore dist.noindex/ and untrack the bundle accidentally committed
+(no recent commits)
 
 ### Modified Files
 .build/.lock
@@ -1540,3 +1698,88 @@ caa0501 chore: deploy script lists new orb Edge Functions + prereqs (DEEPGRAM_PR
 .build/arm64-apple-macosx/release/Crypto.build/output-file-map.json
 .build/arm64-apple-macosx/release/USearch.build/output-file-map.json
 .build/arm64-apple-macosx/release/SwiftOperators.build/output-file-map.json
+
+---
+## Session: 2026-04-26 02:34
+
+### Commits This Session
+(no recent commits)
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-26 02:45
+
+### Commits This Session
+(no recent commits)
+
+### Modified Files
+.build/.lock
+.build/plugins/cache/SwiftProtobufPlugin.dia
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Resources/Relocations/aarch64/SwiftProtobufPlugin.yml
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Resources/DWARF/SwiftProtobufPlugin
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Info.plist
+.build/plugins/cache/SwiftProtobufPlugin-state.json
+.build/plugins/cache/SwiftProtobufPlugin
+.build/plugin-tools.yaml
+.build/release.yaml
+.build/arm64-apple-macosx/release/ElevenLabs.build/TranscriptionStreamReceiver.swift.o
+.build/arm64-apple-macosx/release/ElevenLabs.build/IncomingEvents.swift.o
+.build/arm64-apple-macosx/release/ElevenLabs.build/Message.swift.o
+.build/arm64-apple-macosx/release/ElevenLabs.build/EventSerializer.swift.o
+.build/arm64-apple-macosx/release/ElevenLabs.build/ConversationConfig.swift.o
+.build/arm64-apple-macosx/release/ElevenLabs.build/LocalMessageSender.swift.o
+
+---
+## Session: 2026-04-26 03:51
+
+### Commits This Session
+eb85f17 voice: lock orb on ElevenLabs Agent + Opus 4.7, remove API keys from binary
+
+### Modified Files
+.build/arm64-apple-macosx/release/SwiftParser-tool.build/Parser.swift.o
+.build/arm64-apple-macosx/release/SwiftParser-tool.build/TokenSpecStaticMembers.swift.o
+.build/arm64-apple-macosx/release/SwiftParser-tool.build/Types.swift.o
+.build/arm64-apple-macosx/release/SwiftParser-tool.build/SyntaxUtils.swift.o
+.build/arm64-apple-macosx/release/SwiftParser-tool.build/IsValidIdentifier.swift.o
+.build/arm64-apple-macosx/release/SwiftParser-tool.build/Names.swift.o
+.build/arm64-apple-macosx/release/SwiftParser-tool.build/ExperimentalFeatures.swift.o
+.build/arm64-apple-macosx/release/SwiftParser-tool.build/TriviaParser.swift.o
+.build/arm64-apple-macosx/release/SwiftParser-tool.build/SwiftVersion.swift.o
+.build/arm64-apple-macosx/release/SwiftParser-tool.build/RegexLiteralLexer.swift.o
+.build/arm64-apple-macosx/release/SwiftParser-tool.build/IsLexerClassified.swift.o
+.build/arm64-apple-macosx/release/SwiftParser-tool.build/Lexeme.swift.o
+.build/arm64-apple-macosx/release/SwiftParser-tool.build/TopLevel.swift.o
+.build/arm64-apple-macosx/release/SwiftParser-tool.build/Availability.swift.o
+.build/arm64-apple-macosx/release/SwiftParser-tool.build/Expressions.swift.o
+
+---
+## Session: 2026-04-27 11:22
+
+### Commits This Session
+(no recent commits)
+
+### Modified Files
+docs/SINCE-2026-04-24.md
+supabase/.temp/cli-latest
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-27 14:53
+
+### Commits This Session
+aa422d3 docs: consolidate since-Friday state — pull stranded Wave 1+2 docs onto current branch
+
+### Modified Files
+HANDOFF-wave2.md
+docs/planning-templates/META-PROMPT.md
+docs/planning-templates/cognitive-os-migration-plan.md
+docs/sessions/2026-04-25-wave-1-2-shipped.md
+docs/sessions/2026-04-25-app-wiring-status.md
+docs/SINCE-2026-04-24.md
+logs/watchdog-launchd.log
+logs/watchdog.log
+HANDOFF.md

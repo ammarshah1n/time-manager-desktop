@@ -1,7 +1,7 @@
 .DS_Store
 /.build
 /dist
-/dist.noindex
+/dist.noindex/
 /build/
 /Packages
 Timed.xcodeproj/

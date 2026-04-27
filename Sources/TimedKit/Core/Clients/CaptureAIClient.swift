@@ -29,7 +29,9 @@ final class CaptureAIClient: ObservableObject {
 
     @Published private(set) var isProcessing: Bool = false
 
-    var isAvailable: Bool { true } // Routed through Edge Function — always available when signed in.
+    /// Always available — no client-side API key needed. The anthropic-proxy
+    /// Edge Function holds the key server-side.
+    var isAvailable: Bool { true }
 
     // MARK: - Extract Tasks
 
@@ -98,8 +100,16 @@ final class CaptureAIClient: ObservableObject {
             ]
         ]
 
+        guard let url = SupabaseEndpoints.functionURL("anthropic-proxy") else { return nil }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue(SupabaseEndpoints.authHeader, forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = 15
+
         let body: [String: Any] = [
-            "model": "claude-opus-4-6",
+            "model": "claude-opus-4-7",
             "max_tokens": 500,
             "system": [
                 [
@@ -115,8 +125,15 @@ final class CaptureAIClient: ObservableObject {
             "tool_choice": ["type": "tool", "name": "extract_tasks"]
         ]
 
+        guard let httpBody = try? JSONSerialization.data(withJSONObject: body) else { return nil }
+        request.httpBody = httpBody
+
         do {
-            let data = try await EdgeFunctions.shared.anthropicRelay(body: body)
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse,
+                  httpResponse.statusCode == 200 else {
+                return nil
+            }
 
             guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                   let content = json["content"] as? [[String: Any]],

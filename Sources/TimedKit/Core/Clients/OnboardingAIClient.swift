@@ -21,7 +21,8 @@ final class OnboardingAIClient: ObservableObject {
 
     @Published private(set) var isProcessing: Bool = false
 
-    var isAvailable: Bool { true } // Routed through Edge Function — always available when signed in.
+    /// Always available — proxied through anthropic-proxy Edge Function.
+    var isAvailable: Bool { true }
 
     // MARK: - Step Extractors
 
@@ -33,7 +34,7 @@ final class OnboardingAIClient: ObservableObject {
                 "type": "object",
                 "properties": [
                     "name": ["type": "string", "description": "The user's first name."],
-                    "spoken_response": ["type": "string", "description": "Short confirmation that uses the principal's name if known, e.g. 'Nice to meet you, Alex.'"]
+                    "spoken_response": ["type": "string", "description": "Short confirmation, e.g. 'Nice to meet you, Yasser.'"]
                 ],
                 "required": ["name", "spoken_response"]
             ]
@@ -166,10 +167,18 @@ final class OnboardingAIClient: ObservableObject {
         You are setting up a productivity app for a C-suite executive. They are answering setup questions by voice. Extract the structured data from their spoken response. If something is ambiguous, make a reasonable assumption and confirm in your spoken_response. Keep spoken_response under 20 words, warm and conversational.
         """
 
+        guard let url = SupabaseEndpoints.functionURL("anthropic-proxy") else { return nil }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue(SupabaseEndpoints.authHeader, forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = 15
+
         let toolName = (tool["name"] as? String) ?? "extract"
 
         let body: [String: Any] = [
-            "model": "claude-opus-4-6",
+            "model": "claude-opus-4-7",
             "max_tokens": 300,
             "system": [
                 ["type": "text", "text": systemPrompt, "cache_control": ["type": "ephemeral"]]
@@ -181,12 +190,19 @@ final class OnboardingAIClient: ObservableObject {
             "tool_choice": ["type": "tool", "name": toolName]
         ]
 
+        guard let httpBody = try? JSONSerialization.data(withJSONObject: body) else { return nil }
+        request.httpBody = httpBody
+
         do {
-            let data = try await EdgeFunctions.shared.anthropicRelay(body: body)
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse,
+                  httpResponse.statusCode == 200 else { return nil }
+
             guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                   let content = json["content"] as? [[String: Any]],
                   let toolBlock = content.first(where: { ($0["type"] as? String) == "tool_use" }),
                   let input = toolBlock["input"] as? [String: Any] else { return nil }
+
             return input
         } catch {
             return nil

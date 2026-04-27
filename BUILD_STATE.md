@@ -1,21 +1,20 @@
-# BUILD_STATE.md — Last updated: 2026-04-26 (production refactor LIVE — Today orb + server-side keys + multi-user)
+# BUILD_STATE.md — Last updated: 2026-04-27 (consolidated since-Friday audit)
 
-## Production Refactor (2026-04-26)
-- [x] Today conversational orb shipped — `Sources/Features/Conversation/{ConversationView, ConversationModel}.swift`
-- [x] All third-party API keys moved server-side. Client holds only the user's Supabase JWT.
-  - Anthropic → `orb-conversation` (streaming) + `anthropic-relay` (non-streaming)
-  - ElevenLabs → `orb-tts` (REST proxy, MP3 stream)
-  - Deepgram → `deepgram-token` (60s scoped temp tokens, client connects WS direct)
-- [x] 4 single-tenant Edge Functions migrated to JWT-resolved executive_id (generate-dish-me-up, voice-llm-proxy, extract-onboarding-profile, extract-voice-learnings)
-- [x] 3 service-role functions tightened to reject body-supplied tenant IDs (classify-email, generate-daily-plan, score-observation-realtime)
-- [x] RLS hardening migration `20260425230000_production_security_hardening.sql` deployed
-- [x] Untrusted prompt fencing on observations/ACB/client_state with `<untrusted_*>` tags + length caps
-- [x] Tool argument validation + clamping; replan throttle 1/turn; history capped at 24 messages
-- [x] Mic releases on app deactivate; sign-out halts EmailSync + CalendarSync
-- [x] Anthropic SSE allowlist filter — drops thinking blocks, strips usage/IDs
-- [x] iWork-style T mark icon (Apple-blue squircle, white T)
-- [x] dist.noindex/ build path keeps Spotlight clean
-- [x] /collab convergence: ~250 lines of dead splash/Brand/Tier0 client surfaces deleted
+> **Cross-branch reality**: this file documents UI + voice state on `ui/apple-v1-local-monochrome` (current branch). The Wave 1+2 backend cognitive OS — Trigger.dev v4, Graphiti (Neo4j temporal KG), 3 Docker services, NREM/REM nightly engine, outcome harvester — was shipped Apr 24 but lives on `ui/apple-v1-restore` / `ui/apple-v1-wired`, with full docs on `docs/wave-1-2-wrap-up`. See **`docs/SINCE-2026-04-24.md`** for the consolidated picture and branch topology.
+
+## Voice Architecture (current)
+| Layer | Tech | Where |
+|---|---|---|
+| ASR (orb conversation) | ElevenLabs Scribe v2 Turbo | inside the Conversational Agent |
+| LLM (orb conversation) | Claude **Opus 4.7** | `supabase/functions/voice-llm-proxy/index.ts` |
+| TTS (orb conversation) | ElevenLabs voice (agent-baked) | inside the Conversational Agent |
+| LLM (Capture / Onboarding / Interview) | Claude Opus 4.7 via proxy | `supabase/functions/anthropic-proxy/index.ts` |
+| TTS (one-shot, Capture / Dish Me Up) | ElevenLabs Lily via proxy | `supabase/functions/elevenlabs-tts-proxy/index.ts` |
+| Batch ASR (parked, non-conversational) | Deepgram Nova-3 via proxy | `supabase/functions/deepgram-transcribe/index.ts` |
+
+**Zero per-machine setup**: Agent ID, Supabase URL, anon JWT, Graph client/tenant IDs are all baked-in constants. All third-party API keys live server-side (Anthropic, ElevenLabs, Deepgram, Gemini) — the binary holds none.
+
+**Why no Deepgram in the orb**: ElevenLabs Conversational AI locks ASR to their own models — Deepgram isn't a selectable provider. Deepgram subscription preserved for batch / non-conversational paths.
 
 ## What Exists and Works
 
@@ -166,7 +165,7 @@
 - **3 architecture syntheses:** `research/ARCHITECTURE-MEMORY.md`, `ARCHITECTURE-SIGNALS.md`, `ARCHITECTURE-DELIVERY.md`
 
 Any future build session should read `CLAUDE.md` → `BUILD_STATE.md` → relevant `ARCHITECTURE-*.md` → build.
-Last Session: 2026-04-25 23:01
+Last Session: 2026-04-27 14:53
 
 ### Intro + Brand System (new)
 - [x] IntroFeature.swift — TCA 1.15+ @Reducer, phase machine (reveal → tagline → holding → exiting → finished)
