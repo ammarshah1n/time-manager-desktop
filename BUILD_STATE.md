@@ -1,6 +1,10 @@
-# BUILD_STATE.md — Last updated: 2026-04-27 (consolidated since-Friday audit)
+# BUILD_STATE.md — Last updated: 2026-04-27 16:00 (unified branch live)
 
-> **Cross-branch reality**: this file documents UI + voice state on `ui/apple-v1-local-monochrome` (current branch). The Wave 1+2 backend cognitive OS — Trigger.dev v4, Graphiti (Neo4j temporal KG), 3 Docker services, NREM/REM nightly engine, outcome harvester — was shipped Apr 24 but lives on `ui/apple-v1-restore` / `ui/apple-v1-wired`, with full docs on `docs/wave-1-2-wrap-up`. See **`docs/SINCE-2026-04-24.md`** for the consolidated picture and branch topology.
+> **Single source of truth: `unified` branch.** As of 2026-04-27 the four divergent branches (`ui/apple-v1-restore`, `ui/apple-v1-local-monochrome`, `ui/apple-v1-wired`, `ios/port-bootstrap`) have been merged into one trunk. See **`docs/UNIFIED-BRANCH.md`** for the permanent architecture reference and **`docs/SINCE-2026-04-24.md`** for the narrative of how we got here.
+>
+> **Build matrix from `unified` (verified):** `swift build` ✅ · `xcodebuild TimedMac` ✅ (arm64 only) · `xcodebuild TimediOS sim` ✅. **DMG produced:** `dist.noindex/Timed.dmg` (31 MB, ad-hoc signed).
+>
+> **Apple Developer enrollment NOT started** — DMG works with `xattr -cr /Applications/Timed.app` workaround. Track A (proper Developer ID + notarisation + iOS TestFlight) follows enrollment.
 
 ## Voice Architecture (current)
 | Layer | Tech | Where |

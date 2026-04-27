@@ -2,11 +2,12 @@
 
 ## Quick Start
 - Repo: `/Users/integrale/time-manager-desktop`
-- Branch: `ui/apple-v1-restore`
+- **Branch: `unified`** (single source of truth — TimedKit + TimedMacApp + TimediOS + Wave 1+2 backend + voice path + docs, all on one trunk as of 2026-04-27).
 - Primary user: Yasser Shahin (C-suite executive, Ammar's dad)
 - Backend: Supabase project `fpmjuufefhtlwbfinxlx`, 29 Edge Functions ALL ACTIVE (`ls supabase/functions/` verified 2026-04-22)
 - THE GAP: `AuthService.swift` is implemented (Supabase Auth + Microsoft OAuth, 30 call sites) but UI still reads/writes through local `DataStore`. Bridge to Supabase is the next priority.
-- Read order: `CLAUDE.md` → `BUILD_STATE.md` → `MASTER-PLAN.md` (see `.claude/rules/session-protocol.md` for full protocol)
+- **DMG status**: ✅ Track B delivered — `dist.noindex/Timed.dmg` (31 MB, ad-hoc signed). Apple Developer enrollment pending for Track A (proper signing + iOS TestFlight).
+- Read order: `docs/UNIFIED-BRANCH.md` → `CLAUDE.md` → `BUILD_STATE.md` → `MASTER-PLAN.md` (see `.claude/rules/session-protocol.md` for full protocol)
 
 ## What Timed Is
 Timed is the most intelligent executive operating system ever built. NOT a productivity app. NOT competing with Motion/Sunsama.
