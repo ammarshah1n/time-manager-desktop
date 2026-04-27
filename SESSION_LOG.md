@@ -1766,3 +1766,20 @@ docs/SINCE-2026-04-24.md
 supabase/.temp/cli-latest
 logs/watchdog-launchd.log
 logs/watchdog.log
+
+---
+## Session: 2026-04-27 14:53
+
+### Commits This Session
+aa422d3 docs: consolidate since-Friday state — pull stranded Wave 1+2 docs onto current branch
+
+### Modified Files
+HANDOFF-wave2.md
+docs/planning-templates/META-PROMPT.md
+docs/planning-templates/cognitive-os-migration-plan.md
+docs/sessions/2026-04-25-wave-1-2-shipped.md
+docs/sessions/2026-04-25-app-wiring-status.md
+docs/SINCE-2026-04-24.md
+logs/watchdog-launchd.log
+logs/watchdog.log
+HANDOFF.md

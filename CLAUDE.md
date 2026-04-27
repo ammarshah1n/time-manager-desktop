@@ -76,3 +76,14 @@ See `.claude/rules/coding-standards.md` and `.claude/rules/testing-rules.md`.
 - See `.claude/rules/session-protocol.md` for session start, close, and compaction rules.
 - See `.claude/rules/ai-assistant-rules.md` for anti-patterns and tool dispatch rules.
 - See `.claude/rules/naming-conventions.md` for the naming examples referenced here.
+
+## Toolkit / Bag (Timed relevant)
+
+Master bag: `/Users/integrale/Documents/toolkit-bag/BAG.md`. Tools that matter for Timed:
+
+- **VoxCPM** (open-source TTS, OpenBMB) — voice output for morning briefings / nightly briefings. Open-source, runs locally, no per-call cost. Drop-in alternative to ElevenLabs. Respects the "Timed observes, reflects, recommends — never acts" rule because TTS is one-way output.
+- **claude-video-vision** — ingest your own demo recordings (and Yasser's) to extract feature feedback, qualitative signal, UI friction points. Useful for the nightly engine if recordings are part of the corpus.
+- **openscreen** — record demo videos for the App Store / launch / TestFlight comms.
+- **Open-Generative-AI** — UI asset generation (icons, marketing graphics, App Store screenshots).
+
+See `BAG.md` for install + usage + risks. Audit method documented at the bottom of that file when adding a new tool.
