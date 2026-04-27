@@ -2,7 +2,9 @@
 /.build
 /dist
 /dist.noindex
+/build/
 /Packages
+Timed.xcodeproj/
 xcuserdata/
 DerivedData/
 .swiftpm/configuration/registries.json
