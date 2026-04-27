@@ -9,6 +9,12 @@
 - **DMG status**: ✅ Track B delivered — `dist.noindex/Timed.dmg` (31 MB, ad-hoc signed). Apple Developer enrollment pending for Track A (proper signing + iOS TestFlight).
 - Read order: `docs/UNIFIED-BRANCH.md` → `CLAUDE.md` → `BUILD_STATE.md` → `MASTER-PLAN.md` (see `.claude/rules/session-protocol.md` for full protocol)
 
+## Memory Default
+- **basic-memory project:** `timed-brain` (vault content). On AIF questions: also search `aif-vault`.
+- **claude-mem project:** `time-manager-desktop` (session observations).
+- See `~/CLAUDE.md` → `## Memory Protocol` for the read-back rules. Search before researching.
+- After major C-phase rewrites or non-incremental vault changes, run `rebuild_corpus` then `prime_corpus` for the relevant claude-mem corpus (`yasser-profile-brain`, `intelligence-core-brain`, `aif-decisions-brain`).
+
 ## What Timed Is
 Timed is the most intelligent executive operating system ever built. NOT a productivity app. NOT competing with Motion/Sunsama.
 It builds a deep, compounding model of how a specific C-suite executive (Yasser Shahin) thinks and operates, giving him cognitive bandwidth back permanently.

@@ -1,206 +1,163 @@
 ---
 name: wrap-up
 description: >
-  End-of-session lifecycle skill. Commits code, audits file placement,
-  extracts lessons, updates PLAN.md, writes Obsidian walkthrough.
+  Timed-specific wrap-up. Inherits the 11-phase fire-and-forget pipeline from
+  the global wrap-up at ~/.claude/skills/wrap-up/SKILL.md, then adds two Timed-
+  specific phases (Obsidian walkthrough + Obsidian error log) and pre-fills the
+  basic-memory project (`timed-brain`) and TickTick project (`Timed`) defaults.
   Trigger: "wrap up", "end session", "session done", "that's it", "/wrap-up"
 ---
 
-# Session Wrap-Up
+# Session Wrap-Up — Timed (extends global v2)
 
-Run all 4 phases sequentially. No approval prompts between phases.
-All phases execute automatically, culminating in a summary report.
+This skill **runs the global v2 wrap-up at `~/.claude/skills/wrap-up/SKILL.md`** for Phases 0–10 and inserts two Timed-specific phases between Phase 7 (TickTick) and Phase 8 (NEXT.md).
 
-## Phase 1: Ship
+Read the global skill first. The instructions below describe ONLY the Timed-specific overrides and additions.
 
-### Commit
-1. Run `git status` in each repo modified during session
-2. If uncommitted changes exist, commit with: `feat(FR-XX): [what was built]` or `fix: [what was fixed]`
-3. Push if on a feature branch (never push directly to main)
+## Defaults (pre-filled for Timed)
 
-### File Placement Audit
-4. Check every file created or modified this session:
-   - Does it follow the File Oracle paths in CLAUDE.md?
-   - Is it in the correct feature directory under `Sources/`?
-   - Are types in `Sources/TimedCore/Types/`?
-   - Are migrations in `supabase/migrations/`?
-5. Auto-relocate any misplaced files. Rename if naming conventions are wrong.
-6. Move any `.md` files created at workspace root to `docs/` (unless they are CLAUDE.md, PLAN.md, AGENTS.md, README.md, or Package.swift)
+When the global skill asks "which basic-memory project?" / "which TickTick project?" / "which vault?", use:
 
-### Task Cleanup
-7. Run `taskflow status` if taskflow is available
-8. Mark completed tasks as done: `taskflow complete [id]`
-9. Flag any orphaned or stale tasks
+| Surface | Default for Timed |
+|---------|-------------------|
+| Repo root | `~/time-manager-desktop/` |
+| Active branch trunk | `unified` (per `CLAUDE.md` mandatory rule #1) |
+| basic-memory project | `timed-brain` |
+| Vault root | `~/Timed-Brain/` |
+| Vault state file | `~/Timed-Brain/Working-Context/timed-brain-state.md` |
+| Repo state files | `~/time-manager-desktop/{HANDOFF.md, BUILD_STATE.md, SESSION_LOG.md}` |
+| Vault HANDOFF.md | `~/Timed-Brain/HANDOFF.md` (kept as a pointer to the repo HANDOFF — match its existing shape) |
+| TickTick project | `Timed` |
+| AIF folder | `~/aif-vault/AIF/03 Timed/` |
+| claude-mem corpora to refresh on canonical-doc edits | `yasser-profile-brain`, `intelligence-core-brain` |
 
-## Phase 2: Remember
+## Timed-specific extensions
 
-Reflect on what was learned. Route each piece of knowledge to the correct layer.
+### Phase 7.5 — Obsidian walkthrough (AFTER Phase 7 TickTick, BEFORE Phase 8 NEXT.md)
 
-### Memory Placement Decision Tree
-For each piece of knowledge, ask in order:
+**Trigger:** Only if this session built or substantially modified a feature (FR-XX).
+Skip if the session was pure docs, infra, or memory-system work — those are captured by Phase 4 basic-memory writes.
 
-1. Does it correct or refine an existing skill? → Update that SKILL.md
-2. Is it a permanent project rule or convention? → CLAUDE.md
-3. Is it a rule scoped to certain file types? → `.claude/rules/[area].md`
-4. Is it a pattern or quirk Claude discovered? → `.learnings/LEARNINGS.md`
-5. Is it personal/temporary/local? → CLAUDE.local.md
-6. Would it duplicate content from another file? → Use @import reference instead
+**Write to:** `~/Timed-Brain/01 - Walkthroughs/YYYY-MM-DD-<feature-slug>.md`
 
-### What to Look For
-- New API behaviour discovered (e.g., "Graph delta tokens expire after 7 days")
-- A workaround for a bug or limitation
-- A pattern that worked well and should be reused
-- A configuration that took multiple attempts
-- Project-specific conventions not yet documented
+**Template:**
 
-Document each piece of knowledge in the appropriate location.
-
-## Phase 3: Review & Apply (Self-Improvement Engine)
-
-Examine the conversation for actionable improvement insights.
-If the session was brief or routine, state "Nothing to improve" and move to Phase 4.
-
-### Scan for Signals (Priority Order)
-1. **Corrections** — User said "no", "actually", "stop", "not like that", or manually fixed something
-2. **Repeated guidance** — Same instruction given 2+ times
-3. **Skill gaps** — Claude struggled, made mistakes, needed multiple attempts
-4. **Friction** — Repetitive manual tasks user had to request explicitly
-5. **Failure modes** — Approaches that failed, with what worked instead
-
-### Quality Gate (ALL must pass before creating a rule)
-From autoskill's 4-gate filter:
-1. Was this correction repeated, or stated as a general rule?
-2. Would this apply to future sessions, or just this task?
-3. Is it specific enough to be actionable?
-4. Is this NEW information Claude wouldn't already know?
-
-If I'd give the same advice to any project, it doesn't belong in a rule.
-
-### Action Types
-For each signal that passes the quality gate:
-
-| Signal Type | Route To |
-|-------------|----------|
-| Skill correction | Update the relevant SKILL.md |
-| Project convention | Append to CLAUDE.md |
-| Scoped rule | Create/update `.claude/rules/[area].md` |
-| API quirk or workaround | `.learnings/LEARNINGS.md` |
-| New automation opportunity | Note for future skill creation |
-
-### Apply Changes
-Automatically implement all actionable insights. Commit them. Summarise what changed.
-
-Format applied changes:
-```
-Findings (applied):
-
-✅ Skill gap: [description]
-   → [CLAUDE.md] Added [what]
-✅ Friction: [description]
-   → [Rules] Created [what]
-
-No action needed:
-
-ℹ️ Knowledge: [description]
-   → Already documented in [where]
-```
-
-## Phase 4: Update State Files
-
-### Write HANDOFF.md (session-handoff protocol)
-1. Run the session-close protocol from `.claude/skills/session-handoff/SKILL.md`
-2. This writes `HANDOFF.md` to the active vault root with Done/Open Decisions/Deferred/Next
-3. Updates `Working-Context/{project}-brain-state.md`
-4. Updates MASTER-PLAN.md STATUS section (if deliverables completed)
-
-### Update PLAN.md (legacy — skip if MASTER-PLAN.md exists)
-1. Mark completed tasks as `[x]`
-2. Update "What's In Progress" with current state
-3. Update "Files Touched This Session" with every file created/modified
-4. Update "Decisions Made This Session" with any architectural choices
-5. Write "Notes for Next Session" — what the next Claude session needs to know immediately
-
-### Write Obsidian Walkthrough
-Write a walkthrough note to the Obsidian vault via MCP:
-
-**Path**: `01 - Walkthroughs/[YYYY-MM-DD]-[feature-name].md`
-
-**Template**:
 ```markdown
 ---
-date: [ISO-8601]
-feature: [FR-XX name]
-duration: [estimated session time]
-tags: [walkthrough, FR-XX]
+type: walkthrough
+date: <YYYY-MM-DD>
+feature: <FR-XX or feature name>
+session-state: <SHIPPED | PARKED | INTERRUPTED>
+duration-minutes: <int>
+summary: One sentence, retrieval-tuned, ending in a period.
+tags: [walkthrough, FR-XX, <area>]
 ---
 
-## What Was Built
-[1-3 sentences]
+## What was built
+<1–3 sentences>
 
-## How Data Flows
-[Describe the data flow through the new code]
+## How data flows
+<the data flow through the new code — diagram in prose if useful>
 
-## Files Created/Modified
-| File | Change |
-|------|--------|
-| path/to/file | Created — [purpose] |
+## Files created / modified
+| File | Change | Why |
+|------|--------|-----|
+| `Sources/.../Foo.swift` | Created | … |
 
-## Decisions Made
-- [Decision]: [Why]
+## Decisions made (with the why)
+- <decision>: <why>
 
-## Rules Extracted
-- [Any new rules added to 00-Rules/ this session]
+## Rules extracted
+- <new rule added to 00-Rules/ or .claude/rules/ this session>
 
-## Notes for Next Session
-- [What the next session needs to know]
+## Notes for next session
+- <what next session needs to know — short>
+
+## Related
+- basic-memory: `<permalink>` (the canonical doc this walks through)
+- AIF: `<D-XXX>` (if logged)
 ```
 
-### Write Obsidian Error Logs (if any errors occurred)
-For each error encountered during the session, write to:
+After writing, also call `mcp__basic-memory__write_note` with the walkthrough content so it's retrievable from `timed-brain` (Phase 4 of the global skill should have already covered the canonical-doc write; this is the walkthrough-specific write).
 
-**Path**: `04 - Errors/[YYYY-MM-DD]-[error-name].md`
+### Phase 7.6 — Obsidian error log (AFTER Phase 7.5)
 
-Using pskoett format:
+**Trigger:** Only if errors occurred during the session that took >2 attempts to resolve OR remain unresolved.
+
+**Write to:** `~/Timed-Brain/04 - Errors/YYYY-MM-DD-<error-slug>.md`
+
+**Template:**
+
 ```markdown
-## [ERR-YYYYMMDD-XXX] error_name
-**Logged**: [ISO-8601]
-**Priority**: [low|medium|high|critical]
-**Status**: [pending|resolved]
-**Area**: [frontend|backend|infra|tests|docs|config]
+---
+type: error-log
+id: ERR-YYYYMMDD-XXX
+logged: <ISO-8601>
+priority: <low | medium | high | critical>
+status: <pending | resolved>
+area: <frontend | backend | infra | tests | docs | config>
+summary: One sentence, retrieval-tuned, ending in a period.
+tags: [error, <area>]
+---
 
-### Summary
-[One line]
+## Error
+<actual output / message>
 
-### Error
-[Actual error output]
+## Context
+- Command: `<exact command>`
+- Input: <…>
+- Environment: <…>
 
-### Context
-- Command attempted
-- Input/parameters
-- Environment details
+## What was tried (and didn't work)
+- <attempt 1>
+- <attempt 2>
 
-### Fix Applied
-[What resolved it]
+## Fix applied
+<what resolved it — concrete, citable>
 
-### Rule Created
-[If this error generated a new rule, link to it]
+## Rule created (if any)
+<link to the rule in `.claude/rules/` or `00 - Rules/never-do.md`-style location>
+
+## Related
+- basic-memory: `<permalink>`
+- Commit: `<hash>` (if the fix was committed)
 ```
 
-## Output Summary
+After writing, call `mcp__basic-memory__write_note` to make it retrievable.
 
-At the end, print:
+## Phase 9 (Verify) Timed-specific overrides
+
+The global Phase 9 spawns a subagent that tests the handoff. For Timed sessions, also include this question in the subagent prompt:
+
+> Question C: Open `~/time-manager-desktop/HANDOFF.md` and confirm the trunk branch is `unified` (per `CLAUDE.md` mandatory rule #1) and that the three unblock chains (DMG to Yasser / Wave 2 nightly engine / Apple Developer enrollment) are listed with their current state. PASS if all three present and current; FAIL if any missing or stale.
+
+The Timed wrap-up cannot pass verify if the unified-branch invariant or the three-chain structure is broken in the HANDOFF.
+
+## Phase 10 (Stop signal) Timed-specific additions
+
+Add these lines to the global stop-signal summary block:
+
 ```
-SESSION WRAP-UP
-═══════════════════════════════════════════
-Committed:   [hash] — [message]
-Files moved: [N] files relocated to correct paths
-Learned:     [N] new things saved
-Rules:       [N] new rules added
-             - [list each rule]
-Errors:      [N] logged to Obsidian 04-Errors/
-PLAN.md:     Updated ✓
-Walkthrough: Written to 01-Walkthroughs/[filename]
-Taskflow:    [N] tasks completed, [N] remaining
-Next task:   [taskflow next output or "run taskflow next"]
-═══════════════════════════════════════════
+Timed-specific:
+  Walkthrough:    <path or "skipped: no feature work">
+  Error logs:     <N> entries written to 04-Errors/
+  AIF entries:    <N> D-XXX rows added to ~/aif-vault/AIF/07 Decision Log/
+  Corpora:        yasser-profile-brain | intelligence-core-brain — <rebuilt | unchanged>
 ```
+
+## Read order for the global skill
+
+When this Timed wrap-up fires, the agent should:
+1. Read this file (Timed-specific defaults + extensions).
+2. Read `~/.claude/skills/wrap-up/SKILL.md` (global v2 — Phases 0–10).
+3. Execute Phases 0–7 from global, using Timed defaults from this file.
+4. Execute Phases 7.5 and 7.6 from this file.
+5. Execute Phases 8–10 from global, using Timed defaults from this file.
+6. Apply the Timed-specific Phase 9 override (Question C) and Phase 10 additions.
+
+## Anti-patterns
+
+- Do NOT branch off `ui/apple-v1-restore`, `ui/apple-v1-local-monochrome`, `ui/apple-v1-wired`, or `ios/port-bootstrap` — those are superseded backups (per `CLAUDE.md` mandatory rule #1). The wrap-up commit must be on `unified`.
+- Do NOT push to `main`. Push to `unified` is fine on this project.
+- Do NOT write Edge Function deployment instructions in NEXT.md — those go in `HANDOFF.md` Chain B.
+- Do NOT overwrite `Working-Context/timed-brain-state.md` blindly — it has a "carried forward" landmines list. Append/update sections, don't replace the file.
