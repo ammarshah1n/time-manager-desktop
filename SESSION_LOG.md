@@ -1731,3 +1731,38 @@ logs/watchdog.log
 .build/arm64-apple-macosx/release/ElevenLabs.build/EventSerializer.swift.o
 .build/arm64-apple-macosx/release/ElevenLabs.build/ConversationConfig.swift.o
 .build/arm64-apple-macosx/release/ElevenLabs.build/LocalMessageSender.swift.o
+
+---
+## Session: 2026-04-26 03:51
+
+### Commits This Session
+eb85f17 voice: lock orb on ElevenLabs Agent + Opus 4.7, remove API keys from binary
+
+### Modified Files
+.build/arm64-apple-macosx/release/SwiftParser-tool.build/Parser.swift.o
+.build/arm64-apple-macosx/release/SwiftParser-tool.build/TokenSpecStaticMembers.swift.o
+.build/arm64-apple-macosx/release/SwiftParser-tool.build/Types.swift.o
+.build/arm64-apple-macosx/release/SwiftParser-tool.build/SyntaxUtils.swift.o
+.build/arm64-apple-macosx/release/SwiftParser-tool.build/IsValidIdentifier.swift.o
+.build/arm64-apple-macosx/release/SwiftParser-tool.build/Names.swift.o
+.build/arm64-apple-macosx/release/SwiftParser-tool.build/ExperimentalFeatures.swift.o
+.build/arm64-apple-macosx/release/SwiftParser-tool.build/TriviaParser.swift.o
+.build/arm64-apple-macosx/release/SwiftParser-tool.build/SwiftVersion.swift.o
+.build/arm64-apple-macosx/release/SwiftParser-tool.build/RegexLiteralLexer.swift.o
+.build/arm64-apple-macosx/release/SwiftParser-tool.build/IsLexerClassified.swift.o
+.build/arm64-apple-macosx/release/SwiftParser-tool.build/Lexeme.swift.o
+.build/arm64-apple-macosx/release/SwiftParser-tool.build/TopLevel.swift.o
+.build/arm64-apple-macosx/release/SwiftParser-tool.build/Availability.swift.o
+.build/arm64-apple-macosx/release/SwiftParser-tool.build/Expressions.swift.o
+
+---
+## Session: 2026-04-27 11:22
+
+### Commits This Session
+(no recent commits)
+
+### Modified Files
+docs/SINCE-2026-04-24.md
+supabase/.temp/cli-latest
+logs/watchdog-launchd.log
+logs/watchdog.log

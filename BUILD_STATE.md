@@ -1,4 +1,6 @@
-# BUILD_STATE.md — Last updated: 2026-04-26 (Voice path locked: ElevenLabs Agent + Opus 4.7, Apple TTS removed)
+# BUILD_STATE.md — Last updated: 2026-04-27 (consolidated since-Friday audit)
+
+> **Cross-branch reality**: this file documents UI + voice state on `ui/apple-v1-local-monochrome` (current branch). The Wave 1+2 backend cognitive OS — Trigger.dev v4, Graphiti (Neo4j temporal KG), 3 Docker services, NREM/REM nightly engine, outcome harvester — was shipped Apr 24 but lives on `ui/apple-v1-restore` / `ui/apple-v1-wired`, with full docs on `docs/wave-1-2-wrap-up`. See **`docs/SINCE-2026-04-24.md`** for the consolidated picture and branch topology.
 
 ## Voice Architecture (current)
 | Layer | Tech | Where |
@@ -163,7 +165,7 @@
 - **3 architecture syntheses:** `research/ARCHITECTURE-MEMORY.md`, `ARCHITECTURE-SIGNALS.md`, `ARCHITECTURE-DELIVERY.md`
 
 Any future build session should read `CLAUDE.md` → `BUILD_STATE.md` → relevant `ARCHITECTURE-*.md` → build.
-Last Session: 2026-04-26 02:45
+Last Session: 2026-04-27 11:22
 
 ### Intro + Brand System (new)
 - [x] IntroFeature.swift — TCA 1.15+ @Reducer, phase machine (reveal → tagline → holding → exiting → finished)
