@@ -16,7 +16,93 @@ type BriefingSection = {
   confidence: "high" | "moderate";
   category: string;
   source_signals: string[];
+  // Wave 1 Task 22: stamped post-insert so Swift client can cite the
+  // recommendation in outcome events.
+  recommendation_id?: string;
 };
+
+// Wave 1 Task 22 helpers — briefing -> recommendations emission.
+//
+// `section_key` is a stable, slug-style identifier derived from the LLM's
+// free-form `section` label. Normalising here means that retries with the
+// same section name resolve to the same key, enabling the UNIQUE
+// (briefing_id, section_key) conflict target below.
+function sectionKey(raw: string): string {
+  return (raw ?? "unknown")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 64) || "unknown";
+}
+
+// Normalised content hash — insight + supporting_data collapsed to a single
+// canonical form so superficial whitespace / casing drift does not change
+// the hash. Used for dedup by the outcome harvester (Wave 2 Task 24).
+async function contentHash(section: BriefingSection): Promise<string> {
+  const canonical = [
+    section.section ?? "",
+    section.insight ?? "",
+    section.supporting_data ?? "",
+    section.category ?? "",
+  ]
+    .join("\n")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+  const data = new TextEncoder().encode(canonical);
+  const digest = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+// Emit one `recommendations` row per briefing section and mutate each section
+// in place to stamp its `recommendation_id`. Idempotent: upsert uses
+// UNIQUE(briefing_id, section_key) so re-invocations update instead of
+// duplicating. Returns the operation error (if any) and whether any section
+// was freshly stamped (so callers know when to persist the enriched JSONB).
+async function emitRecommendations(
+  // deno-lint-ignore no-explicit-any
+  client: any,
+  briefingId: string,
+  sections: BriefingSection[],
+): Promise<{ healed: boolean; error: string | null }> {
+  const upsertPayload = await Promise.all(
+    sections.map(async (s) => ({
+      briefing_id: briefingId,
+      section_key: sectionKey(s.section),
+      // task_ref is NULL because briefing sections are topic-level; Wave 2
+      // Task 24 matches on content_hash when task_ref is absent.
+      task_ref: null as string | null,
+      content_hash: await contentHash(s),
+    })),
+  );
+
+  const { data: recRows, error: recError } = await client
+    .from("recommendations")
+    .upsert(upsertPayload, {
+      onConflict: "briefing_id,section_key",
+      ignoreDuplicates: false,
+    })
+    .select("id, section_key");
+
+  if (recError) return { healed: false, error: recError.message };
+  if (!recRows) return { healed: false, error: null };
+
+  const byKey = new Map<string, string>();
+  for (const row of recRows as Array<{ id: string; section_key: string }>) {
+    byKey.set(row.section_key, row.id);
+  }
+  let healed = false;
+  for (const s of sections) {
+    const rid = byKey.get(sectionKey(s.section));
+    if (rid && s.recommendation_id !== rid) {
+      s.recommendation_id = rid;
+      healed = true;
+    }
+  }
+  return { healed, error: null };
+}
 
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -40,13 +126,45 @@ serve(async (req: Request) => {
     // Check if briefing already exists for today
     const { data: existing } = await client
       .from("briefings")
-      .select("id")
+      .select("id, content")
       .eq("profile_id", executiveId)
       .eq("date", today)
       .maybeSingle();
 
     if (existing) {
-      results[executiveId] = { status: "skipped", detail: `Briefing already exists for ${today}` };
+      // Wave 1 Task 22: if a prior invocation crashed between inserting the
+      // briefing and emitting recommendations, heal here. The upsert below is
+      // a no-op when rows already exist with matching content_hash.
+      const existingContent = (existing.content ?? {}) as {
+        sections?: BriefingSection[];
+      };
+      const existingSections = existingContent.sections ?? [];
+      const missingRecommendationIds = existingSections.some(
+        (s) => !s.recommendation_id,
+      );
+      if (existingSections.length && missingRecommendationIds) {
+        const backfillResult = await emitRecommendations(
+          client,
+          existing.id as string,
+          existingSections,
+        );
+        if (backfillResult.healed) {
+          await client
+            .from("briefings")
+            .update({ content: { ...existingContent, sections: existingSections } })
+            .eq("id", existing.id);
+        }
+        results[executiveId] = {
+          status: "healed",
+          detail: `Recommendations backfilled for existing briefing ${existing.id}`,
+          recommendations_error: backfillResult.error,
+        };
+      } else {
+        results[executiveId] = {
+          status: "skipped",
+          detail: `Briefing already exists for ${today}`,
+        };
+      }
       continue;
     }
 
@@ -253,8 +371,10 @@ CHECK 10 — False False-Certainty [FFC]: Unnecessary hedging that reduces actio
       },
     };
 
-    // Insert briefing
-    const { error: insertError } = await client
+    // Insert briefing — capture id so we can FK recommendations to it.
+    // The `recommendations` table (migration 20260428_recommendation_outcomes.sql,
+    // Agent A3) has a FK on briefings.id, so the briefing must exist first.
+    const { data: briefingRow, error: insertError } = await client
       .from("briefings")
       .insert({
         profile_id: executiveId,
@@ -263,12 +383,40 @@ CHECK 10 — False False-Certainty [FFC]: Unnecessary hedging that reduces actio
         generated_at: new Date().toISOString(),
         word_count: 0,
         was_viewed: false,
-      });
+      })
+      .select("id")
+      .maybeSingle();
+
+    // Wave 1 Task 22: emit one `recommendations` row per briefing section and
+    // stamp `recommendation_id` back into each section so the Swift client can
+    // cite it when writing recommendation_acted_on / _dismissed events.
+    //
+    // Idempotency: upsert uses UNIQUE(briefing_id, section_key), added by
+    // migration 20260425120000_recommendations_unique.sql in this branch.
+    // Re-invocations update rather than duplicate.
+    let recommendationsError: string | null = null;
+    const briefingId = briefingRow?.id as string | undefined;
+    if (!insertError && briefingId) {
+      const result = await emitRecommendations(client, briefingId, sections);
+      recommendationsError = result.error;
+      if (!result.error) {
+        // Persist enriched sections back onto the briefing so the Swift
+        // client sees `recommendation_id` on the JSONB it reads.
+        const enrichedContent = { ...briefingContent, sections };
+        const { error: updateError } = await client
+          .from("briefings")
+          .update({ content: enrichedContent })
+          .eq("id", briefingId);
+        if (updateError) recommendationsError = updateError.message;
+      }
+    }
 
     results[executiveId] = {
       status: insertError ? "error" : "ok",
       detail: insertError?.message ?? "Briefing generated (LLM calls pending implementation)",
       context: briefingContent.context_used,
+      briefing_id: briefingId ?? null,
+      recommendations_error: recommendationsError,
       duration_ms: Date.now() - start,
     };
   }

@@ -6,6 +6,9 @@ struct MorningBriefingPane: View {
     @State private var briefing: MorningBriefing?
     @State private var isLoading = true
     @State private var viewStartTime: Date?
+    @State private var viewedSectionKeys: Set<String> = []
+    @State private var dismissedSectionKeys: Set<String> = []
+    @State private var actedSectionKeys: Set<String> = []
 
     @Dependency(\.supabaseClient) private var supabaseClient
 
@@ -65,16 +68,50 @@ struct MorningBriefingPane: View {
             header(briefing)
 
             ForEach(Array(briefing.content.sections.enumerated()), id: \.offset) { index, section in
-                if index == 0 {
-                    leadSection(section)
-                } else if index == briefing.content.sections.count - 1 {
-                    forwardLookingSection(section)
-                } else {
-                    bodySection(section)
+                Group {
+                    if index == 0 {
+                        leadSection(section)
+                    } else if index == briefing.content.sections.count - 1 {
+                        forwardLookingSection(section)
+                    } else {
+                        bodySection(section)
+                    }
                 }
+                .overlay(alignment: .topTrailing) { sectionActionMenu(briefing: briefing, section: section) }
+                .contentShape(Rectangle())
+                .onTapGesture { Task { await recordSectionInteraction(briefing: briefing, section: section) } }
+                .onAppear { Task { await recordSectionView(briefing: briefing, section: section) } }
+                .opacity(dismissedSectionKeys.contains(section.section) ? 0.35 : 1.0)
             }
         }
         .padding(24)
+    }
+
+    // MARK: - Section Action Menu (Task 23)
+
+    private func sectionActionMenu(briefing: MorningBriefing, section: BriefingSection) -> some View {
+        HStack(spacing: 6) {
+            Button {
+                Task { await recordSectionActedOn(briefing: briefing, section: section) }
+            } label: {
+                Image(systemName: actedSectionKeys.contains(section.section) ? "checkmark.circle.fill" : "checkmark.circle")
+                    .font(.system(size: 13))
+                    .foregroundStyle(actedSectionKeys.contains(section.section) ? Color.green : Color.secondary)
+            }
+            .buttonStyle(.plain)
+            .help("Mark as acted on")
+
+            Button {
+                Task { await recordSectionDismissed(briefing: briefing, section: section) }
+            } label: {
+                Image(systemName: dismissedSectionKeys.contains(section.section) ? "xmark.circle.fill" : "xmark.circle")
+                    .font(.system(size: 13))
+                    .foregroundStyle(dismissedSectionKeys.contains(section.section) ? Color.orange : Color.secondary)
+            }
+            .buttonStyle(.plain)
+            .help("Dismiss")
+        }
+        .padding(6)
     }
 
     private func header(_ briefing: MorningBriefing) -> some View {
@@ -262,5 +299,69 @@ struct MorningBriefingPane: View {
             ]
         )
         try? await Tier0Writer.shared.recordObservation(observation)
+    }
+
+    // MARK: - Section Interaction Capture (Task 23)
+
+    private func recordSectionView(briefing: MorningBriefing, section: BriefingSection) async {
+        guard !viewedSectionKeys.contains(section.section) else { return }
+        await MainActor.run { _ = viewedSectionKeys.insert(section.section) }
+        await writeSectionEvent(briefing: briefing, section: section, eventType: "briefing_section_viewed")
+    }
+
+    private func recordSectionInteraction(briefing: MorningBriefing, section: BriefingSection) async {
+        await writeSectionEvent(briefing: briefing, section: section, eventType: "briefing_section_interacted")
+    }
+
+    private func recordSectionActedOn(briefing: MorningBriefing, section: BriefingSection) async {
+        await MainActor.run { _ = actedSectionKeys.insert(section.section) }
+        await writeSectionEvent(briefing: briefing, section: section, eventType: "recommendation_acted_on")
+    }
+
+    private func recordSectionDismissed(briefing: MorningBriefing, section: BriefingSection) async {
+        await MainActor.run { _ = dismissedSectionKeys.insert(section.section) }
+        await writeSectionEvent(briefing: briefing, section: section, eventType: "recommendation_dismissed")
+    }
+
+    /// Writes a behaviour_events row and appends to briefings.sections_interacted.
+    private func writeSectionEvent(
+        briefing: MorningBriefing,
+        section: BriefingSection,
+        eventType: String
+    ) async {
+        let wsId = await MainActor.run(body: { AuthService.shared.workspaceId })
+        let profileId = await MainActor.run(body: { AuthService.shared.profileId })
+        guard let wsId, let profileId else { return }
+
+        let now = Date()
+        let cal = Calendar.current
+        let event = BehaviourEventInsert(
+            workspaceId: wsId,
+            profileId: profileId,
+            eventType: eventType,
+            taskId: nil,
+            bucketType: "briefing",
+            hourOfDay: cal.component(.hour, from: now),
+            dayOfWeek: cal.component(.weekday, from: now) - 1,
+            oldValue: nil,
+            newValue: section.section
+        )
+
+        do {
+            try await supabaseClient.insertBehaviourEvent(event)
+        } catch {
+            TimedLogger.supabase.debug("briefing section event insert failed: \(error.localizedDescription, privacy: .public)")
+        }
+
+        let entry: [String: String] = [
+            "section_key": section.section,
+            "event_type": eventType,
+            "at": ISO8601DateFormatter().string(from: now),
+        ]
+        do {
+            try await supabaseClient.appendBriefingSectionInteraction(briefing.id, entry)
+        } catch {
+            TimedLogger.supabase.debug("briefing sections_interacted append failed: \(error.localizedDescription, privacy: .public)")
+        }
     }
 }

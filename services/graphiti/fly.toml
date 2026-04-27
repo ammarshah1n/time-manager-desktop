@@ -1,0 +1,45 @@
+# fly.toml — Graphiti core service
+#
+# Deploy:
+#   cd services/graphiti
+#   fly launch --no-deploy --copy-config    # only the first time
+#   fly secrets set \
+#       NEO4J_URI=bolt+s://<host>:7687 \
+#       NEO4J_USER=neo4j \
+#       NEO4J_PASSWORD=<secret> \
+#       INFERENCE_PROXY_URL=https://<trigger-proxy>/v1 \
+#       INFERENCE_PROXY_API_KEY=<secret> \
+#       GRAPHITI_MODEL=sonnet_extract \
+#       GRAPHITI_SMALL_MODEL=haiku_classify \
+#       EMBEDDER_MODEL=voyage-3 \
+#       EMBEDDER_DIM=1024
+#   fly deploy
+
+app = "timed-graphiti"
+primary_region = "syd"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "8000"
+  LOG_LEVEL = "INFO"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "15s"
+    method = "GET"
+    path = "/healthz"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 1024

@@ -185,11 +185,22 @@ actor EmailSyncService {
         workspaceId: UUID,
         emailAccountId: UUID,
         profileId: UUID? = nil
-    ) {
+    ) async {
         guard !isRunning else {
             TimedLogger.graph.info("EmailSyncService.start called but already running — skipping")
             return
         }
+
+        // Wave 2 B1 — check the server-side sync gate. When the executive's
+        // `email_sync_driver` column is `server`, Trigger.dev owns Graph
+        // polling and the Swift client must no-op to avoid double writes.
+        // We fail-open (proceed as `client`) on any error so an auth or
+        // network blip doesn't silently stop local sync.
+        if !(await shouldSyncLocally(profileId: profileId)) {
+            TimedLogger.graph.info("EmailSyncService: sync_driver=server, Swift polling disabled")
+            return
+        }
+
         isRunning = true
         currentEmailAccountId = emailAccountId
         loadDeltaLink(for: emailAccountId)
@@ -227,6 +238,73 @@ actor EmailSyncService {
         syncTask?.cancel()
         syncTask = nil
         isRunning = false
+    }
+
+    // MARK: - Wave 2 B1: server-side sync gate
+
+    /// Returns `true` when the Swift `EmailSyncService` should drive Graph
+    /// polling locally, `false` when Trigger.dev's `graph-delta-sync` task
+    /// owns it (executive row has `email_sync_driver = 'server'`).
+    ///
+    /// Fail-open: any error path returns `true` so a transient Supabase
+    /// blip never silently halts local sync.
+    private func shouldSyncLocally(profileId: UUID?) async -> Bool {
+        // No signed-in executive → local-only mode, nothing to consult.
+        guard let profileId else { return true }
+        let driver = await fetchEmailSyncDriver(executiveId: profileId)
+        return driver != "server"
+    }
+
+    /// Reads `public.executives.email_sync_driver` via the Supabase REST API
+    /// using the anon key. We don't go through `supabaseClient` here because
+    /// the B1 file boundary for this wave doesn't allow extending that
+    /// dependency's surface, and the existing `supabaseURL` /
+    /// `supabaseAnonKey` wiring on this actor is already plumbed.
+    ///
+    /// Returns `"client"`, `"server"`, or a best-effort default of
+    /// `"client"` on any failure so the caller fails-open.
+    private func fetchEmailSyncDriver(executiveId: UUID) async -> String {
+        guard var components = URLComponents(
+            string: "\(supabaseURL)/rest/v1/executives"
+        ) else {
+            return "client"
+        }
+        components.queryItems = [
+            URLQueryItem(name: "id", value: "eq.\(executiveId.uuidString.lowercased())"),
+            URLQueryItem(name: "select", value: "email_sync_driver"),
+            URLQueryItem(name: "limit", value: "1")
+        ]
+        guard let url = components.url else { return "client" }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue(supabaseAnonKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(supabaseAnonKey)", forHTTPHeaderField: "Authorization")
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse,
+                  (200..<300).contains(http.statusCode) else {
+                TimedLogger.graph.warning(
+                    "fetchEmailSyncDriver: non-2xx, defaulting to client"
+                )
+                return "client"
+            }
+            guard
+                let decoded = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]],
+                let row = decoded.first,
+                let driver = row["email_sync_driver"] as? String
+            else {
+                return "client"
+            }
+            return driver
+        } catch {
+            TimedLogger.graph.warning(
+                "fetchEmailSyncDriver failed: \(error.localizedDescription, privacy: .public); defaulting to client"
+            )
+            return "client"
+        }
     }
 
     // MARK: - Single sync pass
