@@ -1,6 +1,8 @@
-// PrefsPane.swift — Timed macOS Preview
+// PrefsPane.swift — Timed macOS
 // Settings: email accounts, sync, time blocks, notifications, appearance, voice.
+// Mac-only: uses NSColor and Mac-only picker styles, references SharingPane.
 
+#if os(macOS)
 import SwiftUI
 import Foundation
 import Dependencies
@@ -402,3 +404,5 @@ struct LearningTab: View {
         }
     }
 }
+
+#endif
