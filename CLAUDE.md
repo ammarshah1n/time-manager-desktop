@@ -65,6 +65,21 @@ It builds a deep, compounding model of how a specific C-suite executive (Yasser 
 ## Build & Test Tools
 See `.claude/rules/coding-standards.md` and `.claude/rules/testing-rules.md`.
 
+<important>
+## MANDATORY SESSION RULES (post 2026-04-27 unification)
+Read these every session. Mirror copy at `~/Desktop/timed-future-session-tips.md`.
+
+1. **Always work on `unified`.** First action of any session: `git checkout unified && git pull`. Do NOT branch off `ui/apple-v1-restore`, `ui/apple-v1-local-monochrome`, `ui/apple-v1-wired`, or `ios/port-bootstrap` — those are superseded backups.
+2. **Read order on session start:** `docs/UNIFIED-BRANCH.md` → `HANDOFF.md` → `BUILD_STATE.md` → this file.
+3. **Code organisation:** new Swift files go in `Sources/TimedKit/Features/<area>/` or `Sources/TimedKit/Core/<area>/`. Mac-only code wraps in `#if os(macOS)`. iOS @main: `Platforms/iOS/TimediOSAppMain.swift`. Mac @main: `Sources/TimedMacApp/TimedMacAppMain.swift`. Never put feature code in `Sources/TimedMacApp/` — breaks iOS build.
+4. **Xcode project is generated, not committed.** Edit `project.yml`; run `xcodegen generate` to materialise `Timed.xcodeproj` (gitignored).
+5. **Required xcodebuild flags:** `-skipMacroValidation -skipPackagePluginValidation` always. For Mac: also `ARCHS=arm64 ONLY_ACTIVE_ARCH=YES` (usearch's Float16 doesn't compile for x86_64).
+6. **DMG production:** `bash scripts/package_app.sh && bash scripts/create_dmg.sh` → `dist.noindex/Timed.dmg`. Currently ad-hoc signed (Track B). Track A (Developer ID + notarised) is blocked on Apple Developer Program enrollment.
+7. **Do NOT retire stale branches yet** — they're escape hatches until Track A is verified working end-to-end.
+8. **Permission-hook caveats:** `.claude/hooks/permission-check.sh` hard-denies tool inputs containing dot-env file paths, or the combination of `supabase/migrations/` with remove/rm/unlink keywords. Split Edits to avoid these substrings co-occurring.
+9. **OrbStack closed on this Mac.** Wave 2 backend services (Graphiti, Neo4j, Trigger.dev v4) run on the Linux machine. Trigger.dev tasks deploy to their cloud — no local Docker needed.
+</important>
+
 ## Next Priorities
 1. Supabase Auth (Microsoft provider) + workspace/profile bootstrap
 2. Bridge UI -> Supabase (dual-write with `DataStore`)
