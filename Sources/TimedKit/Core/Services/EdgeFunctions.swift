@@ -42,8 +42,40 @@ final class EdgeFunctions {
 
     private func accessToken() async throws -> String {
         guard let supabase else { throw FnError.notSignedIn }
-        guard let session = try? await supabase.auth.session else { throw FnError.notSignedIn }
-        return session.accessToken
+        // Try the in-memory session first. If the JWT has expired (which the
+        // Supabase SDK normally refreshes silently, but can fail to do while
+        // the app is backgrounded), fall through to an explicit refresh before
+        // declaring the user un-authed. Without this, a long sleep / lid-close
+        // produces a cascade of 401s across orb / TTS / embeddings.
+        if let session = try? await supabase.auth.session {
+            return session.accessToken
+        }
+        do {
+            try await supabase.auth.refreshSession()
+            let session = try await supabase.auth.session
+            TimedLogger.supabase.info("Supabase session auto-refreshed after expiry")
+            return session.accessToken
+        } catch {
+            TimedLogger.supabase.warning("Supabase session refresh failed: \(error.localizedDescription, privacy: .public)")
+            throw FnError.notSignedIn
+        }
+    }
+
+    /// Fire-and-forget OPTIONS request against each named Edge Function so the
+    /// Deno isolate is warm by the time the user's first utterance arrives.
+    /// Failures (no network, function not deployed, etc.) are non-fatal.
+    func preWarm(_ functionNames: [String]) async {
+        guard let baseURL else { return }
+        await withTaskGroup(of: Void.self) { group in
+            for name in functionNames {
+                group.addTask {
+                    var req = URLRequest(url: baseURL.appendingPathComponent(name))
+                    req.httpMethod = "OPTIONS"
+                    req.timeoutInterval = 6
+                    _ = try? await URLSession.shared.data(for: req)
+                }
+            }
+        }
     }
 
     private func makeRequest(_ path: String, method: String = "POST") async throws -> URLRequest {

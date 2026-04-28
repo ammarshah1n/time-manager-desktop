@@ -272,10 +272,20 @@ extension GraphClientDependency {
             // MARK: fetchDeltaMessages
             // params: (accountId, deltaLink?, accessToken)
             fetchDeltaMessages: { _, deltaLink, accessToken in
-                let urlString = deltaLink
-                    ?? "\(graphBaseURL)/me/messages/delta"
-                    + "?$select=id,subject,from,receivedDateTime,parentFolderId,bodyPreview,conversationId,toRecipients,ccRecipients,isDraft"
-                    + "&$top=50"
+                // First-ever sync (no stored deltaLink) — clamp to 30 days of
+                // history. Without this clamp, a CEO with a 50k-message inbox
+                // spends ~100 minutes pulling history before Triage shows
+                // anything. The 410 (delta-expired) recovery path produces a
+                // fresh deltaLink so this filter only applies on the very first
+                // poll. (Audit #3 #6 — bounded initial Outlook sync.)
+                let initialURL: String = {
+                    let cutoff = ISO8601DateFormatter().string(from: Date().addingTimeInterval(-30 * 86_400))
+                    return "\(graphBaseURL)/me/messages/delta"
+                        + "?$select=id,subject,from,receivedDateTime,parentFolderId,bodyPreview,conversationId,toRecipients,ccRecipients,isDraft"
+                        + "&$filter=receivedDateTime%20ge%20\(cutoff)"
+                        + "&$top=50"
+                }()
+                let urlString = deltaLink ?? initialURL
 
                 guard let url = URL(string: urlString) else {
                     TimedLogger.graph.error("Invalid delta messages URL: \(urlString, privacy: .public)")

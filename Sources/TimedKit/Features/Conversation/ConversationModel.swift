@@ -82,6 +82,15 @@ final class ConversationModel: ObservableObject {
     func start() async {
         guard listenTask == nil else { return }
         phase = .connecting
+
+        // Pre-warm the Edge Function isolates the first orb turn will hit so
+        // the user's first utterance lands on a warm container. OPTIONS is the
+        // cheapest call that materialises a Deno isolate (200-400ms cold start
+        // → ~5ms warm round-trip). Fire-and-forget — failures are not fatal.
+        Task.detached {
+            await EdgeFunctions.shared.preWarm(["orb-conversation", "orb-tts", "deepgram-token"])
+        }
+
         phase = .listening
 
         listenTask = Task { @MainActor in

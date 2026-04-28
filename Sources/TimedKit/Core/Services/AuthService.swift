@@ -7,6 +7,12 @@ import Foundation
 import Supabase
 import Dependencies
 import os
+#if canImport(AuthenticationServices)
+import AuthenticationServices
+#endif
+#if canImport(AppKit)
+import AppKit
+#endif
 
 @MainActor
 final class AuthService: ObservableObject {
@@ -64,14 +70,79 @@ final class AuthService: ObservableObject {
                 scopes: "email profile openid Mail.Read Calendars.Read offline_access",
                 redirectTo: URL(string: "timed://auth/callback")
             )
+
+            #if canImport(AuthenticationServices) && os(macOS)
+            // Replaces the previous "open in default browser" path. Default-browser
+            // OAuth caches state across attempts (HANDOFF.md known issue: same
+            // `code` value reproduces every click → Supabase rejects code exchange).
+            // ASWebAuthenticationSession with prefersEphemeralWebBrowserSession=true
+            // gives every attempt a clean cookie jar, and the callback comes back
+            // through the completion handler rather than relying on the URL scheme
+            // handler (which still works as a fallback for any external return).
+            let callbackURL = try await Self.startWebAuthSession(
+                authURL: url,
+                callbackScheme: "timed",
+                presentationContext: AuthService.SharedPresentationContext.shared
+            )
+            await handleAuthCallback(url: callbackURL)
+            TimedLogger.supabase.info("ASWebAuthenticationSession completed for Microsoft sign-in")
+            #else
             await PlatformURLOpener.open(url)
-            TimedLogger.supabase.info("OAuth URL opened for Microsoft sign-in")
+            TimedLogger.supabase.info("OAuth URL opened for Microsoft sign-in (legacy browser path)")
+            #endif
         } catch {
             self.error = "Sign-in failed: \(error.localizedDescription)"
             TimedLogger.supabase.error("Microsoft sign-in failed: \(error.localizedDescription, privacy: .private)")
         }
         isLoading = false
     }
+
+    #if canImport(AuthenticationServices) && os(macOS)
+    /// Wraps `ASWebAuthenticationSession` start/completion in a checked
+    /// continuation. Static so it doesn't capture an actor-bound `self` —
+    /// the session runs on the main thread and reports back via callback.
+    @MainActor
+    private static func startWebAuthSession(
+        authURL: URL,
+        callbackScheme: String,
+        presentationContext: ASWebAuthenticationPresentationContextProviding
+    ) async throws -> URL {
+        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<URL, Error>) in
+            let session = ASWebAuthenticationSession(
+                url: authURL,
+                callbackURLScheme: callbackScheme
+            ) { url, error in
+                if let url = url {
+                    cont.resume(returning: url)
+                } else if let error = error {
+                    cont.resume(throwing: error)
+                } else {
+                    cont.resume(throwing: URLError(.badServerResponse))
+                }
+            }
+            session.presentationContextProvider = presentationContext
+            session.prefersEphemeralWebBrowserSession = true
+            session.start()
+        }
+    }
+
+    /// Tiny shim so `ASWebAuthenticationSession` knows which window to anchor
+    /// to. Returns the key window from the active NSApplication. Lives outside
+    /// the AuthService instance to avoid actor-isolation issues — the OAuth
+    /// callback fires on a non-MainActor thread.
+    final class SharedPresentationContext: NSObject, ASWebAuthenticationPresentationContextProviding {
+        static let shared = SharedPresentationContext()
+        nonisolated func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
+            #if canImport(AppKit)
+            return DispatchQueue.main.sync {
+                NSApplication.shared.keyWindow ?? NSApplication.shared.windows.first ?? ASPresentationAnchor()
+            }
+            #else
+            return ASPresentationAnchor()
+            #endif
+        }
+    }
+    #endif
 
     // MARK: - Handle OAuth callback (from URL scheme timed://auth/callback)
 
