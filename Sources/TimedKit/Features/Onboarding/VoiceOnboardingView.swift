@@ -182,11 +182,12 @@ struct VoiceOnboardingView: View {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    // MARK: - Skip control (escape hatch for dev; native-styled, quiet)
+    // MARK: - Skip control (escape hatch — sets pendingVoiceOnboarding so Preferences
+    // shows a "Resume voice setup" row, rather than pretending onboarding is done.)
 
     private var skipControl: some View {
-        Button("Skip setup") {
-            Task { await finalise(extractProfile: false) }
+        Button("Set up later") {
+            Task { await finalise(extractProfile: false, skipped: true) }
         }
         .buttonStyle(.plain)
         .font(TimedType.body)
@@ -203,22 +204,24 @@ struct VoiceOnboardingView: View {
             .joined(separator: " ")
         if joined.contains("[[ONBOARDING_COMPLETE]]") {
             sawCompletionTag = true
-            Task { await finalise(extractProfile: true) }
+            Task { await finalise(extractProfile: true, skipped: false) }
         }
     }
 
     // MARK: - Finalise
 
-    private func finalise(extractProfile: Bool) async {
+    private func finalise(extractProfile: Bool, skipped: Bool) async {
         isFinalising = true
         await manager.end()
         if extractProfile {
             await postTranscriptToExtractor()
-        } else {
-            // User skipped — mark onboarded so we don't re-run every launch.
-            await markOnboardedDirect()
         }
+        // Always dismiss the sheet by setting hasCompletedOnboarding. If the user
+        // explicitly skipped, set pendingVoiceOnboarding so Preferences offers a
+        // "Resume voice setup" row — they aren't trapped, but we don't pretend
+        // onboarding ran.
         UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
+        UserDefaults.standard.set(skipped, forKey: "pendingVoiceOnboarding")
         onComplete()
     }
 
@@ -229,13 +232,6 @@ struct VoiceOnboardingView: View {
         guard !transcriptText.isEmpty else { return }
         await fireFunction("extract-onboarding-profile",
                            body: ["transcript": transcriptText])
-    }
-
-    private func markOnboardedDirect() async {
-        // Hit the extractor with an empty transcript so Haiku applies defaults
-        // and onboarded_at gets set server-side. Cheap enough.
-        await fireFunction("extract-onboarding-profile",
-                           body: ["transcript": "user accepted defaults"])
     }
 
     private func fireFunction(_ name: String, body: [String: Any]) async {

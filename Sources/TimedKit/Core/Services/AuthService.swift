@@ -18,6 +18,8 @@ final class AuthService: ObservableObject {
     @Published var userEmail: String?
     @Published var graphAccessToken: String?
     @Published var error: String?
+    /// Transient confirmation banner — set on successful sign-in / sign-up, auto-clears after a beat.
+    @Published var welcomeMessage: String?
 
     // Backward compatibility — UI panes still reference these until DataBridge (0.04) refactor
     var profileId: UUID? { executiveId }
@@ -80,6 +82,7 @@ final class AuthService: ObservableObject {
             let session = try await client.auth.session(from: url)
             userEmail = session.user.email
             isSignedIn = true
+            flashWelcome("Welcome back.")
             await bootstrapExecutive()
             TimedLogger.supabase.info("Signed in as \(session.user.email ?? "unknown", privacy: .private)")
         } catch {
@@ -87,6 +90,116 @@ final class AuthService: ObservableObject {
             TimedLogger.supabase.error("Auth callback failed: \(error.localizedDescription, privacy: .private)")
         }
         isLoading = false
+    }
+
+    /// Show a brief welcome banner that auto-clears after ~1.4s. Cancels any pending clear.
+    private func flashWelcome(_ message: String) {
+        welcomeMessage = message
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 1_400_000_000)
+            // Only clear if it's still the same message — don't stomp on a newer one.
+            guard let self, self.welcomeMessage == message else { return }
+            self.welcomeMessage = nil
+        }
+    }
+
+    // MARK: - Email + password sign in / sign up
+
+    func signInWithEmail(_ email: String, password: String) async {
+        guard let client else {
+            self.error = "Sign-in is unavailable right now."
+            return
+        }
+        let trimmed = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !trimmed.isEmpty, !password.isEmpty else {
+            self.error = "Enter your email and password."
+            return
+        }
+        isLoading = true
+        error = nil
+        do {
+            let session = try await client.auth.signIn(email: trimmed, password: password)
+            userEmail = session.user.email
+            isSignedIn = true
+            flashWelcome("Welcome back.")
+            await bootstrapExecutive()
+            TimedLogger.supabase.info("Signed in (email) as \(session.user.email ?? "unknown", privacy: .private)")
+        } catch {
+            self.error = friendlyMessage(for: error, fallback: "Sign-in failed. Check your email and password.")
+            TimedLogger.supabase.error("Email sign-in failed: \(error.localizedDescription, privacy: .private)")
+        }
+        isLoading = false
+    }
+
+    func signUpWithEmail(_ email: String, password: String) async {
+        guard let client else {
+            self.error = "Account creation is unavailable right now."
+            return
+        }
+        let trimmed = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !trimmed.isEmpty, password.count >= 8 else {
+            self.error = "Use a valid email and a password of at least 8 characters."
+            return
+        }
+        isLoading = true
+        error = nil
+        do {
+            let response = try await client.auth.signUp(email: trimmed, password: password)
+            if response.session != nil {
+                userEmail = response.user.email
+                isSignedIn = true
+                flashWelcome("Welcome to Timed.")
+                await bootstrapExecutive()
+                TimedLogger.supabase.info("Account created + signed in (email) as \(response.user.email ?? "unknown", privacy: .private)")
+            } else {
+                self.error = "Account created. Check your inbox to confirm your email, then sign in."
+                TimedLogger.supabase.info("Account created, awaiting email confirmation")
+            }
+        } catch {
+            self.error = friendlyMessage(for: error, fallback: "Couldn't create the account. Try a different email.")
+            TimedLogger.supabase.error("Email sign-up failed: \(error.localizedDescription, privacy: .private)")
+        }
+        isLoading = false
+    }
+
+    func sendPasswordReset(email: String) async {
+        guard let client else {
+            self.error = "Password reset is unavailable right now."
+            return
+        }
+        let trimmed = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !trimmed.isEmpty else {
+            self.error = "Enter your email first."
+            return
+        }
+        isLoading = true
+        error = nil
+        do {
+            try await client.auth.resetPasswordForEmail(
+                trimmed,
+                redirectTo: URL(string: "timed://auth/callback")
+            )
+            self.error = "Password reset email sent. Check your inbox."
+            TimedLogger.supabase.info("Password reset emailed to \(trimmed, privacy: .private)")
+        } catch {
+            self.error = friendlyMessage(for: error, fallback: "Couldn't send reset email.")
+            TimedLogger.supabase.error("Password reset failed: \(error.localizedDescription, privacy: .private)")
+        }
+        isLoading = false
+    }
+
+    private func friendlyMessage(for error: Error, fallback: String) -> String {
+        let raw = error.localizedDescription.lowercased()
+        if raw.contains("invalid login") || raw.contains("invalid_credentials") {
+            return "That email and password don't match an account."
+        }
+        if raw.contains("already registered") || raw.contains("user already") {
+            return "An account with that email already exists. Try signing in."
+        }
+        if raw.contains("rate") {
+            return "Too many attempts. Wait a moment and try again."
+        }
+        return fallback
     }
 
     // MARK: - Sign in with Graph (MSAL) for Outlook access
@@ -186,6 +299,13 @@ final class AuthService: ObservableObject {
         error = nil
         await bootstrapExecutive()
         isLoading = false
+    }
+
+    /// Re-presents the voice onboarding sheet on the next view update by clearing
+    /// the AppStorage flag. Used by Preferences → "Resume voice setup".
+    func replayOnboarding() {
+        UserDefaults.standard.set(false, forKey: "hasCompletedOnboarding")
+        UserDefaults.standard.set(false, forKey: "pendingVoiceOnboarding")
     }
 }
 

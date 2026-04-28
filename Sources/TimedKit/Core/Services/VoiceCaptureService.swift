@@ -175,9 +175,13 @@ final class VoiceCaptureService: NSObject, ObservableObject {
         recognitionRequest = request
 
         inputNode.removeTap(onBus: 0)
+        // Capture `request` directly — SFSpeechAudioBufferRecognitionRequest.append(_:) is thread-safe,
+        // so we append on the audio thread without hopping to MainActor. Reaching back through
+        // `self.recognitionRequest` from this real-time queue trips Swift 6's actor-isolation check.
         inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self] buffer, _ in
-            guard let self else { return }
-            // Compute RMS audio level for waveform visualization
+            request.append(buffer)
+
+            // RMS computation is pure — no `self` access on the audio thread.
             let channelData = buffer.floatChannelData?[0]
             let frameLength = Int(buffer.frameLength)
             var rms: Float = 0
@@ -186,11 +190,11 @@ final class VoiceCaptureService: NSObject, ObservableObject {
                 for i in 0..<frameLength { sum += samples[i] * samples[i] }
                 rms = sqrtf(sum / Float(frameLength))
             }
-            // Normalize to 0-1 range (typical speech RMS is 0.01-0.2)
             let normalized = min(1.0, rms * 8)
-            Task { @MainActor in
-                self.recognitionRequest?.append(buffer)
-                self.audioLevel = normalized
+
+            // Hop to MainActor only for the @Published UI update.
+            Task { @MainActor [weak self] in
+                self?.audioLevel = normalized
             }
         }
 

@@ -271,9 +271,27 @@ struct AppearanceTab: View {
 
 struct VoiceTab: View {
     @AppStorage("elevenlabs_voice_id") private var voiceId = "pFZP5JQG7iQjIQuC4Bku"
+    @AppStorage("pendingVoiceOnboarding") private var pendingVoiceOnboarding = false
+    @EnvironmentObject private var auth: AuthService
 
     var body: some View {
         Form {
+            if pendingVoiceOnboarding {
+                Section("Setup") {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Voice setup is incomplete.")
+                                .font(.system(size: 13, weight: .medium))
+                            Text("Take 90 seconds to introduce yourself — Timed needs this to feel right.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Button("Resume") { auth.replayOnboarding() }
+                            .controlSize(.small)
+                    }
+                }
+            }
             Section("Voice") {
                 TextField("Voice ID", text: $voiceId)
                     .textFieldStyle(.roundedBorder)
