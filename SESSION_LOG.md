@@ -2429,3 +2429,60 @@ logs/watchdog.log
 **Next**: tonight when home — deploy voice proxies (`supabase functions deploy anthropic-proxy elevenlabs-tts-proxy`), deploy Trigger.dev pipeline (`cd trigger && pnpm run deploy`), Graphiti backfill on Fedora. After that, the intelligence engine actually receives data.
 
 **State**: SHIPPED
+
+---
+## Session: 2026-04-28 14:10
+
+### Commits This Session
+e59d619 docs: wrap-up — state propagated for tonight's onsite deploy run
+ec3a7fd feat: beta-readiness sprint — auth cascade, alerts wired, briefing nav, iOS orb live, EmailClassifier live
+bcee82b feat(auth): email+password sign-in/sign-up, login polish, MainActor crash fix, skip-onboarding
+5058ac2 chore: rescue dev-local stragglers — Trigger.dev smoke scripts + docker-compose gitignore
+da1e56e docs: drop founder-name-keyed personalisation across Timed docs
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-28 14:24
+
+### Commits This Session
+e59d619 docs: wrap-up — state propagated for tonight's onsite deploy run
+ec3a7fd feat: beta-readiness sprint — auth cascade, alerts wired, briefing nav, iOS orb live, EmailClassifier live
+bcee82b feat(auth): email+password sign-in/sign-up, login polish, MainActor crash fix, skip-onboarding
+5058ac2 chore: rescue dev-local stragglers — Trigger.dev smoke scripts + docker-compose gitignore
+da1e56e docs: drop founder-name-keyed personalisation across Timed docs
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-28 14:41
+
+### Commits This Session
+e59d619 docs: wrap-up — state propagated for tonight's onsite deploy run
+ec3a7fd feat: beta-readiness sprint — auth cascade, alerts wired, briefing nav, iOS orb live, EmailClassifier live
+bcee82b feat(auth): email+password sign-in/sign-up, login polish, MainActor crash fix, skip-onboarding
+5058ac2 chore: rescue dev-local stragglers — Trigger.dev smoke scripts + docker-compose gitignore
+da1e56e docs: drop founder-name-keyed personalisation across Timed docs
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-28 19:13
+
+### Commits This Session
+e59d619 docs: wrap-up — state propagated for tonight's onsite deploy run
+ec3a7fd feat: beta-readiness sprint — auth cascade, alerts wired, briefing nav, iOS orb live, EmailClassifier live
+bcee82b feat(auth): email+password sign-in/sign-up, login polish, MainActor crash fix, skip-onboarding
+5058ac2 chore: rescue dev-local stragglers — Trigger.dev smoke scripts + docker-compose gitignore
+
+### Modified Files
+pnpm-lock.yaml
+supabase/.temp/cli-latest
+logs/watchdog-launchd.log
+logs/watchdog.log

@@ -18,3 +18,7 @@ logs/
 
 # Local-dev docker stack (contains real secrets — never commit)
 docker-compose.local.yml
+
+# Stray pnpm install at repo root (real lockfile lives under trigger/)
+/node_modules/
+/pnpm-lock.yaml

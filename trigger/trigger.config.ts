@@ -8,12 +8,12 @@ import { defineConfig } from "@trigger.dev/sdk";
  * knob below is encoded here so the eventual `trigger.dev deploy` is a no-arg
  * operation.
  */
-const TRIGGER_PROJECT_REF = process.env.TRIGGER_PROJECT_REF;
-if (!TRIGGER_PROJECT_REF) {
-  throw new Error(
-    "TRIGGER_PROJECT_REF env var is required. Set it in the Trigger.dev org → Project settings, or export it locally before running `trigger.dev deploy`.",
-  );
-}
+// The project ref is the Trigger.dev cloud project this code deploys to.
+// It must resolve at config-import time (the cloud worker container loads
+// trigger.config.ts before any user env is available), so we hardcode a
+// default and let an env override take precedence for local experiments.
+const TRIGGER_PROJECT_REF =
+  process.env.TRIGGER_PROJECT_REF ?? "proj_vrakwmzenqmmhrzhfqyl";
 
 export default defineConfig({
   project: TRIGGER_PROJECT_REF,

@@ -178,7 +178,7 @@
 - **3 architecture syntheses:** `research/ARCHITECTURE-MEMORY.md`, `ARCHITECTURE-SIGNALS.md`, `ARCHITECTURE-DELIVERY.md`
 
 Any future build session should read `CLAUDE.md` → `BUILD_STATE.md` → relevant `ARCHITECTURE-*.md` → build.
-Last Session: 2026-04-28 13:57
+Last Session: 2026-04-28 19:13
 
 ### Intro + Brand System (new)
 - [x] IntroFeature.swift — TCA 1.15+ @Reducer, phase machine (reveal → tagline → holding → exiting → finished)
