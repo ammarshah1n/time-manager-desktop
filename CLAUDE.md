@@ -123,5 +123,6 @@ Master bag: `/Users/integrale/Documents/toolkit-bag/BAG.md`. Tools that matter f
 - **claude-video-vision** — ingest your own demo recordings (and Yasser's) to extract feature feedback, qualitative signal, UI friction points. Useful for the nightly engine if recordings are part of the corpus.
 - **openscreen** — record demo videos for the App Store / launch / TestFlight comms.
 - **Open-Generative-AI** — UI asset generation (icons, marketing graphics, App Store screenshots).
+- **gpt-researcher-claude-cli** — self-hosted Deep Research using CC subscription + private SearxNG instance. Reach for it for technical deep-dives on AI infra, embedding models, agent frameworks, MCP ecosystem, anything where you'd otherwise burn Perplexity Pro quota. Launch: `~/Documents/toolkit-bag/gpt-researcher/start_all.sh`. Full notes in `BAG.md` §9.
 
 See `BAG.md` for install + usage + risks. Audit method documented at the bottom of that file when adding a new tool.

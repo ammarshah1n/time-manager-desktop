@@ -2629,3 +2629,30 @@ ec3a7fd feat: beta-readiness sprint — auth cascade, alerts wired, briefing nav
 .build/arm64-apple-macosx/debug/SwiftOperators.build/output-file-map.json
 .build/arm64-apple-macosx/debug/Supabase.build/output-file-map.json
 .build/arm64-apple-macosx/debug/CasePathsCore.build/output-file-map.json
+
+---
+## Session: 2026-04-28 21:47
+
+### Commits This Session
+e785aac skibidi sprint phase 5 + comet integration: route-change recovery + score_memory live
+3508abf skibidi sprint phase 4+ checkpoint: ASWebAuthSession + bounded sync + pre-warm + session refresh
+cf53995 skibidi sprint phase 1+ checkpoint: substrate patches + 5 severed circuits closed
+a7bd83a docs(research): 8 pre-Yasser-ship audit prompts + gitignore stray pnpm install
+e59d619 docs: wrap-up — state propagated for tonight's onsite deploy run
+
+### Modified Files
+.build/.lock
+.build/debug.yaml
+.build/plugin-tools.yaml
+.build/arm64-apple-macosx/debug/ElevenLabs.build/output-file-map.json
+.build/arm64-apple-macosx/debug/Crypto.build/output-file-map.json
+.build/arm64-apple-macosx/debug/USearch.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftOperators.build/output-file-map.json
+.build/arm64-apple-macosx/debug/Supabase.build/output-file-map.json
+.build/arm64-apple-macosx/debug/CasePathsCore.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftParser-tool.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftCompilerPluginMessageHandling-tool.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftUINavigation.build/output-file-map.json
+.build/arm64-apple-macosx/debug/time-manager-desktop
+.build/arm64-apple-macosx/debug/Functions.build/output-file-map.json
+.build/arm64-apple-macosx/debug/HTTPTypes.build/output-file-map.json
