@@ -186,26 +186,20 @@ private struct PlaceholderPane: View {
     }
 }
 
-// MARK: - Orb sheet placeholder
+// MARK: - Orb sheet (wraps ConversationView with iOS presentation chrome)
 
 private struct ConversationOrbSheet: View {
-    @Environment(\.dismiss) private var dismiss
+    // Bindings are empty for iOS until tasks/calendar are wired through the
+    // tab views — the orb still functions as voice + reasoning without them.
+    @State private var tasks: [TimedTask] = []
+    @State private var blocks: [CalendarBlock] = []
 
     var body: some View {
-        // The conversation orb itself lives in TimedKit/Features/Conversation/.
-        // This sheet wraps ConversationView with iOS presentation chrome.
-        // Wired in Step 7 once the in-flight voice rework lands cleanly.
-        VStack(spacing: 16) {
-            Capsule()
-                .fill(.secondary.opacity(0.4))
-                .frame(width: 36, height: 4)
-                .padding(.top, 8)
-            Spacer()
-            Text("Orb sheet — wired to ConversationView in Step 7")
-                .foregroundStyle(.secondary)
-            Spacer()
-            Button("Close") { dismiss() }
-        }
+        ConversationView(
+            tasks: $tasks,
+            blocks: $blocks,
+            freeTimeSlots: []
+        )
     }
 }
 

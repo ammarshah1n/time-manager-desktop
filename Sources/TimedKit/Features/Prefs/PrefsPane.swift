@@ -8,8 +8,9 @@ import Foundation
 import Dependencies
 
 struct PrefsPane: View {
-    /// Set to false to reveal all settings tabs for v2.
-    private let v1BetaMode = true
+    /// Default false — all wired tabs visible. Set true via debug only to demo
+    /// the locked-down v1 surface area. Persisted so it can flip without rebuild.
+    @AppStorage("v1BetaMode") private var v1BetaMode: Bool = false
 
     @State private var tab = PrefTab.accounts
 

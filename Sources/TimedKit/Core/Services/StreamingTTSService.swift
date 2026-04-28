@@ -89,7 +89,10 @@ final class StreamingTTSService: ObservableObject {
             try playMP3(mp3)
             await waitForPlayback()
         } catch {
-            // Fallback to local AVSpeechSynthesizer if the proxy fails.
+            // Falls back to elevenlabs-tts-proxy one-shot via SpeechService.
+            // No Apple TTS — if the network's gone, the user hears nothing and
+            // we surface the failure visibly rather than silently downgrade.
+            TimedLogger.voice.warning("orb-tts unreachable; falling back to elevenlabs-tts-proxy one-shot: \(error.localizedDescription, privacy: .private)")
             speakFallback(text)
         }
     }

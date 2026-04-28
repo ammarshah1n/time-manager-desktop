@@ -282,6 +282,13 @@ final class AuthService: ObservableObject {
                 )
                 self.error = nil
                 TimedLogger.supabase.info("Executive bootstrapped: \(executive.id, privacy: .private)")
+                // Auth cascade — once Supabase identity is bootstrapped, request a
+                // Microsoft Graph token (silent refresh if user previously consented;
+                // interactive MSAL prompt otherwise) and kick off email/calendar
+                // background sync. Best-effort: graphAccessToken stays nil for
+                // email-signup users who decline the MSAL prompt, and the app
+                // still functions without Outlook integration.
+                await connectOutlookIfPossible(executiveId: executive.id)
                 return
             } catch {
                 TimedLogger.supabase.error("Executive bootstrap attempt \(attempt + 1) failed: \(error.localizedDescription, privacy: .private)")
@@ -306,6 +313,34 @@ final class AuthService: ObservableObject {
     func replayOnboarding() {
         UserDefaults.standard.set(false, forKey: "hasCompletedOnboarding")
         UserDefaults.standard.set(false, forKey: "pendingVoiceOnboarding")
+    }
+
+    /// Auth cascade — fires Graph (MSAL) sign-in and starts email + calendar
+    /// background sync. Called from bootstrapExecutive() and the explicit
+    /// "Connect Outlook" Preferences action. Idempotent and best-effort: if
+    /// MSAL fails or the user declines, graphAccessToken stays nil and the
+    /// app proceeds without Outlook integration.
+    func connectOutlookIfPossible(executiveId: UUID) async {
+        guard let email = userEmail, !email.isEmpty else {
+            TimedLogger.graph.info("connectOutlookIfPossible: no userEmail yet, skipping")
+            return
+        }
+        await signInWithGraph(loginHint: email)
+        guard graphAccessToken != nil else {
+            TimedLogger.graph.info("connectOutlookIfPossible: no Graph token after signInWithGraph — Outlook integration deferred")
+            return
+        }
+        // executiveId doubles as workspaceId / emailAccountId / profileId
+        // until DataBridge introduces distinct IDs.
+        let provider = makeTokenProvider()
+        await EmailSyncService.shared.start(
+            tokenProvider: provider,
+            workspaceId: executiveId,
+            emailAccountId: executiveId,
+            profileId: executiveId
+        )
+        await CalendarSyncService.shared.start(tokenProvider: provider)
+        TimedLogger.graph.info("Outlook sync started for executive \(executiveId, privacy: .private)")
     }
 }
 

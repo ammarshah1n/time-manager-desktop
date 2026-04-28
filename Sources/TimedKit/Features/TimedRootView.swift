@@ -20,6 +20,7 @@ struct TimedRootView: View {
 
     @StateObject private var network = NetworkMonitor.shared
     @StateObject private var auth = AuthService.shared
+    @StateObject private var alerts = AlertsPresenter.shared
     @EnvironmentObject private var menuBarManager: MenuBarManager
     @State private var showMorningInterview = false
     @State private var morningDone          = false
@@ -52,14 +53,26 @@ struct TimedRootView: View {
         .background(persistenceObserver)
         .onAppear { loadData(); checkMorningInterview(); network.start(); wireMenuBar() }
         .overlay(alignment: .topTrailing) {
-            if !network.isConnected {
-                Text("Offline")
-                    .font(TimedType.caption2)
-                    .foregroundStyle(Color.Timed.labelSecondary)
-                    .padding(.horizontal, TimedLayout.Spacing.sm)
-                    .padding(.vertical, TimedLayout.Spacing.xxs)
-                    .padding(TimedLayout.Spacing.sm)
+            VStack(alignment: .trailing, spacing: 8) {
+                if !network.isConnected {
+                    Text("Offline")
+                        .font(TimedType.caption2)
+                        .foregroundStyle(Color.Timed.labelSecondary)
+                }
+
+                if let alert = alerts.currentAlert {
+                    AlertDeliveryView(
+                        alert: alert,
+                        onAcknowledge: { alerts.acknowledge() },
+                        onDismiss: { alerts.dismiss() },
+                        onActionable: { alerts.recordActionable($0) }
+                    )
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                }
             }
+            .padding(.top, 12)
+            .padding(.trailing, 16)
+            .animation(TimedMotion.springy, value: alerts.currentAlert?.id)
         }
         .onChange(of: auth.graphAccessToken) { _, newToken in
             if newToken != nil {
@@ -237,8 +250,8 @@ struct TimedRootView: View {
 
     // MARK: - Sidebar
 
-    /// Set to false to reveal all screens (Triage, Waiting, Insights, etc.) for v2.
-    private let v1BetaMode = true
+    /// Default false — all screens visible. Toggle via Preferences (or debug).
+    @AppStorage("v1BetaMode") private var v1BetaMode: Bool = false
 
     @ViewBuilder
     private var sidebar: some View {
@@ -251,6 +264,10 @@ struct TimedRootView: View {
             SidebarRow(label: "Today", icon: "calendar",
                        isSelected: selection == .today)
                 .tag(NavSection.today)
+
+            SidebarRow(label: "Briefing", icon: "sparkles",
+                       isSelected: selection == .briefing)
+                .tag(NavSection.briefing)
 
             if !v1BetaMode {
                 SidebarRow(label: "Triage", icon: "tray.and.arrow.down",
@@ -334,6 +351,8 @@ struct TimedRootView: View {
             CapturePane(tasks: $tasks, items: $captureItems)
         case .calendar:
             CalendarPane(blocks: $blocks)
+        case .briefing:
+            MorningBriefingPane()
         case .prefs:
             PrefsPane()
         }
@@ -446,6 +465,7 @@ enum NavSection: Hashable {
     case waiting
     case capture
     case calendar
+    case briefing
     case prefs
 }
 

@@ -24,6 +24,9 @@ struct DishMeUpPlanItem: Codable, Identifiable, Hashable {
     let estimatedMinutes: Int
     let reason: String
     let avoidanceFlag: String?
+    /// Bucket key from the Edge Function (e.g. "Action", "Reply"). Optional —
+    /// older responses don't include it; the row falls back to a neutral dot.
+    let bucket: String?
 
     enum CodingKeys: String, CodingKey {
         case taskId = "task_id"
@@ -31,6 +34,15 @@ struct DishMeUpPlanItem: Codable, Identifiable, Hashable {
         case estimatedMinutes = "estimated_minutes"
         case reason
         case avoidanceFlag = "avoidance_flag"
+        case bucket
+    }
+
+    /// Map the JSON bucket string to a TaskBucket. Tolerant of casing/spacing.
+    var resolvedBucket: TaskBucket? {
+        guard let raw = bucket?.trimmingCharacters(in: .whitespaces), !raw.isEmpty else { return nil }
+        if let exact = TaskBucket(rawValue: raw) { return exact }
+        let normalised = raw.lowercased()
+        return TaskBucket.allCases.first { $0.rawValue.lowercased() == normalised }
     }
 }
 
@@ -182,7 +194,7 @@ struct DishMeUpHomeView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: TimedLayout.Spacing.xl) {
                 Text(plan.sessionFraming)
-                    .font(TimedType.title3)
+                    .font(TimedType.title3.weight(.semibold))
                     .foregroundStyle(Color.Timed.labelPrimary)
                     .padding(.top, TimedLayout.Spacing.xl)
                     .padding(.horizontal, TimedLayout.Spacing.lg)
@@ -287,9 +299,9 @@ private struct PlanRow: View {
                     .frame(width: 18)
             }
 
-            // The plan items don't carry a bucket (Edge Function doesn't surface
-            // it yet); use labelSecondary as the neutral dot until that lands.
-            BucketDot(color: Color.Timed.labelSecondary)
+            // Bucket-coloured dot when the Edge Function surfaces it; neutral grey
+            // as fallback for older responses or unrecognised bucket strings.
+            BucketDot(color: item.resolvedBucket?.dotColor ?? Color.Timed.labelSecondary)
                 .padding(.top, 5)
 
             VStack(alignment: .leading, spacing: TimedLayout.Spacing.xxs) {
