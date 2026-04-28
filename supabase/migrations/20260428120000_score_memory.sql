@@ -34,3 +34,43 @@ $$;
 
 COMMENT ON FUNCTION public.score_memory IS
   'Composite retrieval score for tier0_observations rows. Importance × recency × deviation × source-tier. Stop-gap until embedding retrieval is re-enabled.';
+
+-- get_top_observations(p_exec_id, p_hours, p_limit)
+--
+-- Live caller for score_memory(). Called by orb-conversation's buildObservations
+-- via a Supabase RPC so the orb sees observations ranked by relevance, not just
+-- recency. Without this wrapper, score_memory() would be a schema orphan
+-- (Comet evaluation gap C.2).
+CREATE OR REPLACE FUNCTION public.get_top_observations(
+    p_exec_id UUID,
+    p_hours INTEGER DEFAULT 24,
+    p_limit INTEGER DEFAULT 40
+) RETURNS TABLE (
+    id UUID,
+    occurred_at TIMESTAMPTZ,
+    event_type TEXT,
+    summary TEXT,
+    score FLOAT
+)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+    SELECT
+        obs.id,
+        obs.occurred_at,
+        obs.event_type,
+        obs.summary,
+        public.score_memory(obs)::float AS score
+    FROM public.tier0_observations obs
+    WHERE obs.profile_id = p_exec_id
+      AND obs.occurred_at >= now() - (p_hours || ' hours')::interval
+    ORDER BY public.score_memory(obs) DESC
+    LIMIT GREATEST(1, LEAST(p_limit, 200));
+$$;
+
+COMMENT ON FUNCTION public.get_top_observations IS
+  'Live caller for score_memory(). Returns recent tier0 observations ordered by composite retrieval score. Used by orb-conversation buildObservations.';
+
+GRANT EXECUTE ON FUNCTION public.get_top_observations(UUID, INTEGER, INTEGER) TO authenticated, service_role;

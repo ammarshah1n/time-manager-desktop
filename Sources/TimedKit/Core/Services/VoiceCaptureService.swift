@@ -59,6 +59,11 @@ final class VoiceCaptureService: NSObject, ObservableObject {
     private let audioEngine = AVAudioEngine()
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
+    /// Notification observer for AVAudioEngineConfigurationChange. Stored so
+    /// `stop()` can remove it — without that cleanup, every start/stop cycle
+    /// leaves another observer registered, and an AirPods route change after
+    /// 5 sessions would fire 5 stacked restarts (Comet C.6).
+    private var routeChangeObserver: NSObjectProtocol?
 
     // MARK: - Init
 
@@ -150,6 +155,13 @@ final class VoiceCaptureService: NSObject, ObservableObject {
         isRecording = false
         audioLevel = 0
 
+        // Tear down the route-change observer so subsequent recording sessions
+        // don't accumulate stacked observers (Comet C.6).
+        if let obs = routeChangeObserver {
+            NotificationCenter.default.removeObserver(obs)
+            routeChangeObserver = nil
+        }
+
         // Parse final transcript into discrete task items
         parsedItems = TranscriptParser.parse(liveTranscript)
         TimedLogger.voice.info("Recording stopped — parsed \(self.parsedItems.count) items")
@@ -168,6 +180,26 @@ final class VoiceCaptureService: NSObject, ObservableObject {
     private func startAudioEngine() throws {
         let inputNode = audioEngine.inputNode
         let format = inputNode.outputFormat(forBus: 0)
+
+        // Recover from AirPods connect/disconnect (and other audio route
+        // changes) by tearing down the engine and starting a fresh one. Without
+        // this, isRecording stays true while audio quietly stops flowing.
+        // Stored observer is removed in stop() — see C.6 cleanup above.
+        if routeChangeObserver == nil {
+            routeChangeObserver = NotificationCenter.default.addObserver(
+                forName: .AVAudioEngineConfigurationChange,
+                object: audioEngine,
+                queue: .main
+            ) { [weak self] _ in
+                guard let self else { return }
+                TimedLogger.voice.info("VoiceCaptureService: audio route changed — restarting engine")
+                Task { @MainActor in
+                    self.stop()
+                    try? await Task.sleep(for: .milliseconds(200))
+                    await self.start()
+                }
+            }
+        }
 
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
