@@ -209,6 +209,7 @@ actor EmailSyncService {
 
         syncTask = Task { [weak self] in
             guard let self else { return }
+            var hasLinkedOutlook = false  // local sentinel — flip exec flag once per session
             while !Task.isCancelled {
                 do {
                     let count = try await self.syncOnce(
@@ -220,11 +221,41 @@ actor EmailSyncService {
                     if count > 0 {
                         TimedLogger.graph.info("EmailSyncService synced \(count) message(s)")
                     }
+                    // First successful sync (count >= 0, no error) flips
+                    // executives.outlook_linked. Lets the orb stop falsely
+                    // saying "inbox is clear" for users who haven't connected
+                    // Outlook yet. Once-per-session sentinel keeps the write
+                    // off the hot path of every poll cycle.
+                    if !hasLinkedOutlook, let pid = profileId {
+                        hasLinkedOutlook = true
+                        await self.markOutlookLinked(profileId: pid)
+                    }
                 } catch {
                     TimedLogger.graph.error("EmailSyncService sync error: \(error.localizedDescription, privacy: .public)")
                 }
                 try? await Task.sleep(for: .seconds(self.pollInterval))
             }
+        }
+    }
+
+    /// Stamps `executives.outlook_linked = true` on the first successful sync.
+    /// Called from the sync loop's first error-free iteration. The orb gates
+    /// its inbox context block on this flag, so until it flips the orb tells
+    /// the user "I do not have your email set up yet" instead of falsely
+    /// reporting an empty inbox.
+    private func markOutlookLinked(profileId: UUID) async {
+        guard let supabase = SupabaseClientDependency.live().rawClient else { return }
+        do {
+            struct OutlookLinkedUpdate: Encodable, Sendable { let outlook_linked: Bool }
+            try await supabase
+                .from("executives")
+                .update(OutlookLinkedUpdate(outlook_linked: true))
+                .eq("id", value: profileId.uuidString)
+                .execute()
+            TimedLogger.graph.info("EmailSyncService stamped executives.outlook_linked = true")
+        } catch {
+            // Non-fatal — column write isn't on the critical path.
+            TimedLogger.graph.warning("Failed to stamp outlook_linked: \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -352,6 +383,21 @@ actor EmailSyncService {
                 }
                 currentDeltaLink = nil
                 continue
+            } catch GraphError.httpError(let status) where status == 401 {
+                // MSAL token rejected by Graph — silent refresh failed. Surface
+                // a notification so the user can tap to re-auth instead of
+                // wondering why their inbox stopped syncing (Phase 6.2).
+                TimedLogger.graph.error("MSAL 401 from Graph — surfacing reconnect notification")
+                Task { @MainActor in
+                    await PlatformNotifications.shared.deliver(
+                        title: "Outlook reconnect needed",
+                        body: "Tap to reconnect your Microsoft account. Email and calendar sync paused until you do.",
+                        tier: .interrupt,
+                        identifier: "outlook-reconnect",
+                        userInfo: ["timed.action": "reconnect-microsoft"]
+                    )
+                }
+                throw GraphError.httpError(401)
             }
 
             for message in result.messages {

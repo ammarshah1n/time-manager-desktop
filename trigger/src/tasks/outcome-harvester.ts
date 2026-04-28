@@ -1,4 +1,4 @@
-import { logger, schedules } from "@trigger.dev/sdk";
+import { logger, schedules, task } from "@trigger.dev/sdk";
 
 import { getSupabaseServiceRole } from "../lib/supabase.js";
 
@@ -338,11 +338,15 @@ async function processPage(
   };
 }
 
-export const outcomeHarvester = schedules.task({
+// Demoted from schedules.task → task on 2026-04-28 to free a Trigger.dev hobby
+// declarative slot (10/10 cap). Harvester logic intact and triggerable manually
+// or from another task; re-add the cron + switch back to schedules.task once
+// the schedule-cap upgrade lands. Companion to ingestion-health-watchdog
+// which was demoted earlier in the same sprint.
+export const outcomeHarvester = task({
   id: "outcome-harvester",
-  cron: "0 */4 * * *",
   maxDuration: 300,
-  run: async (payload) => {
+  run: async (payload: { timestamp?: string; lastTimestamp?: string }) => {
     logger.info("outcome-harvester starting", {
       timestamp: payload.timestamp,
       lastTimestamp: payload.lastTimestamp,

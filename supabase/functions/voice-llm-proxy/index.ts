@@ -79,12 +79,30 @@ async function readOnboardedState(userId: string): Promise<{ onboarded: boolean;
 
 // ─── Inbox snapshot for the orb's opening context ───────────────────────────
 type InboxSnapshot = {
+  /// True once the executive has linked Microsoft Graph and at least one
+  /// successful sync has landed. Until then `unread24h` etc. are meaningless
+  /// placeholders and the orb should say so plainly instead of pretending the
+  /// inbox is clear.
+  outlook_linked: boolean;
   unread24h: number;
   topSenders: Array<{ from: string; count: number }>;
   recentInbox: Array<{ id: string; from: string; subject: string; received_at: string; thread_id: string | null }>;
 };
 
 async function readInboxSnapshot(executiveId: string): Promise<InboxSnapshot> {
+  // Gate on the executives.outlook_linked flag — if Outlook is not linked yet,
+  // skip the inbox query entirely and return an honest "not linked" snapshot.
+  // Defends against the orb saying "your inbox is clear" to a user who has
+  // not actually connected Outlook (Phase 5.8).
+  const { data: exec } = await supabase
+    .from("executives")
+    .select("outlook_linked")
+    .eq("id", executiveId)
+    .maybeSingle();
+  if (!exec?.outlook_linked) {
+    return { outlook_linked: false, unread24h: 0, topSenders: [], recentInbox: [] };
+  }
+
   const since = new Date(Date.now() - 24 * 3600_000).toISOString();
   const { data: rows } = await supabase
     .from("email_messages")
@@ -107,6 +125,7 @@ async function readInboxSnapshot(executiveId: string): Promise<InboxSnapshot> {
     .map(([from, count]) => ({ from, count }));
 
   return {
+    outlook_linked: true,
     unread24h: list.length,
     topSenders,
     recentInbox: list.slice(0, 5).map(r => ({
@@ -388,15 +407,22 @@ function buildContextIntro(ctx: Awaited<ReturnType<typeof readContext>>): string
     ? overdue.map((t: any) => ` • ${t.title}`).join("\n")
     : " • (no overdue tasks)";
 
-  // Inbox lines wrapped in untrusted fences — subjects/senders are user-supplied
-  const inboxLine = ctx.inbox.unread24h === 0
-    ? " • (inbox is clear — no unread mail in the last 24h)"
-    : ctx.inbox.recentInbox
-        .map(m => ` • <untrusted_email>From ${m.from} — ${m.subject}</untrusted_email>`)
-        .join("\n");
-  const sendersLine = ctx.inbox.topSenders.length
-    ? ctx.inbox.topSenders.map(s => `<untrusted_sender>${s.from} (${s.count})</untrusted_sender>`).join(", ")
-    : "(no recurring senders today)";
+  // Inbox lines wrapped in untrusted fences — subjects/senders are user-supplied.
+  // When Outlook is not linked, we tell the truth instead of falsely reporting
+  // a clear inbox (Phase 5.8). The orb's persona is briefed to surface this.
+  const outlookNotLinked = !ctx.inbox.outlook_linked;
+  const inboxLine = outlookNotLinked
+    ? " • (Outlook has not been linked yet — email context is unavailable until the principal connects their Microsoft account)"
+    : ctx.inbox.unread24h === 0
+      ? " • (inbox is clear — no unread mail in the last 24h)"
+      : ctx.inbox.recentInbox
+          .map(m => ` • <untrusted_email>From ${m.from} — ${m.subject}</untrusted_email>`)
+          .join("\n");
+  const sendersLine = outlookNotLinked
+    ? "(Outlook unlinked — no sender data)"
+    : ctx.inbox.topSenders.length
+      ? ctx.inbox.topSenders.map(s => `<untrusted_sender>${s.from} (${s.count})</untrusted_sender>`).join(", ")
+      : "(no recurring senders today)";
 
   return `TODAY'S CONTEXT (do not read back unless asked):
 

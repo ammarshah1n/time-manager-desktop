@@ -130,18 +130,49 @@ Output JSON:
     result = { raw: resultText };
   }
 
+  // Helper — derive gate values from observable thresholds. Without this,
+  // every signature stayed `emerging` forever and Tier 3 monthly-trait-synthesis
+  // (which reads `WHERE status = 'confirmed'`) ran on an empty feed. (Phase 3.2)
+  function deriveGates(input: {
+    confidence: number;
+    observation_count: number;
+    weeks_tested?: number;
+    context_conditions?: string[];
+  }) {
+    const effectSize = Math.min(1.0, input.confidence);              // proxy
+    const weeksTested = Math.max(input.weeks_tested ?? 0, input.observation_count >= 2 ? 2 : 1);
+    const contextCount = (input.context_conditions ?? []).length;
+    const plausibility = input.confidence;
+    return {
+      gate1_effect_size:        effectSize,
+      gate1_passed:             effectSize >= 0.4,
+      gate2_weeks_tested:       weeksTested,
+      gate2_passed:             weeksTested >= 2,
+      gate3_context_conditions: input.context_conditions ?? [],
+      gate3_passed:             contextCount >= 2,
+      gate4_plausibility_score: plausibility,
+      gate4_passed:             plausibility >= 0.6,
+    };
+  }
+
   // Apply reinforcements — update existing signatures
   for (const r of result.reinforcements ?? []) {
     if (!r.signature_id) continue;
     const { data: sig } = await client
       .from("tier2_behavioural_signatures")
-      .select("observation_count, confidence")
+      .select("observation_count, confidence, gate3_context_conditions")
       .eq("id", r.signature_id)
       .single();
 
     if (sig) {
       const newCount = (sig.observation_count ?? 0) + (r.new_observation_count ?? 1);
       const newConfidence = Math.min(1.0, sig.confidence + 0.05);
+      const gates = deriveGates({
+        confidence: newConfidence,
+        observation_count: newCount,
+        weeks_tested: weeklySummaries.length,
+        context_conditions: (sig as any).gate3_context_conditions as string[] | undefined,
+      });
       await client
         .from("tier2_behavioural_signatures")
         .update({
@@ -149,8 +180,11 @@ Output JSON:
           confidence: newConfidence,
           last_reinforced_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
+          ...gates,
         })
         .eq("id", r.signature_id);
+      // Promote to 'confirmed' / 'developing' / etc. via the validation-gate RPC.
+      await client.rpc("check_validation_gates", { sig_id: r.signature_id });
     }
   }
 
@@ -160,17 +194,32 @@ Output JSON:
     const existingNames = (tier2Signatures ?? []).map((s) => s.signature_name.toLowerCase());
     if (existingNames.some((n) => n.includes(c.signature_name?.toLowerCase()?.slice(0, 20)))) continue;
 
-    await client.from("tier2_behavioural_signatures").insert({
-      profile_id: executiveId,
-      signature_name: c.signature_name,
-      pattern_type: c.pattern_type ?? "cross_domain",
-      description: c.description,
-      confidence: c.confidence ?? 0.3,
-      status: "emerging",
+    const initialConfidence = c.confidence ?? 0.3;
+    const gates = deriveGates({
+      confidence: initialConfidence,
       observation_count: 1,
-      supporting_tier1_ids: weeklySummaries.map((s) => s.summary_date),
-      cross_domain_correlations: c.domains ?? [],
+      weeks_tested: weeklySummaries.length,
+      context_conditions: c.domains ?? [],
     });
+    const { data: inserted } = await client
+      .from("tier2_behavioural_signatures")
+      .insert({
+        profile_id: executiveId,
+        signature_name: c.signature_name,
+        pattern_type: c.pattern_type ?? "cross_domain",
+        description: c.description,
+        confidence: initialConfidence,
+        status: "emerging",
+        observation_count: 1,
+        supporting_tier1_ids: weeklySummaries.map((s) => s.summary_date),
+        cross_domain_correlations: c.domains ?? [],
+        ...gates,
+      })
+      .select("id")
+      .single();
+    if (inserted?.id) {
+      await client.rpc("check_validation_gates", { sig_id: inserted.id });
+    }
   }
 
   log.info("complete", {

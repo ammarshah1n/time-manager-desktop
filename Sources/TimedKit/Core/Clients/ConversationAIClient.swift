@@ -95,10 +95,27 @@ final class ConversationAIClient: ObservableObject {
         clientState: [String: Any]?,
         continuation: AsyncThrowingStream<ConversationAIEvent, Error>.Continuation
     ) async throws -> AnthropicTurn {
-        let bytes = try await EdgeFunctions.shared.conversationStream(
-            messages: messages,
-            clientState: clientState
-        )
+        // 429 retry — when NREM + orb + classifier hit Anthropic simultaneously,
+        // bursts can trip rate limits. One delayed retry recovers most of them
+        // before surfacing failure to the user. (Phase 6.3)
+        let bytes: URLSession.AsyncBytes
+        do {
+            bytes = try await EdgeFunctions.shared.conversationStream(
+                messages: messages,
+                clientState: clientState
+            )
+        } catch let error as EdgeFunctions.FnError {
+            if case .http(429, _) = error {
+                TimedLogger.voice.warning("Anthropic 429 — backing off 5s and retrying once")
+                try await Task.sleep(for: .seconds(5))
+                bytes = try await EdgeFunctions.shared.conversationStream(
+                    messages: messages,
+                    clientState: clientState
+                )
+            } else {
+                throw error
+            }
+        }
 
         var assistantText = ""
         var toolBuffers: [Int: ToolUseBuffer] = [:]

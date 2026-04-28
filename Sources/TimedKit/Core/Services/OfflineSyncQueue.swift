@@ -43,8 +43,22 @@ actor OfflineSyncQueue {
                 t.column("created_at", .datetime).notNull().defaults(sql: "CURRENT_TIMESTAMP")
                 t.column("synced_at", .datetime)
             }
+            // Phase 6.6 — track per-row failure count so a permanently-invalid
+            // op (e.g., reference to a deleted workspace) doesn't block the
+            // entire queue. Adds two columns to existing tables; defaults
+            // mean older rows are seen as "0 failures, never permanently
+            // failed" and proceed normally on next flush.
+            let columns = try db.columns(in: "pending_operations").map(\.name)
+            if !columns.contains("failed_count") {
+                try db.execute(sql: "ALTER TABLE pending_operations ADD COLUMN failed_count INTEGER NOT NULL DEFAULT 0")
+            }
+            if !columns.contains("permanently_failed") {
+                try db.execute(sql: "ALTER TABLE pending_operations ADD COLUMN permanently_failed INTEGER NOT NULL DEFAULT 0")
+            }
         }
     }
+
+    private static let maxFailures = 3
 
     // MARK: - Enqueue
 
@@ -92,15 +106,18 @@ actor OfflineSyncQueue {
         defer { isProcessing = false }
 
         do {
-            let pending: [(Int64, String, String)] = try await dbQueue.read { db in
+            // Filter out permanently-failed rows so one bad op (deleted
+            // workspace reference, etc.) doesn't permanently block the
+            // queue. Phase 6.6.
+            let pending: [(Int64, String, String, Int)] = try await dbQueue.read { db in
                 try Row.fetchAll(db,
-                    sql: "SELECT id, operation_type, payload_json FROM pending_operations WHERE synced_at IS NULL ORDER BY created_at ASC"
+                    sql: "SELECT id, operation_type, payload_json, failed_count FROM pending_operations WHERE synced_at IS NULL AND permanently_failed = 0 ORDER BY created_at ASC"
                 ).map { row in
-                    (row["id"] as Int64, row["operation_type"] as String, row["payload_json"] as String)
+                    (row["id"] as Int64, row["operation_type"] as String, row["payload_json"] as String, row["failed_count"] as Int)
                 }
             }
 
-            for (id, opType, payloadJson) in pending {
+            for (id, opType, payloadJson, prevFailedCount) in pending {
                 guard let payloadData = payloadJson.data(using: .utf8) else { continue }
                 do {
                     try await execute(opType, payloadData)
@@ -113,11 +130,24 @@ actor OfflineSyncQueue {
                     }
                     currentBackoff = 1.0 // Reset on success
                 } catch {
-                    TimedLogger.dataStore.warning("Flush failed for op \(id): \(error.localizedDescription, privacy: .public)")
-                    // Exponential backoff
+                    let newFailedCount = prevFailedCount + 1
+                    let permanentlyFailed = newFailedCount >= Self.maxFailures
+                    TimedLogger.dataStore.warning(
+                        "Flush failed for op \(id) (attempt \(newFailedCount)/\(Self.maxFailures))\(permanentlyFailed ? " — marking permanently_failed" : ""): \(error.localizedDescription, privacy: .public)"
+                    )
+                    // Increment failure counter; mark permanently_failed if at cap so
+                    // subsequent flushes skip this row instead of retrying forever.
+                    try? await dbQueue.write { db in
+                        try db.execute(
+                            sql: "UPDATE pending_operations SET failed_count = ?, permanently_failed = ? WHERE id = ?",
+                            arguments: [newFailedCount, permanentlyFailed ? 1 : 0, id]
+                        )
+                    }
+                    // Move on to the next item rather than blocking the
+                    // whole queue on a single bad row.
                     try? await Task.sleep(for: .seconds(currentBackoff))
                     currentBackoff = min(currentBackoff * 2, maxBackoff)
-                    break // Stop processing on failure — retry later
+                    continue
                 }
             }
         } catch {
