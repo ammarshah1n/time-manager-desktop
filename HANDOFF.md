@@ -1,12 +1,64 @@
 # HANDOFF.md — Timed
 
-Last updated: 2026-04-28 10:30 (Microsoft login PARKED — Supabase rejecting code exchange; Chain B/C still parked)
+Last updated: 2026-04-28 14:00 (beta-readiness sprint shipped — auth cascade live, alerts wired, briefing nav, iOS orb live, EmailClassifier live; ops backlog held for tonight)
 
 > **READ FIRST:** `docs/UNIFIED-BRANCH.md` — permanent reference for the consolidated architecture.
 > **Narrative:** `docs/SINCE-2026-04-24.md` — full story of the weekend work.
 > **Resume next session:** `~/.claude/projects/-Users-integrale-time-manager-desktop/NEXT.md`.
 
-## ★ PARKED 2026-04-28 PM ★ — Microsoft login (~80% wired, fails at Supabase code exchange)
+## ★ SHIPPED 2026-04-28 PM ★ — Beta-readiness sprint (commits `bcee82b` + `ec3a7fd`)
+
+Three Perplexity Deep Research audits + an external Beta-Ready Execution Plan converged on the same picture: intelligence engine architecturally complete, delivery layer 5-6 caller-sites + one auth cascade away from beta. Shipped this afternoon:
+
+**Auth + login**
+- Email/password sign-up + sign-in via Supabase Auth (`AuthService.signInWithEmail`, `signUpWithEmail`, `sendPasswordReset`).
+- LoginView: Sign-in / Create-account segmented picker with `TimedMotion.springy` animation, Microsoft 4-square logo asset (vector PDF in `Assets.xcassets/ms-logo.imageset/`), welcome banner pill (ultraThinMaterial) flashes 1.4s on success.
+- VoiceCaptureService MainActor crash fix — audio tap closure no longer reaches through `self.recognitionRequest`; captures local + appends on the audio thread (Apple Speech `.append` is thread-safe). Resolves `_swift_task_checkIsolatedSwift` crash on fresh-signup users.
+- "Set up later" path: VoiceOnboardingView dismisses with `pendingVoiceOnboarding=true`; PrefsPane VoiceTab shows "Resume" row when pending.
+
+**Auth cascade (Beta plan Blocker 1 — root cause of "orb is email-blind")**
+- `AuthService.bootstrapExecutive()` now calls `connectOutlookIfPossible()` on success: `signInWithGraph(loginHint:)` → `EmailSyncService.start` → `CalendarSyncService.start`. Best-effort; graphAccessToken stays nil for users who decline MSAL prompt. Once a Microsoft user grants Outlook, email + calendar data start flowing into Tier 0 within seconds.
+
+**Delivery layer wiring**
+- `MorningBriefingPane` reachable via new sidebar entry (`NavSection.briefing`). The 5:30 AM Opus adversarial briefing is no longer orphaned.
+- `AlertsPresenter` (new MainActor bridge) instantiated in `TimedRootView` as `@StateObject`; overlay renders `AlertDeliveryView` on the top-trailing edge with springy animation when `currentAlert != nil`. AlertEngine itself unchanged — just gave it a UI mount.
+- `EmailClassifier.classifyLive` async path via `anthropic-relay` (Claude Haiku 4.5). Sender rules win first; AI fills "informational" default. Falls back to rule-based on network failure. Sync `classify` preserved → all existing tests still pass.
+- iOS orb sheet: `ConversationOrbSheet` placeholder replaced with `ConversationView`. NSMicrophoneUsageDescription already in iOS Info.plist.
+- DishMeUp polish: `DishMeUpPlanItem.bucket: String?` resolves to `TaskBucket.dotColor`. Plan rows render bucket-coloured dots instead of universal grey. `sessionFraming` weighted `.semibold` for visual hierarchy.
+
+**Guardrails**
+- `v1BetaMode` flipped: hardcoded `private let v1BetaMode = true` → `@AppStorage("v1BetaMode") = false` in `TimedRootView` + `PrefsPane`. Triage / Waiting / Insights / 5 PrefsPane tabs visible by default.
+- `StreamingTTSService:92` misleading "AVSpeechSynthesizer" comment fixed; logs `TimedLogger.voice.warning` when fallback path triggers.
+- `Tests/VoicePathGuardTests.swift` (new) — build-failing regression test. Any `AVSpeechSynthesizer / NSSpeechSynthesizer / SFSpeechRecognizer` reappearing in the orb call graph fails the test. `VoiceCaptureService` exempt (separate dictation feature).
+
+**Build green**, packaged, installed at `/Applications/Timed.app`. LSDB sole `timed://` handler.
+
+## Held for tonight (onsite, ~30 min ops)
+
+The intelligence engine still has zero data flowing through it because three things aren't deployed:
+
+```bash
+# 1. Voice proxies — flips Morning Interview AI + voice TTS to LIVE
+supabase secrets set ELEVENLABS_API_KEY=<key> --project-ref fpmjuufefhtlwbfinxlx
+supabase functions deploy anthropic-proxy elevenlabs-tts-proxy --project-ref fpmjuufefhtlwbfinxlx
+
+# 2. Trigger.dev — fires the entire nightly intelligence pipeline (NREM, REM, ACB refresh, weekly synthesis)
+cd trigger
+pnpm install
+# Set: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, ANTHROPIC_API_KEY, GRAPHITI_BASE_URL
+pnpm run deploy
+
+# 3. Graphiti backfill — fastest path to a smart orb (one-shot from Fedora)
+ssh ammarshahin@192.168.0.20
+cd time-manager-desktop
+pnpm -F @timed/trigger exec ts-node trigger/src/tasks/graphiti-backfill.ts
+```
+
+After all three: `/Applications/Timed.app` → Microsoft sign-in → orb knows your inbox → briefing generates → alerts start firing as email arrives.
+
+## ★ Earlier session (2026-04-28 AM) — research + diagnosis (superseded by sprint above)
+
+Earlier today: surfaced Microsoft login was failing at Supabase code exchange via auth-logs (`/callback | 400: OAuth state parameter missing`), audited app via three parallel Perplexity Deep Research prompts (architecture, UX walkthrough, premium polish) + integrated a Beta-Ready Execution Plan from a separate research thread. The plan converged on 6 blockers + 15 polish items; PM sprint shipped 8 of them. Microsoft auth path itself is now bypassable via email/password (the GHOST GHOST in Tab 1's audit is now LIVE), and the cascade fix means even when Microsoft auth works, the orb actually gets data.
 
 This session built the login surface end-to-end and got most of the OAuth round trip working. The last hop — Supabase swapping the Microsoft `code` for a session token — fails with `Unable to exchange external code: 1.AW…`. Same code value reproduces on every click, which suggests Comet (Perplexity browser) is caching the redirect URL rather than starting a fresh OAuth dance.
 

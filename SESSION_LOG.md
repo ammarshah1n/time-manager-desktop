@@ -1783,3 +1783,649 @@ docs/SINCE-2026-04-24.md
 logs/watchdog-launchd.log
 logs/watchdog.log
 HANDOFF.md
+
+---
+## Session: 2026-04-27 15:58
+
+### Commits This Session
+b9b3902 docs: heavy consolidation — unified branch is the single source of truth
+1b8d009 ios: gate PrefsPane.swift with #if os(macOS)
+54fe80e merge: ui/apple-v1-wired (Wave 1+2 backend) → unified
+5acd23f merge: ui/apple-v1-local-monochrome → unified
+269baef chore: gitignore /build/ and Timed.xcodeproj/
+
+### Modified Files
+.build/.lock
+.build/plugins/cache/SwiftProtobufPlugin.dia
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Resources/Relocations/aarch64/SwiftProtobufPlugin.yml
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Resources/DWARF/SwiftProtobufPlugin
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Info.plist
+.build/plugins/cache/SwiftProtobufPlugin-state.json
+.build/plugins/cache/SwiftProtobufPlugin
+.build/debug.yaml
+.build/plugin-tools.yaml
+.build/release.yaml
+.build/arm64-apple-macosx/release/ElevenLabs.build/ElevenLabs.d
+.build/arm64-apple-macosx/release/ElevenLabs.build/ElevenLabs.dia
+.build/arm64-apple-macosx/release/ElevenLabs.build/output-file-map.json
+.build/arm64-apple-macosx/release/Crypto.build/output-file-map.json
+.build/arm64-apple-macosx/release/Crypto.build/Crypto.dia
+
+---
+## Session: 2026-04-27 18:14
+
+### Commits This Session
+d6ff615 docs: inline 9 mandatory session rules into CLAUDE.md auto-load
+b9b3902 docs: heavy consolidation — unified branch is the single source of truth
+1b8d009 ios: gate PrefsPane.swift with #if os(macOS)
+54fe80e merge: ui/apple-v1-wired (Wave 1+2 backend) → unified
+5acd23f merge: ui/apple-v1-local-monochrome → unified
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+CLAUDE.md
+
+---
+## Session: 2026-04-27 18:31
+
+### Commits This Session
+d6ff615 docs: inline 9 mandatory session rules into CLAUDE.md auto-load
+b9b3902 docs: heavy consolidation — unified branch is the single source of truth
+1b8d009 ios: gate PrefsPane.swift with #if os(macOS)
+54fe80e merge: ui/apple-v1-wired (Wave 1+2 backend) → unified
+5acd23f merge: ui/apple-v1-local-monochrome → unified
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-27 18:43
+
+### Commits This Session
+d6ff615 docs: inline 9 mandatory session rules into CLAUDE.md auto-load
+b9b3902 docs: heavy consolidation — unified branch is the single source of truth
+1b8d009 ios: gate PrefsPane.swift with #if os(macOS)
+54fe80e merge: ui/apple-v1-wired (Wave 1+2 backend) → unified
+5acd23f merge: ui/apple-v1-local-monochrome → unified
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-27 18:53
+
+### Commits This Session
+d6ff615 docs: inline 9 mandatory session rules into CLAUDE.md auto-load
+b9b3902 docs: heavy consolidation — unified branch is the single source of truth
+1b8d009 ios: gate PrefsPane.swift with #if os(macOS)
+54fe80e merge: ui/apple-v1-wired (Wave 1+2 backend) → unified
+5acd23f merge: ui/apple-v1-local-monochrome → unified
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-27 19:23
+
+### Commits This Session
+d6ff615 docs: inline 9 mandatory session rules into CLAUDE.md auto-load
+b9b3902 docs: heavy consolidation — unified branch is the single source of truth
+1b8d009 ios: gate PrefsPane.swift with #if os(macOS)
+54fe80e merge: ui/apple-v1-wired (Wave 1+2 backend) → unified
+5acd23f merge: ui/apple-v1-local-monochrome → unified
+
+### Modified Files
+supabase/.temp/cli-latest
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-27 20:03
+
+### Commits This Session
+d6ff615 docs: inline 9 mandatory session rules into CLAUDE.md auto-load
+b9b3902 docs: heavy consolidation — unified branch is the single source of truth
+1b8d009 ios: gate PrefsPane.swift with #if os(macOS)
+54fe80e merge: ui/apple-v1-wired (Wave 1+2 backend) → unified
+5acd23f merge: ui/apple-v1-local-monochrome → unified
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-27 20:17
+
+### Commits This Session
+d6ff615 docs: inline 9 mandatory session rules into CLAUDE.md auto-load
+b9b3902 docs: heavy consolidation — unified branch is the single source of truth
+1b8d009 ios: gate PrefsPane.swift with #if os(macOS)
+54fe80e merge: ui/apple-v1-wired (Wave 1+2 backend) → unified
+5acd23f merge: ui/apple-v1-local-monochrome → unified
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-27 20:28
+
+### Commits This Session
+d6ff615 docs: inline 9 mandatory session rules into CLAUDE.md auto-load
+b9b3902 docs: heavy consolidation — unified branch is the single source of truth
+1b8d009 ios: gate PrefsPane.swift with #if os(macOS)
+54fe80e merge: ui/apple-v1-wired (Wave 1+2 backend) → unified
+5acd23f merge: ui/apple-v1-local-monochrome → unified
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-27 21:01
+
+### Commits This Session
+d6ff615 docs: inline 9 mandatory session rules into CLAUDE.md auto-load
+b9b3902 docs: heavy consolidation — unified branch is the single source of truth
+1b8d009 ios: gate PrefsPane.swift with #if os(macOS)
+54fe80e merge: ui/apple-v1-wired (Wave 1+2 backend) → unified
+5acd23f merge: ui/apple-v1-local-monochrome → unified
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+HANDOFF.md
+
+---
+## Session: 2026-04-27 21:12
+
+### Commits This Session
+d6ff615 docs: inline 9 mandatory session rules into CLAUDE.md auto-load
+b9b3902 docs: heavy consolidation — unified branch is the single source of truth
+1b8d009 ios: gate PrefsPane.swift with #if os(macOS)
+54fe80e merge: ui/apple-v1-wired (Wave 1+2 backend) → unified
+5acd23f merge: ui/apple-v1-local-monochrome → unified
+
+### Modified Files
+.build/.lock
+.build/plugins/cache/SwiftProtobufPlugin.dia
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Resources/Relocations/aarch64/SwiftProtobufPlugin.yml
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Resources/DWARF/SwiftProtobufPlugin
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Info.plist
+.build/plugins/cache/SwiftProtobufPlugin-state.json
+.build/plugins/cache/SwiftProtobufPlugin
+.build/plugin-tools.yaml
+.build/release.yaml
+.build/arm64-apple-macosx/release/ElevenLabs.build/output-file-map.json
+.build/arm64-apple-macosx/release/Crypto.build/output-file-map.json
+.build/arm64-apple-macosx/release/USearch.build/output-file-map.json
+.build/arm64-apple-macosx/release/SwiftOperators.build/output-file-map.json
+.build/arm64-apple-macosx/release/Supabase.build/output-file-map.json
+.build/arm64-apple-macosx/release/CasePathsCore.build/output-file-map.json
+
+---
+## Session: 2026-04-27 21:22
+
+### Commits This Session
+d6ff615 docs: inline 9 mandatory session rules into CLAUDE.md auto-load
+b9b3902 docs: heavy consolidation — unified branch is the single source of truth
+1b8d009 ios: gate PrefsPane.swift with #if os(macOS)
+54fe80e merge: ui/apple-v1-wired (Wave 1+2 backend) → unified
+5acd23f merge: ui/apple-v1-local-monochrome → unified
+
+### Modified Files
+.build/.lock
+.build/plugin-tools.yaml
+.build/release.yaml
+.build/arm64-apple-macosx/release/ElevenLabs.build/output-file-map.json
+.build/arm64-apple-macosx/release/Crypto.build/output-file-map.json
+.build/arm64-apple-macosx/release/USearch.build/output-file-map.json
+.build/arm64-apple-macosx/release/SwiftOperators.build/output-file-map.json
+.build/arm64-apple-macosx/release/Supabase.build/output-file-map.json
+.build/arm64-apple-macosx/release/CasePathsCore.build/output-file-map.json
+.build/arm64-apple-macosx/release/SwiftParser-tool.build/output-file-map.json
+.build/arm64-apple-macosx/release/SwiftCompilerPluginMessageHandling-tool.build/output-file-map.json
+.build/arm64-apple-macosx/release/SwiftUINavigation.build/output-file-map.json
+.build/arm64-apple-macosx/release/time-manager-desktop
+.build/arm64-apple-macosx/release/Functions.build/output-file-map.json
+.build/arm64-apple-macosx/release/HTTPTypes.build/output-file-map.json
+
+---
+## Session: 2026-04-27 21:33
+
+### Commits This Session
+d6ff615 docs: inline 9 mandatory session rules into CLAUDE.md auto-load
+b9b3902 docs: heavy consolidation — unified branch is the single source of truth
+1b8d009 ios: gate PrefsPane.swift with #if os(macOS)
+54fe80e merge: ui/apple-v1-wired (Wave 1+2 backend) → unified
+5acd23f merge: ui/apple-v1-local-monochrome → unified
+
+### Modified Files
+.build/.lock
+.build/plugin-tools.yaml
+.build/release.yaml
+.build/arm64-apple-macosx/release/ElevenLabs.build/output-file-map.json
+.build/arm64-apple-macosx/release/Crypto.build/output-file-map.json
+.build/arm64-apple-macosx/release/USearch.build/output-file-map.json
+.build/arm64-apple-macosx/release/SwiftOperators.build/output-file-map.json
+.build/arm64-apple-macosx/release/Supabase.build/output-file-map.json
+.build/arm64-apple-macosx/release/CasePathsCore.build/output-file-map.json
+.build/arm64-apple-macosx/release/SwiftParser-tool.build/output-file-map.json
+.build/arm64-apple-macosx/release/SwiftCompilerPluginMessageHandling-tool.build/output-file-map.json
+.build/arm64-apple-macosx/release/SwiftUINavigation.build/output-file-map.json
+.build/arm64-apple-macosx/release/time-manager-desktop
+.build/arm64-apple-macosx/release/Functions.build/output-file-map.json
+.build/arm64-apple-macosx/release/HTTPTypes.build/output-file-map.json
+
+---
+## Session: 2026-04-27 21:44
+
+### Commits This Session
+d6ff615 docs: inline 9 mandatory session rules into CLAUDE.md auto-load
+b9b3902 docs: heavy consolidation — unified branch is the single source of truth
+1b8d009 ios: gate PrefsPane.swift with #if os(macOS)
+54fe80e merge: ui/apple-v1-wired (Wave 1+2 backend) → unified
+5acd23f merge: ui/apple-v1-local-monochrome → unified
+
+### Modified Files
+supabase/config.toml
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-27 21:57
+
+### Commits This Session
+d6ff615 docs: inline 9 mandatory session rules into CLAUDE.md auto-load
+b9b3902 docs: heavy consolidation — unified branch is the single source of truth
+1b8d009 ios: gate PrefsPane.swift with #if os(macOS)
+54fe80e merge: ui/apple-v1-wired (Wave 1+2 backend) → unified
+5acd23f merge: ui/apple-v1-local-monochrome → unified
+
+### Modified Files
+supabase/migrations/20260427230000_email_calendar_to_tier0_triggers.sql
+supabase/functions/voice-llm-proxy/index.ts
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-28 08:48
+
+### Commits This Session
+(no recent commits)
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+scripts/refresh_graphiti_tunnel.sh
+
+### Session detail (2026-04-28 wrap)
+
+**Done:**
+- Wired Microsoft email + calendar into the voice-llm-proxy orb path
+- Postgres triggers: email_messages + calendar_observations → tier0_observations on insert (the missing bridge into the nightly engine + ACB)
+- voice-llm-proxy upgraded: readContext now pulls 24h inbox snapshot; system prompt includes inbox state + tool guidance; 3 server-side tools (search_emails, summarise_thread via Haiku, search_graphiti via Cloudflare-tunnelled FastAPI)
+- Cloudflare quick tunnel set up on Fedora (192.168.0.20) as persistent systemd user unit `timed-cf-tunnel.service` exposing local Graphiti :8000 to Edge Functions
+- scripts/refresh_graphiti_tunnel.sh — operational helper to pull current tunnel URL and update Supabase secret after Fedora reboots
+- Migration applied to prod (`supabase db push`); voice-llm-proxy redeployed; GRAPHITI_BASE_URL secret set
+
+**In progress (Ammar's hands):**
+- Auth wiring — `signInWithGraph()` auto-call after Supabase `bootstrapExecutive()`, plus starting EmailSyncService + CalendarSyncService recurring loops
+
+**Discovered:**
+- Architectural gap nobody had noticed: the nightly NREM engine + ACB-refresh read tier0_observations only, not email_messages/calendar_observations directly. Without the bridge written tonight, server-side Graph delta sync would have produced rows nobody was looking at.
+- Fedora was in better shape than HANDOFF.md indicated — Neo4j + LiteLLM + Graphiti FastAPI + 2 MCP servers all already running as containers, just not externally reachable. Tunnel was the missing piece.
+- SSH backgrounding caveat: single-line `nohup … &` and `setsid` from ssh both fail with exit 255; heredoc-piped bash works. Saved as a learning.
+
+**Next:**
+- After auth lands, Ammar opens orb → email lights up the morning check-in automatically. Verify path: insert a fake email_messages row → confirm tier0_observations row appears → confirm voice-llm-proxy readInboxSnapshot returns it.
+- Wave 2 nightly engine deploy (Trigger.dev cloud OR Fedora self-host) is what fills Graphiti so search_graphiti actually returns facts. Option A in `~/Desktop/timed-orb-home-setup.md` is the recommended path.
+
+Commit: fec38f6 on unified.
+
+---
+## Session: 2026-04-28 09:03
+
+### Commits This Session
+fec38f6 feat(orb): wire Microsoft email + Graphiti into voice-llm-proxy
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-28 09:24
+
+### Commits This Session
+98012a2 docs(memory): add Memory Default pin and rewrite wrap-up skill to v2
+fec38f6 feat(orb): wire Microsoft email + Graphiti into voice-llm-proxy
+
+### Modified Files
+.claude/skills/wrap-up/SKILL.md
+logs/watchdog-launchd.log
+logs/watchdog.log
+HANDOFF.md
+
+---
+## Session: 2026-04-28 09:35
+
+### Commits This Session
+98012a2 docs(memory): add Memory Default pin and rewrite wrap-up skill to v2
+fec38f6 feat(orb): wire Microsoft email + Graphiti into voice-llm-proxy
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-28 09:46
+
+### Commits This Session
+98012a2 docs(memory): add Memory Default pin and rewrite wrap-up skill to v2
+fec38f6 feat(orb): wire Microsoft email + Graphiti into voice-llm-proxy
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-28 09:56
+
+### Commits This Session
+b8f37ba [wip] feat(auth): Microsoft login UI + file-based auth storage (PARKED)
+98012a2 docs(memory): add Memory Default pin and rewrite wrap-up skill to v2
+fec38f6 feat(orb): wire Microsoft email + Graphiti into voice-llm-proxy
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+HANDOFF.md
+
+---
+## Session: 2026-04-28 10:06
+
+### Commits This Session
+b8f37ba [wip] feat(auth): Microsoft login UI + file-based auth storage (PARKED)
+98012a2 docs(memory): add Memory Default pin and rewrite wrap-up skill to v2
+fec38f6 feat(orb): wire Microsoft email + Graphiti into voice-llm-proxy
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-28 10:49
+
+### Commits This Session
+14015cc docs: skibidi plan — full QA + stub wiring + iOS orb (Step 7)
+b8f37ba [wip] feat(auth): Microsoft login UI + file-based auth storage (PARKED)
+98012a2 docs(memory): add Memory Default pin and rewrite wrap-up skill to v2
+fec38f6 feat(orb): wire Microsoft email + Graphiti into voice-llm-proxy
+
+### Modified Files
+.claude/settings.json
+.claude/hooks/session-start-context.sh
+.claude/hooks/memory-gate.sh
+docs/SKIBIDI-PLAN.md
+logs/watchdog-launchd.log
+logs/watchdog.log
+CLAUDE.md
+
+---
+## Session: 2026-04-28 11:00
+
+### Commits This Session
+14015cc docs: skibidi plan — full QA + stub wiring + iOS orb (Step 7)
+b8f37ba [wip] feat(auth): Microsoft login UI + file-based auth storage (PARKED)
+98012a2 docs(memory): add Memory Default pin and rewrite wrap-up skill to v2
+fec38f6 feat(orb): wire Microsoft email + Graphiti into voice-llm-proxy
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+HANDOFF.md
+CLAUDE.md
+
+---
+## Session: 2026-04-28 11:11
+
+### Commits This Session
+da1e56e docs: drop founder-name-keyed personalisation across Timed docs
+14015cc docs: skibidi plan — full QA + stub wiring + iOS orb (Step 7)
+b8f37ba [wip] feat(auth): Microsoft login UI + file-based auth storage (PARKED)
+98012a2 docs(memory): add Memory Default pin and rewrite wrap-up skill to v2
+fec38f6 feat(orb): wire Microsoft email + Graphiti into voice-llm-proxy
+
+### Modified Files
+.claude/skills/wrap-up/SKILL.md
+.claude/skills/timed-design/SKILL.md
+README.md
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-28 11:21
+
+### Commits This Session
+da1e56e docs: drop founder-name-keyed personalisation across Timed docs
+14015cc docs: skibidi plan — full QA + stub wiring + iOS orb (Step 7)
+b8f37ba [wip] feat(auth): Microsoft login UI + file-based auth storage (PARKED)
+98012a2 docs(memory): add Memory Default pin and rewrite wrap-up skill to v2
+fec38f6 feat(orb): wire Microsoft email + Graphiti into voice-llm-proxy
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-28 11:34
+
+### Commits This Session
+5058ac2 chore: rescue dev-local stragglers — Trigger.dev smoke scripts + docker-compose gitignore
+da1e56e docs: drop founder-name-keyed personalisation across Timed docs
+14015cc docs: skibidi plan — full QA + stub wiring + iOS orb (Step 7)
+b8f37ba [wip] feat(auth): Microsoft login UI + file-based auth storage (PARKED)
+98012a2 docs(memory): add Memory Default pin and rewrite wrap-up skill to v2
+
+### Modified Files
+trigger/scripts/smoke-hello-claude.ts
+trigger/scripts/fire-hello-claude.ts
+docker-compose.local.yml
+logs/watchdog-launchd.log
+logs/watchdog.log
+.gitignore
+Timed.xcodeproj/project.pbxproj
+Timed.xcodeproj/xcshareddata/xcschemes/TimediOS.xcscheme
+Timed.xcodeproj/xcshareddata/xcschemes/TimedMac.xcscheme
+Sources/TimedKit/Core/Services/AuthService.swift
+Sources/TimedKit/Features/Auth/LoginView.swift
+
+---
+## Session: 2026-04-28 11:44
+
+### Commits This Session
+5058ac2 chore: rescue dev-local stragglers — Trigger.dev smoke scripts + docker-compose gitignore
+da1e56e docs: drop founder-name-keyed personalisation across Timed docs
+14015cc docs: skibidi plan — full QA + stub wiring + iOS orb (Step 7)
+b8f37ba [wip] feat(auth): Microsoft login UI + file-based auth storage (PARKED)
+98012a2 docs(memory): add Memory Default pin and rewrite wrap-up skill to v2
+
+### Modified Files
+.build/.lock
+.build/plugins/cache/SwiftProtobufPlugin.dia
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Resources/Relocations/aarch64/SwiftProtobufPlugin.yml
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Resources/DWARF/SwiftProtobufPlugin
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Info.plist
+.build/plugins/cache/SwiftProtobufPlugin-state.json
+.build/plugins/cache/SwiftProtobufPlugin
+.build/plugin-tools.yaml
+.build/release.yaml
+.build/arm64-apple-macosx/release/ElevenLabs.build/output-file-map.json
+.build/arm64-apple-macosx/release/Crypto.build/output-file-map.json
+.build/arm64-apple-macosx/release/USearch.build/output-file-map.json
+.build/arm64-apple-macosx/release/SwiftOperators.build/output-file-map.json
+.build/arm64-apple-macosx/release/Supabase.build/output-file-map.json
+.build/arm64-apple-macosx/release/CasePathsCore.build/output-file-map.json
+
+---
+## Session: 2026-04-28 12:30
+
+### Commits This Session
+5058ac2 chore: rescue dev-local stragglers — Trigger.dev smoke scripts + docker-compose gitignore
+da1e56e docs: drop founder-name-keyed personalisation across Timed docs
+14015cc docs: skibidi plan — full QA + stub wiring + iOS orb (Step 7)
+b8f37ba [wip] feat(auth): Microsoft login UI + file-based auth storage (PARKED)
+98012a2 docs(memory): add Memory Default pin and rewrite wrap-up skill to v2
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-28 12:42
+
+### Commits This Session
+5058ac2 chore: rescue dev-local stragglers — Trigger.dev smoke scripts + docker-compose gitignore
+da1e56e docs: drop founder-name-keyed personalisation across Timed docs
+14015cc docs: skibidi plan — full QA + stub wiring + iOS orb (Step 7)
+b8f37ba [wip] feat(auth): Microsoft login UI + file-based auth storage (PARKED)
+98012a2 docs(memory): add Memory Default pin and rewrite wrap-up skill to v2
+
+### Modified Files
+Assets.xcassets/ms-logo.imageset/Contents.json
+logs/watchdog-launchd.log
+logs/watchdog.log
+Sources/TimedKit/Core/Services/VoiceCaptureService.swift
+Sources/TimedKit/Core/Services/AuthService.swift
+Sources/TimedKit/Features/Auth/LoginView.swift
+
+---
+## Session: 2026-04-28 12:56
+
+### Commits This Session
+5058ac2 chore: rescue dev-local stragglers — Trigger.dev smoke scripts + docker-compose gitignore
+da1e56e docs: drop founder-name-keyed personalisation across Timed docs
+14015cc docs: skibidi plan — full QA + stub wiring + iOS orb (Step 7)
+b8f37ba [wip] feat(auth): Microsoft login UI + file-based auth storage (PARKED)
+98012a2 docs(memory): add Memory Default pin and rewrite wrap-up skill to v2
+
+### Modified Files
+.build/.lock
+.build/arm64-apple-macosx/release/time-manager-desktop
+.build/arm64-apple-macosx/release/TimedMacApp.build/TimedMacApp.d
+.build/arm64-apple-macosx/release/TimedMacApp.build/TimedMacApp.dia
+.build/arm64-apple-macosx/release/time-manager-desktop.dSYM/Contents/Resources/Relocations/aarch64/time-manager-desktop.yml
+.build/arm64-apple-macosx/release/time-manager-desktop.dSYM/Contents/Resources/DWARF/time-manager-desktop
+.build/arm64-apple-macosx/release/time-manager-desktop.dSYM/Contents/Resources/Swift/aarch64/MSAL.swiftinterface
+.build/arm64-apple-macosx/release/time-manager-desktop.dSYM/Contents/Info.plist
+.build/arm64-apple-macosx/release/Modules/TimedKit.abi.json
+.build/arm64-apple-macosx/release/Modules/TimedKit.swiftmodule
+.build/arm64-apple-macosx/release/Modules/TimedMacApp.abi.json
+.build/arm64-apple-macosx/release/Modules/TimedKit.swiftsourceinfo
+.build/arm64-apple-macosx/release/TimedKit.build/AuthService.swift.o
+.build/arm64-apple-macosx/release/TimedKit.build/VoiceCaptureService.swift.o
+.build/arm64-apple-macosx/release/TimedKit.build/PrefsPane.swift.o
+
+---
+## Session: 2026-04-28 13:07
+
+### Commits This Session
+5058ac2 chore: rescue dev-local stragglers — Trigger.dev smoke scripts + docker-compose gitignore
+da1e56e docs: drop founder-name-keyed personalisation across Timed docs
+14015cc docs: skibidi plan — full QA + stub wiring + iOS orb (Step 7)
+b8f37ba [wip] feat(auth): Microsoft login UI + file-based auth storage (PARKED)
+98012a2 docs(memory): add Memory Default pin and rewrite wrap-up skill to v2
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-28 13:23
+
+### Commits This Session
+bcee82b feat(auth): email+password sign-in/sign-up, login polish, MainActor crash fix, skip-onboarding
+5058ac2 chore: rescue dev-local stragglers — Trigger.dev smoke scripts + docker-compose gitignore
+da1e56e docs: drop founder-name-keyed personalisation across Timed docs
+14015cc docs: skibidi plan — full QA + stub wiring + iOS orb (Step 7)
+b8f37ba [wip] feat(auth): Microsoft login UI + file-based auth storage (PARKED)
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+Sources/TimedKit/Core/Services/AuthService.swift
+Sources/TimedKit/Features/Prefs/PrefsPane.swift
+Sources/TimedKit/Features/TimedRootView.swift
+
+---
+## Session: 2026-04-28 13:45
+
+### Commits This Session
+ec3a7fd feat: beta-readiness sprint — auth cascade, alerts wired, briefing nav, iOS orb live, EmailClassifier live
+bcee82b feat(auth): email+password sign-in/sign-up, login polish, MainActor crash fix, skip-onboarding
+5058ac2 chore: rescue dev-local stragglers — Trigger.dev smoke scripts + docker-compose gitignore
+da1e56e docs: drop founder-name-keyed personalisation across Timed docs
+14015cc docs: skibidi plan — full QA + stub wiring + iOS orb (Step 7)
+
+### Modified Files
+.build/.lock
+.build/plugin-tools.yaml
+.build/release.yaml
+.build/arm64-apple-macosx/release/ElevenLabs.build/output-file-map.json
+.build/arm64-apple-macosx/release/Crypto.build/output-file-map.json
+.build/arm64-apple-macosx/release/USearch.build/output-file-map.json
+.build/arm64-apple-macosx/release/SwiftOperators.build/output-file-map.json
+.build/arm64-apple-macosx/release/Supabase.build/output-file-map.json
+.build/arm64-apple-macosx/release/CasePathsCore.build/output-file-map.json
+.build/arm64-apple-macosx/release/SwiftParser-tool.build/output-file-map.json
+.build/arm64-apple-macosx/release/SwiftCompilerPluginMessageHandling-tool.build/output-file-map.json
+.build/arm64-apple-macosx/release/SwiftUINavigation.build/output-file-map.json
+.build/arm64-apple-macosx/release/time-manager-desktop
+.build/arm64-apple-macosx/release/Functions.build/output-file-map.json
+.build/arm64-apple-macosx/release/HTTPTypes.build/output-file-map.json
+
+---
+## Session: 2026-04-28 13:57
+
+### Commits This Session
+ec3a7fd feat: beta-readiness sprint — auth cascade, alerts wired, briefing nav, iOS orb live, EmailClassifier live
+bcee82b feat(auth): email+password sign-in/sign-up, login polish, MainActor crash fix, skip-onboarding
+5058ac2 chore: rescue dev-local stragglers — Trigger.dev smoke scripts + docker-compose gitignore
+da1e56e docs: drop founder-name-keyed personalisation across Timed docs
+14015cc docs: skibidi plan — full QA + stub wiring + iOS orb (Step 7)
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+### 2026-04-28 PM — Beta-readiness sprint shipped (commits bcee82b + ec3a7fd)
+**Done**:
+- Email/password auth + smooth login + MS 4-square logo + welcome banner
+- VoiceCaptureService MainActor crash fix (audio tap closure)
+- "Set up later" / Resume voice setup plumbing (PrefsPane VoiceTab)
+- Auth cascade: bootstrapExecutive → connectOutlookIfPossible (signInWithGraph + EmailSync + CalendarSync)
+- v1BetaMode flipped to @AppStorage default false
+- MorningBriefingPane reachable via sidebar (NavSection.briefing)
+- AlertsPresenter MainActor bridge → AlertDeliveryView overlay in TimedRootView
+- EmailClassifier.classifyLive async path via anthropic-relay (Haiku 4.5)
+- iOS orb sheet wired (ConversationOrbSheet → ConversationView)
+- DishMeUp bucket dotColors + sessionFraming semibold weight
+- StreamingTTS misleading comment fixed + Tests/VoicePathGuardTests.swift (build-failing regression guard)
+- xcodebuild green; package_app + install_app; LSDB sole timed:// handler is /Applications/Timed.app
+- 3 Perplexity Deep Research audits + Beta-Ready Execution Plan integrated into masterplan
+- Worktree cleanup earlier in session: dropped 9 worktrees, reclaimed ~10 GB; cherry-picked dev-local stragglers (trigger smoke scripts + docker-compose gitignore)
+
+**In progress**: none — SHIPPED
+
+**Discovered**:
+- The "Microsoft OAuth code-exchange failing" symptom from the morning was actually two separate issues: (1) Supabase /callback rejecting state, (2) AuthService never auto-firing signInWithGraph after bootstrapExecutive. The Beta plan's Blocker 1 (cascade) is the real root cause of "orb is email-blind" — fixing it makes Microsoft auth meaningful even when it works.
+- VoiceCaptureService crash on email signup was a MainActor isolation violation in the AVFoundation audio tap closure — not a Supabase or Graph token issue.
+- AlertEngine had complete logic, full test coverage, and zero call sites in the app shell. One @StateObject + one overlay flipped dead code to live UI in 30 lines.
+
+**Next**: tonight when home — deploy voice proxies (`supabase functions deploy anthropic-proxy elevenlabs-tts-proxy`), deploy Trigger.dev pipeline (`cd trigger && pnpm run deploy`), Graphiti backfill on Fedora. After that, the intelligence engine actually receives data.
+
+**State**: SHIPPED

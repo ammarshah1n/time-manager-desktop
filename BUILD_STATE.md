@@ -1,6 +1,8 @@
-# BUILD_STATE.md — Last updated: 2026-04-28 10:30 (Microsoft login PARKED — Supabase code-exchange failing; Mac daily-use unblocked; Chain C parked)
+# BUILD_STATE.md — Last updated: 2026-04-28 14:00 (Beta-readiness sprint shipped on `unified` — auth cascade live, alerts wired, briefing reachable, EmailClassifier live, iOS orb wired; ops backlog held for tonight)
 
-> **Microsoft login: PARKED 2026-04-28** — `LoginView` + auth gate + `FileAuthLocalStorage` (replaces Keychain) + DataStore user-partitioning + Supabase redirect allowlist + Azure secret rotation are all DONE. Failure mode: `client.auth.session(from:)` returns `"Unable to exchange external code: 1.AW…"` with the same code reproducing on every click (likely Comet caching the redirect). Resume runbook: TickTick "Finish Microsoft login (start here next session)" has the paste-ready prompt for the next Claude session. See HANDOFF.md PARKED section for the full file inventory and `~/.claude/plans/nothing-happens-how-tof-splendid-iverson.md` for the diagnostic plan.
+> **Beta sprint SHIPPED 2026-04-28 PM** — commits `bcee82b` + `ec3a7fd` on `origin/unified`. 9 fixes from Beta-Ready Execution Plan + 3 Perplexity Deep Research audits: email/password auth, MainActor crash fix, smooth login transitions, Microsoft 4-square logo, "Set up later" plumbing, auth cascade (`bootstrapExecutive` → `signInWithGraph` → email + calendar sync), `v1BetaMode` defaulted false, `MorningBriefingPane` reachable, AlertEngine wired via new `AlertsPresenter`, `EmailClassifier.classifyLive` via anthropic-relay, iOS orb sheet → `ConversationView`, DishMeUp bucket dotColors + `sessionFraming` semibold, voice path guard test. Build green; `/Applications/Timed.app` is the new build.
+
+> **Held for tonight (onsite, ~30 min):** (1) `supabase secrets set ELEVENLABS_API_KEY` + deploy `anthropic-proxy` and `elevenlabs-tts-proxy`, (2) `cd trigger && pnpm install && pnpm run deploy` to fire the nightly pipeline, (3) Graphiti backfill one-shot on Fedora. After all three: orb actually has data. TickTick task: "Tonight onsite: deploy voice proxies + Trigger.dev + Graphiti backfill" in Timed project.
 
 > **Single source of truth: `unified` branch.** As of 2026-04-27 the four divergent branches (`ui/apple-v1-restore`, `ui/apple-v1-local-monochrome`, `ui/apple-v1-wired`, `ios/port-bootstrap`) have been merged into one trunk. See **`docs/UNIFIED-BRANCH.md`** for the permanent architecture reference and **`docs/SINCE-2026-04-24.md`** for the narrative of how we got here.
 >
@@ -176,7 +178,7 @@
 - **3 architecture syntheses:** `research/ARCHITECTURE-MEMORY.md`, `ARCHITECTURE-SIGNALS.md`, `ARCHITECTURE-DELIVERY.md`
 
 Any future build session should read `CLAUDE.md` → `BUILD_STATE.md` → relevant `ARCHITECTURE-*.md` → build.
-Last Session: 2026-04-28 09:46
+Last Session: 2026-04-28 13:57
 
 ### Intro + Brand System (new)
 - [x] IntroFeature.swift — TCA 1.15+ @Reducer, phase machine (reveal → tagline → holding → exiting → finished)
