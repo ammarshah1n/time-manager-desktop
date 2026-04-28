@@ -1,10 +1,14 @@
-# BUILD_STATE.md — Last updated: 2026-04-27 16:00 (unified branch live)
+# BUILD_STATE.md — Last updated: 2026-04-28 10:30 (Microsoft login PARKED — Supabase code-exchange failing; Mac daily-use unblocked; Chain C parked)
+
+> **Microsoft login: PARKED 2026-04-28** — `LoginView` + auth gate + `FileAuthLocalStorage` (replaces Keychain) + DataStore user-partitioning + Supabase redirect allowlist + Azure secret rotation are all DONE. Failure mode: `client.auth.session(from:)` returns `"Unable to exchange external code: 1.AW…"` with the same code reproducing on every click (likely Comet caching the redirect). Resume runbook: TickTick "Finish Microsoft login (start here next session)" has the paste-ready prompt for the next Claude session. See HANDOFF.md PARKED section for the full file inventory and `~/.claude/plans/nothing-happens-how-tof-splendid-iverson.md` for the diagnostic plan.
 
 > **Single source of truth: `unified` branch.** As of 2026-04-27 the four divergent branches (`ui/apple-v1-restore`, `ui/apple-v1-local-monochrome`, `ui/apple-v1-wired`, `ios/port-bootstrap`) have been merged into one trunk. See **`docs/UNIFIED-BRANCH.md`** for the permanent architecture reference and **`docs/SINCE-2026-04-24.md`** for the narrative of how we got here.
 >
 > **Build matrix from `unified` (verified):** `swift build` ✅ · `xcodebuild TimedMac` ✅ (arm64 only) · `xcodebuild TimediOS sim` ✅. **DMG produced:** `dist.noindex/Timed.dmg` (31 MB, ad-hoc signed).
 >
-> **Apple Developer enrollment NOT started** — DMG works with `xattr -cr /Applications/Timed.app` workaround. Track A (proper Developer ID + notarisation + iOS TestFlight) follows enrollment.
+> **Daily Mac use (Ammar, today, no cert needed):** `bash scripts/package_app.sh && bash scripts/install_app.sh` → `/Applications/Timed.app`. First launch: right-click → Open. Re-run after code changes. Active dev: `bash scripts/watch-and-build.sh`. See HANDOFF.md Chain A.1.
+>
+> **Apple Developer enrollment PARKED 2026-04-27** — Ammar attempted enrollment, redirected to free-tier `/account` (paid Program upgrade not yet started). Resume when there's a clear window. While parked: iOS unreachable (Track B = Xcode Personal Team, 7-day expiry); DMG remains ad-hoc signed (works with `xattr -cr /Applications/Timed.app` workaround). See HANDOFF.md Chain C.
 
 ## Voice Architecture (current)
 | Layer | Tech | Where |
@@ -125,6 +129,9 @@
 - No CoreData/SwiftData — persistence is JSON local + Supabase remote
 - Legacy/ folder (41 files) excluded from build, kept as reference
 
+## Architecture Status: Orb is now Microsoft + Graphiti aware (2026-04-28)
+> **Updated 2026-04-28** — `voice-llm-proxy` upgraded: pulls 24h inbox snapshot into context, exposes 3 server-side tools to Opus (`search_emails`, `summarise_thread` via Haiku, `search_graphiti` via Cloudflare-tunnelled Fedora FastAPI). Postgres triggers bridge `email_messages` + `calendar_observations` → `tier0_observations` so the nightly engine and 9am/1pm/5pm ACB refresh see Graph data. Linux intelligence stack reachable from Edge Functions via persistent `timed-cf-tunnel.service` systemd user unit on Fedora. **Lights up the moment auth's `signInWithGraph()` populates `graphAccessToken`.**
+
 ## Architecture Status: Intelligence Engine + Auth Bridge COMPLETE
 > **Updated 2026-04-14** — Intelligence Maximisation Plan (12 steps) implemented. Auth bridge wired. App ready for first sign-in.
 
@@ -169,7 +176,7 @@
 - **3 architecture syntheses:** `research/ARCHITECTURE-MEMORY.md`, `ARCHITECTURE-SIGNALS.md`, `ARCHITECTURE-DELIVERY.md`
 
 Any future build session should read `CLAUDE.md` → `BUILD_STATE.md` → relevant `ARCHITECTURE-*.md` → build.
-Last Session: 2026-04-27 14:53
+Last Session: 2026-04-28 09:46
 
 ### Intro + Brand System (new)
 - [x] IntroFeature.swift — TCA 1.15+ @Reducer, phase machine (reveal → tagline → holding → exiting → finished)

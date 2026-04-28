@@ -147,6 +147,7 @@ final class AuthService: ObservableObject {
         executiveId = nil
         userEmail = nil
         graphAccessToken = nil
+        UserDefaults.standard.removeObject(forKey: PlatformPaths.activeExecutiveDefaultsKey)
     }
 
     // MARK: - Bootstrap executive on first sign-in
@@ -162,6 +163,10 @@ final class AuthService: ObservableObject {
                     options: .init(method: .post)
                 )
                 executiveId = executive.id
+                UserDefaults.standard.set(
+                    executive.id.uuidString,
+                    forKey: PlatformPaths.activeExecutiveDefaultsKey
+                )
                 self.error = nil
                 TimedLogger.supabase.info("Executive bootstrapped: \(executive.id, privacy: .private)")
                 return

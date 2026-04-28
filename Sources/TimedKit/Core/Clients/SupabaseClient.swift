@@ -576,7 +576,15 @@ extension SupabaseClientDependency {
         }
 
         TimedLogger.supabase.info("Supabase client initialised for \(url.host ?? "unknown", privacy: .public)")
-        let client = SupabaseClient(supabaseURL: url, supabaseKey: anonKey)
+        let client = SupabaseClient(
+            supabaseURL: url,
+            supabaseKey: anonKey,
+            options: SupabaseClientOptions(
+                auth: SupabaseClientOptions.AuthOptions(
+                    storage: FileAuthLocalStorage()
+                )
+            )
+        )
 
         return SupabaseClientDependency(
             rawClient: client,

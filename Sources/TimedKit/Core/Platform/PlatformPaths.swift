@@ -12,9 +12,15 @@ import Foundation
 
 public enum PlatformPaths {
 
-    /// Root directory for Timed's persistent data.
-    /// Identical layout on macOS + iOS: <ApplicationSupport>/Timed/.
-    public static var applicationSupport: URL {
+    /// UserDefaults key written by AuthService once an executive is signed in.
+    /// Read here so on-disk storage partitions per user without DataStore having
+    /// to reach across actor isolation into AuthService on every call.
+    public static let activeExecutiveDefaultsKey = "com.timed.auth.activeExecutiveID"
+
+    /// Unscoped root: <ApplicationSupport>/Timed/. Used for data that exists
+    /// before sign-in (session tokens, auth scratch). Per-user data uses
+    /// `applicationSupport` instead.
+    public static var applicationSupportRoot: URL {
         let base = FileManager.default.urls(
             for: .applicationSupportDirectory,
             in: .userDomainMask
@@ -22,6 +28,38 @@ public enum PlatformPaths {
         let url = base.appendingPathComponent("Timed", isDirectory: true)
         ensureDirectoryExists(url)
         return url
+    }
+
+    /// Storage for Supabase Auth session JSON. Lives outside the per-user
+    /// folder because the session must be readable BEFORE we know who the
+    /// user is.
+    public static var authStorage: URL {
+        let url = applicationSupportRoot.appendingPathComponent("_auth", isDirectory: true)
+        ensureDirectoryExists(url)
+        return url
+    }
+
+    /// Root directory for Timed's persistent data, scoped to the active executive.
+    /// Layout: <ApplicationSupport>/Timed/users/<executive-uuid>/  (signed in)
+    ///         <ApplicationSupport>/Timed/_anonymous/              (no session)
+    /// Different signed-in executives never share on-disk state on the same Mac.
+    public static var applicationSupport: URL {
+        let base = FileManager.default.urls(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask
+        ).first ?? FileManager.default.temporaryDirectory
+        let root = base.appendingPathComponent("Timed", isDirectory: true)
+        let scoped: URL
+        if let uuid = UserDefaults.standard.string(forKey: activeExecutiveDefaultsKey),
+           !uuid.isEmpty {
+            scoped = root
+                .appendingPathComponent("users", isDirectory: true)
+                .appendingPathComponent(uuid, isDirectory: true)
+        } else {
+            scoped = root.appendingPathComponent("_anonymous", isDirectory: true)
+        }
+        ensureDirectoryExists(scoped)
+        return scoped
     }
 
     /// Directory for transient caches that should NOT round-trip through

@@ -9,16 +9,17 @@ actor DataStore {
 
     static let shared = DataStore()
 
-    private let folder: URL
-
     private init() {
-        // PlatformPaths.applicationSupport handles ApplicationSupport/Timed/
-        // creation on both macOS (~/Library/...) and iOS (sandbox/Library/...).
-        folder = PlatformPaths.applicationSupport
-        TimedLogger.dataStore.info("DataStore initialised at \(self.folder.path, privacy: .public)")
+        TimedLogger.dataStore.info("DataStore initialised; folder resolved per-call from PlatformPaths.applicationSupport (user-scoped)")
     }
 
     // MARK: - Generic helpers
+
+    /// Resolved on every access. Returns the per-user folder when signed in
+    /// (PlatformPaths reads UserDefaults activeExecutiveDefaultsKey), or the
+    /// _anonymous bucket otherwise. Means a sign-in/sign-out flips the on-disk
+    /// store without restart and without DataStore caching a stale path.
+    private var folder: URL { PlatformPaths.applicationSupport }
 
     private func fileURL(_ name: String) -> URL {
         folder.appendingPathComponent("\(name).json")

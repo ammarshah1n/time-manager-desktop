@@ -49,6 +49,16 @@ public struct TimedAppShell: View {
 
     @ViewBuilder
     private var rootContent: some View {
+        if auth.isSignedIn {
+            authenticatedContent
+        } else {
+            LoginView()
+                .environmentObject(auth)
+        }
+    }
+
+    @ViewBuilder
+    private var authenticatedContent: some View {
         #if canImport(AppKit)
         TimedRootView()
             .environmentObject(auth)

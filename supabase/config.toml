@@ -26,7 +26,7 @@ enabled = true
 [auth]
 enabled = true
 site_url = "http://localhost:3000"
-additional_redirect_urls = []
+additional_redirect_urls = ["timed://auth/callback"]
 jwt_expiry = 3600
 enable_refresh_token_rotation = true
 
