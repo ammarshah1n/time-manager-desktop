@@ -8,7 +8,7 @@ trigger: When working on any user-facing SwiftUI surface in /Users/integrale/tim
 
 ## The Brief
 
-The user is a C-suite executive (Yasser Shahin). The app must read as
+The users are C-suite executives — the prototype's primary users are the co-founders (Yasser + Ammar Shahin). The app must read as
 **first-party Apple** — Calendar, Reminders, System Settings. Not Notion-clean
 — Apple-clean. Black/white dominant, monochrome chrome, a single accent per
 screen, and very small bucket-coloured dots like Apple Reminders' list-color

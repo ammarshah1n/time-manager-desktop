@@ -51,7 +51,7 @@ A separate workstream from the Timed app itself. **Affects how Claude works on T
 - **PFF-Brain canonical docs** also written (parallel C3 pass — MISSION, personas, architecture-overview + 27 frontmatter additions).
 - **Hourly noise purge** at `~/Library/LaunchAgents/com.ammar.bm-noise-purge.plist` (loaded). Keeps session-log re-adds from drowning canonical docs in retrieval.
 - **`/wrap-up` v2** at `~/.claude/skills/wrap-up/SKILL.md` (global) + project extension at `~/time-manager-desktop/.claude/skills/wrap-up/SKILL.md`. 11 phases (parked/shipped/interrupted detection → 7 memory surfaces → vault state propagation → basic-memory write → corpus refresh → self-improve → TickTick → walkthrough → error log → NEXT.md → subagent verify → stop signal). Run-and-walk-away.
-- **Phase D deferred** to next session: `claude-mem mcp` is wired in `~/.claude/settings.json` but the new MCP server only attaches on next session start, so `build_corpus` / `prime_corpus` will run then. Targets: `yasser-profile-brain`, `intelligence-core-brain`, `aif-decisions-brain`.
+- **Phase D deferred** to next session: `claude-mem mcp` is wired in `~/.claude/settings.json` but the new MCP server only attaches on next session start, so `build_corpus` / `prime_corpus` will run then. Targets: `intelligence-core-brain`, `aif-decisions-brain`. (Originally listed `yasser-profile-brain` — dropped 2026-04-28 as an architectural failure: Yasser is a co-founder, not a modeled subject. Both founders are peer prototype users; no name-keyed corpus.)
 
 How to verify: open a fresh Claude in `~/time-manager-desktop` and ask any Timed question. The Memory Protocol should fire `mcp__basic-memory__search_notes` and Claude should answer from canonical docs (not training data, not session logs).
 

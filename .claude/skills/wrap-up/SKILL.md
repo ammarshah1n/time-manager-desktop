@@ -29,7 +29,7 @@ When the global skill asks "which basic-memory project?" / "which TickTick proje
 | Vault HANDOFF.md | `~/Timed-Brain/HANDOFF.md` (kept as a pointer to the repo HANDOFF — match its existing shape) |
 | TickTick project | `Timed` |
 | AIF folder | `~/aif-vault/AIF/03 Timed/` |
-| claude-mem corpora to refresh on canonical-doc edits | `yasser-profile-brain`, `intelligence-core-brain` |
+| claude-mem corpora to refresh on canonical-doc edits | `intelligence-core-brain` (do NOT create founder-name-keyed corpora) |
 
 ## Timed-specific extensions
 
@@ -142,7 +142,7 @@ Timed-specific:
   Walkthrough:    <path or "skipped: no feature work">
   Error logs:     <N> entries written to 04-Errors/
   AIF entries:    <N> D-XXX rows added to ~/aif-vault/AIF/07 Decision Log/
-  Corpora:        yasser-profile-brain | intelligence-core-brain — <rebuilt | unchanged>
+  Corpora:        intelligence-core-brain — <rebuilt | unchanged>
 ```
 
 ## Read order for the global skill

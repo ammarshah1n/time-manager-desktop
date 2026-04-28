@@ -3,7 +3,7 @@
 [![macOS CI](https://github.com/ammarshah1n/time-manager-desktop/actions/workflows/macos-ci.yml/badge.svg)](https://github.com/ammarshah1n/time-manager-desktop/actions/workflows/macos-ci.yml)
 [![Latest Release](https://img.shields.io/github/v/release/ammarshah1n/time-manager-desktop)](https://github.com/ammarshah1n/time-manager-desktop/releases/latest)
 
-Timed is an **executive operating system** for a single C-suite user (Yasser Shahin). It is not a productivity app. It builds a compounding cognitive model of how one executive thinks and operates, and returns cognitive bandwidth through a nightly reflection engine and a morning intelligence briefing.
+Timed is an **executive operating system**, built by and for its co-founders (Yasser + Ammar Shahin) as the prototype's primary users. It is not a productivity app. It builds a compounding cognitive model of how its executive users think and operate, and returns cognitive bandwidth through a nightly reflection engine and a morning intelligence briefing.
 
 > **Mission realignment 2026-04-02:** the original Year-11 study planner framing has been retired. Timed is now the macOS client for the intelligence engine described in `MASTER-PLAN.md`.
 
@@ -22,7 +22,7 @@ Timed is an **executive operating system** for a single C-suite user (Yasser Sha
 2. **Intelligence compounds over time.** Month 6 >> Month 1. This is the moat.
 3. **Nightly engine is the heart**, not a nice-to-have feature.
 4. **Morning session delivers intelligence**, not a task list.
-5. **User is a C-suite executive.** Impressed only by a system that understands him.
+5. **Users are C-suite executives.** Impressed only by a system that understands them.
 
 ## Architecture (current state)
 

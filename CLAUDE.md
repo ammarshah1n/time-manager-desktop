@@ -3,21 +3,37 @@
 ## Quick Start
 - Repo: `/Users/integrale/time-manager-desktop`
 - **Branch: `unified`** (single source of truth — TimedKit + TimedMacApp + TimediOS + Wave 1+2 backend + voice path + docs, all on one trunk as of 2026-04-27).
-- Primary user: Yasser Shahin (C-suite executive, Ammar's dad)
+- Co-founders / first users: Ammar Shahin (CTO) + Yasser Shahin (CEO, Ammar's father). The prototype is built by and for both of them.
 - Backend: Supabase project `fpmjuufefhtlwbfinxlx`, 29 Edge Functions ALL ACTIVE (`ls supabase/functions/` verified 2026-04-22)
 - THE GAP: `AuthService.swift` is implemented (Supabase Auth + Microsoft OAuth, 30 call sites) but UI still reads/writes through local `DataStore`. Bridge to Supabase is the next priority.
 - **DMG status**: ✅ Track B delivered — `dist.noindex/Timed.dmg` (31 MB, ad-hoc signed). Apple Developer enrollment pending for Track A (proper signing + iOS TestFlight).
 - Read order: `docs/UNIFIED-BRANCH.md` → `CLAUDE.md` → `BUILD_STATE.md` → `MASTER-PLAN.md` (see `.claude/rules/session-protocol.md` for full protocol)
 
-## Memory Default
-- **basic-memory project:** `timed-brain` (vault content). On AIF questions: also search `aif-vault`.
-- **claude-mem project:** `time-manager-desktop` (session observations).
-- See `~/CLAUDE.md` → `## Memory Protocol` for the read-back rules. Search before researching.
-- After major C-phase rewrites or non-incremental vault changes, run `rebuild_corpus` then `prime_corpus` for the relevant claude-mem corpus (`yasser-profile-brain`, `intelligence-core-brain`, `aif-decisions-brain`).
+<important>
+## Memory Default — ENFORCED via hooks (do not skip)
+
+- **basic-memory project:** `timed-brain` (vault content, 1198+ notes). AIF questions: also search `aif-vault`.
+- **claude-mem project:** `time-manager-desktop` (session observations, auto-loaded on SessionStart).
+- **Read-back protocol:** `~/CLAUDE.md` → `## Memory Protocol`. Search BEFORE researching, BEFORE answering "what is X" / architecture questions, BEFORE claiming "I don't know about prior work".
+
+### Enforcement (active 2026-04-28+)
+- **SessionStart hook** (`.claude/hooks/session-start-context.sh`) emits the Memory-First Protocol block + live `timed-brain` snapshot at the top of every session's context. You see it before anything else.
+- **PreToolUse hook** (`.claude/hooks/memory-gate.sh`) nags via stderr the FIRST time you call `WebSearch` / `WebFetch` / `Agent` / `mcp__perplexity-comet__*` without a prior `mcp__basic-memory__*` call this session. Sentinel at `/tmp/claude-memcheck-${session_id}` — touched on first basic-memory call, then nag silences for the rest of the session.
+- **The nag is non-blocking** (existing `permission-check.sh` Tier 1 auto-approves WebSearch/WebFetch). Heed the nag — cancel the call, run `mcp__basic-memory__search_notes` first, then retry.
+
+### Required first calls (load schemas via ToolSearch if deferred)
+```
+mcp__basic-memory__search_notes(project="timed-brain", query="<your query>")
+mcp__basic-memory__recent_activity(project="timed-brain", timeframe="14d")
+```
+
+### Corpus refresh
+After major C-phase rewrites or non-incremental vault changes, run `rebuild_corpus` then `prime_corpus` for the relevant claude-mem corpus (`intelligence-core-brain`, `aif-decisions-brain`). Do NOT create a corpus keyed to a single founder's name — both founders are peer users.
+</important>
 
 ## What Timed Is
 Timed is the most intelligent executive operating system ever built. NOT a productivity app. NOT competing with Motion/Sunsama.
-It builds a deep, compounding model of how a specific C-suite executive (Yasser Shahin) thinks and operates, giving him cognitive bandwidth back permanently.
+It builds a deep, compounding model of how its executive users think and operate, giving them cognitive bandwidth back permanently. The prototype models both co-founders (Yasser + Ammar) symmetrically — there is no single "subject".
 
 <important>
 ## Design Principles
