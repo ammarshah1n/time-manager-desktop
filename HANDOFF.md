@@ -1,10 +1,38 @@
 # HANDOFF.md — Timed
 
-Last updated: 2026-04-28 14:00 (beta-readiness sprint shipped — auth cascade live, alerts wired, briefing nav, iOS orb live, EmailClassifier live; ops backlog held for tonight)
+Last updated: 2026-04-28 23:00 (onsite-deploy overnight run — voice proxies LIVE; Trigger.dev + Graphiti backfill parked on hard blockers documented below)
 
 > **READ FIRST:** `docs/UNIFIED-BRANCH.md` — permanent reference for the consolidated architecture.
 > **Narrative:** `docs/SINCE-2026-04-24.md` — full story of the weekend work.
 > **Resume next session:** `~/.claude/projects/-Users-integrale-time-manager-desktop/NEXT.md`.
+> **Tonight's full diagnostic:** `~/Downloads/timed-onsite-deploy-handoff-2026-04-28.md` (every wall hit + how, copy-paste resume commands).
+
+## ★ Onsite-deploy 2026-04-28 PM/overnight run
+
+**Step 1 — voice proxies → Supabase: SHIPPED LIVE.**
+`anthropic-proxy` + `elevenlabs-tts-proxy` deployed to `fpmjuufefhtlwbfinxlx` (~19:13 AEST). Both endpoints return 401 unauth-gated (correct = alive, NOT 404). Morning Interview AI + voice TTS in `/Applications/Timed.app` now reach live proxies.
+
+**Step 2 — Trigger.dev pipeline deploy: PARKED on Free-plan schedule cap.**
+- Trigger.dev project = `proj_vrakwmzenqmmhrzhfqyl` / slug `timed-overnight-3fjz` / org `timed-c259` / account `ammar@facilitated.com.au`. CLI binary is `trigger`, NOT `trigger.dev` — `pnpm run deploy` is broken; use `pnpm exec trigger deploy`.
+- All required project env vars confirmed present on Trigger.dev cloud (ANTHROPIC_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, GRAPHITI_MCP_URL, GRAPHITI_MCP_TOKEN, NEO4J_URI/USER/PASSWORD, MSFT_APP_*, VOYAGE_API_KEY). The HANDOFF instruction said "GRAPHITI_BASE_URL" — the code actually reads `GRAPHITI_MCP_URL` everywhere, env name is correct on cloud. No fix needed.
+- Two cascading errors hit during deploy:
+  1. Cloud worker container imports `trigger.config.ts` BEFORE user env is injected, and the file `throw`s on missing `TRIGGER_PROJECT_REF`. **Fix landed:** `trigger.config.ts:15` now defaults to `proj_vrakwmzenqmmhrzhfqyl` (committed in `cf53995`/`skibidi sprint phase 1`).
+  2. `Error: You have created 10/10 schedules` — Free plan caps schedules ORG-WIDE (not per-env, despite per-env framing in dashboard). Codebase had 11 `schedules.task` exports. **Fix landed:** `ingestion-health-watchdog` demoted from `schedules.task` → `task` (still callable on demand) — codebase now defines exactly 10 schedules. Same commit family.
+- Even after the demotion, deploy still aborts at 10/10 because Dev env on Trigger.dev cloud has 10 schedules registered from prior `trigger dev` sessions, including the now-orphaned watchdog. Schedule reconciliation isn't atomic enough to free the slot during deploy — the cap check happens BEFORE reconcile.
+- **Resume options (need Ammar):** (a) Trigger.dev dashboard → Settings → Billing → upgrade plan; (b) manually delete a stale schedule via dashboard ellipsis menu (declarative-warning may or may not block; needs human-eyes verification — declarative warning says use CLI, but emergency delete may still be allowed); (c) extract a project-scoped API key from dashboard `proj_vrakwmzenqmmhrzhfqyl` settings and `curl -X DELETE -H "Authorization: Bearer <TRIGGER_API_KEY>" https://api.trigger.dev/api/v1/schedules/sched_<id>` (PAT `tr_pat_*` returns 401 — needs the project-scoped `tr_dev_*` or `tr_prod_*` key). Comet was used to investigate but reported Production = 0 schedules (correct — the 10 are in Dev env from prior local-dev runs).
+
+**Step 3 — Graphiti backfill on Fedora: PARKED on invocation-shape mismatch.**
+- Fedora (`ammarshahin@192.168.0.20`) is fully ready: `timed-graphiti`, `timed-graphiti-mcp`, `timed-neo4j`, `timed-litellm`, `timed-skill-library-mcp` all up 27h via podman. Neo4j 5.26 community + Graphiti API + Graphiti MCP all reachable on localhost (8000, 8080, 7474, 7687, 4000, 8081).
+- HANDOFF's instruction `pnpm -F @timed/trigger exec ts-node trigger/src/tasks/graphiti-backfill.ts` is subtly wrong — the file exports `task({...})` from `@trigger.dev/sdk`, so ts-node imports the module but never invokes the run() body. The file's own docstring says "Triggered manually via `trigger.dev` dashboard or CLI once".
+- **Resume options:** (a) once Step 2 deploy lands, hit the dashboard's "Test" button on the `graphiti-backfill` task; (b) start `trigger dev` from Fedora to register the local worker against Dev env, then trigger the task via dashboard or `tasks.trigger("graphiti-backfill")` from a tiny SDK script — but Dev env's 10/10 cap may bite again; (c) export the internal `backfillOnaNodes`/`backfillOnaEdges`/`backfillTier0` functions and write a thin wrapper script that calls them sequentially — most decoupled from Trigger.dev runtime, ~30 min of code work.
+
+**Recovered secrets (already in Trigger.dev cloud env, safe to use on Fedora when needed):**
+- `GRAPHITI_MCP_URL` (Fedora-local): `http://localhost:8080` — note: cloud env has `http://localhost:8001` which is wrong if running on Fedora; cloud value was set assuming a different infra layout.
+- `GRAPHITI_MCP_TOKEN` (Fedora container): `cd5f6280c427fe736e0246f7d34a4887d365a602dbba0b738b2ada385dcc22e1` — note: cloud env has a DIFFERENT token (`133832017a2f...`); they need to be reconciled before deploy or the deployed tasks will fail to authenticate against the Fedora MCP.
+- `NEO4J_PASSWORD` mismatches too (Fedora container = `V5Z86JFUcrCjeRGDrEmupETS`, cloud = `timedneo4jdev`).
+- These mismatches are a pre-existing infra fork — fix before the cloud deploy can usefully exercise Fedora services. (Or the intent is for cloud to talk to a Cloudflare-tunneled Graphiti — see `scripts/refresh_graphiti_tunnel.sh`).
+
+
 
 ## ★ SHIPPED 2026-04-28 PM ★ — Beta-readiness sprint (commits `bcee82b` + `ec3a7fd`)
 
