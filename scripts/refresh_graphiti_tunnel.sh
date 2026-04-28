@@ -42,6 +42,19 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 supabase secrets set --workdir "$REPO_ROOT" "GRAPHITI_BASE_URL=$URL" >/dev/null
 
+echo "→ updating Trigger.dev secret GRAPHITI_MCP_URL …"
+# Trigger.dev tasks reference Graphiti via GRAPHITI_MCP_URL (not GRAPHITI_BASE_URL).
+# Without this, every Fedora reboot silently breaks all nightly Graphiti writes
+# (rem-synthesis, nrem-amem-evolution, nrem-nemori-distillation, graphiti-backfill)
+# while the Edge-Function-side secret refreshes happily.
+if command -v npx >/dev/null 2>&1; then
+  (cd "$REPO_ROOT/trigger" && npx --yes trigger.dev@latest secrets set "GRAPHITI_MCP_URL=$URL" --env prod) || \
+    echo "  ⚠ trigger.dev secret update failed — set GRAPHITI_MCP_URL manually in the Trigger.dev dashboard."
+else
+  echo "  ⚠ npx not on PATH — set GRAPHITI_MCP_URL=$URL manually in the Trigger.dev dashboard."
+fi
+
 echo "✓ Done. voice-llm-proxy will pick up the new URL on its next cold start."
 echo "  (Edge Functions cache env vars per isolate — old isolates may serve the"
-echo "   stale URL for a few minutes. To force-flush: redeploy voice-llm-proxy.)"
+echo "   stale URL for a few minutes. To flush: redeploy voice-llm-proxy with"
+echo "   'supabase functions deploy voice-llm-proxy --project-ref $PROJECT_REF'.)"

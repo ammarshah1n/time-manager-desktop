@@ -280,6 +280,12 @@ final class AuthService: ObservableObject {
                     executive.id.uuidString,
                     forKey: PlatformPaths.activeExecutiveDefaultsKey
                 )
+                // Track first-bootstrap timestamp so cold-start UX surfaces (Today's
+                // empty state, MorningBriefing copy) can distinguish "still backfilling
+                // their inbox" from "genuinely-empty Day 3 morning".
+                if UserDefaults.standard.object(forKey: "auth.firstBootstrappedAt") == nil {
+                    UserDefaults.standard.set(Date(), forKey: "auth.firstBootstrappedAt")
+                }
                 self.error = nil
                 TimedLogger.supabase.info("Executive bootstrapped: \(executive.id, privacy: .private)")
                 // Auth cascade — once Supabase identity is bootstrapped, request a

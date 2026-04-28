@@ -1,4 +1,4 @@
-import { logger, schedules } from "@trigger.dev/sdk";
+import { logger, task } from "@trigger.dev/sdk";
 
 import { getSupabaseServiceRole } from "../lib/supabase.js";
 
@@ -27,7 +27,10 @@ import { getSupabaseServiceRole } from "../lib/supabase.js";
  *     direct exec_id column — the join through email_accounts -> profiles
  *     isn't worth the complexity here.
  *
- * Schedule: cron `*\/15 * * * *`, id `ingestion-health-watchdog`.
+ * Schedule: callable on demand. Was `*\/15 * * * *` until 2026-04-28 when the
+ * Trigger.dev hobby plan's 10-schedule cap forced one task off the schedule
+ * list — the watchdog (monitoring, not pipeline) was the cheapest to demote.
+ * Re-add a cron + switch back to `schedules.task` when the plan is upgraded.
  */
 
 const SYDNEY_TIMEZONE = "Australia/Sydney";
@@ -163,9 +166,8 @@ async function recentFailedAgentSessions(): Promise<FailedSessionRow[]> {
   return (data ?? []) as FailedSessionRow[];
 }
 
-export const ingestionHealthWatchdog = schedules.task({
+export const ingestionHealthWatchdog = task({
   id: "ingestion-health-watchdog",
-  cron: "*/15 * * * *",
   maxDuration: 120,
   run: async () => {
     const now = new Date();

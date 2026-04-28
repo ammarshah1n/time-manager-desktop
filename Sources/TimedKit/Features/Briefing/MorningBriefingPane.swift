@@ -47,17 +47,47 @@ struct MorningBriefingPane: View {
             Image(systemName: "brain.head.profile")
                 .font(.system(size: 48))
                 .foregroundStyle(.secondary)
-            Text("No briefing available yet")
+            Text(emptyHeadline)
                 .font(.title3)
                 .fontWeight(.medium)
-            Text("Your morning intelligence briefing will appear here once enough observations have been collected.")
+            Text(emptyBody)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-                .frame(maxWidth: 300)
+                .frame(maxWidth: 320)
         }
         .frame(maxWidth: .infinity, minHeight: 200)
         .padding()
+    }
+
+    /// Day-keyed copy so Day-1 and Day-2 users see "engine is working on it",
+    /// not "not enough data" (which on Day 2 reads as "the app is broken").
+    /// Anchored on the first-bootstrap timestamp written by AuthService so we
+    /// don't depend on whether the server `executives.onboarded_at` came back
+    /// down to the client.
+    private var daysSinceOnboard: Int {
+        guard let bootstrappedAt = UserDefaults.standard.object(forKey: "auth.firstBootstrappedAt") as? Date
+        else { return 0 }
+        return Calendar.current.dateComponents([.day], from: bootstrappedAt, to: Date()).day ?? 0
+    }
+
+    private var emptyHeadline: String {
+        switch daysSinceOnboard {
+        case 0:  return "Your first briefing is being prepared"
+        case 1:  return "Overnight analysis in progress"
+        default: return "No briefing available yet"
+        }
+    }
+
+    private var emptyBody: String {
+        switch daysSinceOnboard {
+        case 0:
+            return "Tonight Timed runs its first overnight analysis of your patterns. Check back tomorrow morning."
+        case 1:
+            return "Your briefing usually appears by 6am. Refresh shortly."
+        default:
+            return "The engine could not produce a briefing for today. Check that the nightly tasks ran in the Trigger.dev dashboard."
+        }
     }
 
     // MARK: - Briefing Content

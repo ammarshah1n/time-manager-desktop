@@ -89,6 +89,15 @@ final class StreamingTTSService: ObservableObject {
             try playMP3(mp3)
             await waitForPlayback()
         } catch {
+            // If the user interrupted while we were waiting on orb-tts, the
+            // task is cancelled — silently exit instead of speaking via the
+            // fallback path. Without this guard, ConversationModel's barge-in
+            // gets defeated by the orb finishing the response on the fallback
+            // engine.
+            guard !Task.isCancelled else {
+                isSpeaking = false
+                return
+            }
             // Falls back to elevenlabs-tts-proxy one-shot via SpeechService.
             // No Apple TTS — if the network's gone, the user hears nothing and
             // we surface the failure visibly rather than silently downgrade.

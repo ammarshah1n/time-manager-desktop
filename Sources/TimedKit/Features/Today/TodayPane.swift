@@ -15,7 +15,7 @@ struct TodayPane: View {
     let onStartMorning: () -> Void
     let onDishMeUp: () -> Void
 
-    @State private var completedIds: Set<UUID> = []
+    @State private var completedIds: Set<UUID> = TodayPane.loadCompletedFromDefaults()
     @State private var expandedSections: Set<String> = ["doFirst", "replies", "action", "calls"]
     @State private var focusTask: TimedTask? = nil
     @State private var showFocus: Bool = false
@@ -80,6 +80,32 @@ struct TodayPane: View {
     private var dateString: String {
         let f = DateFormatter(); f.dateFormat = "EEEE, d MMMM"
         return f.string(from: Date())
+    }
+
+    // MARK: - Today-scoped completed-IDs persistence
+    //
+    // Defends against the audit-flagged regression where checkmarks reset on
+    // navigate-away. The store is keyed by today's ISO date so yesterday's
+    // completion-set never bleeds into today; entries auto-expire at midnight.
+
+    private static var todayKey: String {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withFullDate]
+        return f.string(from: Date())
+    }
+
+    private static var defaultsKey: String { "today.completedIds.\(todayKey)" }
+
+    static func loadCompletedFromDefaults() -> Set<UUID> {
+        guard let data = UserDefaults.standard.data(forKey: defaultsKey) else { return [] }
+        guard let strs = try? JSONDecoder().decode([String].self, from: data) else { return [] }
+        return Set(strs.compactMap(UUID.init))
+    }
+
+    static func saveCompletedToDefaults(_ ids: Set<UUID>) {
+        let strs = ids.map(\.uuidString)
+        let data = (try? JSONEncoder().encode(strs)) ?? Data()
+        UserDefaults.standard.set(data, forKey: defaultsKey)
     }
 
     var body: some View {
@@ -401,7 +427,13 @@ struct TodayPane: View {
                 .frame(minWidth: 720, minHeight: 640)
         }
         .onAppear {
-            completedIds = Set(tasks.filter { $0.isDone }.map { $0.id })
+            // Union of (a) IDs we persisted to UserDefaults today and (b) IDs the
+            // task list itself reports as done. The persisted ids survive
+            // intra-day navigation churn even if `tasks[idx].isDone` momentarily
+            // round-trips through DataStore as `false` while reload is in flight.
+            let fromDefaults = TodayPane.loadCompletedFromDefaults()
+            let fromTasks = Set(tasks.filter { $0.isDone }.map { $0.id })
+            completedIds = fromDefaults.union(fromTasks)
         }
         .task {
             let records = (try? await DataStore.shared.loadCompletionRecords()) ?? []
@@ -414,6 +446,9 @@ struct TodayPane: View {
                 let done = newIds.contains(tasks[idx].id)
                 if tasks[idx].isDone != done { tasks[idx].isDone = done }
             }
+            // Persist today's completed-set so checkmarks survive nav-away/back
+            // even if the task store hasn't round-tripped isDone yet.
+            TodayPane.saveCompletedToDefaults(newIds)
         }
         .frame(maxWidth: .infinity)
         .navigationTitle("Today")
@@ -792,21 +827,50 @@ struct TodayPane: View {
 
     private var emptyState: some View {
         VStack(spacing: 12) {
-            Image(systemName: "sun.max")
+            Image(systemName: emptyIcon)
                 .font(.system(size: 40))
                 .foregroundStyle(Color.Timed.tertiaryText)
-            Text("Today is clear")
+            Text(emptyHeadline)
                 .font(.title2.weight(.semibold))
                 .foregroundStyle(Color.Timed.primaryText)
-            Text("Add a task or generate today's plan")
+            Text(emptyBody)
                 .font(.subheadline)
                 .foregroundStyle(Color.Timed.secondaryText)
-            Button("Generate Plan", action: onDishMeUp)
-                .buttonStyle(.borderedProminent)
-                .tint(Color.Timed.accent)
+                .multilineTextAlignment(.center)
+            if !isInitialSyncing {
+                Button("Generate Plan", action: onDishMeUp)
+                    .buttonStyle(.borderedProminent)
+                    .tint(Color.Timed.accent)
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 40)
+    }
+
+    /// Heuristic: a just-onboarded user with no tasks is most likely waiting on
+    /// the first email sync to land, not staring at a genuinely-empty day. The
+    /// proper signal would be `EmailSyncService.isInitialSyncInProgress` but
+    /// the service is an actor with no Published mirror, so we approximate
+    /// from bootstrap recency. Defends against the audit-flagged "Today is
+    /// clear" lie that fires while inbox is still backfilling.
+    private var isInitialSyncing: Bool {
+        guard let bootstrappedAt = UserDefaults.standard.object(forKey: "auth.firstBootstrappedAt") as? Date
+        else { return false }
+        return Date().timeIntervalSince(bootstrappedAt) < 600  // 10 minutes
+    }
+
+    private var emptyIcon: String {
+        isInitialSyncing ? "envelope.arrow.triangle.branch" : "sun.max"
+    }
+
+    private var emptyHeadline: String {
+        isInitialSyncing ? "Reading your inbox" : "Today is clear"
+    }
+
+    private var emptyBody: String {
+        isInitialSyncing
+            ? "Tasks will appear here as Timed processes your Outlook."
+            : "Add a task or generate today's plan."
     }
 
     // MARK: - Helpers

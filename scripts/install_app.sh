@@ -15,4 +15,11 @@ mkdir -p "$TARGET_DIR"
 rm -rf "$TARGET_APP"
 cp -R "$SOURCE_APP" "$TARGET_APP"
 
+# Strip the macOS quarantine flag so Gatekeeper does not block first launch.
+# Required for ad-hoc-signed builds. Once the Apple Developer Program enrollment
+# lands and the DMG is notarised, this step becomes a no-op.
+echo "Stripping macOS quarantine flag (required for ad-hoc signed builds)…"
+xattr -cr "$TARGET_APP" || true
+
 echo "Installed $TARGET_APP"
+echo "Launch from /Applications/Timed.app or Spotlight."

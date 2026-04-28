@@ -2486,3 +2486,120 @@ pnpm-lock.yaml
 supabase/.temp/cli-latest
 logs/watchdog-launchd.log
 logs/watchdog.log
+
+---
+## Session: 2026-04-28 19:25
+
+### Commits This Session
+a7bd83a docs(research): 8 pre-Yasser-ship audit prompts + gitignore stray pnpm install
+e59d619 docs: wrap-up — state propagated for tonight's onsite deploy run
+ec3a7fd feat: beta-readiness sprint — auth cascade, alerts wired, briefing nav, iOS orb live, EmailClassifier live
+bcee82b feat(auth): email+password sign-in/sign-up, login polish, MainActor crash fix, skip-onboarding
+5058ac2 chore: rescue dev-local stragglers — Trigger.dev smoke scripts + docker-compose gitignore
+
+### Modified Files
+research/perplexity-prompts/04-reliability-failure-modes.md
+research/perplexity-prompts/07-discoverability.md
+research/perplexity-prompts/01-backend-frontend-wiring.md
+research/perplexity-prompts/06-intelligence-quality.md
+research/perplexity-prompts/05-voice-orb-deep-dive.md
+research/perplexity-prompts/03-yasser-72-hours.md
+research/perplexity-prompts/README.md
+research/perplexity-prompts/08-go-no-go-synthesis.md
+research/perplexity-prompts/02-feature-10-of-10.md
+trigger/trigger.config.ts
+.claude/settings.local.json
+logs/watchdog-launchd.log
+logs/watchdog.log
+.gitignore
+
+---
+## Session: 2026-04-28 19:38
+
+### Commits This Session
+a7bd83a docs(research): 8 pre-Yasser-ship audit prompts + gitignore stray pnpm install
+e59d619 docs: wrap-up — state propagated for tonight's onsite deploy run
+ec3a7fd feat: beta-readiness sprint — auth cascade, alerts wired, briefing nav, iOS orb live, EmailClassifier live
+bcee82b feat(auth): email+password sign-in/sign-up, login polish, MainActor crash fix, skip-onboarding
+
+### Modified Files
+trigger/src/tasks/ingestion-health-watchdog.ts
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-28 19:56
+
+### Commits This Session
+a7bd83a docs(research): 8 pre-Yasser-ship audit prompts + gitignore stray pnpm install
+e59d619 docs: wrap-up — state propagated for tonight's onsite deploy run
+ec3a7fd feat: beta-readiness sprint — auth cascade, alerts wired, briefing nav, iOS orb live, EmailClassifier live
+bcee82b feat(auth): email+password sign-in/sign-up, login polish, MainActor crash fix, skip-onboarding
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-28 20:22
+
+### Commits This Session
+a7bd83a docs(research): 8 pre-Yasser-ship audit prompts + gitignore stray pnpm install
+e59d619 docs: wrap-up — state propagated for tonight's onsite deploy run
+ec3a7fd feat: beta-readiness sprint — auth cascade, alerts wired, briefing nav, iOS orb live, EmailClassifier live
+bcee82b feat(auth): email+password sign-in/sign-up, login polish, MainActor crash fix, skip-onboarding
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-28 20:33
+
+### Commits This Session
+a7bd83a docs(research): 8 pre-Yasser-ship audit prompts + gitignore stray pnpm install
+e59d619 docs: wrap-up — state propagated for tonight's onsite deploy run
+ec3a7fd feat: beta-readiness sprint — auth cascade, alerts wired, briefing nav, iOS orb live, EmailClassifier live
+bcee82b feat(auth): email+password sign-in/sign-up, login polish, MainActor crash fix, skip-onboarding
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-28 20:46
+
+### Commits This Session
+a7bd83a docs(research): 8 pre-Yasser-ship audit prompts + gitignore stray pnpm install
+e59d619 docs: wrap-up — state propagated for tonight's onsite deploy run
+ec3a7fd feat: beta-readiness sprint — auth cascade, alerts wired, briefing nav, iOS orb live, EmailClassifier live
+bcee82b feat(auth): email+password sign-in/sign-up, login polish, MainActor crash fix, skip-onboarding
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-28 21:05
+
+### Commits This Session
+a7bd83a docs(research): 8 pre-Yasser-ship audit prompts + gitignore stray pnpm install
+e59d619 docs: wrap-up — state propagated for tonight's onsite deploy run
+ec3a7fd feat: beta-readiness sprint — auth cascade, alerts wired, briefing nav, iOS orb live, EmailClassifier live
+bcee82b feat(auth): email+password sign-in/sign-up, login polish, MainActor crash fix, skip-onboarding
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-28 21:15
+
+### Commits This Session
+a7bd83a docs(research): 8 pre-Yasser-ship audit prompts + gitignore stray pnpm install
+e59d619 docs: wrap-up — state propagated for tonight's onsite deploy run
+ec3a7fd feat: beta-readiness sprint — auth cascade, alerts wired, briefing nav, iOS orb live, EmailClassifier live
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log

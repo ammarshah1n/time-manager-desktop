@@ -83,10 +83,11 @@ actor Tier0Writer: SignalIngestionPort {
             buffer.removeFirst(batch.count)
             TimedLogger.dataStore.info("Tier0Writer wrote \(batch.count) observation(s) to Supabase")
 
-            // Fire real-time importance scoring (non-blocking)
-            let ids = batch.map { $0.id.uuidString }
+            // Fire real-time importance scoring (non-blocking).
+            // Hand the full batch — not just IDs — so we can route scored alerts
+            // back through AlertEngine → AlertsPresenter without a second fetch.
             Task {
-                await self.requestRealtimeScoring(client: client, observationIds: ids)
+                await self.requestRealtimeScoring(client: client, observations: batch)
             }
         } catch {
             TimedLogger.dataStore.error(
@@ -96,12 +97,66 @@ actor Tier0Writer: SignalIngestionPort {
         }
     }
 
-    private func requestRealtimeScoring(client: SupabaseClient, observationIds: [String]) async {
+    /// Response shape from `score-observation-realtime` Edge Function. Mirrors
+    /// `supabase/functions/score-observation-realtime/index.ts` lines 168-175.
+    private struct ScoreObservationResponse: Decodable, Sendable {
+        let scored: Int
+        let alerts: Int
+        let alert_details: [AlertDetail]
+    }
+
+    private struct AlertDetail: Decodable, Sendable {
+        let observation_id: UUID
+        let score: Double
+        let level: String  // "immediate" | "preliminary" | "batch_gate"
+    }
+
+    /// Closes the Tier0Writer → AlertEngine → AlertsPresenter circuit.
+    ///
+    /// Until 2026-04-28 this fired the EF and discarded the response. Now it
+    /// decodes `alert_details`, looks up the originating observation in the
+    /// just-written batch (so AlertEngine sees real source + summary, not just
+    /// an ID), runs the 5-dim multiplicative scoring, and surfaces any
+    /// `.interrupt` decisions through `AlertsPresenter` so `AlertDeliveryView`
+    /// can render them on the top-trailing overlay of `TimedRootView`.
+    private func requestRealtimeScoring(client: SupabaseClient, observations: [Tier0Observation]) async {
+        let observationIds = observations.map { $0.id.uuidString }
         do {
-            try await client.functions.invoke("score-observation-realtime", options: .init(
-                body: ["observation_ids": observationIds]
-            ))
-            TimedLogger.dataStore.info("RT scoring requested for \(observationIds.count) observation(s)")
+            let response: ScoreObservationResponse = try await client.functions.invoke(
+                "score-observation-realtime",
+                options: .init(body: ["observation_ids": observationIds])
+            )
+            TimedLogger.dataStore.info(
+                "RT scoring complete: \(response.scored) scored, \(response.alerts) alerts"
+            )
+
+            for alert in response.alert_details {
+                guard let obs = observations.first(where: { $0.id == alert.observation_id }) else {
+                    TimedLogger.dataStore.warning(
+                        "RT scoring returned alert for unknown observation \(alert.observation_id) — skipping"
+                    )
+                    continue
+                }
+
+                let decision = await AlertEngine.shared.evaluateRTScore(
+                    observationId: alert.observation_id,
+                    rtScore: alert.score,
+                    source: obs.source.rawString,
+                    summary: obs.summary
+                )
+
+                if case .interrupt(let scored) = decision {
+                    await MainActor.run {
+                        AlertsPresenter.shared.show(scored)
+                    }
+                    TimedLogger.dataStore.info(
+                        "Alert surfaced: \(scored.candidate.title, privacy: .public) (composite=\(String(format: "%.3f", scored.compositeScore)))"
+                    )
+                } else if case .holdForBriefing = decision {
+                    // Held alerts roll up into the morning briefing context.
+                    // No UI action at the moment of scoring.
+                }
+            }
         } catch {
             // RT scoring failure is non-fatal — batch scoring catches up nightly
             TimedLogger.dataStore.warning(

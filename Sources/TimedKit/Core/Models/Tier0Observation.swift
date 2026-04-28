@@ -100,18 +100,24 @@ enum SignalSource: Codable, Sendable, Equatable {
 
     func encode(to encoder: Encoder) throws {
         var container = encoder.singleValueContainer()
+        try container.encode(rawString)
+    }
+
+    /// String form matching the database `source` column. Used when handing a
+    /// source identifier to non-Codable callers (e.g. `AlertEngine.evaluateRTScore`).
+    var rawString: String {
         switch self {
-        case .email: try container.encode("email")
-        case .calendar: try container.encode("calendar")
-        case .appUsage: try container.encode("app_usage")
-        case .system: try container.encode("system")
-        case .keystroke: try container.encode("keystroke")
-        case .voice: try container.encode("voice")
-        case .healthkit: try container.encode("healthkit")
-        case .oura: try container.encode("oura")
-        case .composite: try container.encode("composite")
-        case .engagement: try container.encode("engagement")
-        case .unknown(let raw): try container.encode(raw)
+        case .email: return "email"
+        case .calendar: return "calendar"
+        case .appUsage: return "app_usage"
+        case .system: return "system"
+        case .keystroke: return "keystroke"
+        case .voice: return "voice"
+        case .healthkit: return "healthkit"
+        case .oura: return "oura"
+        case .composite: return "composite"
+        case .engagement: return "engagement"
+        case .unknown(let raw): return raw
         }
     }
 }
