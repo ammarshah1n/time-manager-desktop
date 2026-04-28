@@ -15,3 +15,6 @@ DerivedData/
 .env.*.local
 logs/
 .claude/scheduled_tasks.lock
+
+# Local-dev docker stack (contains real secrets — never commit)
+docker-compose.local.yml
