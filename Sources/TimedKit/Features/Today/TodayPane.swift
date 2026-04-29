@@ -123,7 +123,7 @@ struct TodayPane: View {
                     }
                     Spacer()
                     HStack(spacing: TimedLayout.Spacing.xs) {
-                        Button("Talk through today", systemImage: "mic") {
+                        Button("Voice check-in", systemImage: "mic") {
                             showConversation = true
                         }
                         .labelStyle(.iconOnly)
@@ -131,7 +131,10 @@ struct TodayPane: View {
                         .foregroundStyle(Color.Timed.labelSecondary)
                         .frame(width: TimedLayout.Height.iconButton, height: TimedLayout.Height.iconButton)
                         .contentShape(Rectangle())
-                        .help("Talk through today")
+                        // Frame as a calm assistant, not a feature. The tooltip
+                        // is the only discovery surface today, so it has to do
+                        // the work of explaining what voice check-in is for.
+                        .help("Voice check-in — talk through your day. Your assistant listens, learns how you think, and surfaces what matters tomorrow.")
 
                         Button("Dish Me Up", action: onDishMeUp)
                             .buttonStyle(.bordered)

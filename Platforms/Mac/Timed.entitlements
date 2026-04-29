@@ -8,12 +8,32 @@
         package_app.sh + notarize_app.sh continue to work end-to-end.
         Sandbox + App Store entitlements would be added in a separate
         target only if App Store distribution becomes a requirement.
+
+        Hardened-Runtime exceptions kept to FALSE / absent. We do not
+        load third-party plugins or unsigned dylibs, so library
+        validation must stay enabled — disabling it was the exact
+        vector exploited against Microsoft 365 macOS apps in 2024
+        (CVE chain documented by Cisco Talos). Keep this list minimal;
+        every additional CS exception widens post-compromise blast
+        radius.
     -->
     <key>com.apple.security.cs.allow-jit</key>
     <false/>
     <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
     <false/>
-    <key>com.apple.security.cs.disable-library-validation</key>
-    <true/>
+    <!--
+        Keychain access group — required for MSAL silent token refresh on
+        ad-hoc-signed builds. Without this group declared, MSAL throws
+        `-34018 / errSecItemNotFound` when writing the cached refresh token,
+        which then forces a full interactive sign-in on every Graph API call
+        (~1h after token expiry). Setting `keychainSharingGroup =
+        Bundle.main.bundleIdentifier` in `GraphClient.swift` routes MSAL to
+        this app-private partition, which works without Apple Developer
+        Program enrollment.
+    -->
+    <key>keychain-access-groups</key>
+    <array>
+        <string>com.ammarshahin.timed</string>
+    </array>
 </dict>
 </plist>

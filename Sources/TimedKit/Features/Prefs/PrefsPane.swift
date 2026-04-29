@@ -71,19 +71,29 @@ struct PrefsPane: View {
 // MARK: - Accounts
 
 struct AccountsTab: View {
-    @State private var accounts: [PrefAccount] = [
-        PrefAccount(email: "ammar@pff.org",    provider: "Outlook / Microsoft 365", icon: "envelope.badge.fill", color: .blue,  connected: true),
-        PrefAccount(email: "me@ammarshah.com", provider: "Gmail",                   icon: "envelope.fill",       color: .red,   connected: false),
-    ]
-    @State private var showAdd = false
+    @StateObject private var auth = AuthService.shared
+
+    /// The signed-in Microsoft account, derived from real auth state.
+    /// `connected` reflects whether MSAL successfully acquired a Graph token,
+    /// not just that the user signed in to Supabase.
+    private var primaryAccount: PrefAccount? {
+        guard let email = auth.userEmail, !email.isEmpty else { return nil }
+        return PrefAccount(
+            email: email,
+            provider: "Microsoft",
+            icon: "envelope.badge.fill",
+            color: .blue,
+            connected: auth.graphAccessToken != nil
+        )
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Email Accounts")
                 .font(.headline)
 
-            VStack(spacing: 0) {
-                ForEach($accounts) { $acct in
+            if let acct = primaryAccount {
+                VStack(spacing: 0) {
                     HStack(spacing: 12) {
                         RoundedRectangle(cornerRadius: 6)
                             .fill(acct.color.opacity(0.12))
@@ -91,37 +101,43 @@ struct AccountsTab: View {
                             .overlay { Image(systemName: acct.icon).font(.system(size: 14)).foregroundStyle(acct.color) }
                         VStack(alignment: .leading, spacing: 2) {
                             Text(acct.email).font(.system(size: 13))
-                            Text(acct.provider).font(.caption).foregroundStyle(.secondary)
+                            Text(acct.connected ? "Microsoft — Outlook + Calendar connected" : "Microsoft — sign-in completed, Outlook not yet linked")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
                         Spacer()
                         Circle()
-                            .fill(acct.connected ? Color(.systemGreen) : Color(.systemRed))
+                            .fill(acct.connected ? Color(.systemGreen) : Color(.systemOrange))
                             .frame(width: 7, height: 7)
-                        Toggle("", isOn: $acct.connected).labelsHidden().controlSize(.mini)
                     }
-                    .padding(.vertical, 8).padding(.horizontal, 12)
-                    if acct.id != accounts.last?.id { Divider().padding(.leading, 56) }
+                    .padding(.vertical, 10).padding(.horizontal, 12)
                 }
-            }
-            .background(Color(.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
+                .background(Color(.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
 
-            Button("Add Account…") { showAdd = true }
+                if !acct.connected {
+                    Button {
+                        Task { await auth.signInWithGraph(loginHint: acct.email) }
+                    } label: {
+                        Label("Connect Outlook", systemImage: "link")
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+
+                Button(role: .destructive) {
+                    Task { await auth.signOut() }
+                } label: {
+                    Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")
+                }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
+            } else {
+                Text("No account signed in.")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+            }
 
             Spacer()
-        }
-        .sheet(isPresented: $showAdd) {
-            VStack(spacing: 16) {
-                Text("Choose a provider").font(.headline)
-                ForEach(["Outlook / Microsoft 365", "Gmail", "iCloud", "Other (IMAP)"], id: \.self) { name in
-                    Button(name) { showAdd = false }
-                        .frame(maxWidth: .infinity)
-                        .buttonStyle(.bordered)
-                }
-                Button("Cancel", role: .cancel) { showAdd = false }
-            }
-            .padding(24).frame(width: 300)
         }
     }
 }

@@ -74,7 +74,10 @@ actor HistoricalBackfillService {
 
     /// Resume from persisted delta token after crash
     func resumeIfNeeded() async {
-        // TODO: Check UserDefaults/Keychain for persisted delta token
-        // If found, resume from last known position
+        // TODO: Read persisted delta token from Keychain (NOT UserDefaults).
+        // The Graph delta token grants the bearer ongoing access to mailbox
+        // changes since the last sync, so it must live in the encrypted
+        // keychain (`KeychainStore` with `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`).
+        // If found, resume from last known position.
     }
 }

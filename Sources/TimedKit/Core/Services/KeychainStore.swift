@@ -1,14 +1,18 @@
 import Foundation
 import Security
 
-/// Generic keychain wrapper. Currently unused — all third-party API keys
-/// (Anthropic, ElevenLabs, Deepgram) live server-side in Supabase secrets and
-/// are never sent to the client. Kept as a building block in case future
-/// device-specific secrets need to be stored locally.
+/// Generic keychain wrapper. Used for local device data that is sensitive
+/// at rest — content derived from the user's email/calendar/observations
+/// must not live in UserDefaults plaintext (`~/Library/Preferences/*.plist`
+/// is unencrypted and readable by any process running under the same UID).
+/// Third-party API keys (Anthropic, ElevenLabs, Deepgram) live server-side
+/// in Supabase secrets and are never sent to the client.
 public enum KeychainStore {
     public enum Account: String, CaseIterable {
-        // Reserved for future use. No accounts currently in production.
-        case _placeholder = "_PLACEHOLDER"
+        /// JSON-encoded `DishMeUpSnapshot`. Contains task titles + reasons
+        /// generated from the user's mail/calendar corpus, so cannot live
+        /// in UserDefaults.
+        case dishMeUpSnapshot = "DISH_ME_UP_SNAPSHOT"
     }
 
     enum StoreError: Error {
@@ -38,7 +42,25 @@ public enum KeychainStore {
     }
 
     static func setString(_ value: String, for account: Account) throws {
-        let data = Data(value.utf8)
+        try setData(Data(value.utf8), for: account)
+    }
+
+    /// Read raw bytes for an account, or `nil` if absent.
+    public static func data(for account: Account) -> Data? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account.rawValue,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+        ]
+        var result: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        guard status == errSecSuccess else { return nil }
+        return result as? Data
+    }
+
+    public static func setData(_ data: Data, for account: Account) throws {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -53,6 +75,15 @@ public enum KeychainStore {
         add[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
         let addStatus = SecItemAdd(add as CFDictionary, nil)
         guard addStatus == errSecSuccess else { throw StoreError.keychain(addStatus) }
+    }
+
+    public static func remove(_ account: Account) {
+        let q: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account.rawValue,
+        ]
+        SecItemDelete(q as CFDictionary)
     }
 
     /// Idempotent purge of historical client-side API keys. Called on app

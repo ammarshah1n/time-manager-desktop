@@ -207,10 +207,14 @@ actor EmailSyncService {
         loadKnownFolders(for: emailAccountId)
         TimedLogger.graph.info("EmailSyncService starting (interval: \(self.pollInterval)s)")
 
+        graphFileLog("EmailSyncService.start: ws=\(workspaceId) account=\(emailAccountId) profile=\(profileId?.uuidString ?? "nil")")
         syncTask = Task { [weak self] in
             guard let self else { return }
             var hasLinkedOutlook = false  // local sentinel — flip exec flag once per session
+            var iteration = 0
             while !Task.isCancelled {
+                iteration += 1
+                graphFileLog("EmailSync.poll[\(iteration)]: starting syncOnce")
                 do {
                     let count = try await self.syncOnce(
                         tokenProvider: tokenProvider,
@@ -218,19 +222,19 @@ actor EmailSyncService {
                         emailAccountId: emailAccountId,
                         profileId: profileId
                     )
+                    graphFileLog("EmailSync.poll[\(iteration)]: synced \(count) message(s)")
                     if count > 0 {
                         TimedLogger.graph.info("EmailSyncService synced \(count) message(s)")
                     }
                     // First successful sync (count >= 0, no error) flips
-                    // executives.outlook_linked. Lets the orb stop falsely
-                    // saying "inbox is clear" for users who haven't connected
-                    // Outlook yet. Once-per-session sentinel keeps the write
-                    // off the hot path of every poll cycle.
+                    // executives.outlook_linked.
                     if !hasLinkedOutlook, let pid = profileId {
                         hasLinkedOutlook = true
                         await self.markOutlookLinked(profileId: pid)
+                        graphFileLog("EmailSync: stamped outlook_linked=true on exec \(pid)")
                     }
                 } catch {
+                    graphFileLog("EmailSync.poll[\(iteration)]: ERROR \(error.localizedDescription)")
                     TimedLogger.graph.error("EmailSyncService sync error: \(error.localizedDescription, privacy: .public)")
                 }
                 try? await Task.sleep(for: .seconds(self.pollInterval))

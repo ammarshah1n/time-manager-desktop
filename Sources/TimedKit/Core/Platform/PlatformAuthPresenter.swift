@@ -22,10 +22,29 @@ public enum PlatformAuthPresenter {
 
     public static func msalWebviewParameters() -> MSALWebviewParameters {
         #if canImport(AppKit)
-        return MSALWebviewParameters(
-            authPresentationViewController: NSApp.keyWindow?.contentViewController
-                ?? NSViewController()
-        )
+        // MSAL needs a presenter VC backed by a real on-screen window. Fall
+        // back from keyWindow → mainWindow → first visible window before
+        // resorting to an empty VC (which presents from nowhere and the auth
+        // sheet never appears).
+        let presenterVC: NSViewController = {
+            if let vc = NSApp.keyWindow?.contentViewController { return vc }
+            if let vc = NSApp.mainWindow?.contentViewController { return vc }
+            if let vc = NSApp.windows.first(where: { $0.isVisible })?.contentViewController { return vc }
+            return NSViewController()
+        }()
+        let params = MSALWebviewParameters(authPresentationViewController: presenterVC)
+        // ASWebAuthenticationSession is the most reliable webview path on
+        // macOS — system-managed sheet, ephemeral cookie jar, no flaky
+        // wkWebView quirks. Same transport we use for the Supabase OAuth
+        // (already proven working in this app).
+        params.webviewType = .authenticationSession
+        // Force a clean cookie jar per attempt. Without this, macOS may
+        // re-prompt the system trust alert on each auth attempt, and stale
+        // SSO cookies from earlier failed attempts can replay back into the
+        // OAuth dance and trigger code-exchange failures. Mirrors the
+        // setting on the Supabase ASWebAuth flow at AuthService.swift:141.
+        params.prefersEphemeralWebBrowserSession = true
+        return params
         #elseif canImport(UIKit)
         let vc = topMostViewController() ?? UIViewController()
         return MSALWebviewParameters(authPresentationViewController: vc)

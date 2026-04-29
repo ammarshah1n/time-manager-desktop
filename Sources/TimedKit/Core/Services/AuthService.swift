@@ -36,6 +36,13 @@ final class AuthService: ObservableObject {
 
     private var client: SupabaseClient? { supabaseClient.rawClient }
 
+    /// Last URL successfully passed through `handleAuthCallback`. Prevents the
+    /// double-exchange race where ASWebAuthenticationSession's completion AND
+    /// the OS scheme handler both fire `handleAuthCallback` for the same
+    /// redirect URL — the second call would attempt to exchange an already-
+    /// redeemed code, fail, and flip `isSignedIn=false` mid-bootstrap.
+    private var lastHandledCallbackURL: URL?
+
     // MARK: - Restore session on launch
 
     func restoreSession() async {
@@ -99,8 +106,13 @@ final class AuthService: ObservableObject {
 
     #if canImport(AuthenticationServices) && os(macOS)
     /// Wraps `ASWebAuthenticationSession` start/completion in a checked
-    /// continuation. Static so it doesn't capture an actor-bound `self` —
-    /// the session runs on the main thread and reports back via callback.
+    /// continuation. The session is created and started on `@MainActor`
+    /// (Apple requires this), but the completion handler is invoked from a
+    /// background XPC reply queue (`com.apple.NSXPCConnection.m-user.com.apple.SafariLaunchAgent`).
+    /// The completion closure must therefore be `@Sendable` — without the
+    /// explicit type annotation Swift 6 inherits the enclosing function's
+    /// `@MainActor` isolation onto the closure, and the XPC dispatch trips
+    /// `_swift_task_checkIsolatedSwift` → `dispatch_assert_queue` → SIGTRAP.
     @MainActor
     private static func startWebAuthSession(
         authURL: URL,
@@ -108,10 +120,10 @@ final class AuthService: ObservableObject {
         presentationContext: ASWebAuthenticationPresentationContextProviding
     ) async throws -> URL {
         try await withCheckedThrowingContinuation { (cont: CheckedContinuation<URL, Error>) in
-            let session = ASWebAuthenticationSession(
-                url: authURL,
-                callbackURLScheme: callbackScheme
-            ) { url, error in
+            // Explicit @Sendable closure type — breaks MainActor isolation
+            // inheritance from the enclosing @MainActor static func.
+            // CheckedContinuation is Sendable, so capture is safe.
+            let completionHandler: @Sendable (URL?, Error?) -> Void = { url, error in
                 if let url = url {
                     cont.resume(returning: url)
                 } else if let error = error {
@@ -120,6 +132,11 @@ final class AuthService: ObservableObject {
                     cont.resume(throwing: URLError(.badServerResponse))
                 }
             }
+            let session = ASWebAuthenticationSession(
+                url: authURL,
+                callbackURLScheme: callbackScheme,
+                completionHandler: completionHandler
+            )
             session.presentationContextProvider = presentationContext
             session.prefersEphemeralWebBrowserSession = true
             session.start()
@@ -127,14 +144,15 @@ final class AuthService: ObservableObject {
     }
 
     /// Tiny shim so `ASWebAuthenticationSession` knows which window to anchor
-    /// to. Returns the key window from the active NSApplication. Lives outside
-    /// the AuthService instance to avoid actor-isolation issues — the OAuth
-    /// callback fires on a non-MainActor thread.
+    /// to. Returns the key window from the active NSApplication.
+    /// `presentationAnchor(for:)` is documented to be invoked on the main
+    /// thread by ASWebAuthenticationSession — `MainActor.assumeIsolated`
+    /// asserts that contract instead of deadlocking via `DispatchQueue.main.sync`.
     final class SharedPresentationContext: NSObject, ASWebAuthenticationPresentationContextProviding {
         static let shared = SharedPresentationContext()
         nonisolated func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
             #if canImport(AppKit)
-            return DispatchQueue.main.sync {
+            return MainActor.assumeIsolated {
                 NSApplication.shared.keyWindow ?? NSApplication.shared.windows.first ?? ASPresentationAnchor()
             }
             #else
@@ -148,6 +166,14 @@ final class AuthService: ObservableObject {
 
     func handleAuthCallback(url: URL) async {
         guard let client else { return }
+        // Idempotency: drop duplicate callbacks for the same URL. ASWebAuth
+        // completion + OS scheme handler may both fire; we only want to
+        // exchange the OAuth code once.
+        if let last = lastHandledCallbackURL, last == url {
+            TimedLogger.supabase.info("handleAuthCallback: duplicate URL ignored")
+            return
+        }
+        lastHandledCallbackURL = url
         isLoading = true
         do {
             let session = try await client.auth.session(from: url)
@@ -157,6 +183,11 @@ final class AuthService: ObservableObject {
             await bootstrapExecutive()
             TimedLogger.supabase.info("Signed in as \(session.user.email ?? "unknown", privacy: .private)")
         } catch {
+            // Reset to a clean signed-out state so LoginView re-renders cleanly
+            // and a fresh attempt isn't blocked by the idempotency guard.
+            lastHandledCallbackURL = nil
+            isSignedIn = false
+            userEmail = nil
             self.error = "Auth callback failed: \(error.localizedDescription)"
             TimedLogger.supabase.error("Auth callback failed: \(error.localizedDescription, privacy: .private)")
         }
@@ -278,13 +309,16 @@ final class AuthService: ObservableObject {
     func signInWithGraph(loginHint: String = "") async {
         isLoading = true
         error = nil
+        graphFileLog("AuthService.signInWithGraph: ENTER (hint='\(loginHint)')")
         do {
             @Dependency(\.graphClient) var graphClient
             let token = try await graphClient.authenticate("", loginHint)
             graphAccessToken = token
+            graphFileLog("AuthService.signInWithGraph: token set ✅ (len=\(token.count))")
             TimedLogger.graph.info("Graph OAuth succeeded")
         } catch {
             self.error = "Outlook sign-in failed: \(error.localizedDescription)"
+            graphFileLog("AuthService.signInWithGraph: THREW: \(error.localizedDescription)")
             TimedLogger.graph.error("Graph OAuth failed: \(error.localizedDescription, privacy: .private)")
         }
         isLoading = false
@@ -295,19 +329,37 @@ final class AuthService: ObservableObject {
     func makeTokenProvider() -> @Sendable () async throws -> String {
         return { [weak self] in
             guard let self else { throw TokenProviderError.authServiceDeallocated }
-            @Dependency(\.graphClient) var graphClient
-            let token = try await graphClient.authenticate("", self.userEmail ?? "")
-            await MainActor.run { self.graphAccessToken = token }
+            // Return the in-memory token. Calling MSAL `authenticate` here
+            // would trigger a fresh interactive sheet because ad-hoc-signed
+            // builds on macOS Tahoe cannot write to the MSAL keychain group
+            // (the silent-refresh cache that should have been populated by
+            // the initial sign-in fails with `-34018 / Failed to find
+            // keychain item`). Without this guard, every Graph API call
+            // re-fired the MSAL interactive flow, looping the user through
+            // "trust this app" prompts.
+            //
+            // Trade-off: when the access token expires (~1 h) Graph calls
+            // start returning 401. The user re-connects via Settings →
+            // Connect Outlook (or by re-launching). Switch to silent refresh
+            // after Apple Developer Program enrollment lands proper
+            // code-signing + keychain entitlements (HANDOFF Chain C).
+            let cached = await MainActor.run { self.graphAccessToken }
+            guard let token = cached, !token.isEmpty else {
+                throw TokenProviderError.tokenUnavailable
+            }
             return token
         }
     }
 
     enum TokenProviderError: Error, LocalizedError {
         case authServiceDeallocated
+        case tokenUnavailable
         var errorDescription: String? {
             switch self {
             case .authServiceDeallocated:
                 return "AuthService was deallocated — cannot refresh token"
+            case .tokenUnavailable:
+                return "Microsoft access token unavailable — sign in via Settings → Connect Outlook"
             }
         }
     }
@@ -331,6 +383,7 @@ final class AuthService: ObservableObject {
         executiveId = nil
         userEmail = nil
         graphAccessToken = nil
+        lastHandledCallbackURL = nil
         UserDefaults.standard.removeObject(forKey: PlatformPaths.activeExecutiveDefaultsKey)
     }
 
@@ -398,17 +451,18 @@ final class AuthService: ObservableObject {
     /// MSAL fails or the user declines, graphAccessToken stays nil and the
     /// app proceeds without Outlook integration.
     func connectOutlookIfPossible(executiveId: UUID) async {
+        graphFileLog("connectOutlookIfPossible: ENTER (exec=\(executiveId))")
         guard let email = userEmail, !email.isEmpty else {
-            TimedLogger.graph.info("connectOutlookIfPossible: no userEmail yet, skipping")
+            graphFileLog("connectOutlookIfPossible: SKIP — no userEmail")
             return
         }
+        graphFileLog("connectOutlookIfPossible: calling signInWithGraph(hint=\(email))")
         await signInWithGraph(loginHint: email)
         guard graphAccessToken != nil else {
-            TimedLogger.graph.info("connectOutlookIfPossible: no Graph token after signInWithGraph — Outlook integration deferred")
+            graphFileLog("connectOutlookIfPossible: no Graph token → Outlook deferred (graphAccessToken is nil)")
             return
         }
-        // executiveId doubles as workspaceId / emailAccountId / profileId
-        // until DataBridge introduces distinct IDs.
+        graphFileLog("connectOutlookIfPossible: starting EmailSync + CalendarSync")
         let provider = makeTokenProvider()
         await EmailSyncService.shared.start(
             tokenProvider: provider,
@@ -417,7 +471,7 @@ final class AuthService: ObservableObject {
             profileId: executiveId
         )
         await CalendarSyncService.shared.start(tokenProvider: provider)
-        TimedLogger.graph.info("Outlook sync started for executive \(executiveId, privacy: .private)")
+        graphFileLog("connectOutlookIfPossible: SYNC STARTED ✅")
     }
 }
 

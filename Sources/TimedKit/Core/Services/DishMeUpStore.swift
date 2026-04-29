@@ -8,11 +8,11 @@ final class DishMeUpStore: ObservableObject {
     @Published private(set) var generatedAt: Date?
     @Published private(set) var availableMinutes: Int = 60
 
-    private let key = "dishMeUp.latestPlan.v1"
+    private let legacyDefaultsKey = "dishMeUp.latestPlan.v1"
 
     private init() {
-        if let data = UserDefaults.standard.data(forKey: key),
-           let snapshot = try? JSONDecoder().decode(Snapshot.self, from: data) {
+        let snapshot = loadFromKeychain() ?? migrateFromUserDefaults()
+        if let snapshot {
             latest = snapshot.plan
             generatedAt = snapshot.generatedAt
             availableMinutes = snapshot.availableMinutes
@@ -23,9 +23,25 @@ final class DishMeUpStore: ObservableObject {
         latest = plan
         generatedAt = date
         availableMinutes = minutes
-        if let data = try? JSONEncoder().encode(Snapshot(plan: plan, generatedAt: date, availableMinutes: minutes)) {
-            UserDefaults.standard.set(data, forKey: key)
+        let snapshot = Snapshot(plan: plan, generatedAt: date, availableMinutes: minutes)
+        if let data = try? JSONEncoder().encode(snapshot) {
+            try? KeychainStore.setData(data, for: .dishMeUpSnapshot)
         }
+    }
+
+    private func loadFromKeychain() -> Snapshot? {
+        guard let data = KeychainStore.data(for: .dishMeUpSnapshot) else { return nil }
+        return try? JSONDecoder().decode(Snapshot.self, from: data)
+    }
+
+    private func migrateFromUserDefaults() -> Snapshot? {
+        let defaults = UserDefaults.standard
+        guard let data = defaults.data(forKey: legacyDefaultsKey),
+              let snapshot = try? JSONDecoder().decode(Snapshot.self, from: data)
+        else { return nil }
+        try? KeychainStore.setData(data, for: .dishMeUpSnapshot)
+        defaults.removeObject(forKey: legacyDefaultsKey)
+        return snapshot
     }
 
     private struct Snapshot: Codable {

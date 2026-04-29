@@ -177,17 +177,30 @@ extension DependencyValues {
 private enum AzureConfig {
     static let clientId  = ProcessInfo.processInfo.environment["GRAPH_CLIENT_ID"]
                         ?? "89e8f1c6-3cc4-47fb-83ae-f7e0528eb860"
+    /// `/common` accepts work, school, AND personal Microsoft accounts.
+    /// The Azure App is registered with `signInAudience = AzureADandPersonalMicrosoftAccount`,
+    /// so this is consistent. Override via env var if a deployment needs to
+    /// pin a specific tenant. Previously hardcoded to the PFF tenant
+    /// `d20d9117-7f0f-45e9-87b3-2bb194f6be6b`, which silently rejected
+    /// personal-MSA sign-ins → graphAccessToken stayed nil → EmailSyncService
+    /// never started → `executives.outlook_linked` stayed false → empty Today/Calendar.
     static let tenantId  = ProcessInfo.processInfo.environment["GRAPH_TENANT_ID"]
-                        ?? "d20d9117-7f0f-45e9-87b3-2bb194f6be6b"
+                        ?? "common"
     static let redirectUri = "msauth.com.timed.app://auth"
     // Strictly read-only scopes — Timed observes / reflects / recommends and
     // NEVER acts on the world (no mail send, no calendar write, no booking).
     // Anything broader violates the Anti-Pattern in
     // .claude/rules/ai-assistant-rules.md and risks an MSAL consent grant
     // that future code could silently exploit.
+    //
+    // NOTE: `openid`, `profile`, and `offline_access` are RESERVED MSAL
+    // scopes — MSAL appends them automatically on every acquireToken call.
+    // Listing them explicitly causes MSAL to throw -50000 BEFORE presenting
+    // the sheet, with `MSALInternalErrorCodeKey=-42000`. Don't add them
+    // back; the resulting silent failure is what blocked Outlook integration
+    // for two days.
     static let scopes    = ["Mail.Read",
                             "Calendars.Read",
-                            "offline_access",
                             "User.Read"]
 }
 
@@ -198,14 +211,50 @@ private struct SendableBox<T>: @unchecked Sendable {
     let value: T
 }
 
+// MARK: - File-scoped MSAL diagnostic log (bypasses unified logging on ad-hoc builds)
+
+/// ad-hoc-signed builds on macOS Tahoe are filtered out of `log show`, so
+/// `os.Logger` calls are invisible. This mirrors critical MSAL/Graph
+/// diagnostics to /tmp/timed-msal.log. Tail with `tail -f /tmp/timed-msal.log`.
+@Sendable
+func graphFileLog(_ msg: String) {
+    let logURL = URL(fileURLWithPath: "/tmp/timed-msal.log")
+    let stamp = ISO8601DateFormatter().string(from: Date())
+    let payload = "[\(stamp)] \(msg)\n"
+    guard let data = payload.data(using: .utf8) else { return }
+    if FileManager.default.fileExists(atPath: logURL.path),
+       let h = try? FileHandle(forWritingTo: logURL) {
+        defer { try? h.close() }
+        _ = try? h.seekToEnd()
+        try? h.write(contentsOf: data)
+    } else {
+        try? data.write(to: logURL)
+    }
+}
+
 // MARK: - Live Implementation
 
 extension GraphClientDependency {
     static func live() -> GraphClientDependency {
+        // Wipe MSAL log at app start so each run is a clean trace.
+        try? FileManager.default.removeItem(at: URL(fileURLWithPath: "/tmp/timed-msal.log"))
+        graphFileLog("=== Timed MSAL log opened (build \(Date())) ===")
+
+        MSALGlobalConfig.loggerConfig.logLevel = .verbose
+        MSALGlobalConfig.loggerConfig.setLogCallback { level, message, _ in
+            guard let message else { return }
+            if level == .error || level == .warning {
+                graphFileLog("MSAL[\(level.rawValue)] ERR: \(message)")
+            } else if level == .info {
+                graphFileLog("MSAL[\(level.rawValue)] info: \(message)")
+            }
+        }
+
         // Build MSAL public client once — shared across all @Sendable closures.
         let msalApp: MSALPublicClientApplication? = {
             guard let authorityURL = URL(string: "https://login.microsoftonline.com/\(AzureConfig.tenantId)"),
                   let authority = try? MSALAADAuthority(url: authorityURL) else {
+                graphFileLog("MSAL.init: authority URL/authority construction FAILED for tenant=\(AzureConfig.tenantId)")
                 return nil
             }
             let config = MSALPublicClientApplicationConfig(
@@ -213,8 +262,27 @@ extension GraphClientDependency {
                 redirectUri: AzureConfig.redirectUri,
                 authority: authority
             )
+            config.knownAuthorities = [authority]
             config.multipleCloudsSupported = false
-            return try? MSALPublicClientApplication(configuration: config)
+            // Route MSAL's keychain to the app-private partition (bundle ID
+            // as group). Default group `com.microsoft.identity.universalstorage`
+            // requires Apple Developer Program enrollment to write — on
+            // ad-hoc-signed builds it throws `-34018 / errSecItemNotFound`,
+            // which silently breaks silent refresh and forces interactive
+            // re-auth on every Graph call. Pairs with the
+            // `keychain-access-groups` entry in Platforms/Mac/Timed.entitlements.
+            if let bundleID = Bundle.main.bundleIdentifier {
+                config.cacheConfig.keychainSharingGroup = bundleID
+                graphFileLog("MSAL.init: keychainSharingGroup set to \(bundleID)")
+            }
+            do {
+                let app = try MSALPublicClientApplication(configuration: config)
+                graphFileLog("MSAL.init: OK — tenant=\(AzureConfig.tenantId) redirect=\(AzureConfig.redirectUri) clientId=\(AzureConfig.clientId)")
+                return app
+            } catch {
+                graphFileLog("MSAL.init: client init THREW: \(error.localizedDescription)")
+                return nil
+            }
         }()
 
         // Box the ObjC app instance once so all @Sendable closures can capture it safely.
@@ -231,7 +299,12 @@ extension GraphClientDependency {
             // accountId: persisted MSAL account identifier (pass "" on first sign-in)
             // loginHint: UPN / email hint shown in the picker (pass "" if unknown)
             authenticate: { accountId, loginHint in
+                graphFileLog("authenticate: ENTER (accountId='\(accountId)' hint='\(loginHint)')")
                 let accounts = (try? appBox.value.allAccounts()) ?? []
+                graphFileLog("authenticate: \(accounts.count) cached account(s)")
+                for (i, a) in accounts.enumerated() {
+                    graphFileLog("  [\(i)] id=\(a.identifier ?? "nil") username=\(a.username ?? "nil")")
+                }
 
                 // 1. Try silent with a matching stored account.
                 let candidateAccount = accounts.first(where: { $0.identifier == accountId })
@@ -243,17 +316,25 @@ extension GraphClientDependency {
                         account: account
                     )
                     silentParams.forceRefresh = false
-                    if let result = try? await appBox.value.acquireTokenSilent(with: silentParams) {
+                    do {
+                        let result = try await appBox.value.acquireTokenSilent(with: silentParams)
+                        graphFileLog("silent: SUCCESS")
                         return result.accessToken
+                    } catch {
+                        graphFileLog("silent: FAILED → fall through. err=\(error.localizedDescription)")
                     }
-                    // Silent failed — fall through to interactive.
+                } else {
+                    graphFileLog("silent: SKIPPED (no cached account)")
                 }
 
                 // 2. Interactive — all MSAL UI work runs on MainActor via Task continuation.
+                graphFileLog("interactive: about to present (will hop to MainActor)")
                 return try await withCheckedThrowingContinuation { continuation in
                     Task { @MainActor in
                         do {
+                            graphFileLog("interactive: on MainActor; building webviewParameters")
                             let webviewParams = PlatformAuthPresenter.msalWebviewParameters()
+                            graphFileLog("interactive: webviewType built; calling acquireToken")
                             let params = MSALInteractiveTokenParameters(
                                 scopes: AzureConfig.scopes,
                                 webviewParameters: webviewParams
@@ -261,8 +342,11 @@ extension GraphClientDependency {
                             params.promptType = .selectAccount
                             if !loginHint.isEmpty { params.loginHint = loginHint }
                             let result = try await appBox.value.acquireToken(with: params)
+                            graphFileLog("interactive: TOKEN ACQUIRED ✅")
                             continuation.resume(returning: result.accessToken)
                         } catch {
+                            graphFileLog("interactive: FAILED: \(error.localizedDescription)")
+                            graphFileLog("interactive: NSError details: \((error as NSError).userInfo)")
                             continuation.resume(throwing: error)
                         }
                     }

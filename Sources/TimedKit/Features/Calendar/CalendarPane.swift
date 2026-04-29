@@ -43,7 +43,19 @@ struct CalendarPane: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
+        VStack(alignment: .leading, spacing: 0) {
+            // Inline week-range subtitle. macOS Tahoe's `.navigationTitle`
+            // reserves a large-title area beneath the toolbar that pushed
+            // the day headers and hour grid down with a giant white gap.
+            HStack {
+                Text(weekTitle)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.secondary)
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 6)
+            .padding(.bottom, 4)
             CalendarHeaderRow(dates: weekDates, todayIdx: todayIdx)
             Divider()
             ScrollView(.vertical, showsIndicators: false) {
@@ -61,7 +73,11 @@ struct CalendarPane: View {
                 .padding(.bottom, 32)
             }
         }
-        .navigationTitle(weekTitle)
+        // Force top anchoring — without explicit alignment, the detail
+        // view of NavigationSplitView centers its content vertically when
+        // the content's intrinsic height is less than the available space
+        // (the 188pt gap visible in the screenshot before this fix).
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .toolbar {
             ToolbarItem(placement: .navigation) {
                 Button { withAnimation { weekOffset -= 1 } } label: {
@@ -262,6 +278,10 @@ struct CalendarGrid: View {
     }
 
     var body: some View {
+        // GeometryReader takes whatever vertical space the parent offers,
+        // which inside a ScrollView leaves a white gap beneath the day-header
+        // row before the 6am tick. Constrain the reader's height to the grid
+        // height so the calendar starts immediately under the divider.
         GeometryReader { geo in
             let colW = (geo.size.width - kTimeW) / CGFloat(dates.count)
 

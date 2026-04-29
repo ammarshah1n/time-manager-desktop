@@ -101,6 +101,7 @@ struct DishMeUpHomeView: View {
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button("Voice check-in") { showVoiceCheckIn = true }
+                    .help("Voice check-in — talk through your day. Your assistant listens, learns how you think, and surfaces what matters tomorrow.")
             }
         }
         .animation(TimedMotion.smooth, value: phaseKey)

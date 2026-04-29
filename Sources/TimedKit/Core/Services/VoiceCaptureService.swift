@@ -65,6 +65,17 @@ final class VoiceCaptureService: NSObject, ObservableObject {
     /// 5 sessions would fire 5 stacked restarts (Comet C.6).
     private var routeChangeObserver: NSObjectProtocol?
 
+    /// Bridge between the audio render thread and MainActor for `audioLevel`
+    /// updates. The audio tap closure on `RealtimeMessenger.mServiceQueue`
+    /// would otherwise inherit @MainActor isolation from this class and trip
+    /// `_swift_task_checkIsolatedSwift` (the v0.2.0 SIGTRAP crash). The tap
+    /// yields a normalized RMS Float to the stream's continuation
+    /// (Sendable); a MainActor consumer task drains and writes to
+    /// `@Published audioLevel`.
+    private var audioLevelStream: AsyncStream<Float>?
+    private var audioLevelContinuation: AsyncStream<Float>.Continuation?
+    private var audioLevelConsumerTask: Task<Void, Never>?
+
     // MARK: - Init
 
     /// Whether voice capture is available on this system
@@ -162,6 +173,14 @@ final class VoiceCaptureService: NSObject, ObservableObject {
             routeChangeObserver = nil
         }
 
+        // Tear down the audio-level stream + consumer so a subsequent start()
+        // gets a fresh bridge and we don't leak the consumer Task.
+        audioLevelConsumerTask?.cancel()
+        audioLevelContinuation?.finish()
+        audioLevelConsumerTask = nil
+        audioLevelContinuation = nil
+        audioLevelStream = nil
+
         // Parse final transcript into discrete task items
         parsedItems = TranscriptParser.parse(liveTranscript)
         TimedLogger.voice.info("Recording stopped — parsed \(self.parsedItems.count) items")
@@ -206,11 +225,33 @@ final class VoiceCaptureService: NSObject, ObservableObject {
         request.requiresOnDeviceRecognition = false   // use server for accuracy
         recognitionRequest = request
 
+        // Tear down any prior audio-level stream before opening a fresh one.
+        audioLevelConsumerTask?.cancel()
+        audioLevelContinuation?.finish()
+
+        // Open a fresh stream + start the MainActor consumer that drains
+        // levels into `@Published audioLevel`. Critically, the tap closure
+        // below captures only `request` (thread-safe) and `continuation`
+        // (Sendable) — NOT `self`. That breaks the @MainActor isolation
+        // inheritance that was crashing v0.2.0 from the audio render queue.
+        let (stream, continuation) = AsyncStream<Float>.makeStream(
+            bufferingPolicy: .bufferingNewest(2)
+        )
+        self.audioLevelStream = stream
+        self.audioLevelContinuation = continuation
+        self.audioLevelConsumerTask = Task { @MainActor [weak self] in
+            for await level in stream {
+                self?.audioLevel = level
+            }
+        }
+
         inputNode.removeTap(onBus: 0)
-        // Capture `request` directly — SFSpeechAudioBufferRecognitionRequest.append(_:) is thread-safe,
-        // so we append on the audio thread without hopping to MainActor. Reaching back through
-        // `self.recognitionRequest` from this real-time queue trips Swift 6's actor-isolation check.
-        inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self] buffer, _ in
+        // Tap callback runs on Apple's real-time `RealtimeMessenger.mServiceQueue`.
+        // We capture only Sendable / thread-safe values:
+        //   - `request`: SFSpeechAudioBufferRecognitionRequest, .append(_:) is documented thread-safe
+        //   - `continuation`: AsyncStream.Continuation, Sendable by design
+        // No `self` capture → no @MainActor isolation inferred → no SIGTRAP.
+        inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in
             request.append(buffer)
 
             // RMS computation is pure — no `self` access on the audio thread.
@@ -223,11 +264,8 @@ final class VoiceCaptureService: NSObject, ObservableObject {
                 rms = sqrtf(sum / Float(frameLength))
             }
             let normalized = min(1.0, rms * 8)
-
-            // Hop to MainActor only for the @Published UI update.
-            Task { @MainActor [weak self] in
-                self?.audioLevel = normalized
-            }
+            // Yield to the MainActor consumer; non-blocking, drops if buffer full.
+            continuation.yield(normalized)
         }
 
         audioEngine.prepare()
