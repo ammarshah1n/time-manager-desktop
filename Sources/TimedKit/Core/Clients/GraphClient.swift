@@ -356,22 +356,26 @@ extension GraphClientDependency {
             // MARK: fetchDeltaMessages
             // params: (accountId, deltaLink?, accessToken)
             fetchDeltaMessages: { _, deltaLink, accessToken in
-                // First-ever sync (no stored deltaLink) — clamp to 30 days of
-                // history. Without this clamp, a CEO with a 50k-message inbox
-                // spends ~100 minutes pulling history before Triage shows
-                // anything. The 410 (delta-expired) recovery path produces a
-                // fresh deltaLink so this filter only applies on the very first
-                // poll. (Audit #3 #6 — bounded initial Outlook sync.)
-                let initialURL: String = {
-                    let cutoff = ISO8601DateFormatter().string(from: Date().addingTimeInterval(-30 * 86_400))
-                    return "\(graphBaseURL)/me/messages/delta"
-                        + "?$select=id,subject,from,receivedDateTime,parentFolderId,bodyPreview,conversationId,toRecipients,ccRecipients,isDraft"
-                        + "&$filter=receivedDateTime%20ge%20\(cutoff)"
-                        + "&$top=50"
-                }()
+                // Microsoft Graph delta endpoint quirks:
+                //   /me/messages/delta                       — work/school accounts only;
+                //                                              consumer accounts (MSA / outlook.com)
+                //                                              return HTTP 400 "Change tracking is not
+                //                                              supported against 'microsoft.graph.message'"
+                //   /me/mailFolders/inbox/messages/delta     — works on BOTH consumer and work accounts
+                //
+                // Folder-scoped delta is the universal endpoint. Inbox is the
+                // canonical folder for ingestion; sub-folders / archive aren't
+                // surfaced to Triage anyway. The skibidi 4.3 30-day `$filter`
+                // is dropped — Graph doesn't accept it alongside delta on
+                // consumer accounts, and `$top=50` paginates the first sync.
+                let initialURL: String = "\(graphBaseURL)/me/mailFolders/inbox/messages/delta"
+                    + "?$select=id,subject,from,receivedDateTime,parentFolderId,bodyPreview,conversationId,toRecipients,ccRecipients,isDraft"
+                    + "&$top=50"
                 let urlString = deltaLink ?? initialURL
+                graphFileLog("fetchDeltaMessages: URL=\(urlString.prefix(200))")
 
                 guard let url = URL(string: urlString) else {
+                    graphFileLog("fetchDeltaMessages: INVALID URL — full=\(urlString)")
                     TimedLogger.graph.error("Invalid delta messages URL: \(urlString, privacy: .public)")
                     throw GraphError.httpError(0)
                 }
@@ -380,6 +384,8 @@ extension GraphClientDependency {
 
                 let (data, response) = try await URLSession.shared.data(for: request)
                 let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+                let bodyPreview = String(data: data, encoding: .utf8)?.prefix(400) ?? "<non-utf8 \(data.count) bytes>"
+                graphFileLog("fetchDeltaMessages: status=\(statusCode) bytes=\(data.count) bodyHead=\(bodyPreview)")
                 if statusCode == 410 {
                     throw GraphError.syncStateNotFound
                 }
@@ -512,19 +518,25 @@ extension GraphClientDependency {
                     + "&endDateTime=\(end)"
                     + "&$select=id,subject,start,end,isAllDay,isCancelled,location,attendees,isOrganizer,responseStatus"
                     + "&$top=100"
+                graphFileLog("fetchCalendarEvents: URL=\(raw.prefix(200)) start=\(start) end=\(end)")
                 guard let url = URL(string: raw.addingPercentEncoding(
                     withAllowedCharacters: .urlQueryAllowed) ?? raw
                 ) else {
+                    graphFileLog("fetchCalendarEvents: INVALID URL — full=\(raw)")
                     throw GraphError.httpError(0)
                 }
                 var request = URLRequest(url: url)
                 request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
 
                 let (data, response) = try await URLSession.shared.data(for: request)
-                guard (response as? HTTPURLResponse)?.statusCode == 200 else {
-                    throw GraphError.httpError((response as? HTTPURLResponse)?.statusCode ?? 0)
+                let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+                let bodyPreview = String(data: data, encoding: .utf8)?.prefix(400) ?? "<non-utf8 \(data.count) bytes>"
+                graphFileLog("fetchCalendarEvents: status=\(status) bytes=\(data.count) bodyHead=\(bodyPreview)")
+                guard status == 200 else {
+                    throw GraphError.httpError(status)
                 }
                 let decoded = try JSONDecoder().decode(GraphCalendarResponse.self, from: data)
+                graphFileLog("fetchCalendarEvents: decoded \(decoded.value.count) event(s)")
                 return decoded.value
             }
         )

@@ -240,7 +240,9 @@ actor CalendarSyncService {
         )
         do {
             try await Tier0Writer.shared.recordObservation(observation)
+            graphFileLog("CalendarSync.tier0: WROTE \(emission.eventType) event=\(parsedEvent.event.id.prefix(20))")
         } catch {
+            graphFileLog("CalendarSync.tier0: FAILED \(error.localizedDescription)")
             TimedLogger.calendar.error("Tier0 calendar observation write failed: \(error.localizedDescription)")
         }
 
@@ -259,7 +261,9 @@ actor CalendarSyncService {
         )
         do {
             try await persistCalendarObservation(calendarObservation)
+            graphFileLog("CalendarSync.persist: WROTE row exec=\(executiveId.uuidString.prefix(8)) start=\(parsedEvent.startDate)")
         } catch {
+            graphFileLog("CalendarSync.persist: FAILED \(error.localizedDescription)")
             TimedLogger.calendar.error("Calendar observation persist failed: \(error.localizedDescription)")
         }
     }
