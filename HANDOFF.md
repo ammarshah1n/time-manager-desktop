@@ -1,11 +1,111 @@
 # HANDOFF.md — Timed
 
-Last updated: 2026-04-28 23:00 (onsite-deploy overnight run — voice proxies LIVE; Trigger.dev + Graphiti backfill parked on hard blockers documented below)
+Last updated: 2026-04-29 late evening (Microsoft pipeline verified end-to-end with real outlook.com account)
+
+## ★ 2026-04-29 LATE EVENING ★ — Microsoft pipeline end-to-end verified
+
+**State: SHIPPED.** Four commits on `unified` (`f8c5fa1` → `ab253af` → `beb7358` → `cdd72b7`) close the loop from Microsoft sign-in through to the voice orb's context layer.
+
+**Verified empirically** with executive `9ea0d114-71af-4790-8d5b-3a25b8f46504` and a real outlook.com test account:
+- MSAL token acquired (interactive flow on consumer/MSA tenant)
+- `executives.outlook_linked = true` after first successful sync (was false until tonight)
+- "timed test" calendar event flows: Microsoft Graph → Swift → `calendar_observations` (with title!) → DB trigger → `tier0_observations`
+- Voice orb's `voice-llm-proxy` now sees the event including the title and including in-progress events (was filtering them out)
+
+**Five distinct fixes shipped tonight:**
+1. MSAL `keychainSharingGroup = Bundle.main.bundleIdentifier` — forward-compat for when Apple Developer Program enrollment lands a Team ID. On ad-hoc builds the keychain writes still 34018, so the in-memory token band-aid in `AuthService.makeTokenProvider` stays.
+2. `scripts/package_app.sh` codesigns with `--entitlements "$ROOT_DIR/Platforms/Mac/Timed.entitlements"`. The script was previously dropping the entitlements file silently — every entitlement edit was a no-op until tonight.
+3. `GraphClient.fetchDeltaMessages` switched from `/me/messages/delta` (work/school only — 400s on consumer accounts with "Change tracking is not supported against 'microsoft.graph.message'") to `/me/mailFolders/inbox/messages/delta` (works on both). Skibidi 4.3's `$filter=receivedDateTime ge ...` 30-day clamp dropped at the same time — incompatible with consumer delta.
+4. New migration `20260429120000_grant_get_executive_id.sql` — GRANT EXECUTE on both overloads of `get_executive_id()` to authenticated. SECURITY DEFINER alone wasn't enough; client-JWT INSERTs were getting `permission denied for function get_executive_id` against every RLS policy that called it.
+5. `CalendarObservationRow` gains `title` + `description` fields (columns existed since migration 20260424000001 but the Swift writer never populated them). Plus `voice-llm-proxy` calendar query: `starts_at >= now` → `ends_at >= now` so an in-progress meeting doesn't drop out of the orb's context window.
+
+**Diagnostic wins:** added `graphFileLog` calls to `fetchDeltaMessages`, `fetchCalendarEvents`, and both write paths in `CalendarSyncService.emitCalendarObservationsIfPossible`. On ad-hoc-signed builds where `os.Logger` is filtered out (per memory `feedback_adhoc_logs_invisible`), this is the only visible diagnostic surface — three distinct silent failures became visible the moment we wired this up.
+
+**Gmail track is next** — see `~/.claude/plans/we-are-doing-whats-rustling-fog.md` Phase B-1. Recommended path: open a new claude window after sleep, paste the prompt verbatim, scaffold `Sources/TimedKit/Core/Mail/*.swift` without touching AuthService. Phase B-2 (the AuthService merge + UI) is tomorrow fresh.
+
+**Security-hardening pass remains deferred** — 32 modified Edge Functions + 5 untracked CI/lint files still WIP from a prior session. Voice-llm-proxy's CORS-tightening (`Allow-Origin: env-driven` instead of `*`) shipped tonight as a side-effect of the orb fix; the rest waits.
+
+## ★ 2026-04-29 evening ★ — Memory-first hook architecture (commit 826eb58)
+
+## ★ 2026-04-29 evening ★ — Memory-first hook architecture (commit 826eb58)
+
+**State: SHIPPED.** Replaced broken nag-only `memory-gate.sh` (v1) with a two-layer system that actually enforces the memory-first protocol without becoming a roadblock.
+
+### Root cause of 200K-token burn earlier this session
+
+`memory-gate.sh` v1 used `exit 0 + stderr` for its nag. **stderr at exit 0 is invisible to Claude's reasoning loop** — it reaches the terminal but never the model's context. Claude saw the Agent tool call as approved and proceeded, blind to the warning. Three Explore subagents fired in parallel before user intervention. Architectural failure, not discipline failure. Pattern was structurally broken from day one.
+
+### What shipped
+
+**Layer 1** — `.claude/hooks/memory-preempt.sh` (new). UserPromptSubmit hook, fires once per session, injects vault-first reminder via `additionalContext` JSON (which IS visible to Claude). Routes through basic-memory before Claude considers spawning research tools.
+
+**Layer 2** — `.claude/hooks/memory-gate.sh` (replaced). PreToolUse hook narrowed to `Agent | Task | WebSearch | WebFetch | mcp__perplexity-comet__*`. Decision tree: basic-memory call → mark sentinel; sentinel exists → inject light reminder + allow; syntax-shaped prompt (refactor/rename/format/lint) → silent allow; research-shaped + no sentinel → BLOCK exit 2 with actionable stderr; ambiguous → default-pass. Block reason explicitly tells Claude: *"if vault doesn't have it, proceed — burn the tokens, that's the point."* Self-healing roundtrip; user not pulled in.
+
+**`.claude/settings.json`** — split PreToolUse so permission-check.sh stays on `*` matcher; memory-gate.sh narrowed to research tool matcher only.
+
+Avoids GH #16598 (`permissionDecision: "allow"` crash) and #39814 (`updatedInput` silently dropped on Agent).
+
+### Smoke-tested (7/7 pass)
+1. Research Agent w/o sentinel → BLOCK + actionable stderr
+2. Syntax Agent ("refactor X to Y") → silent allow
+3. Research Agent w/ sentinel → inject reminder + allow
+4. Read tool → gate doesn't fire (instant pass)
+5. basic-memory call → sentinel created
+6. First user prompt → memory-first reminder injected
+7. Second user prompt → silent (one-shot honoured)
+
+### Takes effect on NEW Claude Code sessions only
+
+This session keeps cached old behaviour. Restart any session you want to test against.
+
+### Rollback (2 commands)
+```
+cp .claude/hooks/memory-gate.sh.bak .claude/hooks/memory-gate.sh
+git checkout .claude/settings.json
+```
+
+### Reports + plan archived
+- `~/Downloads/1) Where Models Agree.md` — model-council convergence
+- `~/Downloads/Smarter PreToolUse Memory-First Hooks for Claude Code.md` — full design doc
+- `~/Downloads/memory-gate-hook-plan.html` — implementation plan I built before shipping
+
+### Side note — AIF /extract crash + scheduled rerun
+
+The earlier "Mac crash" wasn't 3 caffeinates / ccstatusline as I first claimed. **Actual culprit:** `/extract` skill (AIF Decision Extractor Stage 2) running `~/aif-vault/pipeline/02_extract_decisions.py` with `CONCURRENCY = 60` over a 132 MB corpus. Spawns 60 parallel `claude --print` subprocesses → crushes the Mac. Stage 2 is resumable (uses `.processed_sessions.txt`), so partial-completion survives.
+
+**Scheduled rerun:** `launchd` LaunchAgent `com.ammar.aif-extract-rerun` fires once at **2026-04-30 00:30 ACST**. Plist at `~/Library/LaunchAgents/com.ammar.aif-extract-rerun.plist`. Wrapper script: `~/Desktop/aif-rerun/run-extract-stage2.sh` (logs to `~/Desktop/aif-rerun/run-<ts>.log`).
+
+**BEFORE 00:30:** edit `~/aif-vault/pipeline/02_extract_decisions.py` and lower `CONCURRENCY` to ~10–15, otherwise it'll crash again. Cancel rerun: `launchctl unload ~/Library/LaunchAgents/com.ammar.aif-extract-rerun.plist`.
+
+## ★ 2026-04-29 PM ★ — Morning-checklist closure (no code changes)
+
+- **Trigger.dev cloud (item 1):** upgraded to **Hobby tier ($10/mo published, $1/mo on Ammar's invoice — flagged for next-cycle verify)**. `pnpm exec trigger deploy --env prod` succeeded → **Version `20260429.2`** live with 13 detected tasks (9 schedules + 4 manual incl. `graphiti-backfill`). Idempotent: re-running with no code changes yields identical version.
+- **ElevenLabs agent ASR (item 2):** agent `agent_3501kpyz0cnrfj8tgbb2bmg5arfk` was already on Scribe v2 Turbo (Alpha) — verification only, no change.
+- **Graphiti backfill (item 3):** Comet handed a 4-step verification workflow (Hobby billing → 9 schedules registered → trigger backfill empty payload → monitor to terminal state). Awaiting Comet report. If failure mode is `GRAPHITI_MCP_TOKEN` mismatch, recover live token via `ssh ammarshahin@192.168.0.20 'podman inspect timed-graphiti-mcp'` and reconcile against Trigger.dev secrets dashboard.
+- **No code changes this session** — `git status` clean modulo state-file updates. DMG at `dist.noindex/Timed.dmg` unchanged from `e7d2b53`. Yasser handoff still gated on item 3 result.
+- **Off-Timed admin:** personal subscriptions audit reconciled to `~/Documents/SUBSCRIPTIONS.md` + `~/Desktop/Subscriptions.xlsx`. Steady-state $268/mo. Not Timed-billable; logged here only because Trigger.dev Hobby is the line item that crosses both ledgers.
 
 > **READ FIRST:** `docs/UNIFIED-BRANCH.md` — permanent reference for the consolidated architecture.
 > **Narrative:** `docs/SINCE-2026-04-24.md` — full story of the weekend work.
 > **Resume next session:** `~/.claude/projects/-Users-integrale-time-manager-desktop/NEXT.md`.
-> **Tonight's full diagnostic:** `~/Downloads/timed-onsite-deploy-handoff-2026-04-28.md` (every wall hit + how, copy-paste resume commands).
+> **Last night's diagnostic:** `~/Downloads/timed-onsite-deploy-handoff-2026-04-28.md` (the deploy walls + how each was diagnosed).
+> **Tonight's full report:** `~/Desktop/skibidi-final-report.md` (every phase + state + Comet integration).
+> **Morning checklist:** `~/Desktop/morning-checklist.txt` (3 manual clicks, ~5 min total).
+
+## ★ 2026-04-29 ★ — Skibidi sprint shipped (autonomous overnight run)
+
+Five commits on `origin/unified` covering Phases 1.1/1.2/1.3/1.4 (substrate), 3.1/3.2/3.4/3.5/3.6/3.7 (engine wiring), 4.1/4.2/4.3/4.4/4.5/4.6/4.7 (cold-start UX + Microsoft OAuth), 5.2/5.4/5.5/5.6/5.7/5.8/5.9 (voice/orb polish), 6.1/6.2/6.3/6.5/6.6 (reliability) plus Phase 2.1/2.5 (voice proxies deployed + tier0 trigger code-existence verified). DMG repacked at `dist.noindex/Timed.dmg` (31 MB, ad-hoc signed), launches without Gatekeeper modal.
+
+Edge Functions deployed: `anthropic-proxy`, `elevenlabs-tts-proxy`, `orb-conversation`, `voice-llm-proxy`, `weekly-pattern-detection`. Migrations applied to `fpmjuufefhtlwbfinxlx`: `20260428120000_score_memory.sql`, `20260428130000_outlook_linked.sql`. ELEVENLABS_API_KEY secret set on the project (pulled from 1Password Timed vault).
+
+**Held for tomorrow morning (5 min total — `~/Desktop/morning-checklist.txt`):**
+1. Trigger.dev cloud deploy — 10/10 schedules cap; cloud has stale Dev schedules from earlier deploy churn. Code declares 9 schedules (after demoting `outcome-harvester` alongside `ingestion-health-watchdog`). Manual dashboard cleanup before redeploy.
+2. ElevenLabs agent ASR portal switch to Scribe v2 Turbo.
+3. Graphiti backfill — depends on #1 then trigger via Trigger.dev tasks page.
+
+Commits this sprint: `cf53995` substrate + 5 severed circuits → `3508abf` ASWebAuthSession + bounded sync + pre-warm + session refresh → `e785aac` Comet integration → `646ced1` doc state → `6670ade` outlook_linked + MSAL banner + 429 retry + queue skip-bad + EFs deployed → `e7d2b53` wrap-up state.
+
+## ★ Earlier — onsite-deploy 2026-04-28 PM/overnight run
 
 ## ★ Onsite-deploy 2026-04-28 PM/overnight run
 
