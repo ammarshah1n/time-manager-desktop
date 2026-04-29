@@ -11,6 +11,17 @@
         ]
       }
     ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /Users/integrale/time-manager-desktop/.claude/hooks/memory-preempt.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
         "matcher": "*",
@@ -19,7 +30,12 @@
             "type": "command",
             "command": "bash /Users/integrale/time-manager-desktop/.claude/hooks/permission-check.sh \"$CLAUDE_TOOL_NAME\" \"$CLAUDE_TOOL_INPUT\"",
             "timeout": 5
-          },
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__basic-memory__.*|Agent|Task|WebSearch|WebFetch|mcp__perplexity-comet__.*",
+        "hooks": [
           {
             "type": "command",
             "command": "bash /Users/integrale/time-manager-desktop/.claude/hooks/memory-gate.sh",
