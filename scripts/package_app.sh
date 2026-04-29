@@ -133,6 +133,14 @@ PLIST
 
 codesign --force --deep --sign - "$APP_DIR/Contents/Frameworks/MSAL.framework" 2>/dev/null || true
 codesign --force --deep --sign - "$APP_DIR/Contents/Frameworks/LiveKitWebRTC.framework" 2>/dev/null || true
-codesign --force --deep --sign - "$APP_DIR"
+# Apply entitlements (especially `keychain-access-groups`) so MSAL silent
+# refresh can write to the bundle-private keychain partition. Without
+# `--entitlements`, the file at Platforms/Mac/Timed.entitlements is ignored
+# and MSAL falls back to the default group `com.microsoft.identity.universalstorage`,
+# which requires Apple Developer Program enrollment to write — the exact
+# `-34018` failure that forced manual reconnect every ~1h.
+codesign --force --deep \
+    --entitlements "$ROOT_DIR/Platforms/Mac/Timed.entitlements" \
+    --sign - "$APP_DIR"
 
 echo "Packaged $APP_DIR"
