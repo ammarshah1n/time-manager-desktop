@@ -257,7 +257,9 @@ actor CalendarSyncService {
             responseStatus: parsedEvent.event.responseStatus?.response,
             wasCancelled: emission.eventType == "calendar.cancelled",
             wasRescheduled: emission.eventType == "calendar.rescheduled",
-            originalStart: emission.originalStart
+            originalStart: emission.originalStart,
+            title: parsedEvent.event.subject,
+            description: parsedEvent.event.location?.displayName
         )
         do {
             try await persistCalendarObservation(calendarObservation)

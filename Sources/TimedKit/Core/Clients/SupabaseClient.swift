@@ -152,6 +152,8 @@ struct CalendarObservationRow: Codable, Identifiable, Sendable {
     let wasCancelled: Bool
     let wasRescheduled: Bool
     let originalStart: Date?
+    let title: String?
+    let description: String?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -165,6 +167,8 @@ struct CalendarObservationRow: Codable, Identifiable, Sendable {
         case wasCancelled = "was_cancelled"
         case wasRescheduled = "was_rescheduled"
         case originalStart = "original_start"
+        case title
+        case description
     }
 }
 

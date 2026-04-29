@@ -25,7 +25,7 @@ import { requireEnv } from "../_shared/config.ts";
 import { verifyAuth, AuthError, authErrorResponse } from "../_shared/auth.ts";
 
 const CORS = {
-  "Access-Control-Allow-Origin":  "*",
+  "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") ?? "null",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
@@ -151,10 +151,13 @@ async function readContext(userId: string) {
       .eq("status", "pending")
       .order("due_at", { ascending: true, nullsFirst: false })
       .limit(20),
+    // Include events still in progress (started in the past, ending in the
+    // future) — without `ends_at >= now` an 8pm meeting that started 5 min
+    // ago would silently drop out of the orb's context window.
     supabase.from("calendar_events")
       .select("title,description,starts_at,ends_at")
       .eq("user_id", userId)
-      .gte("starts_at", nowIso)
+      .gte("ends_at", nowIso)
       .lte("starts_at", in12h)
       .order("starts_at", { ascending: true })
       .limit(8),
