@@ -267,14 +267,20 @@ enum PlanningEngine {
         let calendar = Calendar.current
         let today = Date()
         let workStart = calendar.date(bySettingHour: request.workStartHour, minute: 0, second: 0, of: today)!
-        let workEnd = calendar.date(bySettingHour: request.workEndHour, minute: 0, second: 0, of: today)!
+        let configuredWorkEnd = calendar.date(bySettingHour: request.workEndHour, minute: 0, second: 0, of: today)!
+        let budgetEnd = workStart.addingTimeInterval(Double(effectiveAvailable) * 60)
+        let workEnd = min(configuredWorkEnd, budgetEnd)
 
         // 5. Call TimeSlotAllocator
+        var allocatorConfig = ScheduleConfig.default
+        allocatorConfig.utilizationCap = 1.0
+
         let allocation = TimeSlotAllocator.buildDayPlan(
             calendarBlocks: request.calendarBlocks,
             tasks: allocatorTasks,
             workStart: workStart,
-            workEnd: workEnd
+            workEnd: workEnd,
+            config: allocatorConfig
         )
 
         // Also compute free-time gap stats for the result
