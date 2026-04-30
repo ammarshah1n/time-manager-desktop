@@ -4,6 +4,7 @@
 // Transcript E3: "If I could just transcribe that straight to the app."
 
 import SwiftUI
+import AppKit
 
 struct CapturePane: View {
     @Binding var tasks: [TimedTask]
@@ -154,7 +155,7 @@ struct CapturePane: View {
                     .shadow(color: voice.isRecording ? Color.Timed.destructive.opacity(0.4) : .primary.opacity(0.3), radius: voice.isRecording ? 8 : 4)
 
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(voice.isRecording ? "Recording… tap to stop" : "Hold to record")
+                        Text(voice.isRecording ? "Recording… tap to stop" : "Tap to record")
                             .font(.system(size: 14, weight: .medium))
                         Text(voice.isRecording ? "Speak your tasks — I'll parse them automatically" : "\"Call John back, 5 mins. Review contract from David, 30 mins.\"")
                             .font(.system(size: 11))
@@ -185,14 +186,20 @@ struct CapturePane: View {
             .buttonStyle(.plain)
 
             if let error = voice.lastError {
-                HStack(spacing: 6) {
+                HStack(spacing: 8) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.system(size: 11))
                         .foregroundStyle(Color.Timed.destructive)
-                    Text("Voice capture unavailable. Check microphone permissions in System Settings.")
+                    Text(error.localizedDescription)
                         .font(.system(size: 11))
                         .foregroundStyle(Color.Timed.destructive)
                         .lineLimit(2)
+                    Spacer()
+                    Button("Open Settings") {
+                        openVoicePrivacySettings()
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.mini)
                 }
                 .padding(.horizontal, 4)
             }
@@ -452,6 +459,11 @@ struct CapturePane: View {
         case "action":       return .action
         default:             return .action
         }
+    }
+
+    private func openVoicePrivacySettings() {
+        guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone") else { return }
+        NSWorkspace.shared.open(url)
     }
 }
 

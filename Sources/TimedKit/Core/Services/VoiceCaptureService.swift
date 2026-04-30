@@ -38,6 +38,26 @@ struct ParsedItem: Identifiable, Hashable, Sendable {
     }
 }
 
+private enum VoiceCapturePermissionError: LocalizedError {
+    case speechDenied
+    case speechRestricted
+    case microphoneDenied
+    case speechUnavailable
+
+    var errorDescription: String? {
+        switch self {
+        case .speechDenied:
+            return "Speech Recognition is off for Timed. Allow it in System Settings -> Privacy & Security -> Speech Recognition."
+        case .speechRestricted:
+            return "Speech Recognition is restricted on this Mac."
+        case .microphoneDenied:
+            return "Microphone access is off for Timed. Allow it in System Settings -> Privacy & Security -> Microphone."
+        case .speechUnavailable:
+            return "Speech Recognition is temporarily unavailable. Try again in a moment."
+        }
+    }
+}
+
 // MARK: - VoiceCaptureService
 
 @MainActor
@@ -119,8 +139,27 @@ final class VoiceCaptureService: NSObject, ObservableObject {
                 continuation.resume(returning: status)
             }
         }
+        guard speechStatus == .authorized else {
+            isAuthorized = false
+            switch speechStatus {
+            case .denied:
+                lastError = VoiceCapturePermissionError.speechDenied
+            case .restricted:
+                lastError = VoiceCapturePermissionError.speechRestricted
+            default:
+                lastError = VoiceCapturePermissionError.speechUnavailable
+            }
+            return
+        }
+
         let micGranted = await AVCaptureDevice.requestAccess(for: .audio)
-        isAuthorized = speechStatus == .authorized && micGranted
+        guard micGranted else {
+            isAuthorized = false
+            lastError = VoiceCapturePermissionError.microphoneDenied
+            return
+        }
+
+        isAuthorized = true
     }
 
     // MARK: - Start / Stop
