@@ -20,7 +20,7 @@ struct VoicePathGuardTests {
         "Sources/TimedKit/Core/Services/DeepgramSTTService.swift",
         "Sources/TimedKit/Features/Conversation/ConversationModel.swift",
         "Sources/TimedKit/Features/Conversation/ConversationView.swift",
-        "Sources/TimedKit/Features/Conversation/ConversationAIClient.swift",
+        "Sources/TimedKit/Core/Clients/ConversationAIClient.swift",
     ]
 
     private let bannedSymbols: [String] = [

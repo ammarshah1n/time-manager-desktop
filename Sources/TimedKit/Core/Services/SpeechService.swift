@@ -2,7 +2,7 @@
 // Text-to-speech via the elevenlabs-tts-proxy Edge Function. The ElevenLabs
 // API key lives server-side; the client never holds it. No Apple TTS fallback
 // — if the proxy is unreachable, the failure surfaces visibly so we can fix
-// the real cause instead of silently switching to AVSpeechSynthesizer.
+// the real cause instead of silently switching to platform speech synthesis.
 
 import AVFoundation
 import SwiftUI
