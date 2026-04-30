@@ -20,7 +20,7 @@
 - Match model + thinking budget to task complexity per call site. Defaults:
   - Structured extraction, classification, short conversational turns → Haiku 4.5, no thinking
   - Multi-step conversational flow with ≥3 collected fields → Haiku is brittle; use Sonnet
-  - Real reasoning (Dish Me Up, morning check-in, weekly synthesis) → Opus 4.6 with extended thinking, budget 4000–10000
+  - Real reasoning (Dish Me Up, morning check-in, weekly synthesis) → strongest available Opus-class model; Trigger.dev Wave 2 aliases route this to 4.7, while older Supabase Edge Functions may still contain direct 4.6 IDs
 - `max_tokens` must exceed `thinking.budget_tokens` — otherwise Anthropic returns 400.
 - Prompt caching needs ≥1024 tokens on Opus/Sonnet system prompts (≥4096 on Haiku). Smaller prompts silently skip the cache — don't panic on zero cache hits during cold-start.
 </important>

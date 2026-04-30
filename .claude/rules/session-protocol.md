@@ -9,7 +9,7 @@
 ## Session Read Order
 | Session type | Read order |
 |-------------|-----------|
-| New session | `CLAUDE.md` -> `BUILD_STATE.md` -> `MASTER-PLAN.md` |
+| New session | `docs/UNIFIED-BRANCH.md` -> `HANDOFF.md` -> `BUILD_STATE.md` -> `CLAUDE.md` -> `MASTER-PLAN.md` STATUS |
 | Build a component | `BUILD_STATE.md` -> relevant `docs/` -> relevant `specs/` |
 | Architecture question | `docs/01-architecture.md` -> `Timed-Brain/06-Context/` |
 | Research context | `research/perplexity-outputs/v2/` -> `research/extractions/` |

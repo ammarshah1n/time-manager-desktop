@@ -5,9 +5,10 @@
 - **Branch: `unified`** (single source of truth — TimedKit + TimedMacApp + TimediOS + Wave 1+2 backend + voice path + docs, all on one trunk as of 2026-04-27).
 - Co-founders / first users: Ammar Shahin (CTO) + Yasser Shahin (CEO, Ammar's father). The prototype is built by and for both of them.
 - Backend: Supabase project `fpmjuufefhtlwbfinxlx`; CLI verified 39 active remote Edge Functions on 2026-04-30. Local tree has 40 function dirs plus `_shared`; `deepgram-transcribe` is local-only.
-- Current gaps: Gmail migration `20260430120000_gmail_provider.sql` not yet applied remotely; `voice-llm-proxy` needs redeploy for the Gmail OR-gate; Graphiti backfill is parked on Voyage billing; security-hardening edits are still WIP.
+- Current gaps: open Timed and connect Gmail with `5066sim@gmail.com`; resume Apple Developer enrollment for notarised Mac/iOS delivery; decide whether optional local-only `deepgram-transcribe` should stay parked.
+- Shipped 2026-04-30: Gmail backend migration + `voice-llm-proxy` OR-gate live; Graphiti backfill completed; 16-function security-hardening set deployed.
 - **DMG status**: ✅ Track B delivered — `dist.noindex/Timed.dmg` (31 MB, ad-hoc signed). Apple Developer enrollment pending for Track A (proper signing + iOS TestFlight).
-- Read order: `docs/UNIFIED-BRANCH.md` → `CLAUDE.md` → `BUILD_STATE.md` → `MASTER-PLAN.md` (see `.claude/rules/session-protocol.md` for full protocol)
+- Read order: `docs/UNIFIED-BRANCH.md` → `HANDOFF.md` → `BUILD_STATE.md` → `CLAUDE.md` → `MASTER-PLAN.md` STATUS section (see `.claude/rules/session-protocol.md` for full protocol)
 
 <important>
 ## Memory Default — ENFORCED via hooks (do not skip)
@@ -103,11 +104,10 @@ Read these every session. Mirror copy at `~/Desktop/timed-future-session-tips.md
 </important>
 
 ## Next Priorities
-1. Apply `20260430120000_gmail_provider.sql` to Supabase remote
-2. Redeploy `voice-llm-proxy` so `(outlook_linked OR gmail_linked)` is live
-3. Open Timed → Settings → Accounts → Add Gmail with `5066sim@gmail.com`
-4. Resolve Voyage billing, then finish `graphiti-backfill`
-5. Finish or park the security-hardening WIP cleanly
+1. Open Timed → Settings → Accounts → Add Gmail with `5066sim@gmail.com`
+2. Resume Apple Developer enrollment for notarised Mac/iOS delivery
+3. Decide whether optional local-only `deepgram-transcribe` should stay parked
+4. Keep Microsoft auth/sync untouched while exercising the additive Gmail path
 
 - See `.claude/rules/coding-standards.md` for code conventions.
 - See `.claude/rules/testing-rules.md` for testing workflow and framework rules.
