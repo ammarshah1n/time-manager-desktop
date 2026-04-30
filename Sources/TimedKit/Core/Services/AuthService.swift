@@ -489,13 +489,10 @@ final class AuthService: ObservableObject {
                 }
                 self.error = nil
                 TimedLogger.supabase.info("Executive bootstrapped: \(executive.id, privacy: .private)")
-                // Auth cascade — once Supabase identity is bootstrapped, request a
-                // Microsoft Graph token (silent refresh if user previously consented;
-                // interactive MSAL prompt otherwise) and kick off email/calendar
-                // background sync. Best-effort: graphAccessToken stays nil for
-                // email-signup users who decline the MSAL prompt, and the app
-                // still functions without Outlook integration.
-                await connectOutlookIfPossible(executiveId: executive.id)
+                // Do not auto-present Microsoft Graph auth here. On current
+                // ad-hoc builds MSAL cannot persist its keychain cache, so
+                // bootstrap would ask for Outlook again on every launch.
+                // Settings -> Connect Outlook remains the explicit path.
                 // Parallel cascade for Google. Best-effort; if no Google
                 // session is restored / signed-in, this is a no-op.
                 await connectGmailIfPossible(executiveId: executive.id)
