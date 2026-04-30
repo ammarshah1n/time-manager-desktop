@@ -1,107 +1,72 @@
-# AGENTS.md — Timed (Timed) Autonomous Agent Rules
+# AGENTS.md — Timed (time-manager-desktop)
 
-## You are building Timed. Read CLAUDE.md fully before starting.
+> Per-project AGENTS.md for Codex. Inherits global rules from `~/.codex/AGENTS.md`. Stack-specific overrides below.
 
-## Task Execution Protocol (taskflow)
-Tasks are managed via `taskflow` (`tools/taskflow/taskflow.sh`).
+## Stack
+- Swift 5.9 / SwiftUI / SwiftData / Swift Testing
+- macOS 15+ desktop (no iOS-only code outside Platforms/iOS/, no UIKit, no Combine, no deprecated APIs)
+- Backend: Supabase project `fpmjuufefhtlwbfinxlx`, 29 Edge Functions all active
+- Auth: Microsoft OAuth + Supabase Auth (`AuthService.swift` implemented, UI bridge pending)
 
-**If launched by taskflow autopilot:**
-1. You receive focused context with task description, acceptance criteria, FR spec, and completed dependencies
-2. Implement against the acceptance criteria provided
-3. Run `swift build` and `swift test` to verify
-4. When ALL criteria met and tests pass, output: `TASK_COMPLETE`
-5. If stuck after 3 attempts on same error, output: `TASK_BLOCKED`
+## Branch Discipline
+- **Always work on `unified`.** First action of any session: `git checkout unified && git pull`.
+- Do NOT branch off `ui/apple-v1-restore`, `ui/apple-v1-local-monochrome`, `ui/apple-v1-wired`, or `ios/port-bootstrap`.
 
-**If working manually:**
-1. Run `taskflow next` to find what to work on
-2. Run `taskflow start <id>` to get focused context
-3. Implement against the acceptance criteria
-4. Run `swift build` and `swift test`
-5. Run `taskflow complete <id>` when done (writes walkthrough + updates PLAN.md)
+## Memory & State
+- **basic-memory project:** `timed-brain` (1198+ notes). For AIF questions: also search `aif-vault`.
+- **Vault state:** `~/Timed-Brain/Working-Context/timed-brain-state.md` — read at session start.
+- **Vault index:** `~/Timed-Brain/VAULT-INDEX.md` → `HANDOFF.md` → `Working-Context/timed-brain-state.md`.
+- **Search:** `qmd search "term" -c timed-brain` (BM25), `qmd query "question" -c timed-brain` (hybrid).
 
-**Never:**
-- Work on a task not assigned via `taskflow start`
-- Skip acceptance criteria checks
-- Mark complete without `swift build` passing
+## Read Order on Session Start
+1. `docs/UNIFIED-BRANCH.md`
+2. `HANDOFF.md`
+3. `BUILD_STATE.md`
+4. `CLAUDE.md` (canonical) / this file
+5. `MASTER-PLAN.md` STATUS section
 
 ## Build Commands
 - Build: `swift build`
 - Test: `swift test`
 - Build release: `swift build -c release`
+- Mac xcodebuild: `xcodegen generate` then `xcodebuild -skipMacroValidation -skipPackagePluginValidation ARCHS=arm64 ONLY_ACTIVE_ARCH=YES ...`
+- DMG: `bash scripts/package_app.sh && bash scripts/create_dmg.sh` → `dist.noindex/Timed.dmg`
 
-## Test Patterns
-Framework: `import Testing` (Swift Testing). Requires Xcode or swift-testing SPM package.
-Import: `@testable import time_manager_desktop`
+## Architecture Rules (NEVER violate)
+- No external Swift dependencies beyond `supabase-swift` + `MSAL`.
+- All AI calls go through Edge Functions via Supabase client. No direct Anthropic API calls in Swift.
+- All persistence goes through Supabase PostgREST. No local JSON files (the `DataStore` is being deprecated).
+- All Microsoft Graph calls go through `GraphClient.swift`. No inline Graph API calls anywhere else.
+- All ranking logic lives in `PlanningEngine`. No scoring in views or stores.
+- New Swift files: `Sources/TimedKit/Features/<area>/` or `Sources/TimedKit/Core/<area>/`. Mac-only wraps in `#if os(macOS)`.
 
-**Environment note:** If `swift test` fails with `no such module 'Testing'`, uncomment the
-swift-testing dependency in Package.swift. This happens with Command Line Tools only (no Xcode).
+## Anti-Patterns (HARD STOPS)
+- NEVER suggest cheaper models for the core intelligence engine. Intelligence quality IS the product.
+- NEVER have Timed act on the world (no sending email, no booking, no scheduling). Timed observes, reflects, recommends — never acts.
+- NEVER treat `DataStore` as source of truth. Supabase is the source of truth once Auth lands.
+- NEVER apply web or Next.js patterns. macOS desktop only.
+- NEVER skip the read order. Verify infra state with CLI before trusting docs.
+- NEVER ship third-party API keys to the client. Anthropic/ElevenLabs/Deepgram/OpenAI keys live in Supabase Edge Function secrets only.
 
-Example:
-```swift
-import Testing
-@testable import time_manager_desktop
+## Test Loop
+1. Modify Swift file
+2. `swift test --filter TestName`
+3. Fix immediately on structured failure
+4. Repeat until green
+- Framework: `import Testing` (Swift Testing). Naming: `{TypeName}Tests.swift`.
 
-@Suite("EmailMessage Tests")
-struct EmailMessageTests {
-    @Test("Codable roundtrip preserves all fields")
-    func codableRoundtrip() throws {
-        let original = EmailMessage(
-            id: UUID(),
-            subject: "Test",
-            sender: "test@example.com",
-            receivedAt: Date(),
-            body: "Hello",
-            isRead: false
-        )
-        let data = try JSONEncoder().encode(original)
-        let decoded = try JSONDecoder().decode(EmailMessage.self, from: data)
-        #expect(original.id == decoded.id)
-        #expect(original.subject == decoded.subject)
-    }
-}
-```
+## Commit Format
+`feat(timed): description` / `fix(timed): description` / `chore(timed): description` — subject under 70 chars. One commit per change.
 
-Naming: `{TypeName}Tests.swift`, methods describe behaviour not implementation.
-
-## Architecture Rules
-- No external Swift dependencies beyond supabase-swift + MSAL. Pure SwiftUI + Foundation + EventKit.
-- All AI calls go through Edge Functions via Supabase client. No direct Claude API calls in Swift.
-- All persistence goes through Supabase PostgREST. No local JSON files.
-- All Microsoft Graph calls go through a single GraphClient module. No inline Graph API calls.
-- All ranking logic lives in PlanningEngine. No scoring in views or stores.
-- NEVER apply web or Next.js patterns. This is macOS 15 desktop only.
-
-## Hard Stops (stop immediately, don't attempt to fix)
-- Swift compiler errors in files you didn't create
-- Missing environment variables (GRAPH_CLIENT_ID, SUPABASE_URL, etc.)
-- Azure OAuth errors (require human config)
-- Any database migration conflicts
-- Supabase Edge Function deployment failures
-
-## Never Do
-- Write raw SQL against cloud database
-- Import Supabase SDK directly (use the app's SupabaseClient singleton)
-- Call Microsoft Graph outside GraphClient module
-- Create files outside Sources/, Tests/, supabase/, docs/, or tools/
-- Use setTimeout/Timer for job scheduling (Edge Functions + pg_cron only)
-
-## Agent Teams (experimental — use after FR-01 hooks are battle-tested)
-
-For cross-layer FRs (e.g. "build FR-01 end-to-end"), use Agent Teams instead of manual worktrees:
-- Shift+Up/Down to select teammates, Ctrl+T for shared task list
-- Teammates can message each other directly — no round-trip through you
-- Use for FRs that touch shared interfaces (GraphClient ↔ classifier ↔ Supabase)
-- Keep worktrees for truly independent FRs with zero shared interfaces
-- **Do NOT use Agent Teams until FR-01 is complete and all hooks have been validated on real work**
+## Build & Test Tools
+- XcodeBuildMCP: `build_sim` / `test_sim` / `debug_attach_sim` — structured JSON errors, prefer over raw `xcodebuild`.
+- `xcrun mcpbridge`: `DocumentationSearch` for Apple API questions, `ExecuteSnippet` to verify Swift API behaviour.
+- Supabase MCP: deploy edge functions, fetch logs. Service-role bypasses RLS — never `always_allow` destructive ops.
 
 ## Circuit Breaker
-If you've attempted the same operation 3 times with the same error: STOP.
-Write the error to PLAN.md under BLOCKED. Exit cleanly.
+3 attempts at the same operation with the same error → STOP. Write error to `PLAN.md` under BLOCKED. Exit cleanly.
 
----
-
-## ACCEPTANCE CRITERIA — DO NOT STOP UNTIL THESE ALL PASS
-
-1. `swift build` exits 0 with no errors
+## Acceptance Criteria (do not stop until all pass)
+1. `swift build` exits 0
 2. `swift test` exits 0 — all tests pass
-3. PLAN.md updated with what was built and what comes next
+3. `BUILD_STATE.md` updated with what was built and what comes next
