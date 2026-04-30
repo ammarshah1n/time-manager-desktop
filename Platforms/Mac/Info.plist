@@ -52,6 +52,14 @@
       <key>CFBundleURLSchemes</key>
       <array><string>msauth.com.timed.app</string></array>
     </dict>
+    <dict>
+      <key>CFBundleURLName</key>
+      <string>Google OAuth Callback</string>
+      <key>CFBundleURLSchemes</key>
+      <array><string>com.googleusercontent.apps.461539145615-8e2sknd45hrs7bnuq6uf1h55hkhfqi8u</string></array>
+    </dict>
   </array>
+  <key>GIDClientID</key>
+  <string>461539145615-8e2sknd45hrs7bnuq6uf1h55hkhfqi8u.apps.googleusercontent.com</string>
 </dict>
 </plist>

@@ -5,6 +5,9 @@
 // TimedMacApp / TimediOS / extensions only need a single public API surface.
 
 import SwiftUI
+#if canImport(GoogleSignIn)
+import GoogleSignIn
+#endif
 
 @MainActor
 public struct TimedAppShell: View {
@@ -34,6 +37,20 @@ public struct TimedAppShell: View {
     /// Anything else is dropped silently.
     @MainActor
     private func routeIncoming(url: URL) {
+        // Google OAuth redirects use the reversed-client-ID scheme
+        // (`com.googleusercontent.apps.<CLIENT_ID>`). On macOS 13+ GoogleSignIn
+        // uses ASWebAuthenticationSession and captures the callback natively,
+        // but if the system falls back to opening the redirect externally we
+        // forward it here. Harmless on the modern path — GIDSignIn returns
+        // false when it doesn't recognise the URL.
+        #if canImport(GoogleSignIn)
+        if let scheme = url.scheme?.lowercased(),
+           scheme.hasPrefix("com.googleusercontent.apps.") {
+            _ = GIDSignIn.sharedInstance.handle(url)
+            return
+        }
+        #endif
+
         guard url.scheme == "timed" else { return }
         switch (url.host, url.path) {
         case ("auth", "/callback"):

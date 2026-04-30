@@ -87,32 +87,26 @@ struct AccountsTab: View {
         )
     }
 
+    /// The signed-in Google account, if any. Independent of Microsoft —
+    /// a user may have one or both providers linked.
+    private var googleAccount: PrefAccount? {
+        guard let email = auth.googleEmail, !email.isEmpty else { return nil }
+        return PrefAccount(
+            email: email,
+            provider: "Google",
+            icon: "envelope",
+            color: .red,
+            connected: auth.googleAccessToken != nil
+        )
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Email Accounts")
                 .font(.headline)
 
             if let acct = primaryAccount {
-                VStack(spacing: 0) {
-                    HStack(spacing: 12) {
-                        RoundedRectangle(cornerRadius: 6)
-                            .fill(acct.color.opacity(0.12))
-                            .frame(width: 32, height: 32)
-                            .overlay { Image(systemName: acct.icon).font(.system(size: 14)).foregroundStyle(acct.color) }
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(acct.email).font(.system(size: 13))
-                            Text(acct.connected ? "Microsoft — Outlook + Calendar connected" : "Microsoft — sign-in completed, Outlook not yet linked")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        Circle()
-                            .fill(acct.connected ? Color(.systemGreen) : Color(.systemOrange))
-                            .frame(width: 7, height: 7)
-                    }
-                    .padding(.vertical, 10).padding(.horizontal, 12)
-                }
-                .background(Color(.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
+                accountRow(acct, connectedCopy: "Microsoft — Outlook + Calendar connected", pendingCopy: "Microsoft — sign-in completed, Outlook not yet linked")
 
                 if !acct.connected {
                     Button {
@@ -123,7 +117,27 @@ struct AccountsTab: View {
                     .buttonStyle(.bordered)
                     .controlSize(.small)
                 }
+            } else {
+                Text("No account signed in.")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+            }
 
+            // Google row — always show the "Add Gmail" affordance below the
+            // primary account so users can link a parallel Google account.
+            if let google = googleAccount {
+                accountRow(google, connectedCopy: "Google — Gmail + Calendar connected", pendingCopy: "Google — sign-in completed, Gmail not yet linked")
+            } else if primaryAccount != nil {
+                Button {
+                    Task { await auth.signInWithGoogle() }
+                } label: {
+                    Label("Add Gmail", systemImage: "plus.app")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+
+            if primaryAccount != nil {
                 Button(role: .destructive) {
                     Task { await auth.signOut() }
                 } label: {
@@ -131,14 +145,32 @@ struct AccountsTab: View {
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
-            } else {
-                Text("No account signed in.")
-                    .font(.system(size: 13))
-                    .foregroundStyle(.secondary)
             }
 
             Spacer()
         }
+    }
+
+    @ViewBuilder
+    private func accountRow(_ acct: PrefAccount, connectedCopy: String, pendingCopy: String) -> some View {
+        HStack(spacing: 12) {
+            RoundedRectangle(cornerRadius: 6)
+                .fill(acct.color.opacity(0.12))
+                .frame(width: 32, height: 32)
+                .overlay { Image(systemName: acct.icon).font(.system(size: 14)).foregroundStyle(acct.color) }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(acct.email).font(.system(size: 13))
+                Text(acct.connected ? connectedCopy : pendingCopy)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Circle()
+                .fill(acct.connected ? Color(.systemGreen) : Color(.systemOrange))
+                .frame(width: 7, height: 7)
+        }
+        .padding(.vertical, 10).padding(.horizontal, 12)
+        .background(Color(.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
     }
 }
 

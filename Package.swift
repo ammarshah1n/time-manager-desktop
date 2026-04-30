@@ -26,6 +26,9 @@ let package = Package(
         .package(url: "https://github.com/swiftlang/swift-testing", from: "0.12.0"),
         // ElevenLabs Conversational AI — LiveKit WebRTC wrapper, Custom LLM support.
         .package(url: "https://github.com/elevenlabs/elevenlabs-swift-sdk", from: "2.0.0"),
+        // Google Sign-In — Gmail + Google Calendar OAuth2 (parallel to MSAL/Microsoft).
+        // Apache 2.0. macOS support since 7.1.0; using latest stable (9.1.0).
+        .package(url: "https://github.com/google/GoogleSignIn-iOS", from: "9.0.0"),
     ],
     targets: [
         // Multiplatform-future library: Core/, Features/, Resources/.
@@ -40,6 +43,7 @@ let package = Package(
                 .product(name: "GRDB",                   package: "GRDB.swift"),
                 .product(name: "USearch",                package: "usearch"),
                 .product(name: "ElevenLabs",             package: "elevenlabs-swift-sdk"),
+                .product(name: "GoogleSignIn",           package: "GoogleSignIn-iOS"),
             ],
             path: "Sources/TimedKit",
             // Resources/ is currently empty (.gitkeep only). Adding it back

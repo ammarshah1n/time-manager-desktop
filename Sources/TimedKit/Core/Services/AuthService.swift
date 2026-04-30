@@ -23,6 +23,14 @@ final class AuthService: ObservableObject {
     @Published var executiveId: UUID?
     @Published var userEmail: String?
     @Published var graphAccessToken: String?
+    /// Email of the currently signed-in Google account (Gmail + Calendar).
+    /// nil until `signInWithGoogle()` succeeds or `restoreSession` finds a
+    /// prior GoogleSignIn keychain entry.
+    @Published var googleEmail: String?
+    /// Cached most-recent Google access token. Sync services should NOT use
+    /// this directly — call `makeGoogleTokenProvider()` instead so refresh
+    /// happens silently before each request.
+    @Published var googleAccessToken: String?
     @Published var error: String?
     /// Transient confirmation banner — set on successful sign-in / sign-up, auto-clears after a beat.
     @Published var welcomeMessage: String?
@@ -59,6 +67,18 @@ final class AuthService: ObservableObject {
         } catch {
             TimedLogger.supabase.debug("No stored session — user needs to sign in")
             isSignedIn = false
+        }
+        // Attempt Google silent restore in parallel with the Supabase session.
+        // Independent of the Supabase identity — a user can have Google linked
+        // even before Supabase Auth is set up (single-user dev path).
+        if let email = await GoogleAuth.restorePreviousSignIn() {
+            googleEmail = email
+            do {
+                googleAccessToken = try await GoogleAuth.freshAccessToken()
+                googleFileLog("AuthService.restoreSession: Google session restored for \(email)")
+            } catch {
+                googleFileLog("AuthService.restoreSession: Google token refresh failed: \(error.localizedDescription)")
+            }
         }
     }
 
@@ -304,6 +324,58 @@ final class AuthService: ObservableObject {
         return fallback
     }
 
+    // MARK: - Sign in with Google (Gmail + Calendar)
+
+    /// Presents the Google sign-in sheet and stores the resulting access token.
+    /// Best-effort: does not bridge into Supabase identity (Phase B-2.5 work).
+    /// Once a token is stored, callers should fire `connectGmailIfPossible` to
+    /// kick off the background sync services.
+    func signInWithGoogle() async {
+        isLoading = true
+        error = nil
+        googleFileLog("AuthService.signInWithGoogle: ENTER")
+        do {
+            let email = try await GoogleAuth.signInInteractive()
+            googleEmail = email
+            googleAccessToken = try await GoogleAuth.freshAccessToken()
+            googleFileLog("AuthService.signInWithGoogle: token set ✅ (email=\(email))")
+            TimedLogger.graph.info("Google OAuth succeeded")
+            // If we already have an executive, kick off Gmail sync now —
+            // otherwise bootstrapExecutive will pick this up on its next
+            // cascade.
+            if let executiveId {
+                await connectGmailIfPossible(executiveId: executiveId)
+            }
+        } catch {
+            self.error = "Google sign-in failed: \(error.localizedDescription)"
+            googleFileLog("AuthService.signInWithGoogle: THREW: \(error.localizedDescription)")
+            TimedLogger.graph.error("Google OAuth failed: \(error.localizedDescription, privacy: .private)")
+        }
+        isLoading = false
+    }
+
+    /// Returns a Google token provider closure that auto-refreshes via
+    /// `GoogleAuth.freshAccessToken()` before each call. Mirrors
+    /// `makeTokenProvider()` for Microsoft, but with a critical difference:
+    /// GoogleSignIn-iOS handles silent refresh internally and works on
+    /// ad-hoc-signed builds (different keychain partition), so we do NOT
+    /// need the in-memory band-aid the Microsoft side carries.
+    func makeGoogleTokenProvider() -> @Sendable () async throws -> String {
+        return { [weak self] in
+            guard self != nil else { throw TokenProviderError.authServiceDeallocated }
+            // Always go through GoogleAuth.freshAccessToken so silent refresh
+            // happens before each request. The @Published googleAccessToken
+            // is just for UI debug surface; sync services use this closure.
+            let token = try await GoogleAuth.freshAccessToken()
+            // Update the published mirror on MainActor so PrefsPane stays
+            // in sync, but don't await it for performance.
+            Task { @MainActor [weak self] in
+                self?.googleAccessToken = token
+            }
+            return token
+        }
+    }
+
     // MARK: - Sign in with Graph (MSAL) for Outlook access
 
     func signInWithGraph(loginHint: String = "") async {
@@ -372,6 +444,9 @@ final class AuthService: ObservableObject {
         // post-sign-out events. Order matters: stop producers, then sign out.
         await EmailSyncService.shared.stop()
         await CalendarSyncService.shared.stop()
+        await GmailSyncService.shared.stop()
+        await GmailCalendarSyncService.shared.stop()
+        GoogleAuth.signOut()
 
         guard let client else { return }
         do {
@@ -383,6 +458,8 @@ final class AuthService: ObservableObject {
         executiveId = nil
         userEmail = nil
         graphAccessToken = nil
+        googleAccessToken = nil
+        googleEmail = nil
         lastHandledCallbackURL = nil
         UserDefaults.standard.removeObject(forKey: PlatformPaths.activeExecutiveDefaultsKey)
     }
@@ -419,6 +496,9 @@ final class AuthService: ObservableObject {
                 // email-signup users who decline the MSAL prompt, and the app
                 // still functions without Outlook integration.
                 await connectOutlookIfPossible(executiveId: executive.id)
+                // Parallel cascade for Google. Best-effort; if no Google
+                // session is restored / signed-in, this is a no-op.
+                await connectGmailIfPossible(executiveId: executive.id)
                 return
             } catch {
                 TimedLogger.supabase.error("Executive bootstrap attempt \(attempt + 1) failed: \(error.localizedDescription, privacy: .private)")
@@ -472,6 +552,27 @@ final class AuthService: ObservableObject {
         )
         await CalendarSyncService.shared.start(tokenProvider: provider)
         graphFileLog("connectOutlookIfPossible: SYNC STARTED ✅")
+    }
+
+    /// Auth cascade for Google. Mirror of `connectOutlookIfPossible` —
+    /// idempotent and best-effort. Assumes the user has already signed in
+    /// to Google (either earlier in the session or via restore on launch).
+    /// If `googleAccessToken` is nil, this is a no-op.
+    func connectGmailIfPossible(executiveId: UUID) async {
+        googleFileLog("connectGmailIfPossible: ENTER (exec=\(executiveId)) googleEmail=\(googleEmail ?? "nil")")
+        guard googleAccessToken != nil else {
+            googleFileLog("connectGmailIfPossible: SKIP — no Google access token (user must sign in)")
+            return
+        }
+        let provider = makeGoogleTokenProvider()
+        await GmailSyncService.shared.start(
+            tokenProvider: provider,
+            workspaceId: executiveId,
+            emailAccountId: executiveId,
+            profileId: executiveId
+        )
+        await GmailCalendarSyncService.shared.start(tokenProvider: provider)
+        googleFileLog("connectGmailIfPossible: SYNC STARTED ✅")
     }
 }
 

@@ -79,10 +79,10 @@ async function readOnboardedState(userId: string): Promise<{ onboarded: boolean;
 
 // ─── Inbox snapshot for the orb's opening context ───────────────────────────
 type InboxSnapshot = {
-  /// True once the executive has linked Microsoft Graph and at least one
-  /// successful sync has landed. Until then `unread24h` etc. are meaningless
-  /// placeholders and the orb should say so plainly instead of pretending the
-  /// inbox is clear.
+  /// True once the executive has linked at least one mail provider
+  /// (Microsoft Graph OR Gmail) and at least one successful sync has landed.
+  /// Until then `unread24h` etc. are meaningless placeholders and the orb
+  /// should say so plainly instead of pretending the inbox is clear.
   outlook_linked: boolean;
   unread24h: number;
   topSenders: Array<{ from: string; count: number }>;
@@ -90,16 +90,19 @@ type InboxSnapshot = {
 };
 
 async function readInboxSnapshot(executiveId: string): Promise<InboxSnapshot> {
-  // Gate on the executives.outlook_linked flag — if Outlook is not linked yet,
+  // Gate on (outlook_linked OR gmail_linked) — if NEITHER provider is linked,
   // skip the inbox query entirely and return an honest "not linked" snapshot.
   // Defends against the orb saying "your inbox is clear" to a user who has
-  // not actually connected Outlook (Phase 5.8).
+  // not actually connected any mail provider (Phase 5.8 + Gmail B-2).
+  // The `outlook_linked` field name is preserved for backward compatibility
+  // with downstream prompt assembly — semantically it now means "any inbox is linked".
   const { data: exec } = await supabase
     .from("executives")
-    .select("outlook_linked")
+    .select("outlook_linked,gmail_linked")
     .eq("id", executiveId)
     .maybeSingle();
-  if (!exec?.outlook_linked) {
+  const inboxLinked = Boolean(exec?.outlook_linked) || Boolean(exec?.gmail_linked);
+  if (!inboxLinked) {
     return { outlook_linked: false, unread24h: 0, topSenders: [], recentInbox: [] };
   }
 
