@@ -16,6 +16,8 @@
 >
 > **Apple Developer enrollment PARKED 2026-04-27** — Ammar attempted enrollment, redirected to free-tier `/account` (paid Program upgrade not yet started). Resume when there's a clear window. While parked: iOS unreachable (Track B = Xcode Personal Team, 7-day expiry); DMG remains ad-hoc signed (works with `xattr -cr /Applications/Timed.app` workaround). See HANDOFF.md Chain C.
 
+> **Tree cleanup 2026-04-29** — repo went 9.4G → 285M. Wiped (gitignored, regeneratable): `.build/` (8.5G), `dist.noindex/` (122M, including the v0.1.0–0.1.3 zips and `Timed.dmg` — re-run `bash scripts/package_app.sh && bash scripts/create_dmg.sh` to rebuild), root `node_modules/` + `pnpm-lock.yaml` (520M, "stray" per .gitignore — real lockfile is under `trigger/`). Archived to `~/Archive/2026-04-29/timed/`: stale `specs/{BUILD_STATE,build-state,SESSION_LOG}.md` (Apr 2 copies superseded by root files); `logs/` watchdog logs (6.6M). DerivedData (8.3G across two Timed-* dirs, both <30 days old) left in place. Sibling dirs `Timed-Brain` (2.1G), `time-manager-desktop-isolated-git` (3.9G) untouched. See HANDOFF for surviving stale refs (`PLAN.md`, `HANDOFF-wave2.md`).
+
 ## Voice Architecture (current)
 | Layer | Tech | Where |
 |---|---|---|
@@ -184,7 +186,7 @@
 - **3 architecture syntheses:** `research/ARCHITECTURE-MEMORY.md`, `ARCHITECTURE-SIGNALS.md`, `ARCHITECTURE-DELIVERY.md`
 
 Any future build session should read `CLAUDE.md` → `BUILD_STATE.md` → relevant `ARCHITECTURE-*.md` → build.
-Last Session: 2026-04-28 23:05
+Last Session: 2026-04-30 10:10
 
 ### Intro + Brand System (new)
 - [x] IntroFeature.swift — TCA 1.15+ @Reducer, phase machine (reveal → tagline → holding → exiting → finished)
