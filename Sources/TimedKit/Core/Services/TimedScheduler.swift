@@ -33,7 +33,7 @@ private let notificationPrefix = "timed."
 
 struct TimedSchedulerService: TimedScheduling {
 
-    private let center = UNUserNotificationCenter.current()
+    private var center: UNUserNotificationCenter { UNUserNotificationCenter.current() }
     private let logger = Logger(subsystem: "com.timed.scheduler", category: "notifications")
 
     // MARK: - Legacy block suggestion (kept for backward compat)
