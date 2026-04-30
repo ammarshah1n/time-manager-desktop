@@ -1,0 +1,44 @@
+# Lefthook — pre-commit + pre-push gates.
+#
+# Install:
+#   brew install lefthook && lefthook install
+#
+# Pre-commit must run in <2 seconds on a typical commit. Anything slower goes
+# in pre-push. The whole point is to keep the inner-loop friction low.
+#
+# Each gate is independently `skip`-able for legitimate reasons via:
+#   LEFTHOOK_EXCLUDE=<gate-name> git commit ...
+# Don't skip routinely — diagnose the failure instead.
+
+pre-commit:
+  parallel: true
+  commands:
+    # Secret scan on staged files only — ~200ms.
+    gitleaks:
+      run: gitleaks protect --staged --no-banner --redact
+      tags: security
+      skip:
+        - merge
+        - rebase
+
+    # Workflow file syntax + injection checks. Cheap; only runs when a workflow
+    # file is staged.
+    actionlint:
+      glob: ".github/workflows/*.{yml,yaml}"
+      run: |
+        if command -v actionlint >/dev/null; then actionlint {staged_files}
+        else echo "actionlint not installed — brew install actionlint" >&2; fi
+      tags: security
+
+pre-push:
+  parallel: true
+  commands:
+    # Vulnerability scan over Swift SPM + Deno lockfiles. ~10s on a warm cache.
+    osv-scanner:
+      run: |
+        if command -v osv-scanner >/dev/null; then
+          osv-scanner scan source --recursive --skip-git ./
+        else
+          echo "osv-scanner not installed — brew install osv-scanner" >&2
+        fi
+      tags: security

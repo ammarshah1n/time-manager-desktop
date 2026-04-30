@@ -1,0 +1,34 @@
+version: 2
+updates:
+  # Swift Package Manager dependencies (TimedKit, app shells, MSAL, Supabase
+  # Swift SDK, Sparkle when wired up). Security alerts only — version-update
+  # PR fatigue is a known cost.
+  - package-ecosystem: "swift"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "swift"
+
+  # Trigger.dev tasks (npm). Security alerts only.
+  - package-ecosystem: "npm"
+    directory: "/trigger"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "trigger-dev"
+
+  # GitHub Actions — keep pinned SHAs current. Reviewing each Dependabot bump
+  # is the price of SHA pinning; do not skip these.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "ci"

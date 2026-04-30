@@ -1,0 +1,118 @@
+name: Security
+
+on:
+  push:
+    branches:
+      - main
+      - unified
+  pull_request:
+  schedule:
+    # Weekly Sunday 03:00 UTC — catches drift even when the repo is quiet.
+    - cron: "0 3 * * 0"
+
+permissions:
+  contents: read
+  security-events: write     # SARIF upload to the Security tab
+  actions: read              # required by codeql-action and scorecard
+
+# Whole workflow is in advisory / report-only mode for the first two weeks.
+# Findings land in the Security tab, but `continue-on-error` prevents the
+# job from blocking PR merges while we baseline. After the baseline is
+# clean, drop the `continue-on-error` flags one scanner at a time.
+
+jobs:
+  gitleaks:
+    name: gitleaks (full-history secret scan)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+        with:
+          fetch-depth: 0
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7  # v2
+        continue-on-error: true
+        env:
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: false
+          GITLEAKS_ENABLE_SUMMARY: true
+
+  semgrep:
+    name: semgrep (Swift + secrets + OWASP)
+    runs-on: ubuntu-latest
+    container:
+      image: returntocorp/semgrep@sha256:db4d18e7e1b94bafc7e65dd97aacbcb1ad99f3a79cb18db5ee3f6cdb8b32e35e
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+      - name: semgrep
+        continue-on-error: true
+        run: |
+          semgrep ci \
+            --config=p/secrets \
+            --config=p/owasp-top-ten \
+            --config=https://github.com/akabe1/akabe1-semgrep-rules \
+            --sarif --output=semgrep.sarif || true
+      - name: Upload SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@ce64ddcb0d8d890d2df4a9d1c04ff297367dea2a  # v3
+        with:
+          sarif_file: semgrep.sarif
+        continue-on-error: true
+
+  osv-scanner:
+    name: osv-scanner (Swift + Deno deps)
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@40a8940a65eab1544a6af759e43d936201a131a2  # v2.0.3
+    with:
+      scan-args: |-
+        --recursive
+        --skip-git
+        ./
+
+  actionlint:
+    name: actionlint (workflow syntax + injection check)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+      - name: actionlint
+        run: |
+          bash <(curl https://raw.githubusercontent.com/rhysd/actionlint/03d0035246f3e81f36aed592ffb4bebf33a03106/scripts/download-actionlint.bash)
+          ./actionlint -color
+        continue-on-error: true
+
+  scorecard:
+    name: ossf-scorecard (repo posture, weekly only)
+    if: github.event_name == 'schedule' || github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      id-token: write
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+        with:
+          persist-credentials: false
+      - uses: ossf/scorecard-action@62b2cac7ed8198b15735ed49ab1e5cf35480ba46  # v2.4.0
+        with:
+          results_file: scorecard.sarif
+          results_format: sarif
+          publish_results: false
+        continue-on-error: true
+      - uses: github/codeql-action/upload-sarif@ce64ddcb0d8d890d2df4a9d1c04ff297367dea2a  # v3
+        with:
+          sarif_file: scorecard.sarif
+        continue-on-error: true
+
+  harden-runner-baseline:
+    name: harden-runner egress baseline (audit mode)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40  # v2
+        with:
+          egress-policy: audit       # collect baseline; flip to "block" once stable
+          disable-sudo: true
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+      - name: noop
+        run: echo "harden-runner is collecting an egress baseline for this repo"
