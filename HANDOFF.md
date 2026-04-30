@@ -142,10 +142,7 @@ Five commits on `origin/unified` covering Phases 1.1/1.2/1.3/1.4 (substrate), 3.
 
 Edge Functions deployed: `anthropic-proxy`, `elevenlabs-tts-proxy`, `orb-conversation`, `voice-llm-proxy`, `weekly-pattern-detection`. Migrations applied to `fpmjuufefhtlwbfinxlx`: `20260428120000_score_memory.sql`, `20260428130000_outlook_linked.sql`. ELEVENLABS_API_KEY secret set on the project (pulled from 1Password Timed vault).
 
-**Held for tomorrow morning (5 min total — `~/Desktop/morning-checklist.txt`):**
-1. Trigger.dev cloud deploy — 10/10 schedules cap; cloud has stale Dev schedules from earlier deploy churn. Code declares 9 schedules (after demoting `outcome-harvester` alongside `ingestion-health-watchdog`). Manual dashboard cleanup before redeploy.
-2. ElevenLabs agent ASR portal switch to Scribe v2 Turbo.
-3. Graphiti backfill — depends on #1 then trigger via Trigger.dev tasks page.
+**Held-for-morning checklist is now historical:** Trigger.dev Prod deploy is live, ElevenLabs ASR was verified on Scribe v2 Turbo, and Graphiti backfill completed on 2026-04-30. See the current 2026-04-30 entries at the top of this file.
 
 Commits this sprint: `cf53995` substrate + 5 severed circuits → `3508abf` ASWebAuthSession + bounded sync + pre-warm + session refresh → `e785aac` Comet integration → `646ced1` doc state → `6670ade` outlook_linked + MSAL banner + 429 retry + queue skip-bad + EFs deployed → `e7d2b53` wrap-up state.
 
