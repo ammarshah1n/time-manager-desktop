@@ -3278,3 +3278,24 @@ logs/watchdog.log
 **Discovered**: GoogleSignIn returns non-Sendable GIDGoogleUser → strict-concurrency fix requires extracting String? inside the callback (not crossing actor boundary). Permission hook blocks autonomous `supabase db push` and `supabase functions deploy`.
 **Next**: Ammar applies migration + redeploys voice-llm-proxy + signs in via 5066sim@gmail.com (only working test user — facilitated.com.au accounts rejected by Google validator).
 **State**: SHIPPED
+
+---
+## Session: 2026-04-30 10:10
+
+### Commits This Session
+b46c41c docs(handoff): Gmail integration session — additive parallel to verified Microsoft path
+4e5cf9e feat(gmail): additive Gmail + Google Calendar integration
+
+### Modified Files
+logs/watchdog.log
+AGENTS.md
+HANDOFF.md
+services/graphiti/app/main.py
+services/graphiti/requirements.txt
+
+### 2026-04-30 — graphiti-backfill 5-layer fix (PARKED on Voyage billing)
+**Done**: Tunnel infra (port 8080 cf-tunnel for MCP), Trigger.dev env reconciled to Fedora truth, fixed server-side episode_exists null structuredContent + client-side reference_time/source schema drift in graphiti-backfill.ts + nrem-entity-extraction-consume.ts, swapped graphiti-core LLM client from OpenAIGenericClient (via litellm) to AnthropicClient (direct, tool-use). 1Password Timed vault: added `Trigger.dev — Timed Prod Secret Key` + `Fedora MBP — Timed services host`. Commit 2222bb4 [wip].
+**In progress**: graphiti-backfill final verify — runbook in ~/.claude/projects/-Users-integrale-time-manager-desktop/NEXT.md
+**Discovered**: Claude via litellm OpenAI-compat returns ```json-fenced + shape-drifted JSON; tool-use API (AnthropicClient) is the only reliable path. cf quick-tunnel URLs rotate per restart; need a refresh script paralleling refresh_graphiti_tunnel.sh for the MCP-port tunnel.
+**Next**: When back on Fedora's network — swap VOYAGE_API_KEY in ~/timed-stack/compose.secrets, recreate litellm, trigger graphiti-backfill, confirm COMPLETED. Five-line runbook in NEXT.md.
+**State**: PARKED
