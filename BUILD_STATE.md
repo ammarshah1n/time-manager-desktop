@@ -1,8 +1,12 @@
-# BUILD_STATE.md — Last updated: 2026-04-28 14:00 (Beta-readiness sprint shipped on `unified` — auth cascade live, alerts wired, briefing reachable, EmailClassifier live, iOS orb wired; ops backlog held for tonight)
+# BUILD_STATE.md — Last updated: 2026-04-30 (Gmail additive path shipped locally; remote migration + proxy redeploy pending)
 
-> **Beta sprint SHIPPED 2026-04-28 PM** — commits `bcee82b` + `ec3a7fd` on `origin/unified`. 9 fixes from Beta-Ready Execution Plan + 3 Perplexity Deep Research audits: email/password auth, MainActor crash fix, smooth login transitions, Microsoft 4-square logo, "Set up later" plumbing, auth cascade (`bootstrapExecutive` → `signInWithGraph` → email + calendar sync), `v1BetaMode` defaulted false, `MorningBriefingPane` reachable, AlertEngine wired via new `AlertsPresenter`, `EmailClassifier.classifyLive` via anthropic-relay, iOS orb sheet → `ConversationView`, DishMeUp bucket dotColors + `sessionFraming` semibold, voice path guard test. Build green; `/Applications/Timed.app` is the new build.
+> **Current state 2026-04-30** — `unified` remains the single active trunk. Microsoft email/calendar was verified end-to-end on 2026-04-29. Gmail + Google Calendar were added as a parallel path in commit `4e5cf9e`, with no Microsoft-path rewrites. Trigger.dev Wave 2 Opus aliases route to 4.7; older Supabase Edge Functions still contain direct 4.6 IDs. `HANDOFF.md` is the live narrative; this file is the build-state ledger.
 
-> **Held for tonight (onsite, ~30 min):** (1) `supabase secrets set ELEVENLABS_API_KEY` + deploy `anthropic-proxy` and `elevenlabs-tts-proxy`, (2) `cd trigger && pnpm install && pnpm run deploy` to fire the nightly pipeline, (3) Graphiti backfill one-shot on Fedora. After all three: orb actually has data. TickTick task: "Tonight onsite: deploy voice proxies + Trigger.dev + Graphiti backfill" in Timed project.
+> **Verified via CLI 2026-04-30** — Supabase remote has **39 ACTIVE Edge Functions**. Local tree has **40 function dirs + `_shared`**; `deepgram-transcribe` is local-only. `supabase migration list --linked` showed **63 remote migrations applied** and local `20260430120000_gmail_provider.sql` pending remote apply.
+
+> **Pending ops** — (1) apply `20260430120000_gmail_provider.sql` to `fpmjuufefhtlwbfinxlx`, (2) redeploy `voice-llm-proxy` so `(outlook_linked OR gmail_linked)` is live, (3) connect Gmail with `5066sim@gmail.com`, (4) resolve Voyage billing and finish `graphiti-backfill`, (5) finish or park security-hardening WIP.
+
+> **Beta sprint SHIPPED 2026-04-28 PM** — commits `bcee82b` + `ec3a7fd` on `origin/unified`. 9 fixes from Beta-Ready Execution Plan + 3 Perplexity Deep Research audits: email/password auth, MainActor crash fix, smooth login transitions, Microsoft 4-square logo, "Set up later" plumbing, auth cascade (`bootstrapExecutive` → `signInWithGraph` → email + calendar sync), `v1BetaMode` defaulted false, `MorningBriefingPane` reachable, AlertEngine wired via new `AlertsPresenter`, `EmailClassifier.classifyLive` via anthropic-relay, iOS orb sheet → `ConversationView`, DishMeUp bucket dotColors + `sessionFraming` semibold, voice path guard test. Build green; `/Applications/Timed.app` was rebuilt.
 
 > **Single source of truth: `unified` branch.** As of 2026-04-27 the four divergent branches (`ui/apple-v1-restore`, `ui/apple-v1-local-monochrome`, `ui/apple-v1-wired`, `ios/port-bootstrap`) have been merged into one trunk. See **`docs/UNIFIED-BRANCH.md`** for the permanent architecture reference and **`docs/SINCE-2026-04-24.md`** for the narrative of how we got here.
 >
@@ -16,7 +20,7 @@
 | Layer | Tech | Where |
 |---|---|---|
 | ASR (orb conversation) | ElevenLabs Scribe v2 Turbo | inside the Conversational Agent |
-| LLM (orb conversation) | Claude **Opus 4.7** | `supabase/functions/voice-llm-proxy/index.ts` |
+| LLM (orb conversation) | Claude Opus 4.6 in current `voice-llm-proxy` code | `supabase/functions/voice-llm-proxy/index.ts` |
 | TTS (orb conversation) | ElevenLabs voice (agent-baked) | inside the Conversational Agent |
 | LLM (Capture / Onboarding / Interview) | Claude Opus 4.7 via proxy | `supabase/functions/anthropic-proxy/index.ts` |
 | TTS (one-shot, Capture / Dish Me Up) | ElevenLabs Lily via proxy | `supabase/functions/elevenlabs-tts-proxy/index.ts` |
@@ -74,7 +78,7 @@
 - [x] FocusPane.swift — Circular countdown timer, Pomodoro, session persistence (505 lines)
 - [x] CalendarPane.swift — Weekly grid, drag-to-create, Outlook sync (656 lines)
 - [x] CapturePane.swift — Voice/text quick capture with Opus AI extraction (530 lines)
-- [x] CaptureAIClient.swift — Claude Opus 4.6 tool use for intelligent task parsing (145 lines)
+- [x] CaptureAIClient.swift — Claude Opus 4.7 tool use for intelligent task parsing (145 lines)
 - [x] InterviewAIClient.swift — Opus-powered morning interview with ACB context (359 lines)
 - [x] SpeechService.swift — ElevenLabs TTS (Lily default) + AVSpeechSynthesizer fallback (192 lines)
 - [x] OnboardingFlow.swift — 10-step wizard with ElevenLabs voice narration + hero screen (580 lines)
@@ -114,8 +118,10 @@
 - [ ] Reflection engine tests — NOT STARTED
 
 ### Backend (Supabase)
-- [x] 48 SQL migrations deployed (all pushed 2026-04-14, including Dish Me Up task fields)
-- [x] 29 Edge Functions deployed (all deployed 2026-04-14)
+- [x] 63 SQL migrations applied remotely (verified with `supabase migration list --linked` 2026-04-30)
+- [ ] `20260430120000_gmail_provider.sql` pending remote apply
+- [x] 39 Edge Functions active remotely (verified with `supabase functions list --project-ref fpmjuufefhtlwbfinxlx` 2026-04-30)
+- [ ] `deepgram-transcribe` exists locally but is not deployed remotely
 - [x] Anthropic API key set in Supabase secrets
 - [x] Dual-provider embeddings: Voyage (Tier 0, 1024-dim) + OpenAI (Tier 1-3, 3072-dim)
 - [x] Microsoft OAuth app registration (Azure) — client secret expires 2028-04-11
@@ -131,8 +137,8 @@
 - No CoreData/SwiftData — persistence is JSON local + Supabase remote
 - Legacy/ folder (41 files) excluded from build, kept as reference
 
-## Architecture Status: Orb is now Microsoft + Graphiti aware (2026-04-28)
-> **Updated 2026-04-28** — `voice-llm-proxy` upgraded: pulls 24h inbox snapshot into context, exposes 3 server-side tools to Opus (`search_emails`, `summarise_thread` via Haiku, `search_graphiti` via Cloudflare-tunnelled Fedora FastAPI). Postgres triggers bridge `email_messages` + `calendar_observations` → `tier0_observations` so the nightly engine and 9am/1pm/5pm ACB refresh see Graph data. Linux intelligence stack reachable from Edge Functions via persistent `timed-cf-tunnel.service` systemd user unit on Fedora. **Lights up the moment auth's `signInWithGraph()` populates `graphAccessToken`.**
+## Architecture Status: Orb is now Microsoft + Gmail + Graphiti aware (2026-04-30)
+> **Updated 2026-04-30** — `voice-llm-proxy` pulls a 24h inbox snapshot into context and gates inbox confidence on `(outlook_linked OR gmail_linked)` in local code. The Microsoft path is live after `signInWithGraph()`; the Gmail path needs the pending migration + proxy redeploy before the OR-gate is live remotely. Graphiti search is wired as a server-side tool, but historical backfill is parked on Voyage billing.
 
 ## Architecture Status: Intelligence Engine + Auth Bridge COMPLETE
 > **Updated 2026-04-14** — Intelligence Maximisation Plan (12 steps) implemented. Auth bridge wired. App ready for first sign-in.

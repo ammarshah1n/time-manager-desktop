@@ -1,7 +1,7 @@
 # 05 — Reflection Engine Specification
 
 > **Partially superseded 2026-04-10 by `NO-COST-CAP-AUDIT.md` + `MASTER-PLAN.md`.**
-> This doc describes a 3-stage recursive reflection design. Current production cadence is 4-cron: `nightly-consolidation-full` (02:00), `nightly-consolidation-refresh` (05:15), `generate-morning-briefing` (05:30), `weekly-pruning` (Sunday 03:00). Per-stage Opus 4.5/4.6 + extended thinking budgets are in `~/Timed-Brain/CLAUDE.md` Tier 1 table. Mental model and recursive-reflection intent remain correct.
+> This doc describes the original 3-stage recursive reflection design. Current production status is tracked in `HANDOFF.md` and `BUILD_STATE.md`; as of 2026-04-30 Trigger.dev Prod deploy `20260429.2` is live and Graphiti backfill is parked on Voyage billing. Mental model and recursive-reflection intent remain correct.
 
 ## Overview
 
@@ -9,7 +9,7 @@ The reflection engine is the heart of Timed. It is the mechanism by which the
 system gets genuinely smarter over time. Without it, Timed accumulates data.
 With it, Timed builds intelligence.
 
-**Status:** ✅ 29 Edge Functions deployed as of 2026-04-14 (see `BUILD_STATE.md`). Nightly loop running on schedule; production wiring to UI pending Auth bridge.
+**Status:** ✅ Reflection functions are active remotely; Supabase CLI verified 39 active remote Edge Functions on 2026-04-30. Trigger.dev owns Wave 2 scheduled tasks; Graphiti backfill is the current blocker.
 
 ## Architecture (from Research Pack 01)
 
@@ -97,9 +97,9 @@ The nightly Opus run is the most important process in the entire system.
 - Rules must have clear trigger conditions, not vague guidelines
 - The morning briefing must feel like a chief of staff who watched you for months
 
-## Edge Function Design (Supabase)
+## Historical Edge Function Design (Supabase)
 
-The reflection engine runs as Supabase Edge Functions:
+The first reflection-engine design ran as Supabase Edge Functions:
 - `reflect-nightly` — full Opus reflection cycle
 - `reflect-daily` — Sonnet-level daily pattern extraction
 - `reflect-classify` — Haiku real-time signal classification

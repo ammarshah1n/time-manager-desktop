@@ -1,5 +1,7 @@
 # 04 — Integrations Specification
 
+> **Status refreshed 2026-04-30:** Microsoft Graph remains the verified production path. Gmail/Google Calendar is now implemented additively for Ammar, but its migration and `voice-llm-proxy` redeploy are still pending. Supabase CLI verified 39 active remote Edge Functions; local tree has 40 function dirs plus `_shared`.
+
 ## Microsoft Graph (Outlook Email + Calendar)
 
 **Status:** ✅ Fully implemented
@@ -22,6 +24,17 @@
 - Graph webhook registration for real-time email notifications
 - Renewal flow implemented in Edge Function (renew-graph-subscriptions)
 
+## Google (Gmail + Google Calendar)
+
+**Status:** ✅ Implemented additively; pending remote migration + live Gmail sign-in
+**Scope:** Gmail read + Calendar read via Google Sign-In for the Ammar account path
+
+- **GoogleClient.swift:** Google Sign-In lifecycle and access-token provider.
+- **GmailClient.swift:** Gmail v1 and Calendar v3 HTTP client.
+- **GmailSyncService.swift:** history-cursor polling, 30-day bootstrap, upsert into existing `email_messages`, classify-email trigger, Tier 0 emission.
+- **GmailCalendarSyncService.swift:** Google Calendar sync alongside Microsoft calendar.
+- **Schema:** `20260430120000_gmail_provider.sql` adds `executives.gmail_linked`, `executives.google_email`, and `connected_accounts`; pending remote apply as of 2026-04-30.
+
 ## Supabase
 
 **Status:** ✅ Fully implemented
@@ -32,17 +45,16 @@
 - 11 row types, 20+ operations (tasks, emails, plans, behaviour rules,
   sender rules, voice captures, waiting items, pipeline runs, bucket stats)
 
-### Edge Functions (29 deployed — verified `ls supabase/functions/` 2026-04-22)
+### Edge Functions (39 active remote — verified `supabase functions list` 2026-04-30)
 Legacy triage / pipeline: `classify-email`, `detect-reply`, `estimate-time`, `generate-daily-plan`, `generate-embedding`, `generate-profile-card`, `generate-relationship-card`, `graph-webhook`, `parse-voice-capture`, `renew-graph-subscriptions`, `score-observation-realtime`.
 
 Intelligence engine (per NO-COST-CAP-AUDIT): `acb-refresh`, `bootstrap-executive`, `extract-voice-features`, `generate-morning-briefing`, `monthly-trait-synthesis`, `multi-agent-council`, `nightly-bias-detection`, `nightly-consolidation-full`, `nightly-consolidation-refresh`, `nightly-phase1`, `nightly-phase2`, `pipeline-health-check`, `poll-batch-results`, `thin-slice-inference`, `weekly-avoidance-synthesis`, `weekly-pattern-detection`, `weekly-pruning`, `weekly-strategic-synthesis`.
 
 ### Auth
-- **AuthService.swift:** Supabase Auth with Microsoft OAuth provider (310 lines, 30 call sites verified via grep 2026-04-22)
+- **AuthService.swift:** Supabase Auth with Microsoft OAuth and additive Google OAuth
 - Workspace/profile bootstrap on first sign-in (`bootstrapExecutive` calls EF `bootstrap-executive`)
 - Graph token acquisition for API calls (dual token: Supabase JWT + MSAL token)
-- Uses `@Dependency(\.supabaseClient)` — DI refactor complete
-- ⚠️ UI panes still read/write through local `DataStore` — bridge layer is next priority
+- Google token acquisition for Gmail/Calendar (`makeGoogleTokenProvider`)
 
 ## Apple Speech Framework
 
@@ -53,7 +65,7 @@ Intelligence engine (per NO-COST-CAP-AUDIT): `acb-refresh`, `bootstrap-executive
 
 ## Embeddings — Dual Provider
 
-**Status:** ✅ Configured in Edge Functions (verified `supabase/functions/generate-embedding/index.ts` 2026-04-22)
+**Status:** ✅ Configured in Edge Functions; `generate-embedding` is active remotely as of the 2026-04-30 Supabase CLI check
 
 | Tier | Model | Dimensions | Use |
 |------|-------|------------|-----|

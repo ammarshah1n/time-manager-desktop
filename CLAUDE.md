@@ -4,8 +4,8 @@
 - Repo: `/Users/integrale/time-manager-desktop`
 - **Branch: `unified`** (single source of truth — TimedKit + TimedMacApp + TimediOS + Wave 1+2 backend + voice path + docs, all on one trunk as of 2026-04-27).
 - Co-founders / first users: Ammar Shahin (CTO) + Yasser Shahin (CEO, Ammar's father). The prototype is built by and for both of them.
-- Backend: Supabase project `fpmjuufefhtlwbfinxlx`, 29 Edge Functions ALL ACTIVE (`ls supabase/functions/` verified 2026-04-22)
-- THE GAP: `AuthService.swift` is implemented (Supabase Auth + Microsoft OAuth, 30 call sites) but UI still reads/writes through local `DataStore`. Bridge to Supabase is the next priority.
+- Backend: Supabase project `fpmjuufefhtlwbfinxlx`; CLI verified 39 active remote Edge Functions on 2026-04-30. Local tree has 40 function dirs plus `_shared`; `deepgram-transcribe` is local-only.
+- Current gaps: Gmail migration `20260430120000_gmail_provider.sql` not yet applied remotely; `voice-llm-proxy` needs redeploy for the Gmail OR-gate; Graphiti backfill is parked on Voyage billing; security-hardening edits are still WIP.
 - **DMG status**: ✅ Track B delivered — `dist.noindex/Timed.dmg` (31 MB, ad-hoc signed). Apple Developer enrollment pending for Track A (proper signing + iOS TestFlight).
 - Read order: `docs/UNIFIED-BRANCH.md` → `CLAUDE.md` → `BUILD_STATE.md` → `MASTER-PLAN.md` (see `.claude/rules/session-protocol.md` for full protocol)
 
@@ -37,7 +37,7 @@ It builds a deep, compounding model of how its executive users think and operate
 
 <important>
 ## Design Principles
-1. No cost cap on intelligence. Opus 4.6 at max effort for the nightly analysis engine.
+1. No cost cap on intelligence. Use the strongest Opus-class model available for the nightly analysis engine; Trigger.dev Wave 2 aliases route Opus work to 4.7, while legacy Supabase Edge Functions still include direct 4.6 IDs.
 2. Intelligence compounds over time. Every night Opus synthesises deeper understanding. Month 6 >> Month 1. This is the moat.
 3. Nightly engine is the heart. Recursive reflection: raw observations -> first-order patterns -> second-order synthesis -> semantic model updates -> procedural rule generation (Stanford Generative Agents architecture, Park et al. 2023).
 4. Morning session delivers intelligence, not a task list. Cognitive briefing, not features.
@@ -50,16 +50,16 @@ It builds a deep, compounding model of how its executive users think and operate
 |-------|-------|---------|
 | Classification | Claude Haiku 3.5 | Email/task triage |
 | Estimation | Claude Sonnet | Time/effort estimation |
-| Nightly engine | Claude Opus 4.6 (max effort) | Recursive reflection, profile synthesis |
-| Morning director | Claude Opus 4.6 (max effort) | Cognitive briefing generation |
-| Profile cards | Claude Opus 4.6 (max effort) | Deep contact intelligence |
+| Nightly engine | Claude Opus-class (Trigger aliases route to 4.7) | Recursive reflection, profile synthesis |
+| Morning director | Claude Opus-class | Cognitive briefing generation |
+| Profile cards | Claude Opus-class | Deep contact intelligence |
 | Embeddings — Tier 0 | Voyage `voyage-3` (1024-dim) | High-volume raw observations |
 | Embeddings — Tier 1–3 | OpenAI `text-embedding-3-large` (3072-dim) | Daily summaries, behavioural signatures, personality traits |
 
 ## Infrastructure
-- Auth: Microsoft OAuth (`Mail.Read` + `Calendars.Read` + `offline_access`)
-- Graph API methods are implemented
-- Supabase queries for 12 operations are implemented
+- Auth: Microsoft OAuth (`Mail.Read` + `Calendars.Read` + `offline_access`) plus additive Google OAuth for Ammar's Gmail path
+- Microsoft Graph and Gmail API methods are implemented in separate client/service paths
+- Supabase queries and Edge Functions are the only AI/backend boundary from Swift
 - Distribution: Direct DMG + Sparkle, not App Store
 
 ## File Map
@@ -103,11 +103,11 @@ Read these every session. Mirror copy at `~/Desktop/timed-future-session-tips.md
 </important>
 
 ## Next Priorities
-1. Supabase Auth (Microsoft provider) + workspace/profile bootstrap
-2. Bridge UI -> Supabase (dual-write with `DataStore`)
-3. `EmailSyncService` (background Graph delta sync)
-4. Realtime subscriptions
-5. `FR-03` task extraction, `FR-06` calendar, `FR-07` PA sharing, `FR-08` aging
+1. Apply `20260430120000_gmail_provider.sql` to Supabase remote
+2. Redeploy `voice-llm-proxy` so `(outlook_linked OR gmail_linked)` is live
+3. Open Timed → Settings → Accounts → Add Gmail with `5066sim@gmail.com`
+4. Resolve Voyage billing, then finish `graphiti-backfill`
+5. Finish or park the security-hardening WIP cleanly
 
 - See `.claude/rules/coding-standards.md` for code conventions.
 - See `.claude/rules/testing-rules.md` for testing workflow and framework rules.

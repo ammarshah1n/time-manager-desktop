@@ -3,10 +3,10 @@
 > Per-project AGENTS.md for Codex. Inherits global rules from `~/.codex/AGENTS.md`. Stack-specific overrides below.
 
 ## Stack
-- Swift 5.9 / SwiftUI / SwiftData / Swift Testing
-- macOS 15+ desktop (no iOS-only code outside Platforms/iOS/, no UIKit, no Combine, no deprecated APIs)
-- Backend: Supabase project `fpmjuufefhtlwbfinxlx`, 29 Edge Functions all active
-- Auth: Microsoft OAuth + Supabase Auth (`AuthService.swift` implemented, UI bridge pending)
+- Swift 6.1 Package / SwiftUI / TCA / GRDB / Swift Testing
+- macOS 15+ desktop with shared `TimedKit`; iOS-only code stays under `Platforms/iOS/`, `Extensions/`, or platform gates
+- Backend: Supabase project `fpmjuufefhtlwbfinxlx`; 39 active remote Edge Functions verified 2026-04-30
+- Auth: Supabase Auth + Microsoft OAuth + additive Google OAuth
 
 ## Branch Discipline
 - **Always work on `unified`.** First action of any session: `git checkout unified && git pull`.
@@ -33,10 +33,11 @@
 - DMG: `bash scripts/package_app.sh && bash scripts/create_dmg.sh` → `dist.noindex/Timed.dmg`
 
 ## Architecture Rules (NEVER violate)
-- No external Swift dependencies beyond `supabase-swift` + `MSAL`.
+- Do not add new external Swift dependencies without explicit approval. Current approved deps live in `Package.swift`.
 - All AI calls go through Edge Functions via Supabase client. No direct Anthropic API calls in Swift.
 - All persistence goes through Supabase PostgREST. No local JSON files (the `DataStore` is being deprecated).
 - All Microsoft Graph calls go through `GraphClient.swift`. No inline Graph API calls anywhere else.
+- All Gmail/Google Calendar calls go through `GmailClient.swift` / `GoogleClient.swift`. No inline Google API calls elsewhere.
 - All ranking logic lives in `PlanningEngine`. No scoring in views or stores.
 - New Swift files: `Sources/TimedKit/Features/<area>/` or `Sources/TimedKit/Core/<area>/`. Mac-only wraps in `#if os(macOS)`.
 

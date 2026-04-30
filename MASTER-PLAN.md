@@ -2,7 +2,18 @@
 
 ## STATUS
 
-Last updated: 2026-04-11
+Last updated: 2026-04-30
+
+### Current Status Overlay — 2026-04-30
+
+- `unified` is the only active trunk. Historical branches remain escape hatches only.
+- Microsoft email/calendar path is verified end-to-end: OAuth → sync → Supabase → Tier 0 → orb context.
+- Gmail/Google Calendar path is implemented additively for Ammar and intentionally separate from the Microsoft path; pending ops are migration `20260430120000_gmail_provider.sql`, `voice-llm-proxy` redeploy, then Gmail sign-in with `5066sim@gmail.com`.
+- Supabase CLI verified 39 active remote Edge Functions; 63 remote migrations are applied and one local Gmail migration is pending.
+- Trigger.dev Prod deploy `20260429.2` is live with 13 detected tasks / 9 schedules.
+- Trigger.dev Wave 2 Opus aliases route to `claude-opus-4-7`; older Supabase Edge Functions still contain direct `claude-opus-4-6` model IDs.
+- Graphiti backfill is implemented in WIP commit `2222bb4` and parked on Voyage billing.
+- The sections below preserve the architecture plan and older implementation gaps; for live operational state read `HANDOFF.md` and `BUILD_STATE.md` first.
 
 ### Pre-Build: Development Infrastructure
 - [x] PRE-01 — Session Handoff Protocol
@@ -180,7 +191,7 @@ Timed is a **cognitive intelligence system** for one C-suite executive (Yasser S
 
 **Hard constraints:**
 - Observation only. NEVER acts on the world. Non-negotiable.
-- No cost cap. Opus 4.6 at max effort for the core intelligence engine.
+- No cost cap. Opus-class models at max effort for the core intelligence engine.
 - Morning session = intelligence briefing, not a task list.
 - Month 6 >> Month 1. Every architectural decision supports compounding.
 
@@ -189,27 +200,18 @@ Timed is a **cognitive intelligence system** for one C-suite executive (Yasser S
 ## What Exists Today
 
 **Working:**
-- Complete UI shell (16 screens/panes, all functional)
-- GraphClient with MSAL OAuth + delta email sync (489 lines)
-- EmailSyncService actor + CalendarSyncService actor + VoiceCaptureService
-- PlanningEngine (Thompson sampling, mood filtering, behaviour rules)
-- TimeSlotAllocator (calendar-aware, energy tiers)
-- SupabaseClient (20+ operations defined, 764 lines)
-- AuthService (Microsoft OAuth flow, 310 lines)
-- 29 Edge Functions deployed + 48 SQL migrations
-- 49 tests passing, `swift build` clean
+- Complete UI shell with shared `TimedKit`, Mac app shim, and iOS scaffold on `unified`
+- Microsoft path: GraphClient + MSAL + EmailSyncService + CalendarSyncService verified end-to-end
+- Gmail path: GoogleClient + GmailClient + GmailSyncService + GmailCalendarSyncService implemented additively
+- PlanningEngine, TimeSlotAllocator, Tier 0 writer, alert delivery, and orb context path wired
+- Supabase CLI verified 39 active remote Edge Functions + 63 applied remote migrations
+- Trigger.dev Prod deploy `20260429.2` live with Wave 2 scheduled tasks
 
-**THE GAP (what makes this plan necessary):**
-- UI still uses local JSON DataStore — SupabaseClient is wired but not called from UI
-- No 5-tier memory system (Tier 0-3 + ACB)
-- No nightly consolidation pipeline
-- No intelligence delivery (morning briefing is an interview, not a briefing)
-- No ONA / relationship graph
-- No signal expansion beyond email/calendar
-- No prediction layer (avoidance, burnout, reversal)
-- No privacy/trust architecture (encryption, consent machine)
-- No cold start pipeline (thin-slice, default library)
-- No XPC background services
+**CURRENT GAP (2026-04-30):**
+- Gmail migration `20260430120000_gmail_provider.sql` still needs remote apply
+- `voice-llm-proxy` needs redeploy so the Gmail inbox OR-gate goes live
+- Graphiti backfill is parked on Voyage billing
+- Developer ID signing / notarisation and iOS TestFlight remain blocked on Apple Developer enrollment
 
 ---
 
