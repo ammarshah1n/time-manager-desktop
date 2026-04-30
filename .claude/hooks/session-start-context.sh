@@ -46,6 +46,30 @@ build_context() {
     printf '**timed-brain snapshot:** %s notes total. Last 3 writes:\n%s\n\n' "$NOTE_COUNT" "$LAST_WRITES"
   fi
 
+  # ──────── Live basic-memory pull — GUARANTEES vault content in every session ────────
+  # Invokes the basic-memory CLI so vault content is in context BEFORE Claude's first turn.
+  # Filters out session-log paths (per CLAUDE.md canonical-first ranking). Cached 30 min
+  # to avoid the ~2s CLI cost on every session start.
+  if command -v basic-memory >/dev/null 2>&1; then
+    BM_CACHE="/tmp/timed-bm-pull.md"
+    BM_TTL_SEC=1800   # 30 min
+    NOW=$(date +%s)
+    CACHE_AGE=999999
+    [ -f "$BM_CACHE" ] && CACHE_AGE=$(( NOW - $(stat -f %m "$BM_CACHE" 2>/dev/null || echo 0) ))
+    if [ "$CACHE_AGE" -gt "$BM_TTL_SEC" ]; then
+      basic-memory tool recent-activity --project timed-brain --type entity --timeframe 14d --page-size 40 2>/dev/null \
+        | jq -r '.[] | select(.permalink | test("/sessions/|sessions/session-") | not) | "  - **\(.title)** — `\(.permalink)`"' 2>/dev/null \
+        | head -8 > "$BM_CACHE.tmp" && mv "$BM_CACHE.tmp" "$BM_CACHE"
+    fi
+    if [ -s "$BM_CACHE" ]; then
+      printf '### 🧠 Live basic-memory pull (canonical notes, last 14d — cached %dm)\n\n' "$((CACHE_AGE / 60))"
+      printf '_Auto-fetched by SessionStart so vault content is in every session by construction._\n'
+      printf '_For deeper / topic-specific search call `mcp__basic-memory__search_notes` (project="timed-brain") — this snippet is the floor, not the ceiling._\n\n'
+      cat "$BM_CACHE"
+      printf '\n\n'
+    fi
+  fi
+
   printf -- '─────────────────────────────────────────────────────────────────\n\n'
 
   # ──────── existing continuity context ────────
