@@ -1,10 +1,10 @@
-# BUILD_STATE.md — Last updated: 2026-04-30 (Gmail additive path shipped locally; remote migration + proxy redeploy pending)
+# BUILD_STATE.md — Last updated: 2026-04-30 (Gmail backend live; security hardening deployed)
 
-> **Current state 2026-04-30** — `unified` remains the single active trunk. Microsoft email/calendar was verified end-to-end on 2026-04-29. Gmail + Google Calendar were added as a parallel path in commit `4e5cf9e`, with no Microsoft-path rewrites. Trigger.dev Wave 2 Opus aliases route to 4.7; older Supabase Edge Functions still contain direct 4.6 IDs. `HANDOFF.md` is the live narrative; this file is the build-state ledger.
+> **Current state 2026-04-30** — `unified` remains the single active trunk. Microsoft email/calendar was verified end-to-end on 2026-04-29. Gmail + Google Calendar were added as a parallel path in commit `4e5cf9e`, with no Microsoft-path rewrites. Gmail backend migration + `voice-llm-proxy` OR-gate are now live remotely. Trigger.dev Wave 2 Opus aliases route to 4.7; older Supabase Edge Functions still contain direct 4.6 IDs. `HANDOFF.md` is the live narrative; this file is the build-state ledger.
 
-> **Verified via CLI 2026-04-30** — Supabase remote has **39 ACTIVE Edge Functions**. Local tree has **40 function dirs + `_shared`**; `deepgram-transcribe` is local-only. `supabase migration list --linked` showed **63 remote migrations applied** and local `20260430120000_gmail_provider.sql` pending remote apply.
+> **Verified via CLI 2026-04-30** — Supabase remote has **39 ACTIVE Edge Functions**. Local tree has **40 function dirs + `_shared`**; `deepgram-transcribe` is local-only. `supabase migration list --linked` showed **64 remote migrations applied**, including `20260430120000_gmail_provider.sql`.
 
-> **Pending ops** — (1) apply `20260430120000_gmail_provider.sql` to `fpmjuufefhtlwbfinxlx`, (2) redeploy `voice-llm-proxy` so `(outlook_linked OR gmail_linked)` is live, (3) connect Gmail with `5066sim@gmail.com`, (4) resolve Voyage billing and finish `graphiti-backfill`, (5) finish or park security-hardening WIP.
+> **Pending ops** — (1) launch Timed and connect Gmail with `5066sim@gmail.com`, (2) resolve Voyage billing and finish `graphiti-backfill`, (3) resume Apple Developer enrollment for notarised Mac/iOS delivery, (4) decide whether to deploy optional local-only `deepgram-transcribe`.
 
 > **Beta sprint SHIPPED 2026-04-28 PM** — commits `bcee82b` + `ec3a7fd` on `origin/unified`. 9 fixes from Beta-Ready Execution Plan + 3 Perplexity Deep Research audits: email/password auth, MainActor crash fix, smooth login transitions, Microsoft 4-square logo, "Set up later" plumbing, auth cascade (`bootstrapExecutive` → `signInWithGraph` → email + calendar sync), `v1BetaMode` defaulted false, `MorningBriefingPane` reachable, AlertEngine wired via new `AlertsPresenter`, `EmailClassifier.classifyLive` via anthropic-relay, iOS orb sheet → `ConversationView`, DishMeUp bucket dotColors + `sessionFraming` semibold, voice path guard test. Build green; `/Applications/Timed.app` was rebuilt.
 
@@ -16,7 +16,7 @@
 >
 > **Apple Developer enrollment PARKED 2026-04-27** — Ammar attempted enrollment, redirected to free-tier `/account` (paid Program upgrade not yet started). Resume when there's a clear window. While parked: iOS unreachable (Track B = Xcode Personal Team, 7-day expiry); DMG remains ad-hoc signed (works with `xattr -cr /Applications/Timed.app` workaround). See HANDOFF.md Chain C.
 
-> **Tree cleanup 2026-04-29** — repo went 9.4G → 285M. Wiped (gitignored, regeneratable): `.build/` (8.5G), `dist.noindex/` (122M, including the v0.1.0–0.1.3 zips and `Timed.dmg` — re-run `bash scripts/package_app.sh && bash scripts/create_dmg.sh` to rebuild), root `node_modules/` + `pnpm-lock.yaml` (520M, "stray" per .gitignore — real lockfile is under `trigger/`). Archived to `~/Archive/2026-04-29/timed/`: stale `specs/{BUILD_STATE,build-state,SESSION_LOG}.md` (Apr 2 copies superseded by root files); `logs/` watchdog logs (6.6M). DerivedData (8.3G across two Timed-* dirs, both <30 days old) left in place. Sibling dirs `Timed-Brain` (2.1G), `time-manager-desktop-isolated-git` (3.9G) untouched. See HANDOFF for surviving stale refs (`PLAN.md`, `HANDOFF-wave2.md`).
+> **Tree cleanup 2026-04-29** — repo went 9.4G → 285M. Wiped (gitignored, regeneratable): `.build/` (8.5G), `dist.noindex/` (122M, including the v0.1.0–0.1.3 zips and `Timed.dmg` — re-run `bash scripts/package_app.sh && bash scripts/create_dmg.sh` to rebuild), root `node_modules/` + `pnpm-lock.yaml` (520M, "stray" per .gitignore — real lockfile is under `trigger/`). Archived to `~/Archive/2026-04-29/timed/`: stale `specs/{BUILD_STATE,build-state,SESSION_LOG}.md` (Apr 2 copies superseded by root files); `logs/` watchdog logs (6.6M). DerivedData (8.3G across two Timed-* dirs, both <30 days old) left in place. Sibling dirs `Timed-Brain` (2.1G), `time-manager-desktop-isolated-git` (3.9G) untouched. Older `HANDOFF-wave2.md` remains historical only.
 
 ## Voice Architecture (current)
 | Layer | Tech | Where |
@@ -120,9 +120,9 @@
 - [ ] Reflection engine tests — NOT STARTED
 
 ### Backend (Supabase)
-- [x] 63 SQL migrations applied remotely (verified with `supabase migration list --linked` 2026-04-30)
-- [ ] `20260430120000_gmail_provider.sql` pending remote apply
-- [x] 39 Edge Functions active remotely (verified with `supabase functions list --project-ref fpmjuufefhtlwbfinxlx` 2026-04-30)
+- [x] 64 SQL migrations applied remotely (verified with `supabase migration list --linked` 2026-04-30)
+- [x] `20260430120000_gmail_provider.sql` applied remotely 2026-04-30
+- [x] 39 Edge Functions active remotely (verified with `supabase functions list --project-ref fpmjuufefhtlwbfinxlx` 2026-04-30; `voice-llm-proxy` + 16 hardened functions redeployed)
 - [ ] `deepgram-transcribe` exists locally but is not deployed remotely
 - [x] Anthropic API key set in Supabase secrets
 - [x] Dual-provider embeddings: Voyage (Tier 0, 1024-dim) + OpenAI (Tier 1-3, 3072-dim)
@@ -140,7 +140,7 @@
 - Legacy/ folder (41 files) excluded from build, kept as reference
 
 ## Architecture Status: Orb is now Microsoft + Gmail + Graphiti aware (2026-04-30)
-> **Updated 2026-04-30** — `voice-llm-proxy` pulls a 24h inbox snapshot into context and gates inbox confidence on `(outlook_linked OR gmail_linked)` in local code. The Microsoft path is live after `signInWithGraph()`; the Gmail path needs the pending migration + proxy redeploy before the OR-gate is live remotely. Graphiti search is wired as a server-side tool, but historical backfill is parked on Voyage billing.
+> **Updated 2026-04-30** — `voice-llm-proxy` pulls a 24h inbox snapshot into context and gates inbox confidence on `(outlook_linked OR gmail_linked)` in live remote code. The Microsoft path is live after `signInWithGraph()`; the Gmail path now needs the app sign-in step with `5066sim@gmail.com`. Graphiti search is wired as a server-side tool, but historical backfill is parked on Voyage billing.
 
 ## Architecture Status: Intelligence Engine + Auth Bridge COMPLETE
 > **Updated 2026-04-14** — Intelligence Maximisation Plan (12 steps) implemented. Auth bridge wired. App ready for first sign-in.

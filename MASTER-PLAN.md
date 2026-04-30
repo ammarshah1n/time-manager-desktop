@@ -8,8 +8,8 @@ Last updated: 2026-04-30
 
 - `unified` is the only active trunk. Historical branches remain escape hatches only.
 - Microsoft email/calendar path is verified end-to-end: OAuth → sync → Supabase → Tier 0 → orb context.
-- Gmail/Google Calendar path is implemented additively for Ammar and intentionally separate from the Microsoft path; pending ops are migration `20260430120000_gmail_provider.sql`, `voice-llm-proxy` redeploy, then Gmail sign-in with `5066sim@gmail.com`.
-- Supabase CLI verified 39 active remote Edge Functions; 63 remote migrations are applied and one local Gmail migration is pending.
+- Gmail/Google Calendar path is implemented additively for Ammar and intentionally separate from the Microsoft path; backend migration and `voice-llm-proxy` redeploy are complete, and the next step is Gmail sign-in with `5066sim@gmail.com`.
+- Supabase CLI verified 39 active remote Edge Functions and 64 applied remote migrations.
 - Trigger.dev Prod deploy `20260429.2` is live with 13 detected tasks / 9 schedules.
 - Trigger.dev Wave 2 Opus aliases route to `claude-opus-4-7`; older Supabase Edge Functions still contain direct `claude-opus-4-6` model IDs.
 - Graphiti backfill is implemented in WIP commit `2222bb4` and parked on Voyage billing.
@@ -204,12 +204,11 @@ Timed is a **cognitive intelligence system** for one C-suite executive (Yasser S
 - Microsoft path: GraphClient + MSAL + EmailSyncService + CalendarSyncService verified end-to-end
 - Gmail path: GoogleClient + GmailClient + GmailSyncService + GmailCalendarSyncService implemented additively
 - PlanningEngine, TimeSlotAllocator, Tier 0 writer, alert delivery, and orb context path wired
-- Supabase CLI verified 39 active remote Edge Functions + 63 applied remote migrations
+- Supabase CLI verified 39 active remote Edge Functions + 64 applied remote migrations
 - Trigger.dev Prod deploy `20260429.2` live with Wave 2 scheduled tasks
 
 **CURRENT GAP (2026-04-30):**
-- Gmail migration `20260430120000_gmail_provider.sql` still needs remote apply
-- `voice-llm-proxy` needs redeploy so the Gmail inbox OR-gate goes live
+- Gmail needs the manual app sign-in step with `5066sim@gmail.com`
 - Graphiti backfill is parked on Voyage billing
 - Developer ID signing / notarisation and iOS TestFlight remain blocked on Apple Developer enrollment
 

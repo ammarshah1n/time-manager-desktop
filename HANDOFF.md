@@ -1,6 +1,18 @@
 # HANDOFF.md — Timed
 
-Last updated: 2026-04-30 morning (Gmail integration shipped additively)
+Last updated: 2026-04-30 early afternoon (Gmail backend + hardening deployed)
+
+## ★ 2026-04-30 early afternoon ★ — Gmail backend live + security hardening deployed
+
+**State: SHIPPED.** The remaining Gmail backend ops from the morning handoff are complete on Supabase project `fpmjuufefhtlwbfinxlx`.
+
+- Applied migration `20260430120000_gmail_provider.sql` with linked-project `supabase db push`; `supabase migration list --linked` now shows it on both local and remote.
+- Redeployed `voice-llm-proxy`; remote function list shows version 25 updated `2026-04-30 05:06:33 UTC`, so the `(outlook_linked OR gmail_linked)` inbox gate is live.
+- Deployed the 16-function security-hardening set with `scripts/deploy_security_hardening.sh`; remote function list shows April 30 updates for the nightly, weekly, briefing, ACB, voice-feature, and relationship-card functions.
+- Smoke check: unauthenticated `POST /functions/v1/nightly-phase1` returns HTTP 401 with `UNAUTHORIZED_NO_AUTH_HEADER`.
+- Security WIP is no longer dirty: hardening, advisory CI checks, session-start context preload, Graphiti parked-state docs, stale specs cleanup, and related Swift test repairs are committed locally.
+
+**Remaining:** open Timed → Settings → Accounts → "Add Gmail" → sign in with `5066sim@gmail.com`; resolve Voyage billing and run/monitor `graphiti-backfill`; resume Apple Developer enrollment; decide whether optional local-only `deepgram-transcribe` should stay parked.
 
 ## ★ 2026-04-30 morning ★ — Gmail integration shipped (additive)
 
@@ -14,12 +26,9 @@ Last updated: 2026-04-30 morning (Gmail integration shipped additively)
 
 **DMG repacked** + installed at `/Applications/Timed.app`.
 
-**Pending — Ammar to run** (permission-check.sh blocks autonomous prod ops). Two CLI calls remain:
+**Production ops completed later the same day.** The migration is remote-applied and `voice-llm-proxy` is redeployed; see the early-afternoon entry above.
 
-1. Apply the new migration to `fpmjuufefhtlwbfinxlx` via the Supabase CLI (linked-project mode).
-2. Redeploy `voice-llm-proxy` so the OR-gate goes live.
-
-Then: open Timed → Settings → Accounts → "Add Gmail" → sign in with `5066sim@gmail.com`.
+Next manual step: open Timed → Settings → Accounts → "Add Gmail" → sign in with `5066sim@gmail.com`.
 
 **Decision: Yasser stays on Microsoft.** Per Ammar's call this session, Gmail is for Ammar's own use (5066sim account); Yasser keeps the Outlook path that just verified end-to-end last night.
 
@@ -44,9 +53,9 @@ Then: open Timed → Settings → Accounts → "Add Gmail" → sign in with `506
 
 **Diagnostic wins:** added `graphFileLog` calls to `fetchDeltaMessages`, `fetchCalendarEvents`, and both write paths in `CalendarSyncService.emitCalendarObservationsIfPossible`. On ad-hoc-signed builds where `os.Logger` is filtered out (per memory `feedback_adhoc_logs_invisible`), this is the only visible diagnostic surface — three distinct silent failures became visible the moment we wired this up.
 
-**Gmail track is next** — see `~/.claude/plans/we-are-doing-whats-rustling-fog.md` Phase B-1. Recommended path: open a new claude window after sleep, paste the prompt verbatim, scaffold `Sources/TimedKit/Core/Mail/*.swift` without touching AuthService. Phase B-2 (the AuthService merge + UI) is tomorrow fresh.
+**Gmail track completed next day** — the old Phase B plan is now historical. Gmail shipped additively on 2026-04-30; see the morning and early-afternoon entries above.
 
-**Security-hardening pass remains deferred** — 32 modified Edge Functions + 5 untracked CI/lint files still WIP from a prior session. Voice-llm-proxy's CORS-tightening (`Allow-Origin: env-driven` instead of `*`) shipped tonight as a side-effect of the orb fix; the rest waits.
+**Security-hardening pass later completed** — see the 2026-04-30 early-afternoon entry. Voice-llm-proxy's env-driven CORS is live alongside the hardened cron/system functions.
 
 ## ★ 2026-04-29 evening ★ — Memory-first hook architecture (commit 826eb58)
 
@@ -271,9 +280,9 @@ As of 2026-04-27, the four divergent branches have been merged into one trunk (`
 
 | Stack | Built | Merged onto `unified` | Deployed | Live |
 |---|---|---|---|---|
-| Wave 1+2 backend (Trigger.dev v4 + Graphiti/Neo4j + 3 services + NREM/REM engine + outcome harvester) | ✅ | ✅ via `54fe80e` | ❌ Trigger.dev cloud secrets not set; Neo4j not on Fly.io / AuraDB; Entra server-app not created | ❌ |
+| Wave 1+2 backend (Trigger.dev v4 + Graphiti/Neo4j + 3 services + NREM/REM engine + outcome harvester) | ✅ | ✅ via `54fe80e` | ⚠️ Trigger.dev Prod `20260429.2` live; Graphiti backfill parked on Voyage billing | ⚠️ partial |
 | 15 Wave 1+2 schema changes | ✅ | ✅ | ✅ pushed to Supabase `fpmjuufefhtlwbfinxlx` | ⚠️ tables exist; nothing writes to them yet |
-| 3 new Edge Function proxies (`anthropic-proxy`, `elevenlabs-tts-proxy`, `deepgram-transcribe`) | ✅ | ✅ via `5acd23f` | ❌ not deployed; `ELEVENLABS_API_KEY` secret not set | ❌ |
+| 3 new Edge Function proxies (`anthropic-proxy`, `elevenlabs-tts-proxy`, `deepgram-transcribe`) | ✅ | ✅ via `5acd23f` | ⚠️ Anthropic/ElevenLabs/voice proxy live; `deepgram-transcribe` remains optional local-only | ⚠️ partial |
 | Voice path lock (ElevenLabs Agent + Opus 4.7, baked-in agent ID, Apple TTS removed) | ✅ | ✅ | n/a (client) | ✅ DMG built |
 | UI overhaul (monochrome, BucketDot, Today orb, Dish Me Up rebuild, multi-user) | ✅ | ✅ | n/a | ✅ DMG built |
 | TimedKit shared library + iOS scaffold (TimedMac + TimediOS + Widgets + Share extensions) | ✅ | ✅ via `54fe80e` (was already on base from `ios/port-bootstrap`) | ❌ no Apple cert | ⚠️ sim build green; not on physical iPhone |
@@ -305,7 +314,7 @@ bash scripts/install_app.sh                                # → /Applications/T
 # For active dev with rebuild-on-save: bash scripts/watch-and-build.sh
 ```
 
-**Voice-proxy Edge Function deploy (one-time, supports both Chain A and A.1):**
+**Voice-proxy Edge Function redeploy reference (already done; keep for recovery):**
 
 ```bash
 supabase secrets set ELEVENLABS_API_KEY=<key> --project-ref fpmjuufefhtlwbfinxlx
@@ -320,7 +329,7 @@ Plus one Comet/browser task: ElevenLabs portal → Morning Agent → Advanced �
 
 1. Microsoft Entra ID app `Timed-Server-Graph` with app-level `Mail.Read` + `Calendars.Read`, admin consent, 24-month secret
 2. Neo4j AuraDB Pro or Fly.io Neo4j (4 GB / 50 GB) with snapshots — or migrate the local Docker Neo4j to the Fedora MBP via Cloudflare Tunnel
-3. Trigger.dev cloud secrets + `pnpm -F @timed/trigger deploy`
+3. Trigger.dev Prod deploy is live; keep secrets reconciled before running Graphiti-backed tasks
 4. `UPDATE executives SET email_sync_driver='server' WHERE email='<yasser>'`
 5. One-off `graphiti-backfill` task
 6. Watch 3 consecutive nights of `agent_sessions` with `task_name IN ('nrem-amem-evolution','rem-synthesis')` AND `status='completed'` AND `cache_read_tokens > 0`
@@ -350,7 +359,7 @@ Full plan in `/Users/integrale/.claude/plans/ultrathink-i-need-you-cached-glade.
 
 ## Current branch
 
-`ui/apple-v1-local-monochrome` — UI / voice work + all consolidated docs. **Backend code (`trigger/`, `services/`) is on `ui/apple-v1-restore` and `ui/apple-v1-wired`, not here.** The merge to co-locate code with docs is itself a pending decision.
+`unified` — single active trunk. Historical `ui/apple-v1-*` and `ios/port-bootstrap` branches are retained only as escape hatches.
 
 See `docs/SINCE-2026-04-24.md` for full track-by-track detail, /collab outcomes, branch topology, and lessons.
 
