@@ -22,18 +22,16 @@
     <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
     <false/>
     <!--
-        Keychain access group — required for MSAL silent token refresh on
-        ad-hoc-signed builds. Without this group declared, MSAL throws
-        `-34018 / errSecItemNotFound` when writing the cached refresh token,
-        which then forces a full interactive sign-in on every Graph API call
-        (~1h after token expiry). Setting `keychainSharingGroup =
-        Bundle.main.bundleIdentifier` in `GraphClient.swift` routes MSAL to
-        this app-private partition, which works without Apple Developer
-        Program enrollment.
+        keychain-access-groups was tried 2026-04-29 and reverted: on ad-hoc
+        signed builds (no Team ID), declaring this entitlement causes amfid
+        to refuse to spawn the process (launchd error 163 / EAUTH). The
+        Swift-side `keychainSharingGroup = Bundle.main.bundleIdentifier` in
+        GraphClient.swift is left in place — it's harmless without the
+        entitlement (MSAL writes still fail with -34018, same as before),
+        and ready to take effect once Apple Developer Program enrollment
+        lands a real Team ID. Until then, the in-memory token cache in
+        AuthService.makeTokenProvider stays as the band-aid; users
+        manually reconnect every ~1h via Settings → Connect Outlook.
     -->
-    <key>keychain-access-groups</key>
-    <array>
-        <string>com.ammarshahin.timed</string>
-    </array>
 </dict>
 </plist>
