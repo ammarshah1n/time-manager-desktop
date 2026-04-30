@@ -149,7 +149,9 @@ export function registerTools(server: McpServer, deps: ToolDeps): void {
     },
     async ({ content_hash }) => {
       const hit = await neo4j.episodeExists(content_hash);
-      return jsonResult(hit);
+      return jsonResult(
+        hit ? { exists: true, episode_id: hit.episode_id } : { exists: false }
+      );
     }
   );
 

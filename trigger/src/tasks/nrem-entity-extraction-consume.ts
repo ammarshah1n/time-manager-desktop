@@ -189,18 +189,20 @@ async function persistExtraction(
     }
 
     const addEpT0 = Date.now();
-    const addEpIn = {
+    const addEpMcp = {
       content: episode.content ?? "",
       content_hash,
-      reference_time: episode.reference_time,
-      source_observation_id: observation_id,
+      timestamp: episode.reference_time
+        ? new Date(episode.reference_time).toISOString()
+        : new Date().toISOString(),
     };
-    const addEpOut = await callMcpTool("add_episode", addEpIn);
+    const addEpTrace = { ...addEpMcp, source_observation_id: observation_id };
+    const addEpOut = await callMcpTool("add_episode", addEpMcp);
     await traceToolCall({
       session_id,
       step_index: stepIndex++,
       tool_name: "add_episode",
-      input: addEpIn,
+      input: addEpTrace,
       output: addEpOut,
       latency_ms: Date.now() - addEpT0,
     });
@@ -209,19 +211,22 @@ async function persistExtraction(
     for (const fact of facts) {
       if (!fact.subject || !fact.predicate || !fact.object) continue;
       const addFactT0 = Date.now();
-      const addFactIn = {
+      const addFactMcp = {
         subject: fact.subject,
         predicate: fact.predicate,
         object: fact.object,
         valid_from: fact.valid_from,
+      };
+      const addFactTrace = {
+        ...addFactMcp,
         source_observation_id: observation_id,
       };
-      const addFactOut = await callMcpTool("add_fact", addFactIn);
+      const addFactOut = await callMcpTool("add_fact", addFactMcp);
       await traceToolCall({
         session_id,
         step_index: stepIndex++,
         tool_name: "add_fact",
-        input: addFactIn,
+        input: addFactTrace,
         output: addFactOut,
         latency_ms: Date.now() - addFactT0,
       });
@@ -239,32 +244,39 @@ async function persistExtraction(
  */
 function isTruthyExists(output: unknown): boolean {
   if (output === true) return true;
-  if (typeof output === "object" && output !== null) {
-    const rec = output as Record<string, unknown>;
-    if (rec["exists"] === true) return true;
-    // MCP content sometimes arrives as [{ type:"text", text:"true" }]
-    if (Array.isArray(rec["content"])) {
-      const first = (rec["content"] as unknown[])[0];
-      if (
-        typeof first === "object" &&
-        first !== null &&
-        "text" in first &&
-        String((first as { text: unknown }).text).toLowerCase().trim() === "true"
-      ) {
-        return true;
-      }
-    }
+  const rec =
+    typeof output === "object" && output !== null && !Array.isArray(output)
+      ? (output as Record<string, unknown>)
+      : null;
+  if (rec && rec["exists"] === true) return true;
+
+  const contentArray = Array.isArray(output)
+    ? output
+    : Array.isArray(rec?.["content"])
+      ? (rec!["content"] as unknown[])
+      : null;
+  if (!contentArray) return false;
+  const first = contentArray[0];
+  if (
+    typeof first !== "object" ||
+    first === null ||
+    !("text" in first)
+  ) {
+    return false;
   }
-  if (Array.isArray(output)) {
-    const first = output[0];
+  const text = String((first as { text: unknown }).text).trim();
+  if (text.toLowerCase() === "true") return true;
+  try {
+    const parsed = JSON.parse(text) as unknown;
     if (
-      typeof first === "object" &&
-      first !== null &&
-      "text" in first &&
-      String((first as { text: unknown }).text).toLowerCase().trim() === "true"
+      typeof parsed === "object" &&
+      parsed !== null &&
+      (parsed as Record<string, unknown>)["exists"] === true
     ) {
       return true;
     }
+  } catch {
+    // not JSON — fall through
   }
   return false;
 }

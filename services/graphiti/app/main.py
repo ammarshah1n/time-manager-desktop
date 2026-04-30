@@ -18,24 +18,86 @@ internal entity extraction + embedding pipeline (i.e. `add_episode`).
 
 from __future__ import annotations
 
+import json
 import logging
 import os
+import re
+import typing
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Any
 
+import openai
 from fastapi import FastAPI, HTTPException
+from openai.types.chat import ChatCompletionMessageParam
 from pydantic import BaseModel, Field
 
 from graphiti_core import Graphiti
 from graphiti_core.cross_encoder.openai_reranker_client import OpenAIRerankerClient
 from graphiti_core.embedder.openai import OpenAIEmbedder, OpenAIEmbedderConfig
-from graphiti_core.llm_client.config import LLMConfig
-from graphiti_core.llm_client.openai_generic_client import OpenAIGenericClient
+from graphiti_core.llm_client.anthropic_client import AnthropicClient
+from graphiti_core.llm_client.config import DEFAULT_MAX_TOKENS, LLMConfig, ModelSize
+from graphiti_core.llm_client.errors import RateLimitError
+from graphiti_core.llm_client.openai_generic_client import (
+    DEFAULT_MODEL,
+    OpenAIGenericClient,
+)
 from graphiti_core.nodes import EpisodeType
+from graphiti_core.prompts.models import Message
 
 logger = logging.getLogger("graphiti.service")
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
+
+
+# Anthropic via litellm wraps JSON output in ```json ... ``` fences even when
+# response_format={"type":"json_object"} is requested. graphiti-core's
+# OpenAIGenericClient calls json.loads() on the raw content and crashes. This
+# subclass mirrors the upstream method body and strips the fence before parsing.
+_FENCE_RE = re.compile(r"^\s*```(?:json)?\s*\n?(.*?)\n?```\s*$", re.DOTALL)
+
+
+def _strip_json_fence(text: str) -> str:
+    if not text:
+        return text
+    match = _FENCE_RE.match(text)
+    return match.group(1).strip() if match else text.strip()
+
+
+class FenceTolerantOpenAIClient(OpenAIGenericClient):
+    """OpenAIGenericClient that tolerates markdown-fenced JSON in LLM output."""
+
+    async def _generate_response(
+        self,
+        messages: list[Message],
+        response_model: type[BaseModel] | None = None,
+        max_tokens: int = DEFAULT_MAX_TOKENS,
+        model_size: ModelSize = ModelSize.medium,
+    ) -> dict[str, typing.Any]:
+        openai_messages: list[ChatCompletionMessageParam] = []
+        for m in messages:
+            m.content = self._clean_input(m.content)
+            if m.role == "user":
+                openai_messages.append({"role": "user", "content": m.content})
+            elif m.role == "system":
+                openai_messages.append({"role": "system", "content": m.content})
+        try:
+            response = await self.client.chat.completions.create(
+                model=self.model or DEFAULT_MODEL,
+                messages=openai_messages,
+                temperature=self.temperature,
+                max_tokens=self.max_tokens,
+                response_format={"type": "json_object"},
+            )
+            result = response.choices[0].message.content or ""
+            cleaned = _strip_json_fence(result)
+            return json.loads(cleaned)
+        except openai.RateLimitError as e:
+            raise RateLimitError from e
+        except Exception as e:
+            logger.error(
+                "Error in generating LLM response: %s; raw=%r", e, result if "result" in locals() else None
+            )
+            raise
 
 
 def _required(name: str) -> str:
@@ -56,13 +118,29 @@ def build_graphiti() -> Graphiti:
     proxy_url = _required("INFERENCE_PROXY_URL")
     proxy_key = _required("INFERENCE_PROXY_API_KEY")
 
+    # LLM extraction goes direct to Anthropic. graphiti-core's AnthropicClient
+    # uses Anthropic's tool-use API to enforce response schemas — required
+    # because Claude (via litellm OpenAI-compat) doesn't reliably produce
+    # schema-conforming JSON, and graphiti's pipeline crashes on shape drift.
+    # Embeddings + reranker still go through litellm (kept for tracing +
+    # for the voyage-3 embedder routing).
+    anthropic_key = _required("ANTHROPIC_API_KEY")
+    anthropic_llm_config = LLMConfig(
+        api_key=anthropic_key,
+        model=os.getenv("GRAPHITI_ANTHROPIC_MODEL", "claude-sonnet-4-6"),
+        small_model=os.getenv(
+            "GRAPHITI_ANTHROPIC_SMALL_MODEL", "claude-haiku-4-5-20251001"
+        ),
+        max_tokens=DEFAULT_MAX_TOKENS,
+    )
+    llm_client = AnthropicClient(config=anthropic_llm_config)
+
     llm_config = LLMConfig(
         api_key=proxy_key,
         model=os.getenv("GRAPHITI_MODEL", "sonnet_extract"),
         small_model=os.getenv("GRAPHITI_SMALL_MODEL", "haiku_classify"),
         base_url=proxy_url,
     )
-    llm_client = OpenAIGenericClient(config=llm_config)
 
     embedder_url = os.getenv("EMBEDDER_BASE_URL", proxy_url)
     embedder_key = os.getenv("EMBEDDER_API_KEY", proxy_key)

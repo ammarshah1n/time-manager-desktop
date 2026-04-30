@@ -117,19 +117,22 @@ async function emitEpisode(args: {
   if (existsTruthy(existsOut)) return false;
 
   const addT0 = Date.now();
-  const input = {
+  const mcpArgs = {
     content: args.content,
     content_hash,
-    reference_time: args.reference_time,
+    timestamp: new Date(args.reference_time).toISOString(),
+  };
+  const traceInput = {
+    ...mcpArgs,
     source: args.source,
     source_id: args.source_id,
   };
-  const addOut = await callMcpTool("add_episode", input);
+  const addOut = await callMcpTool("add_episode", mcpArgs);
   await traceToolCall({
     session_id: args.session_id,
     step_index: args.step_index_ref.value++,
     tool_name: "add_episode",
-    input,
+    input: traceInput,
     output: addOut,
     latency_ms: Date.now() - addT0,
   });
@@ -138,31 +141,39 @@ async function emitEpisode(args: {
 
 function existsTruthy(output: unknown): boolean {
   if (output === true) return true;
-  if (typeof output === "object" && output !== null) {
-    const rec = output as Record<string, unknown>;
-    if (rec["exists"] === true) return true;
-    if (Array.isArray(rec["content"])) {
-      const first = (rec["content"] as unknown[])[0];
-      if (
-        typeof first === "object" &&
-        first !== null &&
-        "text" in first &&
-        String((first as { text: unknown }).text).toLowerCase().trim() === "true"
-      ) {
-        return true;
-      }
-    }
+  const rec =
+    typeof output === "object" && output !== null && !Array.isArray(output)
+      ? (output as Record<string, unknown>)
+      : null;
+  if (rec && rec["exists"] === true) return true;
+
+  const contentArray = Array.isArray(output)
+    ? output
+    : Array.isArray(rec?.["content"])
+      ? (rec!["content"] as unknown[])
+      : null;
+  if (!contentArray) return false;
+  const first = contentArray[0];
+  if (
+    typeof first !== "object" ||
+    first === null ||
+    !("text" in first)
+  ) {
+    return false;
   }
-  if (Array.isArray(output)) {
-    const first = output[0];
+  const text = String((first as { text: unknown }).text).trim();
+  if (text.toLowerCase() === "true") return true;
+  try {
+    const parsed = JSON.parse(text) as unknown;
     if (
-      typeof first === "object" &&
-      first !== null &&
-      "text" in first &&
-      String((first as { text: unknown }).text).toLowerCase().trim() === "true"
+      typeof parsed === "object" &&
+      parsed !== null &&
+      (parsed as Record<string, unknown>)["exists"] === true
     ) {
       return true;
     }
+  } catch {
+    // not JSON — fall through
   }
   return false;
 }
