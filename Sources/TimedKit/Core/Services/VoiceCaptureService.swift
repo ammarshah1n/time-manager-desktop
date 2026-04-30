@@ -285,30 +285,34 @@ final class VoiceCaptureService: NSObject, ObservableObject {
         }
 
         inputNode.removeTap(onBus: 0)
-        // Tap callback runs on Apple's real-time `RealtimeMessenger.mServiceQueue`.
-        // We capture only Sendable / thread-safe values:
-        //   - `request`: SFSpeechAudioBufferRecognitionRequest, .append(_:) is documented thread-safe
-        //   - `continuation`: AsyncStream.Continuation, Sendable by design
-        // No `self` capture → no @MainActor isolation inferred → no SIGTRAP.
-        inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in
-            request.append(buffer)
-
-            // RMS computation is pure — no `self` access on the audio thread.
-            let channelData = buffer.floatChannelData?[0]
-            let frameLength = Int(buffer.frameLength)
-            var rms: Float = 0
-            if let samples = channelData, frameLength > 0 {
-                var sum: Float = 0
-                for i in 0..<frameLength { sum += samples[i] * samples[i] }
-                rms = sqrtf(sum / Float(frameLength))
-            }
-            let normalized = min(1.0, rms * 8)
-            // Yield to the MainActor consumer; non-blocking, drops if buffer full.
-            continuation.yield(normalized)
-        }
+        inputNode.installTap(
+            onBus: 0,
+            bufferSize: 1024,
+            format: format,
+            block: Self.makeAudioTap(request: request, continuation: continuation)
+        )
 
         audioEngine.prepare()
         try audioEngine.start()
+    }
+
+    private nonisolated static func makeAudioTap(
+        request: SFSpeechAudioBufferRecognitionRequest,
+        continuation: AsyncStream<Float>.Continuation
+    ) -> AVAudioNodeTapBlock {
+        { buffer, _ in
+            request.append(buffer)
+            continuation.yield(normalizedRMSLevel(from: buffer))
+        }
+    }
+
+    private nonisolated static func normalizedRMSLevel(from buffer: AVAudioPCMBuffer) -> Float {
+        guard let samples = buffer.floatChannelData?[0] else { return 0 }
+        let frameLength = Int(buffer.frameLength)
+        guard frameLength > 0 else { return 0 }
+        var sum: Float = 0
+        for i in 0..<frameLength { sum += samples[i] * samples[i] }
+        return min(1.0, sqrtf(sum / Float(frameLength)) * 8)
     }
 
     private func startRecognitionTask() {
