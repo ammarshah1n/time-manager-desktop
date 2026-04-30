@@ -24,7 +24,7 @@ type CheckResult = {
 
 function responseHeaders() {
   return {
-    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") ?? "null",
     "Access-Control-Allow-Headers": "authorization, content-type",
     "Content-Type": "application/json",
   };
@@ -370,7 +370,7 @@ serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", {
       headers: {
-        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") ?? "null",
         "Access-Control-Allow-Headers": "authorization, content-type",
       },
     });

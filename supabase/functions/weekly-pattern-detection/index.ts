@@ -4,6 +4,7 @@ import { callAnthropic, extractText } from "../_shared/anthropic.ts";
 import { createRequestLogger } from "../_shared/logger.ts";
 import { requireEnv } from "../_shared/config.ts";
 
+import { verifyServiceRole, AuthError, authErrorResponse } from "../_shared/auth.ts";
 // Phase 7.01: Weekly Pattern Detection
 // Triggered: end of week OR 5+ daily summaries since last run
 // Opus 4.6 with extended thinking (32K budget), temp 0.3
@@ -18,6 +19,13 @@ serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { status: 200 });
   }
+  try {
+    verifyServiceRole(req);
+  } catch (err) {
+    if (err instanceof AuthError) return authErrorResponse(err);
+    throw err;
+  }
+
 
   const client = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
   const start = Date.now();

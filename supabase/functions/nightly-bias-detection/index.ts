@@ -4,6 +4,7 @@ import { callAnthropic, extractText } from "../_shared/anthropic.ts";
 import { createRequestLogger } from "../_shared/logger.ts";
 import { requireEnv } from "../_shared/config.ts";
 
+import { verifyServiceRole, AuthError, authErrorResponse } from "../_shared/auth.ts";
 // Executive cognitive bias detection — 6-phase nightly pipeline
 // Cron: 0 3 * * * (3 AM, one hour after nightly phase2)
 // Research grounding: v3-01 (cognitive bias detection from passive digital signals)
@@ -39,6 +40,13 @@ serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { status: 200 });
   }
+  try {
+    verifyServiceRole(req);
+  } catch (err) {
+    if (err instanceof AuthError) return authErrorResponse(err);
+    throw err;
+  }
+
 
   const client = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
   const start = Date.now();

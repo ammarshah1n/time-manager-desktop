@@ -59,3 +59,54 @@ export function authErrorResponse(err: AuthError): Response {
     { status: err.status, headers: { "Content-Type": "application/json" } }
   );
 }
+
+/**
+ * Verify the request was issued with the Supabase SERVICE-ROLE JWT.
+ *
+ * Used by cron-triggered Edge Functions (nightly-*, weekly-*, monthly-*,
+ * acb-refresh, multi-agent-council, thin-slice-inference, generate-morning-
+ * briefing, etc.) which take an `executive_id` from the body and run with the
+ * service-role key. Without this check, anyone with a valid Supabase JWT (any
+ * signed-in user) could POST `{"executive_id": "<uuid>"}` and trigger Opus runs
+ * or read service-role-derived insights for any executive.
+ *
+ * The pg_cron migrations already pass `Bearer <service_role_key>` (see e.g.
+ * supabase/migrations/20260414000001_weekly_syntheses.sql) so this check is
+ * zero-cost for legitimate callers.
+ *
+ * Note on signature verification: Supabase Edge Functions has platform-level
+ * JWT verification on by default (no `--no-verify-jwt` is used at deploy
+ * time). By the time a request reaches our handler, the JWT signature is
+ * already verified — we only need to inspect the `role` claim. We decode the
+ * payload with atob; we do NOT re-verify the signature.
+ */
+export function verifyServiceRole(req: Request): void {
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader) {
+    throw new AuthError("Missing Authorization header", 401);
+  }
+
+  const match = authHeader.match(/^Bearer\s+(.+)$/i);
+  if (!match) {
+    throw new AuthError("Malformed Authorization header — expected Bearer <token>", 401);
+  }
+
+  const parts = match[1].split(".");
+  if (parts.length !== 3) {
+    throw new AuthError("Malformed JWT", 401);
+  }
+
+  let payload: { role?: string };
+  try {
+    // base64url → base64 → JSON
+    const b64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const padded = b64 + "=".repeat((4 - (b64.length % 4)) % 4);
+    payload = JSON.parse(atob(padded));
+  } catch {
+    throw new AuthError("Could not decode JWT payload", 401);
+  }
+
+  if (payload.role !== "service_role") {
+    throw new AuthError("This endpoint requires the service-role key", 403);
+  }
+}

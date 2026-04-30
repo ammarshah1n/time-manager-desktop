@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { callAnthropic, extractText } from "../_shared/anthropic.ts";
 import { requireEnv } from "../_shared/config.ts";
 
+import { verifyServiceRole, AuthError, authErrorResponse } from "../_shared/auth.ts";
 // Cron: 30 5 * * * (5:30 AM local, 15 min after refresh)
 // Two-pass Opus briefing generation with adversarial review
 
@@ -108,6 +109,13 @@ serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { status: 200 });
   }
+  try {
+    verifyServiceRole(req);
+  } catch (err) {
+    if (err instanceof AuthError) return authErrorResponse(err);
+    throw err;
+  }
+
 
   const client = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
   const start = Date.now();

@@ -4,6 +4,7 @@ import { callAnthropic, extractText } from "../_shared/anthropic.ts";
 import { createRequestLogger } from "../_shared/logger.ts";
 import { requireEnv } from "../_shared/config.ts";
 
+import { verifyServiceRole, AuthError, authErrorResponse } from "../_shared/auth.ts";
 // Phase 8.06: Multi-agent council for high-stakes decisions
 // 3 specialist Opus agents in parallel + leader synthesis
 // Trigger: alert composite > 0.7 AND prediction confidence > 0.75 AND coaching stage >= workingAlliance
@@ -17,6 +18,13 @@ serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { status: 200 });
   }
+  try {
+    verifyServiceRole(req);
+  } catch (err) {
+    if (err instanceof AuthError) return authErrorResponse(err);
+    throw err;
+  }
+
 
   const client = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
   const start = Date.now();

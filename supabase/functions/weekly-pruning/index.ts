@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { createRequestLogger } from "../_shared/logger.ts";
 import { requireEnv } from "../_shared/config.ts";
 
+import { verifyServiceRole, AuthError, authErrorResponse } from "../_shared/auth.ts";
 // Cron: 0 3 * * 0 (Sunday 3 AM)
 // Prunes old/low-importance data across memory tiers
 
@@ -15,6 +16,13 @@ serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { status: 200 });
   }
+  try {
+    verifyServiceRole(req);
+  } catch (err) {
+    if (err instanceof AuthError) return authErrorResponse(err);
+    throw err;
+  }
+
 
   const client = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
   const start = Date.now();

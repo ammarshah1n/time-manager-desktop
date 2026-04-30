@@ -18,7 +18,7 @@ import { requireEnv } from "../_shared/config.ts";
 import { verifyAuth, AuthError, authErrorResponse } from "../_shared/auth.ts";
 
 const CORS = {
-  "Access-Control-Allow-Origin":  "*",
+  "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") ?? "null",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };

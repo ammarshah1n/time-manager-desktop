@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { callAnthropic, extractText } from "../_shared/anthropic.ts";
 import { requireEnv } from "../_shared/config.ts";
 
+import { verifyServiceRole, AuthError, authErrorResponse } from "../_shared/auth.ts";
 // Phase 1 of nightly pipeline: importance scoring + conflict detection
 // Cron: 0 2 * * * (2 AM local)
 // Estimated runtime: 30-60s (well under 150s Edge Function limit)
@@ -342,6 +343,13 @@ serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { status: 200 });
   }
+  try {
+    verifyServiceRole(req);
+  } catch (err) {
+    if (err instanceof AuthError) return authErrorResponse(err);
+    throw err;
+  }
+
 
   const client = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
   const pipelineStart = Date.now();

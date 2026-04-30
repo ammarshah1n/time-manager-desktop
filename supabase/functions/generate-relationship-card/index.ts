@@ -26,8 +26,9 @@ serve(async (req: Request) => {
     return new Response("ok", { status: 200 });
   }
 
+  let authUserId: string;
   try {
-    await verifyAuth(req);
+    authUserId = await verifyAuth(req);
   } catch (err) {
     if (err instanceof AuthError) return authErrorResponse(err);
     throw err;
@@ -45,6 +46,19 @@ serve(async (req: Request) => {
 
   if (!profile_id || !contact_id) {
     return new Response(JSON.stringify({ error: "profile_id and contact_id required" }), { status: 400 });
+  }
+
+  // Ownership: body-supplied profile_id must match the executive the
+  // authenticated user owns. Without this, any signed-in user could read
+  // any other executive's contact data and email observation summaries
+  // by submitting another profile_id.
+  const { data: ownedExec } = await client
+    .from("executives")
+    .select("id")
+    .eq("auth_user_id", authUserId)
+    .maybeSingle();
+  if (!ownedExec || ownedExec.id !== profile_id) {
+    return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403 });
   }
 
   // Fetch contact data

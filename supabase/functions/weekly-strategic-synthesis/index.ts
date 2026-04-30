@@ -4,6 +4,7 @@ import { callAnthropic, extractText } from "../_shared/anthropic.ts";
 import { createRequestLogger } from "../_shared/logger.ts";
 import { requireEnv } from "../_shared/config.ts";
 
+import { verifyServiceRole, AuthError, authErrorResponse } from "../_shared/auth.ts";
 // Weekly strategic synthesis — Opus effort=max, Sunday cron
 // Produces week-over-week strategic analysis personalised to the executive's cognitive model.
 // Feeds into Monday's morning briefing as the "strategic context" section.
@@ -19,6 +20,13 @@ serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { status: 200 });
   }
+  try {
+    verifyServiceRole(req);
+  } catch (err) {
+    if (err instanceof AuthError) return authErrorResponse(err);
+    throw err;
+  }
+
 
   const client = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
   const start = Date.now();

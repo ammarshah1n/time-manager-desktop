@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { verifyAuth, AuthError, authErrorResponse } from "../_shared/auth.ts";
 import { createRequestLogger } from "../_shared/logger.ts";
 import { requireEnv } from "../_shared/config.ts";
@@ -9,6 +10,9 @@ import { requireEnv } from "../_shared/config.ts";
 // Cost: ~$0.0015/minute, 8h/day ≈ $0.72/day
 
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+const SUPABASE_URL = requireEnv("SUPABASE_URL");
+const SERVICE_ROLE_KEY = requireEnv("SUPABASE_SERVICE_ROLE_KEY");
+const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
 serve(async (req: Request) => {
   const log = createRequestLogger("extract-voice-features");
@@ -17,8 +21,9 @@ serve(async (req: Request) => {
     return new Response("ok", { status: 200 });
   }
 
+  let authUserId: string;
   try {
-    await verifyAuth(req);
+    authUserId = await verifyAuth(req);
   } catch (err) {
     if (err instanceof AuthError) return authErrorResponse(err);
     throw err;
@@ -44,6 +49,18 @@ serve(async (req: Request) => {
 
   if (!body?.executive_id || (!body.audio_base64 && !body.audio_url)) {
     return new Response(JSON.stringify({ error: "executive_id and audio_base64 or audio_url required" }), { status: 400 });
+  }
+
+  // Ownership: body-supplied executive_id must match the executive the
+  // authenticated user owns. Without this, any signed-in user could submit
+  // arbitrary executive_id values to be echoed in logs / response.
+  const { data: ownedExec } = await supabase
+    .from("executives")
+    .select("id")
+    .eq("auth_user_id", authUserId)
+    .maybeSingle();
+  if (!ownedExec || ownedExec.id !== body.executive_id) {
+    return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403 });
   }
 
   // Prepare Gemini request

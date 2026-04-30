@@ -4,6 +4,7 @@ import { callAnthropic, extractText } from "../_shared/anthropic.ts";
 import { createRequestLogger } from "../_shared/logger.ts";
 import { requireEnv } from "../_shared/config.ts";
 
+import { verifyServiceRole, AuthError, authErrorResponse } from "../_shared/auth.ts";
 // Phase 5.04: 48-hour thin-slice inference
 // Triggered on Day 3 (or when sufficient observations exist)
 // Opus 4.6 analyses accumulated data for initial executive profile
@@ -17,6 +18,13 @@ serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { status: 200 });
   }
+  try {
+    verifyServiceRole(req);
+  } catch (err) {
+    if (err instanceof AuthError) return authErrorResponse(err);
+    throw err;
+  }
+
 
   const client = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
