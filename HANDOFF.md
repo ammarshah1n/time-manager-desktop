@@ -1,6 +1,29 @@
 # HANDOFF.md — Timed
 
-Last updated: 2026-04-29 late evening (Microsoft pipeline verified end-to-end with real outlook.com account)
+Last updated: 2026-04-30 morning (Gmail integration shipped additively)
+
+## ★ 2026-04-30 morning ★ — Gmail integration shipped (additive)
+
+**State: SHIPPED** (commit `4e5cf9e` on `unified`, pushed). Gmail + Google Calendar now run as a parallel set of services alongside the just-verified Microsoft pipeline. Microsoft path is **untouched** — additive only.
+
+**New code** (4 files in `Sources/TimedKit/Core/`): `Clients/GoogleClient.swift` (GIDSignIn lifecycle), `Clients/GmailClient.swift` (Gmail v1 + Calendar v3 HTTP), `Services/GmailSyncService.swift` (history-cursor poll loop, dual-write to existing `email_messages`, classify-email trigger, Tier 0 emission), `Services/GmailCalendarSyncService.swift`. AuthService gains `signInWithGoogle` / `connectGmailIfPossible` / `makeGoogleTokenProvider` — all parallel, no edits to Microsoft methods. PrefsPane has an "Add Gmail" affordance. `TimedAppShell` defensively forwards `com.googleusercontent.apps.*` URLs to `GIDSignIn.handle`.
+
+**Schema** (additive): migration `20260430120000_gmail_provider.sql` adds `executives.gmail_linked`, `executives.google_email`, and `connected_accounts` table (executive_id, provider, account_email, linked_at, revoked_at — RLS self-read). `voice-llm-proxy.readInboxSnapshot` gate flipped from `outlook_linked` to `(outlook_linked OR gmail_linked)`. No `provider` column added to `email_messages` — Gmail/MS message IDs don't collide and the orb's search_emails stays provider-agnostic.
+
+**GCP wiring** (Comet drove the console + Ammar reviewed): project `timed-494900`, OAuth client `461539145615-...apps.googleusercontent.com` (iOS type, bundle id `com.ammarshahin.timed`). Stored in **1Password Timed vault → "Google OAuth — Timed macOS"** with reversed scheme + project ID + status. `Platforms/Mac/Info.plist` gained `GIDClientID` + the reversed-client-ID URL scheme. Consent screen is in **Testing**; the only working test user is `5066sim@gmail.com` (Google's validator rejected `ammar@facilitated.com.au` and `yasser@facilitated.com.au` because they're Cloudflare email forwards, not real Google accounts).
+
+**DMG repacked** + installed at `/Applications/Timed.app`.
+
+**Pending — Ammar to run** (permission-check.sh blocks autonomous prod ops). Two CLI calls remain:
+
+1. Apply the new migration to `fpmjuufefhtlwbfinxlx` via the Supabase CLI (linked-project mode).
+2. Redeploy `voice-llm-proxy` so the OR-gate goes live.
+
+Then: open Timed → Settings → Accounts → "Add Gmail" → sign in with `5066sim@gmail.com`.
+
+**Decision: Yasser stays on Microsoft.** Per Ammar's call this session, Gmail is for Ammar's own use (5066sim account); Yasser keeps the Outlook path that just verified end-to-end last night.
+
+**Codex follow-up (deferred AIF work):** AIF decision extraction for this session is intentionally skipped — see `~/Downloads/codex-aif-followup-2026-04-30.md` for the prompt + the 1–3 candidate decisions Codex should log (additive Gmail provider; "don't touch active auth" applied to Microsoft+Gmail parallel pattern; permission-hook prod-mutation guardrail confirmed working).
 
 ## ★ 2026-04-29 LATE EVENING ★ — Microsoft pipeline end-to-end verified
 

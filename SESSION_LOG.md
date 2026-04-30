@@ -2754,3 +2754,527 @@ e785aac skibidi sprint phase 5 + comet integration: route-change recovery + scor
 .build/arm64-apple-macosx/release/SwiftOperators.build/output-file-map.json
 .build/arm64-apple-macosx/release/Supabase.build/output-file-map.json
 .build/arm64-apple-macosx/release/CasePathsCore.build/output-file-map.json
+
+---
+## Session: 2026-04-29 08:17
+
+### Commits This Session
+e7d2b53 docs: session log + build state — wrap-up state propagation
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+HANDOFF.md
+
+---
+## Session: 2026-04-29 12:37
+
+### Commits This Session
+e7d2b53 docs: session log + build state — wrap-up state propagation
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-29 12:50
+
+### Commits This Session
+e7d2b53 docs: session log + build state — wrap-up state propagation
+
+### Modified Files
+trigger/.trigger/tmp/build-OOBv7W/chunk-OUKHGUDH.mjs
+trigger/.trigger/tmp/build-OOBv7W/getMachineId-darwin-LLBWQIMS.mjs
+trigger/.trigger/tmp/build-OOBv7W/esm-KNM4MJQG.mjs
+trigger/.trigger/tmp/build-OOBv7W/chunk-DWXSTQP4.mjs.map
+trigger/.trigger/tmp/build-OOBv7W/chunk-SEP2MARH.mjs
+trigger/.trigger/tmp/build-OOBv7W/chunk-QERFAB6S.mjs.map
+trigger/.trigger/tmp/build-OOBv7W/trigger/trigger.config.mjs.map
+trigger/.trigger/tmp/build-OOBv7W/trigger/trigger.config.mjs
+trigger/.trigger/tmp/build-OOBv7W/trigger/src/tasks/hello-claude.mjs
+trigger/.trigger/tmp/build-OOBv7W/trigger/src/tasks/nrem-entity-extraction-consume.mjs.map
+trigger/.trigger/tmp/build-OOBv7W/trigger/src/tasks/graph-webhook-renewal.mjs.map
+trigger/.trigger/tmp/build-OOBv7W/trigger/src/tasks/graph-calendar-delta-sync.mjs
+trigger/.trigger/tmp/build-OOBv7W/trigger/src/tasks/rem-synthesis.mjs
+trigger/.trigger/tmp/build-OOBv7W/trigger/src/tasks/kg-snapshot.mjs.map
+trigger/.trigger/tmp/build-OOBv7W/trigger/src/tasks/nrem-entity-extraction-consume.mjs
+
+---
+## Session: 2026-04-29 13:08
+
+### Commits This Session
+e7d2b53 docs: session log + build state — wrap-up state propagation
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+
+---
+---
+## Session: 2026-04-29 13:18
+## Session: 2026-04-29 13:18
+
+
+### Commits This Session
+### Commits This Session
+e7d2b53 docs: session log + build state — wrap-up state propagation
+e7d2b53 docs: session log + build state — wrap-up state propagation
+
+
+### Modified Files
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog-launchd.log
+logs/watchdog.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-29 13:31
+
+### Commits This Session
+e7d2b53 docs: session log + build state — wrap-up state propagation
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-29 13:31
+
+### Commits This Session
+e7d2b53 docs: session log + build state — wrap-up state propagation
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-29 13:42
+
+### Commits This Session
+e7d2b53 docs: session log + build state — wrap-up state propagation
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-04-29 13:55
+
+### Commits This Session
+e7d2b53 docs: session log + build state — wrap-up state propagation
+
+### Modified Files
+.build/.lock
+.build/plugins/cache/SwiftProtobufPlugin.dia
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Resources/Relocations/aarch64/SwiftProtobufPlugin.yml
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Resources/DWARF/SwiftProtobufPlugin
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Info.plist
+.build/plugins/cache/SwiftProtobufPlugin-state.json
+.build/plugins/cache/SwiftProtobufPlugin
+.build/plugin-tools.yaml
+.build/release.yaml
+.build/arm64-apple-macosx/release/ElevenLabs.build/output-file-map.json
+.build/arm64-apple-macosx/release/Crypto.build/output-file-map.json
+.build/arm64-apple-macosx/release/USearch.build/output-file-map.json
+.build/arm64-apple-macosx/release/SwiftOperators.build/output-file-map.json
+.build/arm64-apple-macosx/release/Supabase.build/output-file-map.json
+.build/arm64-apple-macosx/release/CasePathsCore.build/output-file-map.json
+
+---
+## Session: 2026-04-29 14:20
+
+### Commits This Session
+e7d2b53 docs: session log + build state — wrap-up state propagation
+
+### Modified Files
+.build/.lock
+.build/arm64-apple-macosx/release/time-manager-desktop
+.build/arm64-apple-macosx/release/TimedMacApp.build/TimedMacApp.d
+.build/arm64-apple-macosx/release/TimedMacApp.build/TimedMacApp.dia
+.build/arm64-apple-macosx/release/time-manager-desktop.dSYM/Contents/Resources/Relocations/aarch64/time-manager-desktop.yml
+.build/arm64-apple-macosx/release/time-manager-desktop.dSYM/Contents/Resources/DWARF/time-manager-desktop
+.build/arm64-apple-macosx/release/time-manager-desktop.dSYM/Contents/Resources/Swift/aarch64/MSAL.swiftinterface
+.build/arm64-apple-macosx/release/time-manager-desktop.dSYM/Contents/Info.plist
+.build/arm64-apple-macosx/release/Modules/TimedKit.abi.json
+.build/arm64-apple-macosx/release/Modules/TimedKit.swiftmodule
+.build/arm64-apple-macosx/release/Modules/TimedMacApp.abi.json
+.build/arm64-apple-macosx/release/Modules/TimedKit.swiftsourceinfo
+.build/arm64-apple-macosx/release/TimedKit.build/AuthService.swift.o
+.build/arm64-apple-macosx/release/TimedKit.build/PrefsPane.swift.o
+.build/arm64-apple-macosx/release/TimedKit.build/TimedKit.dia
+
+---
+## Session: 2026-04-29 14:37
+
+### Commits This Session
+e7d2b53 docs: session log + build state — wrap-up state propagation
+
+### Modified Files
+.build/.lock
+.build/arm64-apple-macosx/release/time-manager-desktop
+.build/arm64-apple-macosx/release/TimedMacApp.build/TimedMacApp.d
+.build/arm64-apple-macosx/release/TimedMacApp.build/TimedMacApp.dia
+.build/arm64-apple-macosx/release/time-manager-desktop.dSYM/Contents/Resources/Relocations/aarch64/time-manager-desktop.yml
+.build/arm64-apple-macosx/release/time-manager-desktop.dSYM/Contents/Resources/DWARF/time-manager-desktop
+.build/arm64-apple-macosx/release/time-manager-desktop.dSYM/Contents/Resources/Swift/aarch64/MSAL.swiftinterface
+.build/arm64-apple-macosx/release/time-manager-desktop.dSYM/Contents/Info.plist
+.build/arm64-apple-macosx/release/Modules/TimedKit.abi.json
+.build/arm64-apple-macosx/release/Modules/TimedKit.swiftmodule
+.build/arm64-apple-macosx/release/Modules/TimedMacApp.abi.json
+.build/arm64-apple-macosx/release/Modules/TimedKit.swiftsourceinfo
+.build/arm64-apple-macosx/release/TimedKit.build/TimedKit.dia
+.build/arm64-apple-macosx/release/TimedKit.build/TimedKit.d
+.build/arm64-apple-macosx/release/TimedKit.build/GraphClient.swift.o
+
+---
+## Session: 2026-04-29 14:50
+
+### Commits This Session
+e7d2b53 docs: session log + build state — wrap-up state propagation
+
+### Modified Files
+.build/.lock
+.build/arm64-apple-macosx/release/time-manager-desktop
+.build/arm64-apple-macosx/release/TimedMacApp.build/TimedMacApp.d
+.build/arm64-apple-macosx/release/TimedMacApp.build/TimedMacApp.dia
+.build/arm64-apple-macosx/release/time-manager-desktop.dSYM/Contents/Resources/Relocations/aarch64/time-manager-desktop.yml
+.build/arm64-apple-macosx/release/time-manager-desktop.dSYM/Contents/Resources/DWARF/time-manager-desktop
+.build/arm64-apple-macosx/release/time-manager-desktop.dSYM/Contents/Resources/Swift/aarch64/MSAL.swiftinterface
+.build/arm64-apple-macosx/release/time-manager-desktop.dSYM/Contents/Info.plist
+.build/arm64-apple-macosx/release/Modules/TimedKit.abi.json
+.build/arm64-apple-macosx/release/Modules/TimedKit.swiftmodule
+.build/arm64-apple-macosx/release/Modules/TimedMacApp.abi.json
+.build/arm64-apple-macosx/release/Modules/TimedKit.swiftsourceinfo
+.build/arm64-apple-macosx/release/TimedKit.build/AuthService.swift.o
+.build/arm64-apple-macosx/release/TimedKit.build/PrefsPane.swift.o
+.build/arm64-apple-macosx/release/TimedKit.build/EdgeFunctions.swift.o
+
+---
+## Session: 2026-04-29 15:07
+
+### Commits This Session
+e7d2b53 docs: session log + build state — wrap-up state propagation
+
+### Modified Files
+supabase/functions/extract-voice-features/index.ts
+supabase/functions/nightly-phase2/index.ts
+supabase/functions/weekly-pruning/index.ts
+supabase/functions/generate-relationship-card/index.ts
+supabase/functions/nightly-phase1/index.ts
+supabase/functions/nightly-consolidation-full/index.ts
+supabase/functions/weekly-avoidance-synthesis/index.ts
+supabase/functions/weekly-pattern-detection/index.ts
+supabase/functions/monthly-trait-synthesis/index.ts
+supabase/functions/acb-refresh/index.ts
+supabase/functions/_shared/auth.ts
+supabase/functions/weekly-strategic-synthesis/index.ts
+supabase/functions/nightly-consolidation-refresh/index.ts
+supabase/functions/thin-slice-inference/index.ts
+supabase/functions/nightly-bias-detection/index.ts
+
+---
+## Session: 2026-04-29 18:19
+
+### Commits This Session
+(no recent commits)
+
+### Modified Files
+.build/.lock
+.build/workspace-state.json
+.build/plugins/cache/SwiftProtobufPlugin.dia
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Resources/Relocations/aarch64/SwiftProtobufPlugin.yml
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Resources/DWARF/SwiftProtobufPlugin
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Info.plist
+.build/plugins/cache/SwiftProtobufPlugin-state.json
+.build/plugins/cache/SwiftProtobufPlugin
+.build/checkouts/GRDB.swift/CODE_OF_CONDUCT.md
+.build/checkouts/GRDB.swift/Documentation/Migrations.md
+.build/checkouts/GRDB.swift/Documentation/GRDB5MigrationGuide.md
+.build/checkouts/GRDB.swift/Documentation/Images/DatabaseQueueScheduling.svg
+.build/checkouts/GRDB.swift/Documentation/Images/QueryInterfaceOrganization2.png
+.build/checkouts/GRDB.swift/Documentation/Images/DatabasePoolConcurrentRead.svg
+.build/checkouts/GRDB.swift/Documentation/Images/DatabasePoolScheduling.svg
+
+---
+## Session: 2026-04-29 18:44
+
+### Commits This Session
+(no recent commits)
+
+### Modified Files
+.build/.lock
+.build/arm64-apple-macosx/release/time-manager-desktop
+.build/arm64-apple-macosx/release/TimedMacApp.build/TimedMacApp.d
+.build/arm64-apple-macosx/release/TimedMacApp.build/TimedMacApp.dia
+.build/arm64-apple-macosx/release/time-manager-desktop.dSYM/Contents/Resources/Relocations/aarch64/time-manager-desktop.yml
+.build/arm64-apple-macosx/release/time-manager-desktop.dSYM/Contents/Resources/DWARF/time-manager-desktop
+.build/arm64-apple-macosx/release/time-manager-desktop.dSYM/Contents/Resources/Swift/aarch64/MSAL.swiftinterface
+.build/arm64-apple-macosx/release/time-manager-desktop.dSYM/Contents/Info.plist
+.build/arm64-apple-macosx/release/Modules/TimedKit.abi.json
+.build/arm64-apple-macosx/release/Modules/TimedKit.swiftmodule
+.build/arm64-apple-macosx/release/Modules/TimedMacApp.abi.json
+.build/arm64-apple-macosx/release/Modules/TimedKit.swiftsourceinfo
+.build/arm64-apple-macosx/release/TimedKit.build/AuthService.swift.o
+.build/arm64-apple-macosx/release/TimedKit.build/PrefsPane.swift.o
+.build/arm64-apple-macosx/release/TimedKit.build/TimedKit.dia
+
+---
+## Session: 2026-04-29 18:55
+
+### Commits This Session
+(no recent commits)
+
+### Modified Files
+logs/watchdog.log
+
+---
+## Session: 2026-04-29 19:07
+
+### Commits This Session
+(no recent commits)
+
+### Modified Files
+logs/watchdog.log
+
+---
+## Session: 2026-04-29 19:18
+
+### Commits This Session
+(no recent commits)
+
+### Modified Files
+logs/watchdog.log
+
+---
+## Session: 2026-04-29 19:29
+
+### Commits This Session
+(no recent commits)
+
+### Modified Files
+.claude/settings.local.json
+logs/watchdog.log
+
+---
+## Session: 2026-04-29 19:42
+
+### Commits This Session
+ab253af fix(packaging): pass --entitlements to ad-hoc codesign in package_app.sh
+f8c5fa1 feat(microsoft): auth cascade + ASWebAuth + MSAL keychain fix + voice AsyncStream + scope cleanup
+
+### Modified Files
+.build/.lock
+.build/plugins/cache/SwiftProtobufPlugin.dia
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Resources/Relocations/aarch64/SwiftProtobufPlugin.yml
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Resources/DWARF/SwiftProtobufPlugin
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Info.plist
+.build/plugins/cache/SwiftProtobufPlugin-state.json
+.build/plugins/cache/SwiftProtobufPlugin
+.build/debug.yaml
+.build/plugin-tools.yaml
+.build/release.yaml
+.build/arm64-apple-macosx/release/ElevenLabs.build/output-file-map.json
+.build/arm64-apple-macosx/release/Crypto.build/output-file-map.json
+.build/arm64-apple-macosx/release/USearch.build/output-file-map.json
+.build/arm64-apple-macosx/release/SwiftOperators.build/output-file-map.json
+.build/arm64-apple-macosx/release/Supabase.build/output-file-map.json
+
+### 2026-04-29 — memory-first hooks two-layer system (replaces broken nag)
+**Done**: Diagnosed root cause of 200K-token context burn from earlier this session — `memory-gate.sh` v1 used `exit 0 + stderr` which is INVISIBLE to Claude's reasoning loop. Replaced with two-layer system: (1) `memory-preempt.sh` UserPromptSubmit hook injects vault-first reminder via `additionalContext` once per session, (2) `memory-gate.sh` PreToolUse hook narrowed to research tools only (Agent/Task/WebSearch/WebFetch/comet), content-aware (syntax bypass + research block + sentinel-set inject). Block reason fed via stderr+exit 2 is model-visible; Claude self-corrects without user intervention. All 7 smoke tests pass. Avoids GH #16598 + #39814 bugs.
+**In progress**: none — SHIPPED
+**Discovered**: PreToolUse stderr at exit 0 is invisible to Claude (terminal-only). Only `exit 2 + stderr` (block) and `hookSpecificOutput.additionalContext` JSON (inject) reach the model. `permissionDecision: "allow"` causes intermittent crashes (#16598). `updatedInput` silently dropped on Agent (#39814). Also: tonight's "AIF crash" was `/extract` skill running 02_extract_decisions.py with CONCURRENCY=60 over 132MB corpus — scheduled rerun via launchd `com.ammar.aif-extract-rerun` at 00:30 ACST tomorrow; lower CONCURRENCY to ~10–15 before fire.
+**Next**: New Claude Code sessions auto-pick up the new hooks. Watch for false-positives during week-1 calibration. Optional escalation to Haiku-judge classifier (Design 3) if heuristic regex misclassifies > 10% of prompts.
+**State**: SHIPPED
+**Commit**: 826eb58 — feat(hooks): two-layer memory-first system replaces nag-only gate
+
+---
+## Session: 2026-04-29 19:54
+
+### Commits This Session
+826eb58 feat(hooks): two-layer memory-first system replaces nag-only gate
+ab253af fix(packaging): pass --entitlements to ad-hoc codesign in package_app.sh
+f8c5fa1 feat(microsoft): auth cascade + ASWebAuth + MSAL keychain fix + voice AsyncStream + scope cleanup
+
+### Modified Files
+.build/.lock
+Platforms/Mac/Timed.entitlements
+logs/watchdog.log
+dist.noindex/Timed.app/Contents/_CodeSignature/CodeResources
+dist.noindex/Timed.app/Contents/MacOS/timed
+dist.noindex/Timed.app/Contents/Resources/Timed.icns
+dist.noindex/Timed.app/Contents/Frameworks/MSAL.framework/Versions/A/_CodeSignature/CodeResources
+dist.noindex/Timed.app/Contents/Frameworks/MSAL.framework/Versions/A/Resources/Info.plist
+dist.noindex/Timed.app/Contents/Frameworks/MSAL.framework/Versions/A/MSAL
+dist.noindex/Timed.app/Contents/Frameworks/MSAL.framework/Versions/A/Headers/MSALGlobalConfig.h
+dist.noindex/Timed.app/Contents/Frameworks/MSAL.framework/Versions/A/Headers/MSALDefinitions.h
+dist.noindex/Timed.app/Contents/Frameworks/MSAL.framework/Versions/A/Headers/MSALWebviewParameters.h
+dist.noindex/Timed.app/Contents/Frameworks/MSAL.framework/Versions/A/Headers/MSALJsonSerializable.h
+dist.noindex/Timed.app/Contents/Frameworks/MSAL.framework/Versions/A/Headers/MSALAuthenticationSchemeProtocol.h
+dist.noindex/Timed.app/Contents/Frameworks/MSAL.framework/Versions/A/Headers/MSALB2CAuthority.h
+
+---
+## Session: 2026-04-29 20:29
+
+### Commits This Session
+826eb58 feat(hooks): two-layer memory-first system replaces nag-only gate
+ab253af fix(packaging): pass --entitlements to ad-hoc codesign in package_app.sh
+f8c5fa1 feat(microsoft): auth cascade + ASWebAuth + MSAL keychain fix + voice AsyncStream + scope cleanup
+
+### Modified Files
+.build/.lock
+.build/arm64-apple-macosx/release/time-manager-desktop
+.build/arm64-apple-macosx/release/time-manager-desktop.dSYM/Contents/Resources/Relocations/aarch64/time-manager-desktop.yml
+.build/arm64-apple-macosx/release/time-manager-desktop.dSYM/Contents/Resources/DWARF/time-manager-desktop
+.build/arm64-apple-macosx/release/time-manager-desktop.dSYM/Contents/Resources/Swift/aarch64/MSAL.swiftinterface
+.build/arm64-apple-macosx/release/time-manager-desktop.dSYM/Contents/Info.plist
+.build/arm64-apple-macosx/release/Modules/TimedKit.abi.json
+.build/arm64-apple-macosx/release/Modules/TimedKit.swiftsourceinfo
+.build/arm64-apple-macosx/release/TimedKit.build/MenuBarManager.swift.o
+.build/arm64-apple-macosx/release/TimedKit.build/TimedKit.dia
+.build/arm64-apple-macosx/release/TimedKit.build/TimedKit.d
+.build/arm64-apple-macosx/release/TimedKit.build/GraphClient.swift.o
+.build/arm64-apple-macosx/release/TimedKit.build/EmailSyncService.swift.o
+.build/arm64-apple-macosx/release/TimedKit.build/MorningInterviewPane.swift.o
+logs/watchdog.log
+
+---
+## Session: 2026-04-29 20:39
+
+### Commits This Session
+826eb58 feat(hooks): two-layer memory-first system replaces nag-only gate
+ab253af fix(packaging): pass --entitlements to ad-hoc codesign in package_app.sh
+f8c5fa1 feat(microsoft): auth cascade + ASWebAuth + MSAL keychain fix + voice AsyncStream + scope cleanup
+
+### Modified Files
+.build/.lock
+.build/arm64-apple-macosx/release/time-manager-desktop
+.build/arm64-apple-macosx/release/time-manager-desktop.dSYM/Contents/Resources/Relocations/aarch64/time-manager-desktop.yml
+.build/arm64-apple-macosx/release/time-manager-desktop.dSYM/Contents/Resources/DWARF/time-manager-desktop
+.build/arm64-apple-macosx/release/time-manager-desktop.dSYM/Contents/Resources/Swift/aarch64/MSAL.swiftinterface
+.build/arm64-apple-macosx/release/time-manager-desktop.dSYM/Contents/Info.plist
+.build/arm64-apple-macosx/release/Modules/TimedKit.abi.json
+.build/arm64-apple-macosx/release/Modules/TimedKit.swiftsourceinfo
+.build/arm64-apple-macosx/release/TimedKit.build/TimedKit.dia
+.build/arm64-apple-macosx/release/TimedKit.build/TimedKit.d
+.build/arm64-apple-macosx/release/TimedKit.build/GraphClient.swift.o
+.build/arm64-apple-macosx/release/TimedKit.build/CalendarSyncService.swift.o
+supabase/migrations/20260429120000_grant_get_executive_id.sql
+logs/watchdog.log
+Sources/TimedKit/Core/Clients/GraphClient.swift
+
+---
+## Session: 2026-04-29 20:52
+
+### Commits This Session
+beb7358 fix(microsoft): folder-scoped delta + RLS grant + diagnostic logging
+826eb58 feat(hooks): two-layer memory-first system replaces nag-only gate
+ab253af fix(packaging): pass --entitlements to ad-hoc codesign in package_app.sh
+f8c5fa1 feat(microsoft): auth cascade + ASWebAuth + MSAL keychain fix + voice AsyncStream + scope cleanup
+
+### Modified Files
+.build/.lock
+.build/arm64-apple-macosx/release/time-manager-desktop
+.build/arm64-apple-macosx/release/time-manager-desktop.dSYM/Contents/Resources/Relocations/aarch64/time-manager-desktop.yml
+.build/arm64-apple-macosx/release/time-manager-desktop.dSYM/Contents/Resources/DWARF/time-manager-desktop
+.build/arm64-apple-macosx/release/time-manager-desktop.dSYM/Contents/Resources/Swift/aarch64/MSAL.swiftinterface
+.build/arm64-apple-macosx/release/time-manager-desktop.dSYM/Contents/Info.plist
+.build/arm64-apple-macosx/release/Modules/TimedKit.abi.json
+.build/arm64-apple-macosx/release/Modules/TimedKit.swiftsourceinfo
+.build/arm64-apple-macosx/release/TimedKit.build/TimedKit.dia
+.build/arm64-apple-macosx/release/TimedKit.build/TimedKit.d
+.build/arm64-apple-macosx/release/TimedKit.build/GraphClient.swift.o
+.claude/hooks/session-start-context.sh
+supabase/functions/voice-llm-proxy/index.ts
+logs/watchdog.log
+Sources/TimedKit/Core/Clients/SupabaseClient.swift
+
+---
+## Session: 2026-04-29 21:06
+
+### Commits This Session
+892d8ff docs(handoff): Microsoft pipeline end-to-end verified — five fixes shipped
+cdd72b7 feat(orb): calendar event titles + in-progress events visible to orb
+beb7358 fix(microsoft): folder-scoped delta + RLS grant + diagnostic logging
+826eb58 feat(hooks): two-layer memory-first system replaces nag-only gate
+ab253af fix(packaging): pass --entitlements to ad-hoc codesign in package_app.sh
+
+### Modified Files
+.build/arm64-apple-macosx/release/time-manager-desktop
+.build/arm64-apple-macosx/release/TimedMacApp.build/TimedMacApp.d
+.build/arm64-apple-macosx/release/TimedMacApp.build/TimedMacApp.dia
+.build/arm64-apple-macosx/release/time-manager-desktop.dSYM/Contents/Resources/Relocations/aarch64/time-manager-desktop.yml
+.build/arm64-apple-macosx/release/time-manager-desktop.dSYM/Contents/Resources/DWARF/time-manager-desktop
+.build/arm64-apple-macosx/release/time-manager-desktop.dSYM/Contents/Resources/Swift/aarch64/MSAL.swiftinterface
+.build/arm64-apple-macosx/release/time-manager-desktop.dSYM/Contents/Info.plist
+.build/arm64-apple-macosx/release/Modules/TimedKit.abi.json
+.build/arm64-apple-macosx/release/Modules/TimedKit.swiftmodule
+.build/arm64-apple-macosx/release/Modules/TimedMacApp.abi.json
+.build/arm64-apple-macosx/release/Modules/TimedKit.swiftsourceinfo
+.build/arm64-apple-macosx/release/TimedKit.build/KeychainStore.swift.o
+.build/arm64-apple-macosx/release/TimedKit.build/TimedKit.dia
+.build/arm64-apple-macosx/release/TimedKit.build/TimedKit.d
+.build/arm64-apple-macosx/release/TimedKit.build/DishMeUpHomeView.swift.o
+
+---
+## Session: 2026-04-30 09:06
+
+### Commits This Session
+(no recent commits)
+
+### Modified Files
+logs/watchdog.log
+
+---
+## Session: 2026-04-30 09:22
+
+### Commits This Session
+(no recent commits)
+
+### Modified Files
+.build/.lock
+.build/workspace-state.json
+.build/checkouts/GoogleSignIn-iOS/Package@swift-5.5.swift
+.build/checkouts/GoogleSignIn-iOS/LICENSE
+.build/checkouts/GoogleSignIn-iOS/CHANGELOG.md
+.build/checkouts/GoogleSignIn-iOS/.cocoapods.yml
+.build/checkouts/GoogleSignIn-iOS/README.md
+.build/checkouts/GoogleSignIn-iOS/Samples/Swift/DaysUntilBirthday/DaysUntilBirthdayForPod.xcodeproj/project.pbxproj
+.build/checkouts/GoogleSignIn-iOS/Samples/Swift/DaysUntilBirthday/DaysUntilBirthdayForPod.xcodeproj/xcshareddata/xcschemes/DaysUntilBirthday (macOS).xcscheme
+.build/checkouts/GoogleSignIn-iOS/Samples/Swift/DaysUntilBirthday/DaysUntilBirthdayForPod.xcodeproj/xcshareddata/xcschemes/DaysUntilBirthday (iOS).xcscheme
+.build/checkouts/GoogleSignIn-iOS/Samples/Swift/DaysUntilBirthday/macOS/UserProfileView.swift
+.build/checkouts/GoogleSignIn-iOS/Samples/Swift/DaysUntilBirthday/macOS/Preview Content/Preview Assets.xcassets/Contents.json
+.build/checkouts/GoogleSignIn-iOS/Samples/Swift/DaysUntilBirthday/macOS/DaysUntilBirthdayOnMac.entitlements
+.build/checkouts/GoogleSignIn-iOS/Samples/Swift/DaysUntilBirthday/macOS/Info.plist
+.build/checkouts/GoogleSignIn-iOS/Samples/Swift/DaysUntilBirthday/Shared/ViewModels/BirthdayViewModel.swift
+
+---
+## Session: 2026-04-30 09:45
+
+### Commits This Session
+(no recent commits)
+
+### Modified Files
+.build/.lock
+.build/plugins/cache/SwiftProtobufPlugin.dia
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Resources/Relocations/aarch64/SwiftProtobufPlugin.yml
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Resources/DWARF/SwiftProtobufPlugin
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Info.plist
+.build/plugins/cache/SwiftProtobufPlugin-state.json
+.build/plugins/cache/SwiftProtobufPlugin
+.build/arm64-apple-macosx/debug/AppAuth.build/macOS/OIDRedirectHTTPHandler.m.o
+.build/arm64-apple-macosx/debug/AppAuth.build/macOS/LoopbackHTTPServer/OIDLoopbackHTTPServer.m.o
+.build/arm64-apple-macosx/debug/AppAuth.build/macOS/LoopbackHTTPServer/OIDLoopbackHTTPServer.m.d
+.build/arm64-apple-macosx/debug/AppAuth.build/macOS/OIDExternalUserAgentMac.m.o
+.build/arm64-apple-macosx/debug/AppAuth.build/macOS/OIDAuthorizationService+Mac.m.d
+.build/arm64-apple-macosx/debug/AppAuth.build/macOS/OIDAuthState+Mac.m.o
+.build/arm64-apple-macosx/debug/AppAuth.build/macOS/OIDRedirectHTTPHandler.m.d
+.build/arm64-apple-macosx/debug/AppAuth.build/macOS/OIDExternalUserAgentMac.m.d
+
+### 2026-04-30 — Gmail integration shipped (additive, parallel to Microsoft)
+**Done**: GoogleClient + GmailClient + GmailSyncService + GmailCalendarSyncService; AuthService.signInWithGoogle + connectGmailIfPossible cascade; PrefsPane "Add Gmail" button; migration 20260430120000 (gmail_linked + connected_accounts); voice-llm-proxy gate flipped to OR. GCP OAuth client provisioned (project timed-494900); Info.plist wired; 1Password Timed vault entry created. DMG repacked.
+**In progress**: none — code SHIPPED.
+**Discovered**: GoogleSignIn returns non-Sendable GIDGoogleUser → strict-concurrency fix requires extracting String? inside the callback (not crossing actor boundary). Permission hook blocks autonomous `supabase db push` and `supabase functions deploy`.
+**Next**: Ammar applies migration + redeploys voice-llm-proxy + signs in via 5066sim@gmail.com (only working test user — facilitated.com.au accounts rejected by Google validator).
+**State**: SHIPPED
