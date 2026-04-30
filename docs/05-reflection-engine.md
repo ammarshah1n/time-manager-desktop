@@ -1,7 +1,7 @@
 # 05 — Reflection Engine Specification
 
 > **Partially superseded 2026-04-10 by `NO-COST-CAP-AUDIT.md` + `MASTER-PLAN.md`.**
-> This doc describes the original 3-stage recursive reflection design. Current production status is tracked in `HANDOFF.md` and `BUILD_STATE.md`; as of 2026-04-30 Trigger.dev Prod deploy `20260429.2` is live and Graphiti backfill is parked on Voyage billing. Mental model and recursive-reflection intent remain correct.
+> This doc describes the original 3-stage recursive reflection design. Current production status is tracked in `HANDOFF.md` and `BUILD_STATE.md`; as of 2026-04-30 Trigger.dev Prod deploy `20260429.2` is live and Graphiti backfill completed in run `run_cmol21ysj5ohl0unbrlg495f2`. Mental model and recursive-reflection intent remain correct.
 
 ## Overview
 
@@ -9,7 +9,7 @@ The reflection engine is the heart of Timed. It is the mechanism by which the
 system gets genuinely smarter over time. Without it, Timed accumulates data.
 With it, Timed builds intelligence.
 
-**Status:** ✅ Reflection functions are active remotely; Supabase CLI verified 39 active remote Edge Functions on 2026-04-30. Trigger.dev owns Wave 2 scheduled tasks; Graphiti backfill is the current blocker.
+**Status:** ✅ Reflection functions are active remotely; Supabase CLI verified 39 active remote Edge Functions on 2026-04-30. Trigger.dev owns Wave 2 scheduled tasks; Graphiti backfill is complete.
 
 ## Architecture (from Research Pack 01)
 

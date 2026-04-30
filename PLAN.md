@@ -9,14 +9,13 @@
 - **Backend:** Supabase CLI verified 39 active remote Edge Functions on 2026-04-30; local tree has 40 function dirs plus `_shared`.
 - **Migrations:** 64 remote migrations applied, including `20260430120000_gmail_provider.sql`.
 - **Trigger.dev:** Hobby tier upgraded; Prod deploy `20260429.2` live with 13 detected tasks / 9 schedules.
-- **Graphiti:** backfill implementation is WIP at `2222bb4`, parked on Voyage billing.
+- **Graphiti:** one-shot `graphiti-backfill` completed in Trigger.dev Prod run `run_cmol21ysj5ohl0unbrlg495f2`; emitted 2 Tier 0 observations.
 - **Security hardening:** Edge Function auth/CORS hardening is committed and deployed; unauthenticated cron smoke call returns 401.
 
 ## ACTIVE PRIORITY
 1. Launch Timed and connect Gmail using the only current Google test user, `5066sim@gmail.com`.
-2. Resolve Voyage billing, then run/monitor `graphiti-backfill`.
-3. Resume Apple Developer enrollment for notarised Mac/iOS delivery.
-4. Decide whether optional local-only `deepgram-transcribe` should be deployed or kept parked.
+2. Resume Apple Developer enrollment for notarised Mac/iOS delivery.
+3. Decide whether optional local-only `deepgram-transcribe` should be deployed or kept parked.
 
 ## FILE QUICK REF
 - App shell: `Sources/TimedKit/AppEntry/TimedAppShell.swift`

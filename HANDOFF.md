@@ -1,6 +1,18 @@
 # HANDOFF.md — Timed
 
-Last updated: 2026-04-30 early afternoon (Gmail backend + hardening deployed)
+Last updated: 2026-04-30 mid-afternoon (Graphiti backfill completed)
+
+## ★ 2026-04-30 mid-afternoon ★ — Graphiti backfill completed
+
+**State: SHIPPED.** Ammar added $10 Voyage credits, then the deployed Trigger.dev Prod task was triggered and monitored to a terminal success.
+
+- Trigger run: `run_cmol21ysj5ohl0unbrlg495f2`
+- Trigger task: `graphiti-backfill`
+- Agent session: `cb1ea4fa-15dd-4af2-af7f-ff3799ea468c`
+- Output: `ona_nodes.scanned=0/emitted=0`, `ona_edges.scanned=0/emitted=0`, `tier0_observations.scanned=2/emitted=2`
+- Invocation note: Trigger.dev 4.4.4's public CLI has no registered task-trigger command; this run used the package's internal `triggerTask()` command against the already-logged-in `default` profile and Prod project `proj_vrakwmzenqmmhrzhfqyl`.
+
+**Remaining:** open Timed → Settings → Accounts → "Add Gmail" → sign in with `5066sim@gmail.com`; resume Apple Developer enrollment; decide whether optional local-only `deepgram-transcribe` should stay parked.
 
 ## ★ 2026-04-30 early afternoon ★ — Gmail backend live + security hardening deployed
 
@@ -12,7 +24,7 @@ Last updated: 2026-04-30 early afternoon (Gmail backend + hardening deployed)
 - Smoke check: unauthenticated `POST /functions/v1/nightly-phase1` returns HTTP 401 with `UNAUTHORIZED_NO_AUTH_HEADER`.
 - Security WIP is no longer dirty: hardening, advisory CI checks, session-start context preload, Graphiti parked-state docs, stale specs cleanup, and related Swift test repairs are committed locally.
 
-**Remaining:** open Timed → Settings → Accounts → "Add Gmail" → sign in with `5066sim@gmail.com`; resolve Voyage billing and run/monitor `graphiti-backfill`; resume Apple Developer enrollment; decide whether optional local-only `deepgram-transcribe` should stay parked.
+**Remaining:** open Timed → Settings → Accounts → "Add Gmail" → sign in with `5066sim@gmail.com`; resume Apple Developer enrollment; decide whether optional local-only `deepgram-transcribe` should stay parked. Graphiti backfill completed later the same day; see the mid-afternoon entry above.
 
 ## ★ 2026-04-30 morning ★ — Gmail integration shipped (additive)
 
@@ -280,7 +292,7 @@ As of 2026-04-27, the four divergent branches have been merged into one trunk (`
 
 | Stack | Built | Merged onto `unified` | Deployed | Live |
 |---|---|---|---|---|
-| Wave 1+2 backend (Trigger.dev v4 + Graphiti/Neo4j + 3 services + NREM/REM engine + outcome harvester) | ✅ | ✅ via `54fe80e` | ⚠️ Trigger.dev Prod `20260429.2` live; Graphiti backfill parked on Voyage billing | ⚠️ partial |
+| Wave 1+2 backend (Trigger.dev v4 + Graphiti/Neo4j + 3 services + NREM/REM engine + outcome harvester) | ✅ | ✅ via `54fe80e` | ✅ Trigger.dev Prod `20260429.2` live; Graphiti backfill completed in run `run_cmol21ysj5ohl0unbrlg495f2` | ✅ |
 | 15 Wave 1+2 schema changes | ✅ | ✅ | ✅ pushed to Supabase `fpmjuufefhtlwbfinxlx` | ⚠️ tables exist; nothing writes to them yet |
 | 3 new Edge Function proxies (`anthropic-proxy`, `elevenlabs-tts-proxy`, `deepgram-transcribe`) | ✅ | ✅ via `5acd23f` | ⚠️ Anthropic/ElevenLabs/voice proxy live; `deepgram-transcribe` remains optional local-only | ⚠️ partial |
 | Voice path lock (ElevenLabs Agent + Opus 4.7, baked-in agent ID, Apple TTS removed) | ✅ | ✅ | n/a (client) | ✅ DMG built |

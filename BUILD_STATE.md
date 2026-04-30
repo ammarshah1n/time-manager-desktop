@@ -1,10 +1,10 @@
-# BUILD_STATE.md — Last updated: 2026-04-30 (Gmail backend live; security hardening deployed)
+# BUILD_STATE.md — Last updated: 2026-04-30 (Graphiti backfill completed)
 
-> **Current state 2026-04-30** — `unified` remains the single active trunk. Microsoft email/calendar was verified end-to-end on 2026-04-29. Gmail + Google Calendar were added as a parallel path in commit `4e5cf9e`, with no Microsoft-path rewrites. Gmail backend migration + `voice-llm-proxy` OR-gate are now live remotely. Trigger.dev Wave 2 Opus aliases route to 4.7; older Supabase Edge Functions still contain direct 4.6 IDs. `HANDOFF.md` is the live narrative; this file is the build-state ledger.
+> **Current state 2026-04-30** — `unified` remains the single active trunk. Microsoft email/calendar was verified end-to-end on 2026-04-29. Gmail + Google Calendar were added as a parallel path in commit `4e5cf9e`, with no Microsoft-path rewrites. Gmail backend migration + `voice-llm-proxy` OR-gate are now live remotely. Trigger.dev Wave 2 Opus aliases route to 4.7; older Supabase Edge Functions still contain direct 4.6 IDs. Graphiti one-shot backfill completed in Prod run `run_cmol21ysj5ohl0unbrlg495f2`. `HANDOFF.md` is the live narrative; this file is the build-state ledger.
 
 > **Verified via CLI 2026-04-30** — Supabase remote has **39 ACTIVE Edge Functions**. Local tree has **40 function dirs + `_shared`**; `deepgram-transcribe` is local-only. `supabase migration list --linked` showed **64 remote migrations applied**, including `20260430120000_gmail_provider.sql`.
 
-> **Pending ops** — (1) launch Timed and connect Gmail with `5066sim@gmail.com`, (2) resolve Voyage billing and finish `graphiti-backfill`, (3) resume Apple Developer enrollment for notarised Mac/iOS delivery, (4) decide whether to deploy optional local-only `deepgram-transcribe`.
+> **Pending ops** — (1) launch Timed and connect Gmail with `5066sim@gmail.com`, (2) resume Apple Developer enrollment for notarised Mac/iOS delivery, (3) decide whether to deploy optional local-only `deepgram-transcribe`.
 
 > **Beta sprint SHIPPED 2026-04-28 PM** — commits `bcee82b` + `ec3a7fd` on `origin/unified`. 9 fixes from Beta-Ready Execution Plan + 3 Perplexity Deep Research audits: email/password auth, MainActor crash fix, smooth login transitions, Microsoft 4-square logo, "Set up later" plumbing, auth cascade (`bootstrapExecutive` → `signInWithGraph` → email + calendar sync), `v1BetaMode` defaulted false, `MorningBriefingPane` reachable, AlertEngine wired via new `AlertsPresenter`, `EmailClassifier.classifyLive` via anthropic-relay, iOS orb sheet → `ConversationView`, DishMeUp bucket dotColors + `sessionFraming` semibold, voice path guard test. Build green; `/Applications/Timed.app` was rebuilt.
 
@@ -140,7 +140,7 @@
 - Legacy/ folder (41 files) excluded from build, kept as reference
 
 ## Architecture Status: Orb is now Microsoft + Gmail + Graphiti aware (2026-04-30)
-> **Updated 2026-04-30** — `voice-llm-proxy` pulls a 24h inbox snapshot into context and gates inbox confidence on `(outlook_linked OR gmail_linked)` in live remote code. The Microsoft path is live after `signInWithGraph()`; the Gmail path now needs the app sign-in step with `5066sim@gmail.com`. Graphiti search is wired as a server-side tool, but historical backfill is parked on Voyage billing.
+> **Updated 2026-04-30** — `voice-llm-proxy` pulls a 24h inbox snapshot into context and gates inbox confidence on `(outlook_linked OR gmail_linked)` in live remote code. The Microsoft path is live after `signInWithGraph()`; the Gmail path now needs the app sign-in step with `5066sim@gmail.com`. Graphiti search is wired as a server-side tool, and the one-shot historical backfill completed in Trigger.dev Prod run `run_cmol21ysj5ohl0unbrlg495f2` with 2 Tier 0 observations emitted.
 
 ## Architecture Status: Intelligence Engine + Auth Bridge COMPLETE
 > **Updated 2026-04-14** — Intelligence Maximisation Plan (12 steps) implemented. Auth bridge wired. App ready for first sign-in.

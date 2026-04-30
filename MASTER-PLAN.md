@@ -12,7 +12,7 @@ Last updated: 2026-04-30
 - Supabase CLI verified 39 active remote Edge Functions and 64 applied remote migrations.
 - Trigger.dev Prod deploy `20260429.2` is live with 13 detected tasks / 9 schedules.
 - Trigger.dev Wave 2 Opus aliases route to `claude-opus-4-7`; older Supabase Edge Functions still contain direct `claude-opus-4-6` model IDs.
-- Graphiti backfill is implemented in WIP commit `2222bb4` and parked on Voyage billing.
+- Graphiti one-shot backfill completed in Trigger.dev Prod run `run_cmol21ysj5ohl0unbrlg495f2`; 2 Tier 0 observations emitted.
 - The sections below preserve the architecture plan and older implementation gaps; for live operational state read `HANDOFF.md` and `BUILD_STATE.md` first.
 
 ### Pre-Build: Development Infrastructure
@@ -209,7 +209,7 @@ Timed is a **cognitive intelligence system** for one C-suite executive (Yasser S
 
 **CURRENT GAP (2026-04-30):**
 - Gmail needs the manual app sign-in step with `5066sim@gmail.com`
-- Graphiti backfill is parked on Voyage billing
+- Graphiti backfill completed after Voyage credits were added
 - Developer ID signing / notarisation and iOS TestFlight remain blocked on Apple Developer enrollment
 
 ---
