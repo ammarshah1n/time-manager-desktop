@@ -1,6 +1,17 @@
 # HANDOFF.md — Timed
 
-Last updated: 2026-04-30 mid-afternoon (Graphiti backfill completed)
+Last updated: 2026-04-30 evening (assistant guidance audit)
+
+## ★ 2026-04-30 evening ★ — Assistant guidance audit completed
+
+**State: SHIPPED.** Audited Claude/Codex guidance for Timed, PFF DD, and global assistant context. Timed repo guidance is now current with the unified branch protocol, shipped Gmail/Graphiti/security-hardening state, and the remaining manual ops.
+
+- Commit: `e3d35b0 docs(timed): refresh assistant guidance`
+- Timed guidance refreshed: `CLAUDE.md`, `.claude/rules/session-protocol.md`, `.claude/rules/ai-assistant-rules.md`
+- Codex local memory refreshed outside this repo under `~/.codex/memories/` and `~/.codex/AGENTS.md`
+- PFF DD repo was already dirty before the audit (`BUILD_STATE.md`, `SESSION_LOG.md`, `docs/rules/corrections-log.md`, `scripts/reset-demo-profile.sh`), so no PFF repo files were edited.
+
+**Remaining:** rotate the provider API key found in global Claude settings/backups and clean local cached copies with explicit approval; reconcile the stale comment in PFF DD `.claude/hooks/session-setup.sh` after the pre-existing dirty worktree is resolved.
 
 ## ★ 2026-04-30 mid-afternoon ★ — Graphiti backfill completed
 
