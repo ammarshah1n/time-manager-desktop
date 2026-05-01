@@ -61,6 +61,10 @@ final class EdgeFunctions {
         }
     }
 
+    func authorizationHeader() async throws -> String {
+        "Bearer \(try await accessToken())"
+    }
+
     /// Fire-and-forget OPTIONS request against each named Edge Function so the
     /// Deno isolate is warm by the time the user's first utterance arrives.
     /// Failures (no network, function not deployed, etc.) are non-fatal.

@@ -57,7 +57,8 @@ actor VoiceFeatureService {
             var request = URLRequest(url: url)
             request.httpMethod = "POST"
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.setValue(SupabaseEndpoints.authHeader, forHTTPHeaderField: "Authorization")
+            let authHeader = try await EdgeFunctions.shared.authorizationHeader()
+            request.setValue(authHeader, forHTTPHeaderField: "Authorization")
 
             let payload: [String: Any] = [
                 "executive_id": executiveId.uuidString,

@@ -155,7 +155,8 @@ final class MorningCheckInManager: ObservableObject {
             var req = URLRequest(url: url)
             req.httpMethod = "POST"
             req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            req.setValue(SupabaseEndpoints.authHeader, forHTTPHeaderField: "Authorization")
+            guard let authHeader = try? await EdgeFunctions.shared.authorizationHeader() else { return }
+            req.setValue(authHeader, forHTTPHeaderField: "Authorization")
             let body: [String: Any] = [
                 "session_date": ISO8601DateFormatter().string(from: Date()).prefix(10),
                 "transcript":   transcriptText,

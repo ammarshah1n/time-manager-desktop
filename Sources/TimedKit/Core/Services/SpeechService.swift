@@ -61,7 +61,11 @@ final class SpeechService: NSObject, ObservableObject {
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        request.setValue(SupabaseEndpoints.authHeader, forHTTPHeaderField: "Authorization")
+        guard let authHeader = try? await EdgeFunctions.shared.authorizationHeader() else {
+            lastError = "Sign in to Timed before using voice playback."
+            return false
+        }
+        request.setValue(authHeader, forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("audio/mpeg", forHTTPHeaderField: "Accept")
 

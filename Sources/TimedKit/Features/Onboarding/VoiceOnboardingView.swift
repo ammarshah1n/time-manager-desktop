@@ -239,7 +239,8 @@ struct VoiceOnboardingView: View {
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.setValue(SupabaseEndpoints.authHeader, forHTTPHeaderField: "Authorization")
+        guard let authHeader = try? await EdgeFunctions.shared.authorizationHeader() else { return }
+        req.setValue(authHeader, forHTTPHeaderField: "Authorization")
         req.httpBody = try? JSONSerialization.data(withJSONObject: body)
         _ = try? await URLSession.shared.data(for: req)
     }

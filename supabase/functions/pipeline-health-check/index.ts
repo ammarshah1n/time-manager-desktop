@@ -1,10 +1,15 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  AuthError,
+  authErrorResponse,
+  verifyServiceRole,
+} from "../_shared/auth.ts";
 import { requireEnv } from "../_shared/config.ts";
 
 const supabaseAdmin = createClient(
   requireEnv("SUPABASE_URL"),
-  requireEnv("SUPABASE_SERVICE_ROLE_KEY")
+  requireEnv("SUPABASE_SERVICE_ROLE_KEY"),
 );
 
 type CheckType =
@@ -51,13 +56,15 @@ function errorMessage(error: unknown): string {
 function isMissingTableError(error: unknown): boolean {
   const code = errorCode(error);
   const message = errorMessage(error).toLowerCase();
-  return code === "42P01" || (message.includes("relation") && message.includes("does not exist"));
+  return code === "42P01" ||
+    (message.includes("relation") && message.includes("does not exist"));
 }
 
 function isMissingColumnError(error: unknown): boolean {
   const code = errorCode(error);
   const message = errorMessage(error).toLowerCase();
-  return code === "42703" || (message.includes("column") && message.includes("does not exist"));
+  return code === "42703" ||
+    (message.includes("column") && message.includes("does not exist"));
 }
 
 function dateKeyFromValue(value: string): string {
@@ -79,7 +86,7 @@ function utcDateKeyDaysAgo(daysAgo: number): string {
 async function countRecentRows(
   table: string,
   columns: string[],
-  sinceValue: string
+  sinceValue: string,
 ): Promise<
   | { kind: "success"; count: number; column: string }
   | { kind: "missing_table" }
@@ -112,7 +119,7 @@ async function countRecentRows(
 async function fetchRecentDateValues(
   table: string,
   columns: string[],
-  sinceValue: string
+  sinceValue: string,
 ): Promise<
   | { kind: "success"; values: string[]; column: string }
   | { kind: "missing_table" }
@@ -128,7 +135,7 @@ async function fetchRecentDateValues(
     if (!error) {
       const values = (data ?? [])
         .map((row) => {
-          const value = (row as Record<string, unknown>)[column];
+          const value = (row as unknown as Record<string, unknown>)[column];
           return typeof value === "string" ? value : null;
         })
         .filter((value): value is string => value !== null);
@@ -152,7 +159,7 @@ async function fetchRecentDateValues(
 
 async function fetchLatestValue(
   table: string,
-  columns: string[]
+  columns: string[],
 ): Promise<
   | { kind: "success"; value: string | null; column: string }
   | { kind: "missing_table" }
@@ -167,7 +174,9 @@ async function fetchLatestValue(
       .maybeSingle();
 
     if (!error) {
-      const value = data ? (data as Record<string, unknown>)[column] : null;
+      const value = data
+        ? (data as unknown as Record<string, unknown>)[column]
+        : null;
       return {
         kind: "success",
         value: typeof value === "string" ? value : null,
@@ -191,7 +200,10 @@ async function fetchLatestValue(
 
 async function runTier0Check(): Promise<CheckResult> {
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-  const outcome = await countRecentRows("tier0_observations", ["occurred_at", "created_at"], since);
+  const outcome = await countRecentRows("tier0_observations", [
+    "occurred_at",
+    "created_at",
+  ], since);
 
   if (outcome.kind === "missing_table") {
     return {
@@ -212,8 +224,11 @@ async function runTier0Check(): Promise<CheckResult> {
     };
   }
 
-  const status: Status =
-    outcome.count === 0 ? "critical" : outcome.count < 50 ? "warning" : "ok";
+  const status: Status = outcome.count === 0
+    ? "critical"
+    : outcome.count < 50
+    ? "warning"
+    : "ok";
 
   return {
     check_type: "tier0_count",
@@ -232,14 +247,17 @@ async function runTier1GapCheck(): Promise<CheckResult> {
   const outcome = await fetchRecentDateValues(
     "tier1_daily_summaries",
     ["summary_date", "date", "created_at", "generated_at"],
-    since
+    since,
   );
 
   if (outcome.kind === "missing_table") {
     return {
       check_type: "tier1_gap",
       status: "ok",
-      details: { note: "table not deployed yet", table: "tier1_daily_summaries" },
+      details: {
+        note: "table not deployed yet",
+        table: "tier1_daily_summaries",
+      },
     };
   }
 
@@ -254,10 +272,17 @@ async function runTier1GapCheck(): Promise<CheckResult> {
     };
   }
 
-  const expectedDates = Array.from({ length: 7 }, (_, index) => utcDateKeyDaysAgo(6 - index));
-  const observedDates = Array.from(new Set(outcome.values.map(dateKeyFromValue))).sort();
+  const expectedDates = Array.from(
+    { length: 7 },
+    (_, index) => utcDateKeyDaysAgo(6 - index),
+  );
+  const observedDates = Array.from(
+    new Set(outcome.values.map(dateKeyFromValue)),
+  ).sort();
   const observedDateSet = new Set(observedDates);
-  const missingDates = expectedDates.filter((date) => !observedDateSet.has(date));
+  const missingDates = expectedDates.filter((date) =>
+    !observedDateSet.has(date)
+  );
 
   return {
     check_type: "tier1_gap",
@@ -275,14 +300,17 @@ async function runTier1GapCheck(): Promise<CheckResult> {
 async function runAcbAgeCheck(): Promise<CheckResult> {
   const outcome = await fetchLatestValue(
     "active_context_buffer",
-    ["generated_at", "updated_at", "created_at"]
+    ["generated_at", "updated_at", "created_at"],
   );
 
   if (outcome.kind === "missing_table") {
     return {
       check_type: "acb_age",
       status: "ok",
-      details: { note: "table not deployed yet", table: "active_context_buffer" },
+      details: {
+        note: "table not deployed yet",
+        table: "active_context_buffer",
+      },
     };
   }
 
@@ -352,7 +380,11 @@ async function sendWebhookAlert(results: CheckResult[]): Promise<void> {
   if (flagged.length === 0) return;
 
   const text = flagged
-    .map((r) => `[${r.status.toUpperCase()}] ${r.check_type}: ${JSON.stringify(r.details)}`)
+    .map((r) =>
+      `[${r.status.toUpperCase()}] ${r.check_type}: ${
+        JSON.stringify(r.details)
+      }`
+    )
     .join("\n");
 
   try {
@@ -375,8 +407,16 @@ serve(async (req: Request) => {
       },
     });
   }
+  if (req.method !== "POST") {
+    return new Response("Method not allowed", {
+      status: 405,
+      headers: responseHeaders(),
+    });
+  }
 
   try {
+    verifyServiceRole(req);
+
     const results = await Promise.all([
       runTier0Check(),
       runTier1GapCheck(),
@@ -397,12 +437,19 @@ serve(async (req: Request) => {
 
     return new Response(
       JSON.stringify({ results }),
-      { headers: responseHeaders() }
+      { headers: responseHeaders() },
     );
   } catch (err) {
+    if (err instanceof AuthError) {
+      const response = authErrorResponse(err);
+      return new Response(response.body, {
+        status: response.status,
+        headers: responseHeaders(),
+      });
+    }
     return new Response(
       JSON.stringify({ error: errorMessage(err) || "Internal error" }),
-      { status: 500, headers: responseHeaders() }
+      { status: 500, headers: responseHeaders() },
     );
   }
 });

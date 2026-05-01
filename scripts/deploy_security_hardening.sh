@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Deploys the 16 Edge Functions changed in the 2026-04-29 security hardening pass.
+# Deploys the Edge Functions changed in the security hardening passes.
 #
-#   - 14 cron-triggered functions had no JWT role check; now require
+#   - Cron-triggered functions with service-role Supabase clients require
 #     service-role JWT (Supabase platform already verifies the JWT signature,
 #     we add a role-claim check via _shared/auth.ts:verifyServiceRole).
 #     The pg_cron migrations already pass the service-role key as Bearer,
@@ -10,6 +10,9 @@
 #   - extract-voice-features and generate-relationship-card called verifyAuth
 #     but ignored its return value; both now perform an executives-table
 #     ownership check (auth_user_id → owned executive id == body.executive_id).
+#
+#   - Public provider proxies now require a real Supabase user JWT, bound
+#     request sizes, provider/model allowlists, and sanitized upstream errors.
 #
 # All other behaviour (CORS, body shape, response format) is unchanged.
 #
@@ -37,6 +40,13 @@ FUNCTIONS=(
   "thin-slice-inference"
   "generate-morning-briefing"
   "acb-refresh"
+  "poll-batch-results"
+  "pipeline-health-check"
+  "renew-graph-subscriptions"
+  # User-facing provider proxies (now require user JWT + request guardrails)
+  "anthropic-proxy"
+  "elevenlabs-tts-proxy"
+  "deepgram-transcribe"
   # User-facing (now enforce executive ownership)
   "extract-voice-features"
   "generate-relationship-card"
