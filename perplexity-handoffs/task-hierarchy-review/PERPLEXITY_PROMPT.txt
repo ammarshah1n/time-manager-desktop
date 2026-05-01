@@ -1,0 +1,40 @@
+You are reviewing a major implementation plan for Timed, a macOS Swift/SwiftUI/Supabase executive OS.
+
+Your job is not to praise the plan. Your job is to break it before implementation.
+
+Assess the uploaded plan and repo-context files. Use the quoted file paths and snippets as primary evidence. You may use web research only for current Swift/Supabase/Postgres/Edge Function best practices, but do not replace repo evidence with generic advice.
+
+Goal:
+Review the TickTick-style task hierarchy + silent AI-learning plan and produce a concrete implementation risk report.
+
+Must answer:
+1. What parts of the plan are under-specified?
+2. What backend/schema/sync risks could make implementation fail?
+3. Where could the Swift model, local JSON persistence, Supabase rows, Edge Functions, and Trigger jobs drift out of sync?
+4. What migration strategy prevents data loss and avoids breaking existing tasks?
+5. What exact fields, constraints, indexes, RLS rules, and event payloads are missing or should change?
+6. How should subtasks work so planning, estimation, completion, and AI learning remain coherent?
+7. How should silent learning work so estimate corrections affect future estimates without noisy user prompts?
+8. Which files or subsystems are most collision-prone based on the supplied dirty-worktree notes?
+9. What is the safest implementation sequence?
+10. What tests must exist before this can be considered safe?
+
+Hard constraints:
+- Timed observes, reflects, recommends. It must not send emails, book events, or act outside the app.
+- All persistence goes through Supabase/PostgREST and the existing Swift persistence layer.
+- No direct AI API calls from Swift.
+- Keep canonical planning buckets underneath user-created display sections.
+- Subtasks are one level only.
+- Corrections are logged silently and only surfaced in the next review when meaningful.
+- Backend correctness matters more than UI polish.
+
+Return:
+- Executive verdict: safe / unsafe / safe after changes.
+- Top 10 implementation blockers, ordered by severity.
+- Required schema changes with exact columns and constraints.
+- Required Swift/API changes.
+- Required Edge Function / Trigger changes.
+- Collision prevention plan.
+- Acceptance test matrix.
+- Revised implementation plan.
+- Any assumptions you had to make.
