@@ -1,6 +1,19 @@
 # HANDOFF.md — Timed
 
-Last updated: 2026-05-01 (review remediation wrap-up)
+Last updated: 2026-05-01 (installed app login + capture voice wrap-up)
+
+## ★ 2026-05-01 late afternoon ★ — Installed app login prompt + capture voice fixed
+
+**State: SHIPPED.** The Dock-pinned app now points at `/Applications/Timed.app`, and `/Applications/Timed.app` was replaced with the freshly packaged build from `unified`.
+
+- Commits: `06dc8dd fix(timed): stop launch outlook prompt`, `92514f3 fix(timed): surface capture voice permissions`, `23d297c fix(timed): package google oauth config`, `ad2f432 fix(timed): isolate voice capture audio tap`
+- Root cause for repeated login: `AuthService.bootstrapExecutive()` auto-called Outlook/MSAL connection on app launch; ad-hoc builds can hit MSAL keychain `-34018`, so launch restore cascaded into repeated interactive login prompts.
+- Root cause for broken Capture voice: voice permission denial only logged `Voice capture not authorised — aborting start`; Capture UI did not surface the denial or send the user to macOS privacy settings.
+- Packaging fix: `scripts/package_app.sh` now includes the Google OAuth `GIDClientID` and reversed client URL scheme, matching `Platforms/Mac/Info.plist`.
+- Verification: `swift build`, `swift test` (71 tests), `bash scripts/package_app.sh`, `codesign --verify --deep --strict --verbose=2 /Applications/Timed.app`.
+- Installed binary hash: `/Applications/Timed.app/Contents/MacOS/timed` matches `dist.noindex/Timed.app/Contents/MacOS/timed` at `e5838964834b4e2668357313d0c8930fe65271dd4b8726b739963c2366108664`.
+
+**Next:** launch Timed from the Dock. If Capture says microphone or speech permission is blocked, use its new Open Settings button and enable Timed under macOS Privacy.
 
 ## ★ 2026-05-01 ★ — Review remediation pass archived for Perplexity follow-up
 
