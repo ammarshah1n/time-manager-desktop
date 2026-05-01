@@ -18,6 +18,140 @@ const supabase = createClient(
   requireEnv("SUPABASE_SERVICE_ROLE_KEY"),
 );
 
+const TOKEN_REFRESH_WINDOW_MS = 5 * 60 * 1000;
+
+let graphTokenCache: { access_token: string; expires_at: number } | null = null;
+
+interface SubscriptionRow {
+  id: string;
+  exec_id: string | null;
+  subscription_id: string | null;
+  resource: string;
+  expires_at: string;
+}
+
+interface TokenEndpointResponse {
+  access_token: string;
+  expires_in: number;
+}
+
+interface PatchResponse {
+  expirationDateTime?: string;
+}
+
+class GraphAuthError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "GraphAuthError";
+  }
+}
+
+class SubscriptionNotFoundError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "SubscriptionNotFoundError";
+  }
+}
+
+async function getGraphAppToken(): Promise<string> {
+  const now = Date.now();
+  if (
+    graphTokenCache &&
+    now < graphTokenCache.expires_at - TOKEN_REFRESH_WINDOW_MS
+  ) {
+    return graphTokenCache.access_token;
+  }
+
+  const tenantId = requireEnv("MSFT_TENANT_ID");
+  const tokenUrl = `https://login.microsoftonline.com/${
+    encodeURIComponent(
+      tenantId,
+    )
+  }/oauth2/v2.0/token`;
+  const body = new URLSearchParams({
+    grant_type: "client_credentials",
+    client_id: requireEnv("MSFT_APP_CLIENT_ID"),
+    client_secret: requireEnv("MSFT_APP_CLIENT_SECRET"),
+    scope: "https://graph.microsoft.com/.default",
+  });
+
+  const response = await fetch(tokenUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: body.toString(),
+  });
+  if (!response.ok) {
+    const text = await response.text().catch(() => "<unreadable>");
+    throw new Error(
+      `Graph token request failed: ${response.status} ${response.statusText}: ${text}`,
+    );
+  }
+
+  const parsed = (await response.json()) as TokenEndpointResponse;
+  graphTokenCache = {
+    access_token: parsed.access_token,
+    expires_at: Date.now() + parsed.expires_in * 1000,
+  };
+  return graphTokenCache.access_token;
+}
+
+async function patchSubscription(
+  subscriptionId: string,
+  newExpiry: string,
+  token: string,
+): Promise<PatchResponse> {
+  const response = await fetch(
+    `https://graph.microsoft.com/v1.0/subscriptions/${
+      encodeURIComponent(
+        subscriptionId,
+      )
+    }`,
+    {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({ expirationDateTime: newExpiry }),
+    },
+  );
+
+  if (response.status === 401) {
+    throw new GraphAuthError(`Graph returned 401 for ${subscriptionId}`);
+  }
+  if (response.status === 404) {
+    throw new SubscriptionNotFoundError(
+      `Graph subscription ${subscriptionId} was not found`,
+    );
+  }
+  if (!response.ok) {
+    const text = await response.text().catch(() => "(no body)");
+    throw new Error(
+      `Graph ${response.status} for subscription ${subscriptionId}: ${text}`,
+    );
+  }
+
+  return (await response.json()) as PatchResponse;
+}
+
+async function patchSubscriptionWithRetry(
+  subscriptionId: string,
+  newExpiry: string,
+): Promise<PatchResponse> {
+  let token = await getGraphAppToken();
+  try {
+    return await patchSubscription(subscriptionId, newExpiry, token);
+  } catch (err) {
+    if (err instanceof GraphAuthError) {
+      graphTokenCache = null;
+      token = await getGraphAppToken();
+      return await patchSubscription(subscriptionId, newExpiry, token);
+    }
+    throw err;
+  }
+}
+
 serve(async (req: Request) => {
   const log = createRequestLogger("renew-graph-subscriptions");
   if (req.method === "OPTIONS") return new Response("ok", { status: 200 });
@@ -30,15 +164,13 @@ serve(async (req: Request) => {
     const renewWindowCutoff = new Date(Date.now() + 24 * 60 * 60 * 1000)
       .toISOString();
 
-    // 1. Fetch all email_accounts with subscriptions expiring within 24 hours
-    const { data: accounts, error: fetchError } = await supabase
-      .from("email_accounts")
+    const { data: subscriptions, error: fetchError } = await supabase
+      .from("graph_subscriptions")
       .select(
-        "id,workspace_id,graph_subscription_id,subscription_expires_at,oauth_access_token",
+        "id,exec_id,subscription_id,resource,expires_at",
       )
-      .not("graph_subscription_id", "is", null)
-      .lt("subscription_expires_at", renewWindowCutoff)
-      .eq("is_active", true);
+      .not("subscription_id", "is", null)
+      .lt("expires_at", renewWindowCutoff);
 
     if (fetchError) {
       console.error(
@@ -51,91 +183,73 @@ serve(async (req: Request) => {
       );
     }
 
-    if (!accounts || accounts.length === 0) {
+    if (!subscriptions || subscriptions.length === 0) {
       return new Response(
-        JSON.stringify({ renewed: 0, failed: 0, needsReauth: 0 }),
+        JSON.stringify({ renewed: 0, failed: 0, deleted: 0 }),
         { status: 200, headers: { "Content-Type": "application/json" } },
       );
     }
 
     let renewed = 0;
     let failed = 0;
-    let needsReauth = 0;
+    let deleted = 0;
 
-    // 2. Process each account
-    for (const account of accounts) {
+    for (const subscription of subscriptions as SubscriptionRow[]) {
       const {
-        id: accountId,
-        workspace_id,
-        graph_subscription_id,
-        oauth_access_token,
-      } = account;
+        id: rowId,
+        exec_id,
+        subscription_id,
+        resource,
+      } = subscription;
 
-      // New expiry: now + 3 days (Graph API max)
+      if (!subscription_id) continue;
       const newExpiry = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)
         .toISOString();
 
       try {
-        const response = await fetch(
-          `https://graph.microsoft.com/v1.0/subscriptions/${graph_subscription_id}`,
-          {
-            method: "PATCH",
-            headers: {
-              Authorization: `Bearer ${oauth_access_token}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ expirationDateTime: newExpiry }),
-          },
+        const body = await patchSubscriptionWithRetry(
+          subscription_id,
+          newExpiry,
         );
+        const confirmedExpiry = body.expirationDateTime ?? newExpiry;
 
-        if (response.ok) {
-          // 2c. Success — update expiry from response body
-          const body = await response.json();
-          const confirmedExpiry = body.expirationDateTime ?? newExpiry;
+        await supabase
+          .from("graph_subscriptions")
+          .update({
+            expires_at: confirmedExpiry,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", rowId);
 
-          await supabase
-            .from("email_accounts")
-            .update({ subscription_expires_at: confirmedExpiry })
-            .eq("id", accountId);
-
-          renewed++;
-          console.log(
-            `[renew-graph-subscriptions] renewed ${graph_subscription_id} for workspace ${workspace_id}`,
-          );
-        } else if (response.status === 401) {
-          // 2d. Token expired — flag for reauth
-          await supabase
-            .from("email_accounts")
-            .update({ needs_reauth: true })
-            .eq("id", accountId);
-
-          needsReauth++;
-          console.warn(
-            `[renew-graph-subscriptions] 401 for account ${accountId} (workspace ${workspace_id}) — marked needs_reauth`,
-          );
-        } else {
-          // 2e. Other error — log and continue
-          const errorText = await response.text().catch(() => "(no body)");
-          console.error(
-            `[renew-graph-subscriptions] ${response.status} for subscription ${graph_subscription_id}:`,
-            errorText,
-          );
-          failed++;
-        }
+        renewed++;
+        console.log(
+          `[renew-graph-subscriptions] renewed ${subscription_id} (${resource}) for exec ${exec_id}`,
+        );
       } catch (err) {
+        if (err instanceof SubscriptionNotFoundError) {
+          await supabase
+            .from("graph_subscriptions")
+            .delete()
+            .eq("id", rowId);
+          deleted++;
+          console.warn(
+            `[renew-graph-subscriptions] deleted missing subscription ${subscription_id}`,
+          );
+          continue;
+        }
+
         const msg = err instanceof Error ? err.message : String(err);
         console.error(
-          `[renew-graph-subscriptions] network error for ${graph_subscription_id}:`,
+          `[renew-graph-subscriptions] renewal error for ${subscription_id}:`,
           msg,
         );
         failed++;
       }
     }
 
-    // 3. Return summary
-    log.info("complete", { renewed, failed, needsReauth });
+    log.info("complete", { renewed, failed, deleted });
     return new Response(
-      JSON.stringify({ renewed, failed, needsReauth }),
+      JSON.stringify({ renewed, failed, deleted }),
       { status: 200, headers: { "Content-Type": "application/json" } },
     );
   } catch (err) {

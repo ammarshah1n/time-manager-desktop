@@ -34,6 +34,7 @@ interface ExecutiveRow {
 interface EmailAccountRow {
   id: string;
   workspace_id: string;
+  email_address: string;
 }
 
 interface EmailSyncStateRow {
@@ -253,21 +254,20 @@ async function persistSyncState(
 }
 
 async function resolveEmailAccount(
-  execEmail: string,
+  exec: ExecutiveRow,
 ): Promise<EmailAccountRow | null> {
   const sb = getSupabaseServiceRole();
-  // Pragmatic default: email_accounts has no exec_id foreign key, so we
-  // match the executive's `email` address directly. If we ever allow an
-  // executive to own multiple accounts we'll need a join table.
   const { data, error } = await sb
     .from("email_accounts")
-    .select("id, workspace_id")
-    .eq("email_address", execEmail)
+    .select("id, workspace_id, email_address")
+    .eq("id", exec.id)
+    .eq("provider", "outlook")
+    .eq("sync_enabled", true)
     .limit(1)
     .maybeSingle<EmailAccountRow>();
   if (error) {
     throw new Error(
-      `graph-delta-sync: email_accounts lookup failed for ${execEmail}: ${error.message}`,
+      `graph-delta-sync: email_accounts lookup failed for ${exec.id}: ${error.message}`,
     );
   }
   return data ?? null;
@@ -364,7 +364,7 @@ export const graphDeltaSync = schedules.task({
 
     for (const exec of executives) {
       try {
-        const account = await resolveEmailAccount(exec.email);
+        const account = await resolveEmailAccount(exec);
         if (!account) {
           logger.warn(
             "graph-delta-sync: no email_accounts row for exec, skipping",
@@ -377,12 +377,13 @@ export const graphDeltaSync = schedules.task({
         }
 
         const storedDelta = await loadSyncState(exec.id);
-        const startUrl = storedDelta ?? initialDeltaUrl(exec.email);
+        const syncEmail = account.email_address || exec.email;
+        const startUrl = storedDelta ?? initialDeltaUrl(syncEmail);
 
         let result: SyncResult;
         try {
           result = await runSyncPass(
-            exec.email,
+            syncEmail,
             account.workspace_id,
             account.id,
             startUrl,
@@ -394,9 +395,9 @@ export const graphDeltaSync = schedules.task({
               { execId: exec.id },
             );
             await persistSyncState(exec.id, null);
-            const recoveryUrl = boundedInitialDeltaUrl(exec.email);
+            const recoveryUrl = boundedInitialDeltaUrl(syncEmail);
             result = await runSyncPass(
-              exec.email,
+              syncEmail,
               account.workspace_id,
               account.id,
               recoveryUrl,
