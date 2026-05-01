@@ -109,7 +109,8 @@ final class InterviewAIClient: ObservableObject {
         let userMessage = buildStepMessage(context)
         conversationMessages.append(["role": "user", "content": userMessage])
 
-        guard let responseText = await callOpus(useTools: false) else {
+        guard let responseText = await callOpus(useTools: false),
+              isGrounded(responseText) else {
             conversationMessages.removeLast()
             return nil
         }
@@ -191,21 +192,26 @@ final class InterviewAIClient: ObservableObject {
     // MARK: - Private
 
     private func buildSystemBlocks() {
-        let acbSection = cachedACB.map { "\n\nEXECUTIVE KNOWLEDGE PROFILE:\n<acb>\n\($0)\n</acb>" } ?? ""
-        let briefingSection = cachedBriefing.map { "\n\nTODAY'S INTELLIGENCE BRIEFING:\n<briefing>\n\($0)\n</briefing>" } ?? ""
+        let acbSection = verifiedContext(cachedACB).map { "\n\nEXECUTIVE KNOWLEDGE PROFILE:\n<acb>\n\($0)\n</acb>" } ?? ""
+        let briefingSection = verifiedContext(cachedBriefing).map { "\n\nTODAY'S INTELLIGENCE BRIEFING:\n<briefing>\n\($0)\n</briefing>" } ?? ""
+        let verifiedContextLine = hasVerifiedKnowledge ? "Verified personal context is available." : "No verified personal context is available."
 
         let prompt = """
         You are the morning voice assistant for a C-suite executive. You speak in short, natural British English — warm but efficient. Two to three sentences maximum per response.
 
         You are conducting a 7-step morning planning session. Generate ONLY the speech text — no markdown, no labels, no JSON. Just the words to speak aloud.
 
+        \(verifiedContextLine)
+
         RULES:
         - Under 60 words per response
-        - Reference what you know about the executive naturally — patterns, tendencies, relationships
+        - Only say facts supplied in the current step, the executive knowledge profile, or today's briefing
+        - If no verified personal context is available, do not mention habits, tendencies, historical overruns, preferences, relationships, or past behaviour
+        - Never infer personal history from a task title, meeting title, or estimate
         - Never say "based on your data", "my analysis shows", or "according to records"
-        - Speak like a trusted chief of staff who has worked with this person for years
-        - Name meetings, tasks, and people by their actual names
-        - If you notice avoidance patterns or cognitive biases, mention them gently
+        - Speak calmly and directly, without pretending to know anything beyond supplied context
+        - Name meetings, tasks, and people only when their actual names are supplied
+        - If a pattern or bias is not explicitly present in supplied context, do not mention it
         - First response (step 0 or step 1 if no deferrals) should include a greeting
 
         STEP GUIDE:
@@ -214,7 +220,7 @@ final class InterviewAIClient: ObservableObject {
         2: Energy level — ask how they're feeling, reference energy patterns if known
         3: Interruptions — ask about expected interruptions
         4: Due today — name the tasks, highlight relationship or deadline relevance
-        5: Time estimates — state top estimates, flag any that historically overrun
+        5: Time estimates — state top estimates; only flag overruns when supplied context explicitly says they overrun
         6: Confirm — task count, total time vs free time, ask to lock it in\(acbSection)\(briefingSection)
         """
 
@@ -229,6 +235,11 @@ final class InterviewAIClient: ObservableObject {
 
     private func buildStepMessage(_ context: StepContext) -> String {
         var parts: [String] = ["Step \(context.step)."]
+        if hasVerifiedKnowledge {
+            parts.append("Grounding: verified profile or briefing context is available. Use only explicit facts from it.")
+        } else {
+            parts.append("Grounding: no verified profile or briefing context is available. Use only the current step facts below.")
+        }
 
         if !context.deferredTasks.isEmpty {
             let items = context.deferredTasks.map { "\($0.title) (\($0.daysOld)d)" }.joined(separator: ", ")
@@ -265,6 +276,40 @@ final class InterviewAIClient: ObservableObject {
         }
 
         return parts.joined(separator: " ")
+    }
+
+    private var hasVerifiedKnowledge: Bool {
+        verifiedContext(cachedACB) != nil || verifiedContext(cachedBriefing) != nil
+    }
+
+    private func verifiedContext(_ value: String?) -> String? {
+        guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty,
+              trimmed != "{}",
+              trimmed != "[]" else {
+            return nil
+        }
+        return trimmed
+    }
+
+    private func isGrounded(_ response: String) -> Bool {
+        if hasVerifiedKnowledge { return true }
+        let lowercased = response.lowercased()
+        let unsupportedClaims = [
+            "usually",
+            "typically",
+            "historically",
+            "tends to",
+            "tend to",
+            "you often",
+            "you always",
+            "as usual",
+            "last time",
+            "past your",
+            "overrun",
+            "balloon"
+        ]
+        return !unsupportedClaims.contains { lowercased.contains($0) }
     }
 
     // MARK: - Anthropic API
