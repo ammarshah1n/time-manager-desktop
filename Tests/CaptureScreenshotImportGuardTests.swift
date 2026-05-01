@@ -27,6 +27,19 @@ struct CaptureScreenshotImportGuardTests {
                 "Converted capture item should keep the edited bucket.")
     }
 
+    @Test func convertAllUsesSyncedDraftValues() throws {
+        let contents = try read("Sources/TimedKit/Features/Capture/CapturePane.swift")
+
+        #expect(contents.contains("private func updateItem"),
+                "Row edits should sync back to parent drafts before Convert All runs.")
+        #expect(contents.contains("onUpdate(value, editingMins, editingBucket)"),
+                "Title edits should update the parent draft.")
+        #expect(contents.contains("onUpdate(editingTitle, value, editingBucket)"),
+                "Minute edits should update the parent draft.")
+        #expect(contents.contains("onUpdate(editingTitle, editingMins, value)"),
+                "Bucket edits should update the parent draft.")
+    }
+
     private func read(_ relativePath: String) throws -> String {
         try String(contentsOf: repoRoot().appendingPathComponent(relativePath), encoding: .utf8)
     }

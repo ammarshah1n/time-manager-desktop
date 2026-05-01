@@ -458,6 +458,8 @@ struct CapturePane: View {
             VStack(spacing: 2) {
                 ForEach(items) { item in
                     CaptureRow(item: item) { title, minutes, bucket in
+                        updateItem(item, title: title, minutes: minutes, bucket: bucket)
+                    } onConvert: { title, minutes, bucket in
                         convertItem(item, title: title, minutes: minutes, bucket: bucket)
                     } onDelete: {
                         self.items.removeAll { $0.id == item.id }
@@ -545,6 +547,13 @@ struct CapturePane: View {
         }
     }
 
+    private func updateItem(_ item: CaptureItem, title: String, minutes: Int, bucket: TaskBucket) {
+        guard let idx = items.firstIndex(where: { $0.id == item.id }) else { return }
+        items[idx].parsedTitle = title
+        items[idx].suggestedMinutes = minutes
+        items[idx].suggestedBucket = bucket
+    }
+
     private func convertItem(_ item: CaptureItem) {
         convertItem(
             item,
@@ -608,6 +617,7 @@ struct CapturePane: View {
 
 struct CaptureRow: View {
     var item: CaptureItem
+    let onUpdate: (String, Int, TaskBucket) -> Void
     let onConvert: (String, Int, TaskBucket) -> Void
     let onDelete: () -> Void
 
@@ -615,8 +625,14 @@ struct CaptureRow: View {
     @State private var editingMins: Int
     @State private var editingBucket: TaskBucket
 
-    init(item: CaptureItem, onConvert: @escaping (String, Int, TaskBucket) -> Void, onDelete: @escaping () -> Void) {
+    init(
+        item: CaptureItem,
+        onUpdate: @escaping (String, Int, TaskBucket) -> Void,
+        onConvert: @escaping (String, Int, TaskBucket) -> Void,
+        onDelete: @escaping () -> Void
+    ) {
         self.item = item
+        self.onUpdate = onUpdate
         self.onConvert = onConvert
         self.onDelete = onDelete
         self._editingTitle  = State(initialValue: item.parsedTitle)
@@ -706,6 +722,15 @@ struct CaptureRow: View {
             item.isConverted ? Color(.controlBackgroundColor).opacity(0.5) : Color(.controlBackgroundColor),
             in: RoundedRectangle(cornerRadius: 9)
         )
+        .onChange(of: editingTitle) { _, value in
+            onUpdate(value, editingMins, editingBucket)
+        }
+        .onChange(of: editingMins) { _, value in
+            onUpdate(editingTitle, value, editingBucket)
+        }
+        .onChange(of: editingBucket) { _, value in
+            onUpdate(editingTitle, editingMins, value)
+        }
     }
 }
 
