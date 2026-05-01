@@ -10,6 +10,8 @@ struct TaskDetailSheet: View {
     let onDismiss: () -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var notes: String = ""
+    @State private var originalEstimatedMinutes: Int?
+    @State private var originalBucket: TaskBucket?
 
     var body: some View {
         NavigationStack {
@@ -25,13 +27,18 @@ struct TaskDetailSheet: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") {
-                        onDismiss()
-                        dismiss()
+                        logCorrectionsAndDismiss()
                     }
                 }
             }
         }
         .frame(minWidth: 500, minHeight: 600)
+        .onAppear {
+            if originalEstimatedMinutes == nil {
+                originalEstimatedMinutes = task.estimatedMinutes
+                originalBucket = task.bucket
+            }
+        }
     }
 
     // MARK: - Task Info
@@ -221,6 +228,29 @@ struct TaskDetailSheet: View {
             get: { task.replyMedium },
             set: { task.replyMedium = $0 }
         )
+    }
+
+    private func logCorrectionsAndDismiss() {
+        if let oldMinutes = originalEstimatedMinutes, oldMinutes != task.estimatedMinutes {
+            let updatedTask = task
+            Task {
+                try? await DataBridge.shared.logEstimateOverride(
+                    task: updatedTask,
+                    oldMinutes: oldMinutes,
+                    newMinutes: updatedTask.estimatedMinutes
+                )
+            }
+        }
+
+        if let oldBucket = originalBucket, oldBucket != task.bucket {
+            let updatedTask = task
+            Task {
+                try? await DataBridge.shared.logTaskBucketChanged(task: updatedTask, oldBucket: oldBucket)
+            }
+        }
+
+        onDismiss()
+        dismiss()
     }
 
     private var waitingOnBinding: Binding<String> {

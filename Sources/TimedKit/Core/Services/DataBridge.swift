@@ -93,6 +93,7 @@ actor DataBridge {
         guard let index = tasks.firstIndex(where: { $0.id == id }) else { return tasks }
         tasks[index].isDone = true
         try await saveTasks(tasks)
+        try? await logTaskCompleted(task: tasks[index])
         return tasks
     }
 
@@ -107,8 +108,30 @@ actor DataBridge {
     func moveBucket(id: UUID, to bucket: TaskBucket) async throws -> [TimedTask] {
         var tasks = try await loadTasks()
         guard let index = tasks.firstIndex(where: { $0.id == id }) else { return tasks }
+        let oldBucket = tasks[index].bucket
         tasks[index] = rebuilt(tasks[index], bucket: bucket)
         try await saveTasks(tasks)
+        try? await logTaskBucketChanged(task: tasks[index], oldBucket: oldBucket)
+        return tasks
+    }
+
+    func updateEstimate(id: UUID, minutes: Int) async throws -> [TimedTask] {
+        var tasks = try await loadTasks()
+        guard let index = tasks.firstIndex(where: { $0.id == id }) else { return tasks }
+        let oldMinutes = tasks[index].estimatedMinutes
+        tasks[index].estimatedMinutes = minutes
+        try await saveTasks(tasks)
+        try? await logEstimateOverride(task: tasks[index], oldMinutes: oldMinutes, newMinutes: minutes)
+        return tasks
+    }
+
+    func updateManualImportance(id: UUID, importance: TaskManualImportance) async throws -> [TimedTask] {
+        var tasks = try await loadTasks()
+        guard let index = tasks.firstIndex(where: { $0.id == id }) else { return tasks }
+        let oldImportance = tasks[index].effectiveManualImportance
+        tasks[index].manualImportance = importance
+        try await saveTasks(tasks)
+        try? await logManualImportanceChanged(task: tasks[index], oldImportance: oldImportance, newImportance: importance)
         return tasks
     }
 
@@ -117,6 +140,38 @@ actor DataBridge {
         tasks.removeAll { $0.id == id }
         try await saveTasks(tasks)
         return tasks
+    }
+
+    func logEstimateOverride(task: TimedTask, oldMinutes: Int, newMinutes: Int) async throws {
+        guard oldMinutes != newMinutes else { return }
+        try await insertTaskBehaviourEvent(
+            task: task,
+            eventType: "estimate_override",
+            oldValue: "\(oldMinutes)",
+            newValue: "\(newMinutes)",
+            metadata: ["field": "estimated_minutes"]
+        )
+    }
+
+    func logTaskSectionChanged(task: TimedTask, oldSectionId: UUID?, newSectionId: UUID?) async throws {
+        guard oldSectionId != newSectionId else { return }
+        try await insertTaskBehaviourEvent(
+            task: task,
+            eventType: "task_section_changed",
+            oldValue: oldSectionId?.uuidString,
+            newValue: newSectionId?.uuidString,
+            metadata: ["field": "section_id"]
+        )
+    }
+
+    func logSubtaskCreated(parent: TimedTask, child: TimedTask) async throws {
+        try await insertTaskBehaviourEvent(
+            task: child,
+            eventType: "subtask_created",
+            oldValue: nil,
+            newValue: child.id.uuidString,
+            metadata: ["parent_task_id": parent.id.uuidString]
+        )
     }
 
     // MARK: - Triage Items
@@ -290,6 +345,69 @@ actor DataBridge {
 
     private var authProfileId: UUID? {
         get async { await MainActor.run { AuthService.shared.profileId } }
+    }
+
+    private func logTaskCompleted(task: TimedTask) async throws {
+        try await insertTaskBehaviourEvent(
+            task: task,
+            eventType: task.parentTaskId == nil ? "task_completed" : "subtask_completed",
+            oldValue: "pending",
+            newValue: "done",
+            metadata: ["field": "status"]
+        )
+    }
+
+    func logTaskBucketChanged(task: TimedTask, oldBucket: TaskBucket) async throws {
+        guard oldBucket != task.bucket else { return }
+        try await insertTaskBehaviourEvent(
+            task: task,
+            eventType: "task_section_changed",
+            oldValue: oldBucket.dbValue,
+            newValue: task.bucket.dbValue,
+            metadata: ["field": "bucket_type"]
+        )
+    }
+
+    private func logManualImportanceChanged(
+        task: TimedTask,
+        oldImportance: TaskManualImportance,
+        newImportance: TaskManualImportance
+    ) async throws {
+        guard oldImportance != newImportance else { return }
+        try await insertTaskBehaviourEvent(
+            task: task,
+            eventType: "manual_importance_changed",
+            oldValue: oldImportance.rawValue,
+            newValue: newImportance.rawValue,
+            metadata: ["field": "manual_importance"]
+        )
+    }
+
+    private func insertTaskBehaviourEvent(
+        task: TimedTask,
+        eventType: String,
+        oldValue: String?,
+        newValue: String?,
+        metadata: [String: String]
+    ) async throws {
+        guard await isAuthenticated else { return }
+        guard let wsId = await authWorkspaceId, let profileId = await authProfileId else { return }
+        let now = Date()
+        let event = BehaviourEventInsert(
+            workspaceId: wsId,
+            profileId: profileId,
+            eventType: eventType,
+            taskId: task.id,
+            sectionId: task.sectionId,
+            parentTaskId: task.parentTaskId,
+            bucketType: task.bucket.dbValue,
+            hourOfDay: Calendar.current.component(.hour, from: now),
+            dayOfWeek: Calendar.current.component(.weekday, from: now) - 1,
+            oldValue: oldValue,
+            newValue: newValue,
+            eventMetadata: metadata
+        )
+        try await supabaseClient.insertBehaviourEvent(event)
     }
 
     private static func queueEncoder() -> JSONEncoder {

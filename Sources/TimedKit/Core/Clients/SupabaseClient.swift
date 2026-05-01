@@ -434,32 +434,41 @@ struct BehaviourEventInsert: Codable, Sendable {
     let profileId: UUID
     let eventType: String
     let taskId: UUID?
+    let sectionId: UUID?
+    let parentTaskId: UUID?
     let bucketType: String
     let hourOfDay: Int
     let dayOfWeek: Int
     let oldValue: String?
     let newValue: String?
+    let eventMetadata: [String: String]?
 
     init(
         workspaceId: UUID,
         profileId: UUID,
         eventType: String,
         taskId: UUID?,
+        sectionId: UUID? = nil,
+        parentTaskId: UUID? = nil,
         bucketType: String,
         hourOfDay: Int,
         dayOfWeek: Int,
         oldValue: String? = nil,
-        newValue: String? = nil
+        newValue: String? = nil,
+        eventMetadata: [String: String]? = nil
     ) {
         self.workspaceId = workspaceId
         self.profileId = profileId
         self.eventType = eventType
         self.taskId = taskId
+        self.sectionId = sectionId
+        self.parentTaskId = parentTaskId
         self.bucketType = bucketType
         self.hourOfDay = hourOfDay
         self.dayOfWeek = dayOfWeek
         self.oldValue = oldValue
         self.newValue = newValue
+        self.eventMetadata = eventMetadata
     }
 
     enum CodingKeys: String, CodingKey {
@@ -467,11 +476,14 @@ struct BehaviourEventInsert: Codable, Sendable {
         case profileId = "profile_id"
         case eventType = "event_type"
         case taskId = "task_id"
+        case sectionId = "section_id"
+        case parentTaskId = "parent_task_id"
         case bucketType = "bucket_type"
         case hourOfDay = "hour_of_day"
         case dayOfWeek = "day_of_week"
         case oldValue = "old_value"
         case newValue = "new_value"
+        case eventMetadata = "event_metadata"
     }
 }
 

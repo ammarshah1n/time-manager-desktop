@@ -52,9 +52,7 @@ struct TasksPane: View {
                             TaskRow(
                                 task: task,
                                 onUpdateTime: { newMins in
-                                    if let idx = tasks.firstIndex(where: { $0.id == task.id }) {
-                                        tasks[idx].estimatedMinutes = newMins
-                                    }
+                                    updateEstimate(task.id, newMins)
                                 }
                             ) {
                                 blockTarget = task
@@ -130,6 +128,21 @@ struct TasksPane: View {
             selectedIds.remove(id)
         } else {
             selectedIds.insert(id)
+        }
+    }
+
+    private func updateEstimate(_ id: UUID, _ minutes: Int) {
+        guard let index = tasks.firstIndex(where: { $0.id == id }) else { return }
+        let oldMinutes = tasks[index].estimatedMinutes
+        guard oldMinutes != minutes else { return }
+        tasks[index].estimatedMinutes = minutes
+        let updatedTask = tasks[index]
+        Task {
+            try? await DataBridge.shared.logEstimateOverride(
+                task: updatedTask,
+                oldMinutes: oldMinutes,
+                newMinutes: minutes
+            )
         }
     }
 

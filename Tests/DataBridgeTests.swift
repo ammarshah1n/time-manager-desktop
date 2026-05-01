@@ -302,6 +302,71 @@ struct DataBridgeTests {
             }
         }
     }
+
+    @Test("logEstimateOverride writes hierarchy event metadata")
+    func testLogEstimateOverrideWritesHierarchyEventMetadata() async throws {
+        let recorder = BehaviourEventRecorder()
+
+        try await withAuthenticatedTimedStore { executiveID in
+            try await withDependencies {
+                var dependency = SupabaseClientDependency()
+                dependency.insertBehaviourEvent = { event in await recorder.record(event) }
+                $0.supabaseClient = dependency
+            } operation: {
+                let bridge = DataBridge()
+                let sectionId = UUID()
+                let parentTaskId = UUID()
+                let task = makeTask(
+                    title: "Correct estimate",
+                    bucket: .readToday,
+                    sectionId: sectionId,
+                    parentTaskId: parentTaskId
+                )
+
+                try await bridge.logEstimateOverride(task: task, oldMinutes: 45, newMinutes: 30)
+
+                let event = try #require(await recorder.events().first)
+                #expect(event.workspaceId == executiveID)
+                #expect(event.profileId == executiveID)
+                #expect(event.eventType == "estimate_override")
+                #expect(event.taskId == task.id)
+                #expect(event.sectionId == sectionId)
+                #expect(event.parentTaskId == parentTaskId)
+                #expect(event.bucketType == "read_today")
+                #expect(event.oldValue == "45")
+                #expect(event.newValue == "30")
+                #expect(event.eventMetadata?["field"] == "estimated_minutes")
+            }
+        }
+    }
+
+    @Test("updateManualImportance logs correction event")
+    func testUpdateManualImportanceLogsCorrectionEvent() async throws {
+        let recorder = BehaviourEventRecorder()
+
+        try await withAuthenticatedTimedStore { _ in
+            try await withDependencies {
+                var dependency = SupabaseClientDependency()
+                dependency.insertBehaviourEvent = { event in await recorder.record(event) }
+                $0.supabaseClient = dependency
+            } operation: {
+                let bridge = DataBridge()
+                let task = makeTask(title: "Rank manually", bucket: .action, manualImportance: .blue)
+
+                try await bridge.saveTasks([task])
+                let tasks = try await bridge.updateManualImportance(id: task.id, importance: .red)
+
+                #expect(tasks.first(where: { $0.id == task.id })?.manualImportance == .red)
+                let event = try #require(await recorder.events().first)
+                #expect(event.eventType == "manual_importance_changed")
+                #expect(event.taskId == task.id)
+                #expect(event.bucketType == "action")
+                #expect(event.oldValue == "blue")
+                #expect(event.newValue == "red")
+                #expect(event.eventMetadata?["field"] == "manual_importance")
+            }
+        }
+    }
 }
 
 private struct QueueReplayEntry: Equatable, Sendable {
@@ -347,6 +412,18 @@ private actor TaskSectionUpsertRecorder {
 
     func rows() -> [TaskSectionDBRow] {
         storedRows
+    }
+}
+
+private actor BehaviourEventRecorder {
+    private var storedEvents: [BehaviourEventInsert] = []
+
+    func record(_ event: BehaviourEventInsert) {
+        storedEvents.append(event)
+    }
+
+    func events() -> [BehaviourEventInsert] {
+        storedEvents
     }
 }
 

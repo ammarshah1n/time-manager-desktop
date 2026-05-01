@@ -205,7 +205,8 @@ final class ConversationTools {
             return "task not found — no change applied"
         }
 
-        var task = tasks[index]
+        let oldTask = tasks[index]
+        var task = oldTask
         let title = (input["title"] as? String).map { clean($0, maxChars: Self.maxTitleChars) }
         let bucket = (input["bucket"] as? String).flatMap(parseBucket)
         if let estimatedMinutes = int(input["estimatedMinutes"]) {
@@ -221,6 +222,12 @@ final class ConversationTools {
         }
         tasks[index] = task
         try await DataBridge.shared.saveTasks(tasks)
+        try? await DataBridge.shared.logEstimateOverride(
+            task: task,
+            oldMinutes: oldTask.estimatedMinutes,
+            newMinutes: task.estimatedMinutes
+        )
+        try? await DataBridge.shared.logTaskBucketChanged(task: task, oldBucket: oldTask.bucket)
         publishTasks(tasks)
         return "updated task \(id.uuidString)"
     }

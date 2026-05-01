@@ -108,6 +108,21 @@ struct TodayPane: View {
         UserDefaults.standard.set(data, forKey: defaultsKey)
     }
 
+    private func updateEstimate(id: UUID, minutes: Int) {
+        guard let index = tasks.firstIndex(where: { $0.id == id }) else { return }
+        let oldMinutes = tasks[index].estimatedMinutes
+        guard oldMinutes != minutes else { return }
+        tasks[index].estimatedMinutes = minutes
+        let updatedTask = tasks[index]
+        Task {
+            try? await DataBridge.shared.logEstimateOverride(
+                task: updatedTask,
+                oldMinutes: oldMinutes,
+                newMinutes: minutes
+            )
+        }
+    }
+
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: 0) {
@@ -279,9 +294,7 @@ struct TodayPane: View {
                             completedIds: $completedIds,
                             onToggle: { toggleSection("doFirst") },
                             onUpdateTime: { id, mins in
-                                if let idx = tasks.firstIndex(where: { $0.id == id }) {
-                                    tasks[idx].estimatedMinutes = mins
-                                }
+                                updateEstimate(id: id, minutes: mins)
                             },
                             onTapDetail: { task in detailTask = task },
                             bucketAccuracy: bucketAccuracy
@@ -303,9 +316,7 @@ struct TodayPane: View {
                             completedIds: $completedIds,
                             onToggle: { toggleSection("action") },
                             onUpdateTime: { id, mins in
-                                if let idx = tasks.firstIndex(where: { $0.id == id }) {
-                                    tasks[idx].estimatedMinutes = mins
-                                }
+                                updateEstimate(id: id, minutes: mins)
                             },
                             onTapDetail: { task in detailTask = task },
                             bucketAccuracy: bucketAccuracy
@@ -323,9 +334,7 @@ struct TodayPane: View {
                             completedIds: $completedIds,
                             onToggle: { toggleSection("calls") },
                             onUpdateTime: { id, mins in
-                                if let idx = tasks.firstIndex(where: { $0.id == id }) {
-                                    tasks[idx].estimatedMinutes = mins
-                                }
+                                updateEstimate(id: id, minutes: mins)
                             },
                             onTapDetail: { task in detailTask = task },
                             bucketAccuracy: bucketAccuracy
@@ -343,9 +352,7 @@ struct TodayPane: View {
                             completedIds: $completedIds,
                             onToggle: { toggleSection("transit") },
                             onUpdateTime: { id, mins in
-                                if let idx = tasks.firstIndex(where: { $0.id == id }) {
-                                    tasks[idx].estimatedMinutes = mins
-                                }
+                                updateEstimate(id: id, minutes: mins)
                             },
                             onTapDetail: { task in detailTask = task },
                             bucketAccuracy: bucketAccuracy
@@ -363,9 +370,7 @@ struct TodayPane: View {
                             completedIds: $completedIds,
                             onToggle: { toggleSection("readToday") },
                             onUpdateTime: { id, mins in
-                                if let idx = tasks.firstIndex(where: { $0.id == id }) {
-                                    tasks[idx].estimatedMinutes = mins
-                                }
+                                updateEstimate(id: id, minutes: mins)
                             },
                             onTapDetail: { task in detailTask = task },
                             bucketAccuracy: bucketAccuracy
@@ -383,9 +388,7 @@ struct TodayPane: View {
                             completedIds: $completedIds,
                             onToggle: { toggleSection("readWeek") },
                             onUpdateTime: { id, mins in
-                                if let idx = tasks.firstIndex(where: { $0.id == id }) {
-                                    tasks[idx].estimatedMinutes = mins
-                                }
+                                updateEstimate(id: id, minutes: mins)
                             },
                             onTapDetail: { task in detailTask = task },
                             bucketAccuracy: bucketAccuracy
@@ -574,8 +577,13 @@ struct TodayPane: View {
                             Button {
                                 let correctedMinutes = Int(acc.avgActual)
                                 var updatedCount = 0
-                                for idx in tasks.indices where tasks[idx].bucket == insight.bucket && !completedIds.contains(tasks[idx].id) {
-                                    tasks[idx].estimatedMinutes = correctedMinutes
+                                let matchingTaskIds = tasks
+                                    .filter { $0.bucket == insight.bucket && !completedIds.contains($0.id) }
+                                    .map(\.id)
+                                for id in matchingTaskIds {
+                                    guard let idx = tasks.firstIndex(where: { $0.id == id }),
+                                          tasks[idx].estimatedMinutes != correctedMinutes else { continue }
+                                    updateEstimate(id: id, minutes: correctedMinutes)
                                     updatedCount += 1
                                 }
                                 correctionToast = "Updated \(updatedCount) \(insight.bucket.rawValue) tasks to \(correctedMinutes)m"
@@ -707,9 +715,7 @@ struct TodayPane: View {
                             showMediumBadge: true,
                             bucketAccuracy: bucketAccuracy[task.bucket],
                                 onUpdateTime: { mins in
-                                    if let idx = tasks.firstIndex(where: { $0.id == task.id }) {
-                                        tasks[idx].estimatedMinutes = mins
-                                    }
+                                    updateEstimate(id: task.id, minutes: mins)
                                 },
                                 onTapDetail: { detailTask = task }
                             )
@@ -735,9 +741,7 @@ struct TodayPane: View {
                             showMediumBadge: false,
                             bucketAccuracy: bucketAccuracy[task.bucket],
                             onUpdateTime: { mins in
-                                if let idx = tasks.firstIndex(where: { $0.id == task.id }) {
-                                    tasks[idx].estimatedMinutes = mins
-                                }
+                                updateEstimate(id: task.id, minutes: mins)
                             },
                             onTapDetail: { detailTask = task }
                         )
@@ -1220,27 +1224,8 @@ struct TodayTaskRow: View {
                             .frame(minWidth: 60)
                     }
                     Button("Done") {
-                        let oldMinutes = task.estimatedMinutes
                         onUpdateTime?(draftMinutes)
                         showTimePicker = false
-
-                        // Log estimate_override behaviour event
-                        if draftMinutes != oldMinutes,
-                           let wsId = AuthService.shared.workspaceId,
-                           let profileId = AuthService.shared.profileId {
-                            Task {
-                                @Dependency(\.supabaseClient) var supa
-                                let event = BehaviourEventInsert(
-                                    workspaceId: wsId, profileId: profileId,
-                                    eventType: "estimate_override", taskId: task.id,
-                                    bucketType: task.bucket.dbValue,
-                                    hourOfDay: Calendar.current.component(.hour, from: Date()),
-                                    dayOfWeek: Calendar.current.component(.weekday, from: Date()),
-                                    oldValue: "\(oldMinutes)", newValue: "\(draftMinutes)"
-                                )
-                                try? await supa.insertBehaviourEvent(event)
-                            }
-                        }
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)

@@ -1,4 +1,10 @@
-# BUILD_STATE.md — Last updated: 2026-05-01 (task hierarchy Swift persistence)
+# BUILD_STATE.md — Last updated: 2026-05-01 (task correction logging)
+
+> **Task correction logging 2026-05-01** — Implemented Gate 3 silent-learning event wiring. `BehaviourEventInsert` now carries `section_id`, `parent_task_id`, and event metadata; `DataBridge` centralizes task completion, bucket/section, estimate override, subtask-created, and manual-importance correction events; ConversationTools, Today, Tasks, Task Detail, and Morning Review estimate changes now route estimate corrections through that shared event writer.
+
+> **Verified 2026-05-01 task correction logging** — `swift build` ✅; `swift test --filter DataBridgeTests` ✅ (19 tests); `swift test` ✅ (94 tests). Supabase local lint/reset remains blocked by unavailable local Postgres/OrbStack as recorded below.
+
+> **Next after task correction logging** — Gate 4: expose task sections/subtasks/manual importance in the task UI and keep Edge Function tool schemas aligned with the new Swift mutation surface.
 
 > **Task hierarchy Swift persistence 2026-05-01** — Implemented Gate 2 model/persistence wiring. `TimedTask` now carries optional `sectionId`, `parentTaskId`, `sortOrder`, manual blue/orange/red importance, notes, and planning-unit state; `TaskSection` / `TaskSectionDBRow` model the sidebar hierarchy; `SupabaseClient` can fetch/upsert `task_sections`; `DataBridge` can load/save task sections, queue offline section upserts, replay them, remote-overlay task loads, and persist hierarchy fields on task upserts while marking parents with active subtasks as non-planning units. Existing task rebuild paths preserve the new fields.
 

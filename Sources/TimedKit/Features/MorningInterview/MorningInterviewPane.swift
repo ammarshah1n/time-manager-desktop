@@ -2056,7 +2056,18 @@ struct MorningInterviewPane: View {
         // Apply any overridden estimates back to the task list
         for (id, mins) in estimates {
             if let idx = tasks.firstIndex(where: { $0.id == id }) {
+                let oldMinutes = tasks[idx].estimatedMinutes
                 tasks[idx].estimatedMinutes = mins
+                if oldMinutes != mins {
+                    let updatedTask = tasks[idx]
+                    Task {
+                        try? await DataBridge.shared.logEstimateOverride(
+                            task: updatedTask,
+                            oldMinutes: oldMinutes,
+                            newMinutes: mins
+                        )
+                    }
+                }
             }
         }
 
