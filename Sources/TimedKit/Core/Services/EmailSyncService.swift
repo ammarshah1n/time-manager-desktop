@@ -291,7 +291,7 @@ actor EmailSyncService {
     }
 
     /// Reads `public.executives.email_sync_driver` via the Supabase REST API
-    /// using the anon key. We don't go through `supabaseClient` here because
+    /// using the signed-in session. We don't go through `supabaseClient` here because
     /// the B1 file boundary for this wave doesn't allow extending that
     /// dependency's surface, and the existing `supabaseURL` /
     /// `supabaseAnonKey` wiring on this actor is already plumbed.
@@ -315,9 +315,9 @@ actor EmailSyncService {
         request.httpMethod = "GET"
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue(supabaseAnonKey, forHTTPHeaderField: "apikey")
-        request.setValue("Bearer \(supabaseAnonKey)", forHTTPHeaderField: "Authorization")
 
         do {
+            request.setValue(try await EdgeFunctions.shared.authorizationHeader(), forHTTPHeaderField: "Authorization")
             let (data, response) = try await URLSession.shared.data(for: request)
             guard let http = response as? HTTPURLResponse,
                   (200..<300).contains(http.statusCode) else {
@@ -369,6 +369,7 @@ actor EmailSyncService {
         var totalProcessed = 0
         var currentDeltaLink = deltaLink
         var hasMore = true
+        var hadProcessingFailures = false
 
         while hasMore {
             let result: DeltaResult
@@ -404,13 +405,14 @@ actor EmailSyncService {
                 throw GraphError.httpError(401)
             }
 
+            var pageHadFailures = false
             for message in result.messages {
                 do {
                     // Detect folder moves before upserting
                     if let profileId, let folderId = message.parentFolderId {
                         // Fetch a fresh token for folder-move detection (may be long-running)
                         let moveToken = try await tokenProvider()
-                        await detectFolderMove(
+                        try await detectFolderMove(
                             message: message,
                             currentFolderId: folderId,
                             accessToken: moveToken,
@@ -428,7 +430,7 @@ actor EmailSyncService {
                         emailAccountId: emailAccountId
                     )
                     try await upsertMessage(row)
-                    await emitEmailObservationsIfPossible(
+                    try await emitEmailObservationsIfPossible(
                         for: message,
                         emailMessageId: row.id,
                         explicitProfileId: profileId
@@ -438,27 +440,37 @@ actor EmailSyncService {
                     let senderAddress = message.from?.emailAddress.address ?? "unknown"
                     let senderImportance = senderImportanceScore(senderAddress)
 
-                    await triggerClassification(
+                    try await triggerClassification(
                         messageId: row.id,
                         workspaceId: workspaceId,
+                        profileId: profileId,
                         senderImportance: senderImportance
                     )
                     totalProcessed += 1
                 } catch {
+                    pageHadFailures = true
                     TimedLogger.graph.error(
                         "Failed to process message \(message.id, privacy: .public): \(error.localizedDescription, privacy: .public)"
                     )
                 }
             }
 
+            if pageHadFailures {
+                hadProcessingFailures = true
+                break
+            }
             hasMore = result.hasMore
             currentDeltaLink = result.nextDeltaLink
         }
 
         // Persist the delta link for the next call
-        deltaLink = currentDeltaLink
-        if let accountId = currentEmailAccountId {
-            saveDeltaLink(for: accountId)
+        if hadProcessingFailures {
+            TimedLogger.graph.warning("EmailSyncService: not advancing delta link after processing failures")
+        } else {
+            deltaLink = currentDeltaLink
+            if let accountId = currentEmailAccountId {
+                saveDeltaLink(for: accountId)
+            }
         }
 
         // Save known folders after each sync pass
@@ -500,7 +512,7 @@ actor EmailSyncService {
         for message: GraphEmailMessage,
         emailMessageId: UUID,
         explicitProfileId: UUID?
-    ) async {
+    ) async throws {
         guard let profileId = await resolvedExecutiveId(explicitProfileId) else { return }
         let occurredAt = Self.parseGraphTimestamp(message.receivedDateTime) ?? Date()
         let eventType = emailEventType(for: message)
@@ -535,11 +547,7 @@ actor EmailSyncService {
             rawData: rawData,
             importanceScore: 0.5
         )
-        do {
-            try await Tier0Writer.shared.recordObservation(observation)
-        } catch {
-            TimedLogger.graph.error("Tier0 observation write failed: \(error.localizedDescription)")
-        }
+        try await Tier0Writer.shared.recordObservation(observation)
 
         let counterpartyAddress = observationCounterpartyAddress(for: message)
         let importance = importanceLabel(for: senderImportanceScore(counterpartyAddress ?? senderAddress ?? ""))
@@ -560,11 +568,7 @@ actor EmailSyncService {
             threadDepth: threadDepth,
             categories: [senderCategory]
         )
-        do {
-            try await persistEmailObservation(emailObservation)
-        } catch {
-            TimedLogger.graph.error("Email observation persist failed: \(error.localizedDescription)")
-        }
+        try await persistEmailObservation(emailObservation)
     }
 
     private func resolvedExecutiveId(_ explicitProfileId: UUID?) async -> UUID? {
@@ -723,35 +727,40 @@ actor EmailSyncService {
 
     // MARK: - Edge Function: classify-email
 
-    private func triggerClassification(messageId: UUID, workspaceId: UUID, senderImportance: Double = 0.5) async {
+    private func triggerClassification(
+        messageId: UUID,
+        workspaceId: UUID,
+        profileId: UUID?,
+        senderImportance: Double = 0.5
+    ) async throws {
         guard let url = URL(string: "\(supabaseURL)/functions/v1/classify-email") else {
             TimedLogger.graph.error("Invalid classify-email URL")
-            return
+            throw URLError(.badURL)
         }
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(supabaseAnonKey)", forHTTPHeaderField: "Authorization")
+        request.setValue(try await EdgeFunctions.shared.authorizationHeader(), forHTTPHeaderField: "Authorization")
 
         let body: [String: Any] = [
-            "message_id": messageId.uuidString,
-            "workspace_id": workspaceId.uuidString,
+            "emailMessageId": messageId.uuidString,
+            "workspaceId": workspaceId.uuidString,
+            "profileId": (profileId ?? workspaceId).uuidString,
             "sender_importance": senderImportance,
         ]
-        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
-        do {
-            let (_, response) = try await URLSession.shared.data(for: request)
-            let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
-            if statusCode < 200 || statusCode >= 300 {
-                TimedLogger.graph.warning(
-                    "classify-email returned \(statusCode) for message \(messageId.uuidString, privacy: .public)"
-                )
-            }
-        } catch {
-            TimedLogger.graph.error(
-                "classify-email request failed for \(messageId.uuidString, privacy: .public): \(error.localizedDescription, privacy: .public)"
+        let (_, response) = try await URLSession.shared.data(for: request)
+        let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+        if statusCode < 200 || statusCode >= 300 {
+            TimedLogger.graph.warning(
+                "classify-email returned \(statusCode) for message \(messageId.uuidString, privacy: .public)"
+            )
+            throw NSError(
+                domain: "Timed.EmailSyncService",
+                code: statusCode,
+                userInfo: [NSLocalizedDescriptionKey: "classify-email returned \(statusCode)"]
             )
         }
     }
@@ -851,7 +860,7 @@ actor EmailSyncService {
         accessToken: String,
         workspaceId: UUID,
         profileId: UUID
-    ) async {
+    ) async throws {
         let previousFolderId = knownFolders[message.id]
         knownFolders[message.id] = currentFolderId
         knownFoldersTimestamps[message.id] = Date()
@@ -867,16 +876,9 @@ actor EmailSyncService {
         if let cached = folderNameCache[currentFolderId] {
             folderName = cached
         } else {
-            do {
-                let name = try await graphClient.fetchFolderName(currentFolderId, accessToken)
-                folderNameCache[currentFolderId] = name
-                folderName = name
-            } catch {
-                TimedLogger.triage.error(
-                    "Failed to resolve folder \(currentFolderId, privacy: .public): \(error.localizedDescription, privacy: .public)"
-                )
-                return
-            }
+            let name = try await graphClient.fetchFolderName(currentFolderId, accessToken)
+            folderNameCache[currentFolderId] = name
+            folderName = name
         }
 
         // Map folder display name → triage bucket rule type
@@ -891,13 +893,7 @@ actor EmailSyncService {
             "Folder move detected: \(fromAddress, privacy: .private) → '\(folderName, privacy: .private)' → rule '\(ruleType, privacy: .public)'"
         )
 
-        do {
-            try await supabaseClient.upsertSenderRule(workspaceId, profileId, fromAddress, ruleType)
-        } catch {
-            TimedLogger.triage.error(
-                "Failed to upsert sender rule for \(fromAddress, privacy: .private): \(error.localizedDescription, privacy: .public)"
-            )
-        }
+        try await supabaseClient.upsertSenderRule(workspaceId, profileId, fromAddress, ruleType)
     }
 
     /// Maps an Outlook folder display name to a sender rule type.

@@ -74,11 +74,6 @@ actor GmailSyncService {
             ?? "https://fpmjuufefhtlwbfinxlx.supabase.co"
     }()
 
-    private let supabaseAnonKey: String = {
-        ProcessInfo.processInfo.environment["SUPABASE_ANON_KEY"]
-            ?? "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZwbWp1dWZlZmh0bHdiZmlueGx4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5MTMxMDEsImV4cCI6MjA5MDQ4OTEwMX0.VUtjezhFMpwrcVMXltyYmU2n0Xazi9lvhuwAQlKOTO4"
-    }()
-
     // MARK: - History cursor persistence
 
     private func loadHistoryId(for accountId: UUID) {
@@ -239,15 +234,23 @@ actor GmailSyncService {
         }
 
         var processed = 0
+        var hadFailures = false
         for msg in result.messages {
-            await persist(message: msg, workspaceId: workspaceId, emailAccountId: emailAccountId, profileId: profileId)
-            processed += 1
+            do {
+                try await persist(message: msg, workspaceId: workspaceId, emailAccountId: emailAccountId, profileId: profileId)
+                processed += 1
+            } catch {
+                hadFailures = true
+                TimedLogger.graph.error("GmailSync persist failed: \(error.localizedDescription, privacy: .public)")
+            }
         }
 
         // Move cursor forward.
-        if let next = result.nextHistoryId {
+        if !hadFailures, let next = result.nextHistoryId {
             historyId = next
             if let accountId = currentEmailAccountId { saveHistoryId(for: accountId) }
+        } else if hadFailures {
+            TimedLogger.graph.warning("GmailSync: not advancing historyId after processing failures")
         }
         return processed
     }
@@ -273,7 +276,7 @@ actor GmailSyncService {
             for ref in refs {
                 do {
                     let msg = try await gmailClient.fetchMessage(ref.id, accessToken)
-                    await persist(message: msg, workspaceId: workspaceId, emailAccountId: emailAccountId, profileId: profileId)
+                    try await persist(message: msg, workspaceId: workspaceId, emailAccountId: emailAccountId, profileId: profileId)
                     processed += 1
                 } catch {
                     googleFileLog("GmailSync.backfill: hydrate \(ref.id) FAILED: \(error.localizedDescription)")
@@ -292,7 +295,7 @@ actor GmailSyncService {
         workspaceId: UUID,
         emailAccountId: UUID,
         profileId: UUID?
-    ) async {
+    ) async throws {
         let parsed = parseFromHeader(message.fromHeader)
         let receivedAtISO = ISO8601DateFormatter().string(
             from: message.receivedAt ?? Date()
@@ -323,17 +326,12 @@ actor GmailSyncService {
             isQuickReply: false,
             isCcFyi: isCcFyi
         )
-        do {
-            try await supabaseClient.upsertEmailMessage(row)
-        } catch {
-            TimedLogger.graph.error("GmailSync upsert failed: \(error.localizedDescription, privacy: .public)")
-            return
-        }
+        try await supabaseClient.upsertEmailMessage(row)
 
         // Tier 0 observation — same shape as EmailSyncService's path so the
         // downstream intelligence engine treats Gmail and Microsoft messages
         // identically.
-        await emitObservation(
+        try await emitObservation(
             for: message,
             emailMessageId: row.id,
             fromAddress: parsed.address,
@@ -342,7 +340,7 @@ actor GmailSyncService {
             explicitProfileId: profileId
         )
 
-        await triggerClassification(messageId: row.id, workspaceId: workspaceId)
+        try await triggerClassification(messageId: row.id, workspaceId: workspaceId, profileId: profileId)
     }
 
     private func emitObservation(
@@ -352,7 +350,7 @@ actor GmailSyncService {
         fromName: String?,
         recipientCount: Int,
         explicitProfileId: UUID?
-    ) async {
+    ) async throws {
         let profileId: UUID?
         if let explicitProfileId {
             profileId = explicitProfileId
@@ -387,11 +385,7 @@ actor GmailSyncService {
             rawData: rawData,
             importanceScore: 0.5
         )
-        do {
-            try await Tier0Writer.shared.recordObservation(observation)
-        } catch {
-            TimedLogger.graph.error("GmailSync Tier0 observation write failed: \(error.localizedDescription)")
-        }
+        try await Tier0Writer.shared.recordObservation(observation)
     }
 
     private func emailSummary(eventType: String, senderName: String?, senderAddress: String?, recipientCount: Int) -> String {
@@ -426,26 +420,30 @@ actor GmailSyncService {
 
     // MARK: - Edge Function trigger (same one Microsoft uses)
 
-    private func triggerClassification(messageId: UUID, workspaceId: UUID) async {
-        guard let url = URL(string: "\(supabaseURL)/functions/v1/classify-email") else { return }
+    private func triggerClassification(messageId: UUID, workspaceId: UUID, profileId: UUID?) async throws {
+        guard let url = URL(string: "\(supabaseURL)/functions/v1/classify-email") else {
+            throw URLError(.badURL)
+        }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(supabaseAnonKey)", forHTTPHeaderField: "Authorization")
+        request.setValue(try await EdgeFunctions.shared.authorizationHeader(), forHTTPHeaderField: "Authorization")
         let body: [String: Any] = [
-            "message_id": messageId.uuidString,
-            "workspace_id": workspaceId.uuidString,
+            "emailMessageId": messageId.uuidString,
+            "workspaceId": workspaceId.uuidString,
+            "profileId": (profileId ?? workspaceId).uuidString,
             "sender_importance": 0.5
         ]
-        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
-        do {
-            let (_, response) = try await URLSession.shared.data(for: request)
-            let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
-            if !(200..<300).contains(statusCode) {
-                TimedLogger.graph.warning("classify-email returned \(statusCode) for Gmail message \(messageId.uuidString, privacy: .public)")
-            }
-        } catch {
-            TimedLogger.graph.error("classify-email request failed: \(error.localizedDescription, privacy: .public)")
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (_, response) = try await URLSession.shared.data(for: request)
+        let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+        if !(200..<300).contains(statusCode) {
+            TimedLogger.graph.warning("classify-email returned \(statusCode) for Gmail message \(messageId.uuidString, privacy: .public)")
+            throw NSError(
+                domain: "Timed.GmailSyncService",
+                code: statusCode,
+                userInfo: [NSLocalizedDescriptionKey: "classify-email returned \(statusCode)"]
+            )
         }
     }
 

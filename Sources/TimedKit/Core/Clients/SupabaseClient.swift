@@ -748,7 +748,7 @@ extension SupabaseClientDependency {
             upsertEmailMessage: { message in
                 try await client
                     .from("email_messages")
-                    .upsert(message, onConflict: "graph_message_id")
+                    .upsert(message, onConflict: "email_account_id,graph_message_id")
                     .execute()
             },
             insertEmailObservation: { observation in
