@@ -43,41 +43,10 @@ struct CalendarPane: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Inline week-range subtitle. macOS Tahoe's `.navigationTitle`
-            // reserves a large-title area beneath the toolbar that pushed
-            // the day headers and hour grid down with a giant white gap.
-            HStack {
-                Text(weekTitle)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(.secondary)
-                Spacer()
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 6)
-            .padding(.bottom, 4)
-            CalendarHeaderRow(dates: weekDates, todayIdx: todayIdx)
-            Divider()
-            ScrollView(.vertical, showsIndicators: false) {
-                CalendarGrid(
-                    blocks: visibleBlocks,
-                    dates: weekDates,
-                    todayIdx: todayIdx,
-                    freeTimeSlots: freeTimeSlots,
-                    onTap: { popoverBlock = $0 },
-                    onCreate: { block in
-                        blocks.append(block)
-                        editingBlock = block
-                    }
-                )
-                .padding(.bottom, 32)
-            }
+        GeometryReader { proxy in
+            calendarContent
+                .frame(width: proxy.size.width, height: proxy.size.height, alignment: .topLeading)
         }
-        // Force top anchoring — without explicit alignment, the detail
-        // view of NavigationSplitView centers its content vertically when
-        // the content's intrinsic height is less than the available space
-        // (the 188pt gap visible in the screenshot before this fix).
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .toolbar {
             ToolbarItem(placement: .navigation) {
                 Button { withAnimation { weekOffset -= 1 } } label: {
@@ -155,6 +124,40 @@ struct CalendarPane: View {
                 blocks.removeAll { $0.id == block.id }
                 editingBlock = nil
             }
+        }
+    }
+
+    private var calendarContent: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Inline week-range subtitle. macOS Tahoe's `.navigationTitle`
+            // reserves a large-title area beneath the toolbar that pushed
+            // the day headers and hour grid down with a giant white gap.
+            HStack {
+                Text(weekTitle)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.secondary)
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 6)
+            .padding(.bottom, 4)
+            CalendarHeaderRow(dates: weekDates, todayIdx: todayIdx)
+            Divider()
+            ScrollView(.vertical, showsIndicators: false) {
+                CalendarGrid(
+                    blocks: visibleBlocks,
+                    dates: weekDates,
+                    todayIdx: todayIdx,
+                    freeTimeSlots: freeTimeSlots,
+                    onTap: { popoverBlock = $0 },
+                    onCreate: { block in
+                        blocks.append(block)
+                        editingBlock = block
+                    }
+                )
+                .padding(.bottom, 32)
+            }
+            .frame(maxHeight: .infinity, alignment: .top)
         }
     }
 
