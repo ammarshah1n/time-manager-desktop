@@ -1,4 +1,10 @@
-# BUILD_STATE.md — Last updated: 2026-05-01 (security review remediation pass)
+# BUILD_STATE.md — Last updated: 2026-05-01 (installed app login + capture voice fix)
+
+> **Installed app fix 2026-05-01** — Shipped and installed the Timed.app fixes for repeated launch login prompts and Capture voice permission failures. `AuthService.bootstrapExecutive()` no longer auto-opens Outlook/MSAL on launch; Capture voice now surfaces speech/microphone authorization failures with an Open Settings action; `scripts/package_app.sh` now carries Google OAuth plist config; the voice audio tap is isolated from `@MainActor` state. `/Applications/Timed.app` was rebuilt, installed, verified, and matches `dist.noindex/Timed.app` at binary SHA-256 `e5838964834b4e2668357313d0c8930fe65271dd4b8726b739963c2366108664`.
+
+> **Verified 2026-05-01 app fix** — `swift build` ✅; `swift test` ✅ (71 tests); `bash scripts/package_app.sh` ✅; `/Applications/Timed.app` `codesign --verify --deep --strict --verbose=2` ✅; Dock item verified as `Timed` under persistent apps.
+
+> **Next after app fix** — Launch Timed from the Dock. Outlook should not prompt during normal app bootstrap. If Capture reports blocked voice permissions, click Open Settings and enable Timed under macOS Privacy for Microphone/Speech Recognition.
 
 > **Review remediation 2026-05-01** — Implemented the first review-plan fix batch on `unified`: removed/parameterized local secret surfaces, authenticated paid-provider and privileged Edge Functions, protected Graphiti core routes, added tenant ownership checks and Graph webhook `clientState` validation, repaired email/Gmail classify-email contracts and cursor advancement, added Tier 0 idempotency, and aligned macOS package/notarization/CI artifact paths.
 
@@ -192,7 +198,7 @@
 - **3 architecture syntheses:** `research/ARCHITECTURE-MEMORY.md`, `ARCHITECTURE-SIGNALS.md`, `ARCHITECTURE-DELIVERY.md`
 
 Any future build session should read `CLAUDE.md` → `BUILD_STATE.md` → relevant `ARCHITECTURE-*.md` → build.
-Last Session: 2026-04-30 20:24
+Last Session: 2026-05-01 17:12
 
 ### Intro + Brand System (new)
 - [x] IntroFeature.swift — TCA 1.15+ @Reducer, phase machine (reveal → tagline → holding → exiting → finished)
