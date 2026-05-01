@@ -1,4 +1,10 @@
-# BUILD_STATE.md — Last updated: 2026-05-01 (readiness claim cleanup)
+# BUILD_STATE.md — Last updated: 2026-05-01 (task bucket normalization)
+
+> **Task bucket normalization 2026-05-01** — Implemented Gate 0 of the task hierarchy plan. `TaskBucket` now has DB-safe `dbValue` / `from(dbValue:)` mapping, `DataBridge` task upserts and Today behaviour/estimate writes use snake_case bucket values, and migration `20260501211002_normalize_task_bucket_values.sql` backfills existing bucket-bearing tables while adding `cc_fyi` support and preserving `other`.
+
+> **Verified 2026-05-01 bucket normalization** — `swift build` ✅; `swift test --filter DataBridgeTests` ✅ (14 tests); `swift test` ✅ (87 tests). `supabase db lint` could not run because local Postgres was not running; `supabase start` could not start it because the Docker/OrbStack daemon was unavailable.
+
+> **Next after bucket normalization** — Gate 1: review and land the `task_sections` / task hierarchy schema migration before extending Swift task models.
 
 > **Readiness cleanup 2026-05-01** — Narrowed production claims without wiring new surfaces. iOS remains simulator-build/scaffold only: TimediOS tabs are placeholders; BGTask workers, APNs token sink, and silent-push sync are not installed; the Share extension writes `share-queue.jsonl` without a main-app drain; widget snapshot writes and the Live Activity coordinator are not wired. `deepgram-transcribe` is local-only batch ASR; live `ConversationView` speech ingress uses `deepgram-token` + Deepgram WSS. `generate-embedding` is disabled and returns dimension `0`; app MemoryStore embedding calls are not production-ready until that function is re-enabled or replaced.
 

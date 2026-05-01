@@ -796,7 +796,7 @@ struct TodayPane: View {
                                     let event = BehaviourEventInsert(
                                         workspaceId: wsId, profileId: profileId,
                                         eventType: "task_deferred", taskId: task.id,
-                                        bucketType: task.bucket.rawValue,
+                                        bucketType: task.bucket.dbValue,
                                         hourOfDay: Calendar.current.component(.hour, from: Date()),
                                         dayOfWeek: Calendar.current.component(.weekday, from: Date()),
                                         oldValue: nil, newValue: nil
@@ -1038,7 +1038,7 @@ struct TodayTaskRow: View {
                                     let event = BehaviourEventInsert(
                                         workspaceId: wsId, profileId: profileId,
                                         eventType: "task_deferred", taskId: task.id,
-                                        bucketType: task.bucket.rawValue,
+                                        bucketType: task.bucket.dbValue,
                                         hourOfDay: Calendar.current.component(.hour, from: Date()),
                                         dayOfWeek: Calendar.current.component(.weekday, from: Date()),
                                         oldValue: nil, newValue: nil
@@ -1109,13 +1109,13 @@ struct TodayTaskRow: View {
                                 let event = BehaviourEventInsert(
                                     workspaceId: wsId, profileId: profileId,
                                     eventType: "task_completed", taskId: task.id,
-                                    bucketType: task.bucket.rawValue,
+                                    bucketType: task.bucket.dbValue,
                                     hourOfDay: Calendar.current.component(.hour, from: Date()),
                                     dayOfWeek: Calendar.current.component(.weekday, from: Date()),
                                     oldValue: nil, newValue: "\(actualMinutes)"
                                 )
                                 try? await supa.insertBehaviourEvent(event)
-                                try? await supa.upsertBucketEstimate(wsId, profileId, task.bucket.rawValue, est.meanMinutes, est.sampleCount)
+                                try? await supa.upsertBucketEstimate(wsId, profileId, task.bucket.dbValue, est.meanMinutes, est.sampleCount)
 
                                 // Update tasks.actual_minutes — DB trigger auto-inserts to estimation_history
                                 try? await supa.updateTaskActualMinutes(task.id, actualMinutes)
@@ -1233,7 +1233,7 @@ struct TodayTaskRow: View {
                                 let event = BehaviourEventInsert(
                                     workspaceId: wsId, profileId: profileId,
                                     eventType: "estimate_override", taskId: task.id,
-                                    bucketType: task.bucket.rawValue,
+                                    bucketType: task.bucket.dbValue,
                                     hourOfDay: Calendar.current.component(.hour, from: Date()),
                                     dayOfWeek: Calendar.current.component(.weekday, from: Date()),
                                     oldValue: "\(oldMinutes)", newValue: "\(draftMinutes)"

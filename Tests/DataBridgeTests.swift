@@ -69,6 +69,21 @@ struct DataBridgeTests {
         // nil is expected on fresh state
         _ = session
     }
+
+    @Test("TaskBucket round-trips canonical DB values")
+    func testTaskBucketCanonicalDBValues() {
+        for bucket in TaskBucket.allCases {
+            #expect(TaskBucket.from(dbValue: bucket.dbValue) == bucket)
+        }
+        #expect(TaskBucket.ccFyi.dbValue == "cc_fyi")
+    }
+
+    @Test("TimedTask decodes canonical and legacy bucket values")
+    func testTimedTaskDecodesBucketValues() {
+        #expect(TimedTask(from: makeTaskRow(bucketType: "reply_email")).bucket == .reply)
+        #expect(TimedTask(from: makeTaskRow(bucketType: "Read Today")).bucket == .readToday)
+        #expect(TimedTask(from: makeTaskRow(bucketType: "cc_fyi")).bucket == .ccFyi)
+    }
     // MARK: - Offline Replay
 
     @Test("idempotency key keeps latest pending payload")
@@ -152,6 +167,31 @@ struct DataBridgeTests {
             }
         }
     }
+
+    @Test("saveTasks writes canonical task bucket values")
+    func testSaveTasksWritesCanonicalBucketValues() async throws {
+        let recorder = TaskUpsertRecorder()
+
+        try await withAuthenticatedTimedStore { _ in
+            try await withDependencies {
+                var dependency = SupabaseClientDependency()
+                dependency.upsertTask = { row in await recorder.record(row) }
+                $0.supabaseClient = dependency
+            } operation: {
+                let queue = OfflineSyncQueue()
+                let bridge = DataBridge(offlineQueue: queue)
+                let task = makeTask(title: "Canonical bucket", bucket: .readToday)
+
+                try await bridge.saveTasks([task])
+                await bridge.flushOfflineReplay()
+
+                let rows = await recorder.rows()
+                #expect(rows.contains { row in
+                    row.id == task.id && row.bucketType == "read_today"
+                })
+            }
+        }
+    }
 }
 
 private struct QueueReplayEntry: Equatable, Sendable {
@@ -192,15 +232,45 @@ private enum DataBridgeReplayTestError: Error {
     case expectedFailure
 }
 
-private func makeTask(title: String) -> TimedTask {
+private func makeTask(title: String, bucket: TaskBucket = .action) -> TimedTask {
     TimedTask(
         id: UUID(),
         title: title,
         sender: "Timed",
         estimatedMinutes: 15,
-        bucket: .action,
+        bucket: bucket,
         emailCount: 0,
         receivedAt: Date(timeIntervalSince1970: 1_700_000_000)
+    )
+}
+
+private func makeTaskRow(bucketType: String) -> TaskDBRow {
+    TaskDBRow(
+        id: UUID(),
+        workspaceId: UUID(),
+        profileId: UUID(),
+        sourceType: "manual",
+        bucketType: bucketType,
+        title: "Decoded task",
+        description: nil,
+        status: "pending",
+        priority: 5,
+        dueAt: nil,
+        estimatedMinutesAi: 20,
+        estimatedMinutesManual: nil,
+        actualMinutes: nil,
+        estimateSource: "ai",
+        isDoFirst: false,
+        isTransitSafe: false,
+        isOverdue: false,
+        completedAt: nil,
+        createdAt: Date(timeIntervalSince1970: 1_700_000_000),
+        updatedAt: Date(timeIntervalSince1970: 1_700_000_000),
+        urgency: 2,
+        importance: 2,
+        energyRequired: "medium",
+        context: "desk",
+        skipCount: 0
     )
 }
 

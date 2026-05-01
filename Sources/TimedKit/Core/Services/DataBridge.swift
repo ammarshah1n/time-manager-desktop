@@ -248,7 +248,7 @@ actor DataBridge {
             workspaceId: workspaceId,
             profileId: profileId,
             sourceType: "manual",
-            bucketType: task.bucket.rawValue,
+            bucketType: task.bucket.dbValue,
             title: task.title,
             description: nil,
             status: task.isDone ? "done" : "pending",

@@ -36,6 +36,42 @@ enum TaskBucket: String, CaseIterable, Hashable, Codable {
     case waiting      = "Waiting"
     case ccFyi        = "CC / FYI"
 
+    var dbValue: String {
+        switch self {
+        case .reply:        "reply_email"
+        case .action:       "action"
+        case .calls:        "calls"
+        case .readToday:    "read_today"
+        case .readThisWeek: "read_this_week"
+        case .transit:      "transit"
+        case .waiting:      "waiting"
+        case .ccFyi:        "cc_fyi"
+        }
+    }
+
+    static func from(dbValue: String) -> TaskBucket? {
+        switch dbValue.trimmingCharacters(in: .whitespacesAndNewlines) {
+        case "Reply", "reply", "reply_email", "reply_wa", "reply_other":
+            .reply
+        case "Action", "action":
+            .action
+        case "Calls", "calls":
+            .calls
+        case "Read Today", "readToday", "read_today":
+            .readToday
+        case "Read This Week", "readThisWeek", "read_this_week":
+            .readThisWeek
+        case "Transit", "transit":
+            .transit
+        case "Waiting", "waiting":
+            .waiting
+        case "CC / FYI", "ccFyi", "cc_fyi":
+            .ccFyi
+        default:
+            nil
+        }
+    }
+
     var icon: String {
         switch self {
         case .reply:        "arrowshape.turn.up.left.fill"
@@ -578,7 +614,7 @@ extension TriageItem {
 
 extension TimedTask {
     init(from row: TaskDBRow) {
-        let bucket = TaskBucket(rawValue: row.bucketType) ?? .action
+        let bucket = TaskBucket.from(dbValue: row.bucketType) ?? .action
         self.init(
             id: row.id,
             title: row.title,
