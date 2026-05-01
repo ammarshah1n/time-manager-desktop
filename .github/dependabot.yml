@@ -22,6 +22,70 @@ updates:
       - "dependencies"
       - "trigger-dev"
 
+  # Trigger support scripts are still a separate npm surface.
+  - package-ecosystem: "npm"
+    directory: "/trigger/scripts"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "trigger-dev"
+
+  - package-ecosystem: "npm"
+    directory: "/services/graphiti-mcp"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "graphiti"
+
+  - package-ecosystem: "npm"
+    directory: "/services/skill-library-mcp"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "skill-library"
+
+  - package-ecosystem: "pip"
+    directory: "/services/graphiti"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "graphiti"
+
+  - package-ecosystem: "docker"
+    directory: "/services/graphiti"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "graphiti"
+
+  - package-ecosystem: "docker"
+    directory: "/services/graphiti-mcp"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "graphiti"
+
+  - package-ecosystem: "docker"
+    directory: "/services/skill-library-mcp"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "skill-library"
+
   # GitHub Actions — keep pinned SHAs current. Reviewing each Dependabot bump
   # is the price of SHA pinning; do not skip these.
   - package-ecosystem: "github-actions"

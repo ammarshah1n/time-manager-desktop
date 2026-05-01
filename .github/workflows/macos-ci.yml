@@ -25,15 +25,41 @@ jobs:
       - name: Run tests
         run: swift test
 
-      - name: Typecheck Edge Functions
+      - name: Install CI tools
+        run: brew install deno xcodegen
+
+      - name: Verify Edge Function dependency lock
         run: |
-          curl -fsSL https://deno.land/install.sh | sh
-          export DENO_DIR="$HOME/.deno"
-          export PATH="$DENO_DIR/bin:$PATH"
-          for fn in supabase/functions/*/index.ts; do
-            echo "Checking $fn..."
-            deno check --no-lock "$fn" || exit 1
+          cd supabase/functions
+          for fn in */index.ts; do
+            echo "Verifying locked dependencies for $fn..."
+            deno cache --frozen "$fn" || exit 1
           done
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Build TimedMac Xcode target
+        run: |
+          xcodebuild -project Timed.xcodeproj \
+            -scheme TimedMac \
+            -configuration Release \
+            -destination 'platform=macOS,arch=arm64' \
+            -skipMacroValidation \
+            -skipPackagePluginValidation \
+            ARCHS=arm64 ONLY_ACTIVE_ARCH=YES CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Build TimediOS Xcode target
+        run: |
+          xcodebuild -project Timed.xcodeproj \
+            -scheme TimediOS \
+            -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' \
+            -skipMacroValidation \
+            -skipPackagePluginValidation \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            build
 
       - name: Package app
         run: bash scripts/package_app.sh

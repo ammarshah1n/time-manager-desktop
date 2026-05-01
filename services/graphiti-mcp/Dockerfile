@@ -3,7 +3,7 @@
 # Build stage installs dev deps + TypeScript, compiles to dist/.
 # Runtime stage installs only production deps and copies dist/.
 
-FROM node:20-bookworm-slim AS builder
+FROM node:22-bookworm-slim AS builder
 WORKDIR /app
 
 # pnpm via corepack so the image pulls the exact version we use locally.
@@ -20,7 +20,7 @@ RUN pnpm run build
 # Prune dev deps for runtime stage.
 RUN pnpm prune --prod
 
-FROM node:20-bookworm-slim AS runtime
+FROM node:22-bookworm-slim AS runtime
 WORKDIR /app
 
 ENV NODE_ENV=production \

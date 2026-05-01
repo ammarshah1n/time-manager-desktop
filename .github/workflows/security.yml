@@ -15,10 +15,8 @@ permissions:
   security-events: write     # SARIF upload to the Security tab
   actions: read              # required by codeql-action and scorecard
 
-# Whole workflow is in advisory / report-only mode for the first two weeks.
-# Findings land in the Security tab, but `continue-on-error` prevents the
-# job from blocking PR merges while we baseline. After the baseline is
-# clean, drop the `continue-on-error` flags one scanner at a time.
+# gitleaks and workflow lint block PRs. Semgrep, Scorecard, and harden-runner
+# remain advisory until their baselines are clean.
 
 jobs:
   gitleaks:
@@ -30,7 +28,6 @@ jobs:
           fetch-depth: 0
       - name: gitleaks
         uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7  # v2
-        continue-on-error: true
         env:
           GITLEAKS_ENABLE_UPLOAD_ARTIFACT: false
           GITLEAKS_ENABLE_SUMMARY: true
@@ -77,9 +74,8 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
       - name: actionlint
         run: |
-          bash <(curl https://raw.githubusercontent.com/rhysd/actionlint/03d0035246f3e81f36aed592ffb4bebf33a03106/scripts/download-actionlint.bash)
-          ./actionlint -color
-        continue-on-error: true
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
+          "$HOME/go/bin/actionlint" -color
 
   scorecard:
     name: ossf-scorecard (repo posture, weekly only)

@@ -1,6 +1,6 @@
 # skill-library-mcp — TypeScript MCP server published as a Fly.io HTTP service.
 
-FROM node:20-bookworm-slim AS builder
+FROM node:22-bookworm-slim AS builder
 WORKDIR /app
 
 RUN corepack enable && corepack prepare pnpm@9.12.3 --activate
@@ -14,7 +14,7 @@ RUN pnpm run build
 
 RUN pnpm prune --prod
 
-FROM node:20-bookworm-slim AS runtime
+FROM node:22-bookworm-slim AS runtime
 WORKDIR /app
 
 ENV NODE_ENV=production \
