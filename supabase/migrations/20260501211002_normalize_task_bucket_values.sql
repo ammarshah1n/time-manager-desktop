@@ -142,7 +142,7 @@ alter table public.behaviour_events
   check (bucket_type is null or bucket_type in (
     'action', 'reply_email', 'reply_wa', 'reply_other',
     'read_today', 'read_this_week', 'calls', 'transit',
-    'waiting', 'cc_fyi', 'other'
+    'waiting', 'cc_fyi', 'other', 'briefing'
   ));
 
 alter table public.bucket_completion_stats
