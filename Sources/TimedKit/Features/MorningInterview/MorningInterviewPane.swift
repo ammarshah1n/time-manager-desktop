@@ -181,7 +181,7 @@ struct MorningInterviewPane: View {
 
             footer
         }
-        .frame(width: 640, height: 560)
+        .frame(width: 560, height: 520)
         .onChange(of: step) { _, newStep in
             if voiceMode {
                 speakForStep(newStep)
@@ -773,27 +773,27 @@ struct MorningInterviewPane: View {
     // MARK: - Step 2: Energy Level (Q2)
 
     private var stepEnergyLevel: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: TimedLayout.Spacing.sm) {
             voiceStatusBar
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: TimedLayout.Spacing.xxs) {
                 Text("How's your energy today?")
-                    .font(.system(size: 16, weight: .medium))
+                    .font(TimedType.headline)
                 Text("This helps match tasks to your current cognitive capacity.")
-                    .font(.system(size: 13))
-                    .foregroundStyle(.secondary)
+                    .font(TimedType.footnote)
+                    .foregroundStyle(Color.Timed.labelSecondary)
             }
 
-            VStack(spacing: 10) {
+            VStack(spacing: TimedLayout.Spacing.xs) {
                 energyButton(range: 9...10, label: "Peak energy",       desc: "Deep analytical work, big decisions", icon: "bolt.fill",             tint: Color.Timed.labelSecondary)
                 energyButton(range: 7...8,  label: "Good energy",       desc: "Focused work, meetings, calls",       icon: "sun.max.fill",          tint: Color.Timed.labelSecondary)
                 energyButton(range: 5...6,  label: "Moderate",          desc: "Mix of focused and routine tasks",     icon: "cloud.sun.fill",        tint: Color.Timed.labelSecondary)
                 energyButton(range: 3...4,  label: "Low energy",        desc: "Quick replies, light admin, reading",  icon: "moon.fill",             tint: Color.Timed.labelSecondary)
                 energyButton(range: 1...2,  label: "Running on empty",  desc: "Only essentials — defer what you can", icon: "battery.25percent",     tint: Color.Timed.labelSecondary)
             }
-            .padding(.top, 4)
+            .padding(.top, TimedLayout.Spacing.xs)
         }
-        .padding(.horizontal, 28).padding(.top, 8)
+        .padding(.horizontal, TimedLayout.Spacing.xl).padding(.top, TimedLayout.Spacing.xs)
     }
 
     private func energyButton(range: ClosedRange<Int>, label: String, desc: String, icon: String, tint: Color) -> some View {
@@ -801,29 +801,34 @@ struct MorningInterviewPane: View {
         return Button {
             energyLevel = (range.lowerBound + range.upperBound) / 2
         } label: {
-            HStack(spacing: 12) {
+            HStack(spacing: TimedLayout.Spacing.sm) {
                 Image(systemName: icon)
-                    .font(.system(size: 16))
+                    .font(TimedType.subheadline)
                     .foregroundStyle(tint)
-                    .frame(width: 24)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(label).font(.system(size: 14, weight: .medium))
-                    Text(desc).font(.system(size: 11)).foregroundStyle(.secondary)
+                    .frame(width: TimedLayout.Spacing.xl)
+                VStack(alignment: .leading, spacing: TimedLayout.Spacing.xxs) {
+                    Text(label)
+                        .font(TimedType.subheadline.weight(.semibold))
+                    Text(desc)
+                        .font(TimedType.caption)
+                        .foregroundStyle(Color.Timed.labelSecondary)
                 }
                 Spacer()
                 if isSelected {
                     Image(systemName: "checkmark.circle.fill")
+                        .font(TimedType.subheadline)
                         .foregroundStyle(.primary)
                 }
             }
-            .padding(.horizontal, 16).padding(.vertical, 12)
+            .padding(.horizontal, TimedLayout.Spacing.md)
+            .frame(minHeight: TimedLayout.Height.row)
             .background(
-                RoundedRectangle(cornerRadius: 10)
+                RoundedRectangle(cornerRadius: TimedLayout.Radius.input)
                     .fill(isSelected ? Color.primary.opacity(0.08) : Color(.controlBackgroundColor))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 10)
-                    .stroke(isSelected ? Color.primary.opacity(0.3) : .clear, lineWidth: 1.5)
+                RoundedRectangle(cornerRadius: TimedLayout.Radius.input)
+                    .stroke(isSelected ? Color.primary.opacity(0.3) : .clear, lineWidth: TimedLayout.Stroke.hairline)
             )
         }
         .buttonStyle(.plain)
