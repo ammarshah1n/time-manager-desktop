@@ -227,13 +227,15 @@ actor CalendarSyncService {
             "is_back_to_back": AnyCodable(isBackToBack),
             "meeting_type": AnyCodable(meetingType)
         ]
+        let calendarObservationId = UUID()
 
         let observation = Tier0Observation(
             profileId: executiveId,
             occurredAt: emission.occurredAt,
             source: .calendar,
             eventType: emission.eventType,
-            entityType: "calendar_event",
+            entityId: calendarObservationId,
+            entityType: "calendar_observation",
             summary: calendarSummary(for: parsedEvent.event, eventType: emission.eventType),
             rawData: rawData,
             importanceScore: 0.5
@@ -247,7 +249,7 @@ actor CalendarSyncService {
         }
 
         let calendarObservation = CalendarObservationRow(
-            id: UUID(),
+            id: calendarObservationId,
             executiveId: executiveId,
             observedAt: emission.occurredAt,
             eventStart: parsedEvent.startDate,

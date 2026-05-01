@@ -77,7 +77,7 @@ actor Tier0Writer: SignalIngestionPort {
         do {
             try await client
                 .from(tableName)
-                .insert(batch)
+                .upsert(batch, onConflict: "idempotency_key")
                 .execute()
 
             buffer.removeFirst(batch.count)

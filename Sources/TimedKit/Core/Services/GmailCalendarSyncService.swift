@@ -95,13 +95,15 @@ actor GmailCalendarSyncService {
             if parsedEnd <= Date() { return "calendar.attended" }
             return "calendar.event_created"
         }()
+        let calendarObservationId = UUID()
 
         let observation = Tier0Observation(
             profileId: executiveId,
             occurredAt: parsedStart,
             source: .calendar,
             eventType: eventType,
-            entityType: "calendar_event",
+            entityId: calendarObservationId,
+            entityType: "calendar_observation",
             summary: summary(for: event, eventType: eventType),
             rawData: rawData,
             importanceScore: 0.5
@@ -118,7 +120,7 @@ actor GmailCalendarSyncService {
             .responseStatus
 
         let calendarObservation = CalendarObservationRow(
-            id: UUID(),
+            id: calendarObservationId,
             executiveId: executiveId,
             observedAt: parsedStart,
             eventStart: parsedStart,

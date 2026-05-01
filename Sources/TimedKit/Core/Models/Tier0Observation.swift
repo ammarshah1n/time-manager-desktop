@@ -11,6 +11,7 @@ struct Tier0Observation: Codable, Sendable, Identifiable {
     var entityType: String?
     var summary: String?
     var rawData: [String: AnyCodable]?
+    var idempotencyKey: String?
     var importanceScore: Double
     var baselineDeviation: Double?
     var isProcessed: Bool
@@ -27,6 +28,7 @@ struct Tier0Observation: Codable, Sendable, Identifiable {
         entityType: String? = nil,
         summary: String? = nil,
         rawData: [String: AnyCodable]? = nil,
+        idempotencyKey: String? = nil,
         importanceScore: Double = 0.5,
         baselineDeviation: Double? = nil,
         isProcessed: Bool = false,
@@ -42,11 +44,27 @@ struct Tier0Observation: Codable, Sendable, Identifiable {
         self.entityType = entityType
         self.summary = summary
         self.rawData = rawData
+        self.idempotencyKey = idempotencyKey ?? Self.makeIdempotencyKey(
+            profileId: profileId,
+            source: source,
+            entityType: entityType,
+            entityId: entityId
+        )
         self.importanceScore = importanceScore
         self.baselineDeviation = baselineDeviation
         self.isProcessed = isProcessed
         self.processedAt = processedAt
         self.createdAt = createdAt
+    }
+
+    private static func makeIdempotencyKey(
+        profileId: UUID,
+        source: SignalSource,
+        entityType: String?,
+        entityId: UUID?
+    ) -> String? {
+        guard let entityType, let entityId else { return nil }
+        return "\(profileId.uuidString.lowercased()):\(source.rawString):\(entityType):\(entityId.uuidString.lowercased())"
     }
 
     enum CodingKeys: String, CodingKey {
@@ -59,6 +77,7 @@ struct Tier0Observation: Codable, Sendable, Identifiable {
         case entityType = "entity_type"
         case summary
         case rawData = "raw_data"
+        case idempotencyKey = "idempotency_key"
         case importanceScore = "importance_score"
         case baselineDeviation = "baseline_deviation"
         case isProcessed = "is_processed"
