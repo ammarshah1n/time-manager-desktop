@@ -1,4 +1,10 @@
-# BUILD_STATE.md — Last updated: 2026-04-30 (Graphiti backfill completed)
+# BUILD_STATE.md — Last updated: 2026-05-01 (security review remediation pass)
+
+> **Review remediation 2026-05-01** — Implemented the first review-plan fix batch on `unified`: removed/parameterized local secret surfaces, authenticated paid-provider and privileged Edge Functions, protected Graphiti core routes, added tenant ownership checks and Graph webhook `clientState` validation, repaired email/Gmail classify-email contracts and cursor advancement, added Tier 0 idempotency, and aligned macOS package/notarization/CI artifact paths.
+
+> **Verified 2026-05-01** — `swift build` ✅; `swift test` ✅ (71 tests); `deno check` ✅ for the changed Edge Functions; `python3 -m py_compile services/graphiti/app/main.py` ✅; `pnpm typecheck` ✅ in `services/graphiti-mcp`; `bash -n scripts/package_app.sh scripts/notarize_app.sh` ✅. `gitleaks` and `actionlint` were not installed locally.
+
+> **Remaining after this pass** — rotate exposed credentials out-of-band, deploy the Supabase function and migration changes, then continue with the larger open items: identity/bootstrap model alignment, durable offline queue replay, server-side Graph account schema drift, Xcode target CI coverage, and release signing with a real Developer ID certificate.
 
 > **Current state 2026-04-30** — `unified` remains the single active trunk. Microsoft email/calendar was verified end-to-end on 2026-04-29. Gmail + Google Calendar were added as a parallel path in commit `4e5cf9e`, with no Microsoft-path rewrites. Gmail backend migration + `voice-llm-proxy` OR-gate are now live remotely. Trigger.dev Wave 2 Opus aliases route to 4.7; older Supabase Edge Functions still contain direct 4.6 IDs. Graphiti one-shot backfill completed in Prod run `run_cmol21ysj5ohl0unbrlg495f2`. `HANDOFF.md` is the live narrative; this file is the build-state ledger.
 
@@ -186,7 +192,7 @@
 - **3 architecture syntheses:** `research/ARCHITECTURE-MEMORY.md`, `ARCHITECTURE-SIGNALS.md`, `ARCHITECTURE-DELIVERY.md`
 
 Any future build session should read `CLAUDE.md` → `BUILD_STATE.md` → relevant `ARCHITECTURE-*.md` → build.
-Last Session: 2026-04-30 10:10
+Last Session: 2026-04-30 20:24
 
 ### Intro + Brand System (new)
 - [x] IntroFeature.swift — TCA 1.15+ @Reducer, phase machine (reveal → tagline → holding → exiting → finished)
