@@ -1,6 +1,17 @@
 # HANDOFF.md — Timed
 
-Last updated: 2026-04-30 evening (assistant guidance audit)
+Last updated: 2026-05-01 (review remediation wrap-up)
+
+## ★ 2026-05-01 ★ — Review remediation pass archived for Perplexity follow-up
+
+**State: SHIPPED.** First implementation pass from the full-codebase review is committed on `unified` through `5d3ce91 chore(timed): record remediation build state`. The six review reports were copied out of `/private/tmp` into the repo so they survive the session.
+
+- Reports: `docs/reviews/timed-code-review-2026-05-01/`
+- Resume doc: `NEXT.md`
+- Perplexity prompt: `docs/reviews/timed-code-review-2026-05-01/perplexity-review-prompt.md`
+- Verification completed: `swift build`, `swift test` (71 tests), changed Edge Function `deno check`, Graphiti Python compile, `services/graphiti-mcp` `pnpm typecheck`, and packaging script syntax checks.
+
+**Next:** run the Perplexity prompt against the archived reports, compare its output against `00-master-issue-list.md` and the remediation commits after `1770cb5`, then write the final implementation plan before making more code changes.
 
 ## ★ 2026-04-30 evening ★ — Assistant guidance audit completed
 
