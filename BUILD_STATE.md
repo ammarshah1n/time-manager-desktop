@@ -1,4 +1,6 @@
-# BUILD_STATE.md — Last updated: 2026-05-01 (installed app login + capture voice fix)
+# BUILD_STATE.md — Last updated: 2026-05-01 (readiness claim cleanup)
+
+> **Readiness cleanup 2026-05-01** — Narrowed production claims without wiring new surfaces. iOS remains simulator-build/scaffold only: TimediOS tabs are placeholders; BGTask workers, APNs token sink, and silent-push sync are not installed; the Share extension writes `share-queue.jsonl` without a main-app drain; widget snapshot writes and the Live Activity coordinator are not wired. `deepgram-transcribe` is local-only batch ASR; live `ConversationView` speech ingress uses `deepgram-token` + Deepgram WSS. `generate-embedding` is disabled and returns dimension `0`; app MemoryStore embedding calls are not production-ready until that function is re-enabled or replaced.
 
 > **Installed app fix 2026-05-01** — Shipped and installed the Timed.app fixes for repeated launch login prompts and Capture voice permission failures. `AuthService.bootstrapExecutive()` no longer auto-opens Outlook/MSAL on launch; Capture voice now surfaces speech/microphone authorization failures with an Open Settings action; `scripts/package_app.sh` now carries Google OAuth plist config; the voice audio tap is isolated from `@MainActor` state. `/Applications/Timed.app` was rebuilt, installed, verified, and matches `dist.noindex/Timed.app` at binary SHA-256 `e5838964834b4e2668357313d0c8930fe65271dd4b8726b739963c2366108664`.
 
@@ -16,13 +18,13 @@
 
 > **Verified via CLI 2026-04-30** — Supabase remote has **39 ACTIVE Edge Functions**. Local tree has **40 function dirs + `_shared`**; `deepgram-transcribe` is local-only. `supabase migration list --linked` showed **64 remote migrations applied**, including `20260430120000_gmail_provider.sql`.
 
-> **Pending ops** — (1) launch Timed and connect Gmail with `5066sim@gmail.com`, (2) resume Apple Developer enrollment for notarised Mac/iOS delivery, (3) decide whether to deploy optional local-only `deepgram-transcribe`.
+> **Pending ops** — (1) launch Timed and connect Gmail with `5066sim@gmail.com`, (2) resume Apple Developer enrollment for notarised Mac/iOS delivery, (3) decide whether to deploy optional local-only `deepgram-transcribe`, (4) wire iOS/share/widget/Live Activity/background paths before making production iOS claims.
 
-> **Beta sprint SHIPPED 2026-04-28 PM** — commits `bcee82b` + `ec3a7fd` on `origin/unified`. 9 fixes from Beta-Ready Execution Plan + 3 Perplexity Deep Research audits: email/password auth, MainActor crash fix, smooth login transitions, Microsoft 4-square logo, "Set up later" plumbing, auth cascade (`bootstrapExecutive` → `signInWithGraph` → email + calendar sync), `v1BetaMode` defaulted false, `MorningBriefingPane` reachable, AlertEngine wired via new `AlertsPresenter`, `EmailClassifier.classifyLive` via anthropic-relay, iOS orb sheet → `ConversationView`, DishMeUp bucket dotColors + `sessionFraming` semibold, voice path guard test. Build green; `/Applications/Timed.app` was rebuilt.
+> **Beta sprint SHIPPED 2026-04-28 PM** — commits `bcee82b` + `ec3a7fd` on `origin/unified`. 9 fixes from Beta-Ready Execution Plan + 3 Perplexity Deep Research audits: email/password auth, MainActor crash fix, smooth login transitions, Microsoft 4-square logo, "Set up later" plumbing, auth cascade (`bootstrapExecutive` → `signInWithGraph` → email + calendar sync), `v1BetaMode` defaulted false, `MorningBriefingPane` reachable, AlertEngine wired via new `AlertsPresenter`, `EmailClassifier.classifyLive` via anthropic-relay, iOS orb sheet → `ConversationView` with empty task/calendar state, DishMeUp bucket dotColors + `sessionFraming` semibold, voice path guard test. Build green; `/Applications/Timed.app` was rebuilt. iOS remains scaffold/simulator-build only.
 
 > **Single source of truth: `unified` branch.** As of 2026-04-27 the four divergent branches (`ui/apple-v1-restore`, `ui/apple-v1-local-monochrome`, `ui/apple-v1-wired`, `ios/port-bootstrap`) have been merged into one trunk. See **`docs/UNIFIED-BRANCH.md`** for the permanent architecture reference and **`docs/SINCE-2026-04-24.md`** for the narrative of how we got here.
 >
-> **Build matrix from `unified` (verified):** `swift build` ✅ · `xcodebuild TimedMac` ✅ (arm64 only) · `xcodebuild TimediOS sim` ✅. **DMG produced:** `dist.noindex/Timed.dmg` (31 MB, ad-hoc signed).
+> **Build matrix from `unified` (verified):** `swift build` ✅ · `xcodebuild TimedMac` ✅ (arm64 only) · `xcodebuild TimediOS sim` ✅ compile-only. **DMG produced:** `dist.noindex/Timed.dmg` (31 MB, ad-hoc signed).
 >
 > **Daily Mac use (Ammar, today, no cert needed):** `bash scripts/package_app.sh && bash scripts/install_app.sh` → `/Applications/Timed.app`. First launch: right-click → Open. Re-run after code changes. Active dev: `bash scripts/watch-and-build.sh`. See HANDOFF.md Chain A.1.
 >
@@ -33,16 +35,17 @@
 ## Voice Architecture (current)
 | Layer | Tech | Where |
 |---|---|---|
-| ASR (orb conversation) | ElevenLabs Scribe v2 Turbo | inside the Conversational Agent |
-| LLM (orb conversation) | Claude Opus 4.6 in current `voice-llm-proxy` code | `supabase/functions/voice-llm-proxy/index.ts` |
-| TTS (orb conversation) | ElevenLabs voice (agent-baked) | inside the Conversational Agent |
+| ASR (`ConversationView` orb) | Deepgram Nova-3 WSS via short-lived token | `DeepgramSTTService.swift` + `deepgram-token` |
+| LLM (`ConversationView` orb) | Claude via streaming Edge Function | `supabase/functions/orb-conversation/index.ts` |
+| TTS (`ConversationView` orb) | `orb-tts`; fallback to `elevenlabs-tts-proxy` one-shot | `StreamingTTSService.swift` / `SpeechService.swift` |
+| Voice onboarding / morning check-in | ElevenLabs Conversational Agent | `MorningCheckInManager.swift` |
 | LLM (Capture / Onboarding / Interview) | Claude Opus 4.7 via proxy | `supabase/functions/anthropic-proxy/index.ts` |
 | TTS (one-shot, Capture / Dish Me Up) | ElevenLabs Lily via proxy | `supabase/functions/elevenlabs-tts-proxy/index.ts` |
-| Batch ASR (parked, non-conversational) | Deepgram Nova-3 via proxy | `supabase/functions/deepgram-transcribe/index.ts` |
+| Batch ASR (parked, non-conversational) | Deepgram Nova-3 via local-only proxy | `supabase/functions/deepgram-transcribe/index.ts` (not deployed remotely) |
 
 **Zero per-machine setup**: Agent ID, Supabase URL, anon JWT, Graph client/tenant IDs are all baked-in constants. All third-party API keys live server-side (Anthropic, ElevenLabs, Deepgram, Gemini) — the binary holds none.
 
-**Why no Deepgram in the orb**: ElevenLabs Conversational AI locks ASR to their own models — Deepgram isn't a selectable provider. Deepgram subscription preserved for batch / non-conversational paths.
+**Deepgram function split**: `deepgram-token` is the live token issuer for `ConversationView`'s direct Deepgram WSS path. `deepgram-transcribe` is a parked batch-transcription proxy and is not deployed remotely.
 
 ## What Exists and Works
 
@@ -55,7 +58,7 @@
 - [x] NetworkMonitor.swift — NWPathMonitor wrapper (21 lines)
 - [x] EmailClassifier.swift — Protocol + stub, real classification via Edge Function (🔄 placeholder)
 
-### Memory Store ✅ (5-tier intelligence memory COMPLETE)
+### Memory Store ⚠️ (schema + actors exist; app embeddings disabled)
 - [x] DataStore.swift — Local JSON persistence actor, ~/Library/Application Support/Timed/ (113 lines)
 - [x] SupabaseClient.swift — 11 row types, 20+ operations, full CRUD (764 lines)
 - [x] Domain models — TimedTask, TaskBucket, TriageItem, WOOItem, CaptureItem, CalendarBlock, etc.
@@ -65,7 +68,7 @@
 - [x] Tier 3 — tier3_personality_traits table + monthly Opus synthesis
 - [x] ACB — active_context_buffer (dual: ACB-FULL 10-12K + ACB-LIGHT 500-800 tokens)
 - [x] MemoryStore protocol + 5-dimension retrieval engine (RetrievalEngine.swift)
-- [x] LocalVectorStore (USearch HNSW) + EmbeddingService (dual-provider: Voyage + OpenAI)
+- [ ] App MemoryStore embeddings — `EmbeddingService` exists, but `generate-embedding` is a disabled stub that returns dimension `0`
 - [x] DataBridge actor + GRDB offline queue (OfflineSyncQueue.swift)
 
 ### Reflection Engine ✅ (COMPLETE — 4-cron nightly pipeline)
@@ -125,6 +128,7 @@
 - [x] EmailMessageTests — Codable roundtrip
 - [x] TimedPlanningEngineV2Tests — 22 tests (scoring, mood, rules, parser)
 - [x] TimedSchedulerTests — Stub returns
+- [x] Voice/readiness guard tests — static guards for voice path, classify-email contract, email upsert conflict target, and honest iOS readiness claims
 - [ ] TimeSlotAllocator tests — NOT STARTED
 - [ ] EmailSyncService tests — NOT STARTED
 - [ ] VoiceResponseParser tests — NOT STARTED
@@ -137,7 +141,7 @@
 - [x] 39 Edge Functions active remotely (verified with `supabase functions list --project-ref fpmjuufefhtlwbfinxlx` 2026-04-30; `voice-llm-proxy` + 16 hardened functions redeployed)
 - [ ] `deepgram-transcribe` exists locally but is not deployed remotely
 - [x] Anthropic API key set in Supabase secrets
-- [x] Dual-provider embeddings: Voyage (Tier 0, 1024-dim) + OpenAI (Tier 1-3, 3072-dim)
+- [ ] `generate-embedding` is disabled locally and returns empty embeddings with dimension `0`; Voyage remains used by Graphiti/skill-library paths, but app MemoryStore embedding calls are not production-ready
 - [x] Microsoft OAuth app registration (Azure) — client secret expires 2028-04-11
 - [x] Azure provider enabled in Supabase Auth dashboard, redirect URLs configured
 - [x] Shared Anthropic API helper (_shared/anthropic.ts) with Batch API + effort parameter routing

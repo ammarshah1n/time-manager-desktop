@@ -2,7 +2,7 @@
 // Thin @main shim. App-level concerns:
 //   - KeychainStore legacy migration (one-shot)
 //   - BGTaskScheduler handler registration (must run *before* scene becomes active)
-//   - APNs permission + registration on first launch
+//   - APNs permission + registration scaffold
 //   - URL handling for the orb-launch deep link `timed://capture`
 //
 // All UI lives in TimedKit.TimedAppShell which dispatches to TimediOSRootView
@@ -38,10 +38,9 @@ struct TimediOSAppMain: App {
             TimedAppShell()
                 .preferredColorScheme(colorScheme)
                 .task {
-                    // Request push permission once the UI is up — first-launch
-                    // permission prompt is best presented after onboarding,
-                    // not at launch. AlertEngine + Onboarding flow can move
-                    // this call to a later moment.
+                    // Current scaffold requests once the UI is up. Move this
+                    // behind onboarding before treating iOS notifications as
+                    // production-ready.
                     await IOSPushManager.shared.requestPermissionAndRegister()
                 }
         }

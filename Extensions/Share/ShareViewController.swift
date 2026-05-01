@@ -1,6 +1,6 @@
 // ShareViewController.swift — Timed Share Extension
-// Accepts text / URL / email / attachment from any app's Share sheet and
-// posts the payload to the Timed capture pipeline.
+// Accepts text / URL from any app's Share sheet and appends the payload to an
+// App Group queue. The main-app drain is not wired yet.
 //
 // Security posture (per ai-assistant-rules.md):
 //   - Payload MIME type is allow-listed (text, URL, public.message).
@@ -87,10 +87,9 @@ final class ShareViewController: UIViewController {
         return String(decoding: prefix, as: UTF8.self)
     }
 
-    /// Append payload to the App Group queue file. Main app drains the queue
-    /// next time it foregrounds OR when a BGAppRefreshTask fires. We never
-    /// hit the network from here — the extension dies fast and the main app
-    /// owns Edge Function calls + auth.
+    /// Append payload to the App Group queue file. We never hit the network
+    /// from here — the extension dies fast and the future main-app drain owns
+    /// Edge Function calls + auth.
     ///
     /// Total queue file size is hard-capped at 1 MB. If the cap is reached,
     /// we drop the new item (the user's most recent share). This is a worse

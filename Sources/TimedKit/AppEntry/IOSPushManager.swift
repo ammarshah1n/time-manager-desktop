@@ -5,11 +5,8 @@
 //   1. App launches → IOSPushManager.requestPermissionAndRegister()
 //   2. If granted → UIApplication.shared.registerForRemoteNotifications()
 //   3. AppDelegate's didRegisterForRemoteNotifications → IOSPushManager.handle(deviceToken:)
-//   4. handle(...) calls the installed `tokenSink` closure, which the main
-//      app provides — typically POSTs to Supabase Edge Function
-//      `register-push-token` with `{ device_token, platform: "ios", … }`.
-//      The Edge Function must verifyAuth(req) and bind to executive_id from
-//      the JWT — body-supplied tenant IDs are rejected per ai-assistant-rules.
+//   4. handle(...) calls the installed `tokenSink` closure. No production
+//      token sink or `register-push-token` Edge Function is wired yet.
 //
 // AlertEngine scoring stays unchanged; this file only governs delivery.
 
@@ -24,9 +21,8 @@ public final class IOSPushManager {
     public static let shared = IOSPushManager()
     private init() {}
 
-    /// Optional sink installed by the main app at launch — receives the
-    /// hex-encoded APNs device token. Default is a no-op so the registration
-    /// flow doesn't break before the main app wires its sink.
+    /// Optional sink for the hex-encoded APNs device token. Default is a no-op
+    /// until the main app and backend token-registration path are wired.
     public var tokenSink: @Sendable (String) async -> Void = { _ in }
 
     /// Request notification permission + start APNs registration.

@@ -31,8 +31,8 @@ Timed is an **executive operating system**, built by and for its co-founders (Ya
 - **UI:** SwiftUI + TCA (`@Dependency` throughout; `@Reducer` in `IntroFeature`)
 - **Auth:** `AuthService.swift` — Supabase Auth + Microsoft OAuth + additive Google OAuth
 - **Email:** `EmailSyncService` + `GraphClient` for Microsoft; `GmailSyncService` + `GmailClient` for Gmail
-- **Backend:** Supabase project `fpmjuufefhtlwbfinxlx`; CLI verified 39 active remote Edge Functions on 2026-04-30; 63 remote migrations applied with `20260430120000_gmail_provider.sql` pending
-- **Embeddings:** Voyage `voyage-3` (Tier 0, 1024-dim) + OpenAI `text-embedding-3-large` (Tier 1–3, 3072-dim)
+- **Backend:** Supabase project `fpmjuufefhtlwbfinxlx`; CLI verified 39 active remote Edge Functions on 2026-04-30; 64 remote migrations applied including `20260430120000_gmail_provider.sql`
+- **Embeddings:** Graphiti/skill-library use Voyage-backed embeddings; app-facing `generate-embedding` is currently disabled and returns dimension `0`
 - **Orchestration:** pgflow over pgmq, 4-cron schedule (full / refresh / briefing / weekly pruning)
 
 ## Canonical documentation
@@ -71,4 +71,4 @@ Direct DMG + Sparkle (not App Store). See `scripts/package_app.sh` and `scripts/
 
 ## Status
 
-Docs refreshed: **2026-04-30**. Gmail code is additive and shipped locally; pending ops are the Gmail migration push, `voice-llm-proxy` redeploy, Graphiti backfill, and security-hardening WIP. See `BUILD_STATE.md` for detail.
+Docs refreshed: **2026-05-01**. Gmail backend ops and Graphiti backfill are complete; pending ops are in-app Gmail sign-in, Apple Developer enrollment, and wiring iOS/share/widget/Live Activity/background paths before production iOS claims. See `BUILD_STATE.md` for detail.

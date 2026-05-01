@@ -1,8 +1,7 @@
 // SharedSnapshot.swift — Timed Widgets / Shared data
-// App-Group-backed snapshot the main app writes for the widget process to read.
-// Wire location: Sources/TimedKit/Core/Services/DataBridge.swift writes
-// today-snapshot.json after every successful local save (10s debounce).
-// Widget timeline provider reads it; if missing or stale, falls back to placeholder.
+// App-Group-backed snapshot helper for widget reads/writes.
+// No main-app writer is wired yet; widget data remains placeholder/stale until
+// a production writer calls SharedSnapshot.write and reloads timelines.
 
 import Foundation
 

@@ -12,10 +12,10 @@ The `unified` branch is the single source of truth for Timed. It carries:
 
 - **TimedKit** — one shared Swift library that compiles for **both macOS 15+ and iOS 18+**. 123 Swift files in `Sources/TimedKit/`.
 - **TimedMacApp** — thin Mac shim (`Sources/TimedMacApp/TimedMacAppMain.swift`) producing the macOS executable.
-- **TimediOS** — iOS @main app shim (`Platforms/iOS/TimediOSAppMain.swift`).
+- **TimediOS** — iOS @main app shim (`Platforms/iOS/TimediOSAppMain.swift`), currently simulator-build/scaffold only.
 - **Wave 1+2 backend** — `trigger/` (13 Trigger.dev v4 tasks), `services/` (Graphiti FastAPI, Graphiti MCP, Skill Library MCP), `supabase/` schema (59 SQL files including agent_traces, NREM/REM pipeline, executive_profile, kg_snapshots).
 - **Voice path locked** — orb runs ElevenLabs Agent + Opus 4.7 via Edge Function proxies (`anthropic-proxy`, `elevenlabs-tts-proxy`, `voice-llm-proxy`); no API keys ever ship in the binary.
-- **iOS extensions** — `Extensions/Widgets/` (Live Activity), `Extensions/Share/` (share sheet).
+- **iOS extensions** — `Extensions/Widgets/` (widget + Live Activity UI scaffold), `Extensions/Share/` (share sheet queue scaffold). Main-app writers/drains/coordinators are not wired yet.
 - **Platform manifests** — `Platforms/Mac/{Info.plist,Timed.entitlements}`, `Platforms/iOS/{Info.plist,PrivacyInfo.xcprivacy}`.
 - **XcodeGen `project.yml`** — declarative source for `Timed.xcodeproj`. The generated `.xcodeproj` is **gitignored**; regenerate via `xcodegen generate`.
 - **Consolidated docs** — `docs/SINCE-2026-04-24.md`, this file, `HANDOFF.md`, `HANDOFF-wave2.md`, `BUILD_STATE.md`.
@@ -59,7 +59,7 @@ time-manager-desktop/                          ← unified branch root
 │
 ├── Sources/
 │   ├── TimedKit/                              # 123 files — ALL shared application code
-│   │   ├── AppEntry/                          #   - iOS root view, push, BG tasks, intents
+│   │   ├── AppEntry/                          #   - iOS root view, push/BG task scaffolds, intents
 │   │   ├── Core/                              #   - Agents, Audio, Clients, Design, Models, Platform, Services
 │   │   └── Features/                          #   - Briefing, Calendar, Capture, CommandPalette, Conversation,
 │   │                                           #     DishMeUp, Focus, MenuBar (Mac-only), MorningCheckIn,
@@ -81,8 +81,8 @@ time-manager-desktop/                          ← unified branch root
 │       └── PrivacyInfo.xcprivacy              #   App Store privacy manifest
 │
 ├── Extensions/
-│   ├── Widgets/                               # iOS Live Activity + macOS widget bundle
-│   └── Share/                                 # iOS share extension
+│   ├── Widgets/                               # widget + Live Activity UI scaffolds
+│   └── Share/                                 # iOS share extension queue scaffold
 │
 ├── trigger/                                   # Wave 1+2 backend (Trigger.dev v4)
 │   ├── src/inference.ts                       # Anthropic inference helper
@@ -98,7 +98,7 @@ time-manager-desktop/                          ← unified branch root
 │
 ├── supabase/
 │   ├── migrations/                            # 59 SQL files
-│   ├── functions/                             # Edge Functions (29 active including 3 voice proxies)
+│   ├── functions/                             # Edge Functions (39 active remote; local tree has parked extras)
 │   └── scripts/
 │
 ├── docs/                                      # Consolidated documentation
@@ -129,13 +129,13 @@ time-manager-desktop/                          ← unified branch root
   - `Sources/TimedKit/Core/Agents/{KeystrokeAgent,IdleTimeAgent,AppUsageAgent}.swift`
   - `Sources/TimedKit/Core/Services/XPCServiceManager.swift`
   - `Sources/TimedKit/Core/Design/BrandTokens.swift` (uses `#if canImport(AppKit)`)
-- **iOS App Entry** is `Platforms/iOS/TimediOSAppMain.swift` — instantiates `TimedAppShell` from TimedKit, currently with `PlaceholderPane` stubs for Mac-gated panes.
+- **iOS App Entry** is `Platforms/iOS/TimediOSAppMain.swift` — instantiates `TimedAppShell` from TimedKit, currently with `PlaceholderPane` stubs for primary panes. BGTask workers, APNs token sink, silent-push sync, share queue drain, widget snapshot writer, and Live Activity lifecycle are not production-wired yet.
 
 ---
 
 ## Build Matrix (Verified 2026-04-27)
 
-All three build paths work from this single branch:
+All three build paths compile from this single branch:
 
 ```bash
 # Path 1: SwiftPM CLI build (fast iteration, runs in 100s)
@@ -153,7 +153,7 @@ xcodebuild -project Timed.xcodeproj \
   ARCHS=arm64 ONLY_ACTIVE_ARCH=YES \
   build
 
-# Path 3: iOS Simulator
+# Path 3: iOS Simulator compile check
 xcodebuild -project Timed.xcodeproj \
   -scheme TimediOS \
   -destination 'generic/platform=iOS Simulator' \

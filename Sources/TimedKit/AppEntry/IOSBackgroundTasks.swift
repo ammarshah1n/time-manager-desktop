@@ -19,10 +19,8 @@ public enum TimedBackgroundTasks {
     public static let emailRefreshIdentifier   = "com.timed.app.bgRefresh.email"
     public static let synthesisProcessingId    = "com.timed.app.bgProcessing.synthesis"
 
-    /// Optional hook the main app installs at launch — receives a
-    /// `BGAppRefreshTask` to drive a single email-delta sync. Defaults to a
-    /// no-op so the handler still completes cleanly when no provider is
-    /// installed (signed-out, voice-fix-in-flight, etc.).
+    /// Optional hook for a future main-app sync worker. No production worker
+    /// is installed yet, so the default handler only completes the task.
     public static var emailRefreshWorker: @Sendable (BGAppRefreshTask) async -> Void = { task in
         task.setTaskCompleted(success: true)
     }

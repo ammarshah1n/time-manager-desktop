@@ -3,10 +3,8 @@
 //   - the orb is in a conversation, OR
 //   - email/calendar sync is running.
 //
-// Activity is started by the main app via `Activity<TimedConversationActivityAttributes>.request(...)`
-// when ConversationModel transitions out of `.idle`. Update with
-// `activity.update(...)` on every state change. End with `activity.end(...)`
-// once the conversation ends.
+// UI scaffold only. No main-app ActivityKit coordinator currently starts,
+// updates, or ends this Live Activity.
 
 import ActivityKit
 import SwiftUI
