@@ -9,8 +9,21 @@ import { requireEnv } from "../_shared/config.ts";
 
 const supabase = createClient(
   requireEnv("SUPABASE_URL"),
-  requireEnv("SUPABASE_SERVICE_ROLE_KEY")
+  requireEnv("SUPABASE_SERVICE_ROLE_KEY"),
 );
+
+declare const EdgeRuntime: {
+  waitUntil: (promise: Promise<unknown>) => void;
+};
+
+function timingSafeEqual(a: string, b: string): boolean {
+  const maxLength = Math.max(a.length, b.length);
+  let diff = a.length ^ b.length;
+  for (let i = 0; i < maxLength; i++) {
+    diff |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
+  }
+  return diff === 0;
+}
 
 serve(async (req: Request) => {
   // Graph sends a validation token on subscription registration
@@ -42,31 +55,45 @@ async function processNotifications(req: Request): Promise<void> {
   }
 
   for (const notification of payload.value ?? []) {
-    // Validate clientState against stored subscription secret
-    if (notification.clientState) {
-      const { data: account } = await supabase
-        .from("email_accounts")
-        .select("id")
-        .eq("graph_subscription_id", notification.subscriptionId)
-        .single();
+    const { data: subscription, error: subscriptionError } = await supabase
+      .from("graph_subscriptions")
+      .select("exec_id,client_state")
+      .eq("subscription_id", notification.subscriptionId)
+      .maybeSingle();
 
-      if (!account) {
-        console.warn(`[graph-webhook] Unknown subscription ${notification.subscriptionId} — skipping`);
-        continue;
-      }
+    if (subscriptionError || !subscription) {
+      console.warn(
+        `[graph-webhook] Unknown subscription ${notification.subscriptionId} — skipping`,
+      );
+      continue;
+    }
+
+    if (
+      typeof subscription.client_state !== "string" ||
+      typeof notification.clientState !== "string" ||
+      !timingSafeEqual(notification.clientState, subscription.client_state)
+    ) {
+      console.warn(
+        `[graph-webhook] clientState mismatch for ${notification.subscriptionId} — skipping`,
+      );
+      continue;
     }
 
     // Idempotency gate: ON CONFLICT DO NOTHING
     const { error } = await supabase
       .from("webhook_events")
-      .insert({
-        graph_event_id: notification.id,
-        message_id: notification.resourceData?.id ?? "unknown",
-        workspace_id: await resolveWorkspaceId(notification),
-        status: "received",
-      })
-      .onConflict("graph_event_id")
-      .ignoreDuplicates();
+      .upsert(
+        {
+          graph_event_id: notification.id,
+          message_id: notification.resourceData?.id ?? "unknown",
+          workspace_id: await resolveWorkspaceId(
+            notification,
+            subscription.exec_id,
+          ),
+          status: "received",
+        },
+        { onConflict: "graph_event_id", ignoreDuplicates: true },
+      );
 
     if (error && error.code !== "23505") {
       console.error("[graph-webhook] DB insert error:", error.message);
@@ -86,15 +113,16 @@ async function processNotifications(req: Request): Promise<void> {
 }
 
 async function resolveWorkspaceId(
-  notification: GraphNotification
+  notification: GraphNotification,
+  fallbackExecId: string | null,
 ): Promise<string | null> {
   // Look up workspace from email account associated with the subscription
   const { data } = await supabase
     .from("email_accounts")
     .select("workspace_id")
     .eq("graph_subscription_id", notification.subscriptionId)
-    .single();
-  return data?.workspace_id ?? null;
+    .maybeSingle();
+  return data?.workspace_id ?? fallbackExecId;
 }
 
 interface GraphNotification {

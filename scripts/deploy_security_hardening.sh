@@ -47,6 +47,13 @@ FUNCTIONS=(
   "anthropic-proxy"
   "elevenlabs-tts-proxy"
   "deepgram-transcribe"
+  # Authenticated service-role functions (now reject body tenant spoofing)
+  "estimate-time"
+  "generate-profile-card"
+  "detect-reply"
+  "parse-voice-capture"
+  "classify-email"
+  "graph-webhook"
   # User-facing (now enforce executive ownership)
   "extract-voice-features"
   "generate-relationship-card"

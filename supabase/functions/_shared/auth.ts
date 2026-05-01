@@ -8,7 +8,7 @@ import { requireEnv } from "./config.ts";
 
 const supabase = createClient(
   requireEnv("SUPABASE_URL"),
-  requireEnv("SUPABASE_ANON_KEY")
+  requireEnv("SUPABASE_ANON_KEY"),
 );
 
 export class AuthError extends Error {
@@ -33,7 +33,9 @@ export async function verifyAuth(req: Request): Promise<string> {
 
   const match = authHeader.match(/^Bearer\s+(.+)$/i);
   if (!match) {
-    throw new AuthError("Malformed Authorization header — expected Bearer <token>");
+    throw new AuthError(
+      "Malformed Authorization header — expected Bearer <token>",
+    );
   }
 
   const token = match[1];
@@ -56,7 +58,7 @@ export async function verifyAuth(req: Request): Promise<string> {
 export function authErrorResponse(err: AuthError): Response {
   return new Response(
     JSON.stringify({ error: err.message }),
-    { status: err.status, headers: { "Content-Type": "application/json" } }
+    { status: err.status, headers: { "Content-Type": "application/json" } },
   );
 }
 
@@ -88,7 +90,10 @@ export function verifyServiceRole(req: Request): void {
 
   const match = authHeader.match(/^Bearer\s+(.+)$/i);
   if (!match) {
-    throw new AuthError("Malformed Authorization header — expected Bearer <token>", 401);
+    throw new AuthError(
+      "Malformed Authorization header — expected Bearer <token>",
+      401,
+    );
   }
 
   const parts = match[1].split(".");
@@ -108,5 +113,41 @@ export function verifyServiceRole(req: Request): void {
 
   if (payload.role !== "service_role") {
     throw new AuthError("This endpoint requires the service-role key", 403);
+  }
+}
+
+type SupabaseLike = {
+  from: (table: string) => any;
+};
+
+export async function resolveExecutiveId(
+  supabaseAdmin: SupabaseLike,
+  authUserId: string,
+): Promise<string> {
+  const { data, error } = await supabaseAdmin
+    .from("executives")
+    .select("id")
+    .eq("auth_user_id", authUserId)
+    .maybeSingle();
+
+  if (error) {
+    throw new AuthError(error.message ?? "Executive lookup failed", 500);
+  }
+  if (!data || typeof data.id !== "string") {
+    throw new AuthError("No executive row for this user", 401);
+  }
+  return data.id;
+}
+
+export function assertOwnedTenant(
+  executiveId: string,
+  workspaceId: unknown,
+  profileId?: unknown,
+): void {
+  if (
+    workspaceId !== executiveId ||
+    (profileId !== undefined && profileId !== executiveId)
+  ) {
+    throw new AuthError("Tenant mismatch", 403);
   }
 }

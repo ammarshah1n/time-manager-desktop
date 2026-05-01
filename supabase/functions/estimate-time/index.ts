@@ -9,13 +9,19 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import Anthropic from "https://esm.sh/@anthropic-ai/sdk@0.27.0";
-import { verifyAuth, AuthError, authErrorResponse } from "../_shared/auth.ts";
+import {
+  assertOwnedTenant,
+  AuthError,
+  authErrorResponse,
+  resolveExecutiveId,
+  verifyAuth,
+} from "../_shared/auth.ts";
 import { withRetry } from "../_shared/retry.ts";
 import { requireEnv } from "../_shared/config.ts";
 
 const supabase = createClient(
   requireEnv("SUPABASE_URL"),
-  requireEnv("SUPABASE_SERVICE_ROLE_KEY")
+  requireEnv("SUPABASE_SERVICE_ROLE_KEY"),
 );
 const anthropic = new Anthropic({ apiKey: requireEnv("ANTHROPIC_API_KEY") });
 
@@ -27,35 +33,54 @@ const EMBEDDING_MIN_MATCHES = 3;
 
 // Category defaults — cold start fallback
 const CATEGORY_DEFAULTS: Record<string, number> = {
-  reply_email:    2,
-  reply_wa:       2,
-  reply_other:    5,
-  calls:         10,
-  read_today:     5,
+  reply_email: 2,
+  reply_wa: 2,
+  reply_other: 5,
+  calls: 10,
+  read_today: 5,
   read_this_week: 15,
-  action:        30,
-  transit:       20,
-  waiting:        0,
-  other:         15,
+  action: 30,
+  transit: 20,
+  waiting: 0,
+  other: 15,
 };
 
 serve(async (req: Request) => {
   // JWT auth
+  let authUserId: string;
   try {
-    await verifyAuth(req);
+    authUserId = await verifyAuth(req);
   } catch (err) {
     if (err instanceof AuthError) return authErrorResponse(err);
-    return new Response(JSON.stringify({ error: "Auth failed" }), { status: 401, headers: { "Content-Type": "application/json" } });
+    return new Response(JSON.stringify({ error: "Auth failed" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 
-  const { taskId, workspaceId, profileId, title, bucketType, description, fromAddress } =
-    await req.json();
+  const {
+    taskId,
+    workspaceId,
+    profileId,
+    title,
+    bucketType,
+    description,
+    fromAddress,
+  } = await req.json();
 
   if (!taskId || !workspaceId || !profileId || !bucketType) {
     return new Response(JSON.stringify({ error: "Missing required fields" }), {
       status: 400,
       headers: { "Content-Type": "application/json" },
     });
+  }
+
+  try {
+    const executiveId = await resolveExecutiveId(supabase, authUserId);
+    assertOwnedTenant(executiveId, workspaceId, profileId);
+  } catch (err) {
+    if (err instanceof AuthError) return authErrorResponse(err);
+    throw err;
   }
 
   const startTime = Date.now();
@@ -68,7 +93,8 @@ serve(async (req: Request) => {
     .eq("bucket_type", bucketType)
     .maybeSingle();
 
-  const categoryDefault = userDefault?.mean_minutes ?? CATEGORY_DEFAULTS[bucketType] ?? 15;
+  const categoryDefault = userDefault?.mean_minutes ??
+    CATEGORY_DEFAULTS[bucketType] ?? 15;
 
   // Generate embedding for the task title (used in tier 1 and stored on task + history)
   const titleEmbedding = title ? await generateEmbedding(title) : null;
@@ -76,11 +102,27 @@ serve(async (req: Request) => {
   // 1a. Embedding-based similarity search (highest signal for action/read tasks)
   if (titleEmbedding) {
     const embeddingResult = await getEmbeddingSimilarityEstimate(
-      workspaceId, profileId, titleEmbedding, categoryDefault
+      workspaceId,
+      profileId,
+      titleEmbedding,
+      categoryDefault,
     );
     if (embeddingResult !== null) {
-      await storeEmbeddingOnTask(taskId, titleEmbedding);
-      await updateTaskEstimate(taskId, embeddingResult.estimate, "ai", "Embedding similarity (top 5)", embeddingResult.uncertainty);
+      await storeEmbeddingOnTask(
+        taskId,
+        workspaceId,
+        profileId,
+        titleEmbedding,
+      );
+      await updateTaskEstimate(
+        taskId,
+        workspaceId,
+        profileId,
+        embeddingResult.estimate,
+        "ai",
+        "Embedding similarity (top 5)",
+        embeddingResult.uncertainty,
+      );
       return new Response(
         JSON.stringify({
           estimatedMinutes: embeddingResult.estimate,
@@ -88,19 +130,39 @@ serve(async (req: Request) => {
           confident: embeddingResult.confident,
           basis: "embedding_similarity",
         }),
-        { status: 200, headers: { "Content-Type": "application/json" } }
+        { status: 200, headers: { "Content-Type": "application/json" } },
       );
     }
   }
 
   // 1b. Try historical estimate (sender-specific → bucket category average)
   const historicalResult = await getHistoricalEstimate(
-    workspaceId, profileId, bucketType, title, fromAddress, categoryDefault
+    workspaceId,
+    profileId,
+    bucketType,
+    title,
+    fromAddress,
+    categoryDefault,
   );
 
   if (historicalResult !== null) {
-    if (titleEmbedding) await storeEmbeddingOnTask(taskId, titleEmbedding);
-    await updateTaskEstimate(taskId, historicalResult.estimate, "ai", "Based on similar task", historicalResult.uncertainty);
+    if (titleEmbedding) {
+      await storeEmbeddingOnTask(
+        taskId,
+        workspaceId,
+        profileId,
+        titleEmbedding,
+      );
+    }
+    await updateTaskEstimate(
+      taskId,
+      workspaceId,
+      profileId,
+      historicalResult.estimate,
+      "ai",
+      "Based on similar task",
+      historicalResult.uncertainty,
+    );
     return new Response(
       JSON.stringify({
         estimatedMinutes: historicalResult.estimate,
@@ -108,52 +170,76 @@ serve(async (req: Request) => {
         confident: historicalResult.confident,
         basis: "historical",
       }),
-      { status: 200, headers: { "Content-Type": "application/json" } }
+      { status: 200, headers: { "Content-Type": "application/json" } },
     );
   }
 
   // 2. Fallback: Claude Sonnet estimate
   try {
     const message = await withRetry(
-      () => anthropic.messages.create({
-        model: "claude-sonnet-4-6",
-        max_tokens: 128,
-        system: [
-          {
-            type: "text",
-            text: `You are a time estimation assistant for an executive productivity app.
+      () =>
+        anthropic.messages.create({
+          model: "claude-sonnet-4-6",
+          max_tokens: 128,
+          system: [
+            {
+              type: "text",
+              text:
+                `You are a time estimation assistant for an executive productivity app.
 Estimate how many minutes a task will take. Be realistic, not optimistic.
 Respond ONLY with a JSON object: {"estimated_minutes": <integer>, "confidence": <0.0-1.0>}`,
-            // @ts-ignore
-            cache_control: { type: "ephemeral" },
-          },
-        ],
-        messages: [
-          {
-            role: "user",
-            content: `Task type: ${bucketType}
+              // @ts-ignore
+              cache_control: { type: "ephemeral" },
+            },
+          ],
+          messages: [
+            {
+              role: "user",
+              content: `Task type: ${bucketType}
 Title: ${title ?? "(untitled)"}
 Description: ${description ?? "(none)"}
 ${fromAddress ? `From: ${fromAddress}` : ""}
 Category default: ${categoryDefault} min
 
 Estimate the actual time this will take.`,
-          },
-        ],
-      }),
-      { label: "estimate-time-anthropic" }
-    );
+            },
+          ],
+        }),
+      { label: "estimate-time-anthropic" },
+    ) as any;
 
-    const text = message.content.find((b) => b.type === "text")?.text ?? "{}";
+    const text = message.content.find((b: { type: string; text?: string }) =>
+      b.type === "text"
+    )?.text ?? "{}";
     const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error("No JSON in LLM response");
+    if (!jsonMatch) {
+      throw new Error("No JSON in LLM response");
+    }
     const parsed = JSON.parse(jsonMatch[0]);
-    const estimated = Math.max(1, Math.round(parsed.estimated_minutes ?? categoryDefault));
+    const estimated = Math.max(
+      1,
+      Math.round(parsed.estimated_minutes ?? categoryDefault),
+    );
     // AI LLM fallback: no historical data, so uncertainty = 50% of category default (high)
     const aiUncertainty = Math.round(categoryDefault * 0.5);
 
-    if (titleEmbedding) await storeEmbeddingOnTask(taskId, titleEmbedding);
-    await updateTaskEstimate(taskId, estimated, "ai", "AI estimate", aiUncertainty);
+    if (titleEmbedding) {
+      await storeEmbeddingOnTask(
+        taskId,
+        workspaceId,
+        profileId,
+        titleEmbedding,
+      );
+    }
+    await updateTaskEstimate(
+      taskId,
+      workspaceId,
+      profileId,
+      estimated,
+      "ai",
+      "AI estimate",
+      aiUncertainty,
+    );
 
     return new Response(
       JSON.stringify({
@@ -163,14 +249,29 @@ Estimate the actual time this will take.`,
         basis: "ai",
         confidence: parsed.confidence,
       }),
-      { status: 200, headers: { "Content-Type": "application/json" } }
+      { status: 200, headers: { "Content-Type": "application/json" } },
     );
   } catch (_err) {
     // Final fallback: category default — maximum uncertainty
     const def = categoryDefault;
     const defaultUncertainty = Math.round(def * 0.5);
-    if (titleEmbedding) await storeEmbeddingOnTask(taskId, titleEmbedding);
-    await updateTaskEstimate(taskId, def, "default", "Category default", defaultUncertainty);
+    if (titleEmbedding) {
+      await storeEmbeddingOnTask(
+        taskId,
+        workspaceId,
+        profileId,
+        titleEmbedding,
+      );
+    }
+    await updateTaskEstimate(
+      taskId,
+      workspaceId,
+      profileId,
+      def,
+      "default",
+      "Category default",
+      defaultUncertainty,
+    );
     return new Response(
       JSON.stringify({
         estimatedMinutes: def,
@@ -178,7 +279,7 @@ Estimate the actual time this will take.`,
         confident: false,
         basis: "default",
       }),
-      { status: 200, headers: { "Content-Type": "application/json" } }
+      { status: 200, headers: { "Content-Type": "application/json" } },
     );
   }
 });
@@ -206,7 +307,9 @@ async function generateEmbedding(text: string): Promise<number[] | null> {
     });
 
     if (!res.ok) {
-      console.error(`Jina AI embedding error: ${res.status} ${await res.text()}`);
+      console.error(
+        `Jina AI embedding error: ${res.status} ${await res.text()}`,
+      );
       return null;
     }
 
@@ -226,7 +329,7 @@ async function getEmbeddingSimilarityEstimate(
   workspaceId: string,
   profileId: string,
   embedding: number[],
-  categoryDefault: number
+  categoryDefault: number,
 ): Promise<BayesianResult | null> {
   // pgvector cosine distance operator: <=>
   // 1 - cosine_distance = cosine_similarity
@@ -260,7 +363,7 @@ async function getHistoricalEstimate(
   bucketType: string,
   title: string | undefined,
   fromAddress: string | undefined,
-  categoryDefault: number
+  categoryDefault: number,
 ): Promise<BayesianResult | null> {
   // Find recent tasks of same bucket type that have actual_minutes recorded
   const { data } = await supabase
@@ -278,12 +381,12 @@ async function getHistoricalEstimate(
   // Sender-specific match first (highest confidence)
   if (fromAddress) {
     const senderMatches = data.filter(
-      (r: { from_address: string }) => r.from_address === fromAddress
+      (r: { from_address: string }) => r.from_address === fromAddress,
     );
     if (senderMatches.length >= 2) {
       return bayesianEstimate(
         categoryDefault,
-        senderMatches.map((r: { actual_minutes: number }) => r.actual_minutes)
+        senderMatches.map((r: { actual_minutes: number }) => r.actual_minutes),
       );
     }
   }
@@ -291,7 +394,7 @@ async function getHistoricalEstimate(
   // Category average
   return bayesianEstimate(
     categoryDefault,
-    data.map((r: { actual_minutes: number }) => r.actual_minutes)
+    data.map((r: { actual_minutes: number }) => r.actual_minutes),
   );
 }
 
@@ -307,7 +410,7 @@ interface BayesianResult {
 
 function bayesianEstimate(
   categoryDefault: number,
-  historicalActuals: number[]
+  historicalActuals: number[],
 ): BayesianResult {
   // Prior from category default with high initial uncertainty (50%)
   const priorMu = categoryDefault;
@@ -329,10 +432,8 @@ function bayesianEstimate(
     Math.max(n - 1, 1);
 
   // Posterior (Gaussian conjugate update)
-  const posteriorSigma2 =
-    1 / (1 / priorSigma2 + n / Math.max(sampleVar, 1));
-  const posteriorMu =
-    posteriorSigma2 *
+  const posteriorSigma2 = 1 / (1 / priorSigma2 + n / Math.max(sampleVar, 1));
+  const posteriorMu = posteriorSigma2 *
     (priorMu / priorSigma2 + (n * sampleMean) / Math.max(sampleVar, 1));
 
   const uncertainty = Math.sqrt(posteriorSigma2);
@@ -352,7 +453,9 @@ function bayesianEstimate(
 
 async function storeEmbeddingOnTask(
   taskId: string,
-  embedding: number[]
+  workspaceId: string,
+  profileId: string,
+  embedding: number[],
 ): Promise<void> {
   await supabase
     .from("tasks")
@@ -360,15 +463,19 @@ async function storeEmbeddingOnTask(
       embedding: JSON.stringify(embedding),
       updated_at: new Date().toISOString(),
     })
-    .eq("id", taskId);
+    .eq("id", taskId)
+    .eq("workspace_id", workspaceId)
+    .eq("profile_id", profileId);
 }
 
 async function updateTaskEstimate(
   taskId: string,
+  workspaceId: string,
+  profileId: string,
   estimatedMinutes: number,
   source: string,
   basis: string,
-  uncertainty?: number
+  uncertainty?: number,
 ): Promise<void> {
   await supabase
     .from("tasks")
@@ -379,5 +486,7 @@ async function updateTaskEstimate(
       estimate_uncertainty: uncertainty ?? null,
       updated_at: new Date().toISOString(),
     })
-    .eq("id", taskId);
+    .eq("id", taskId)
+    .eq("workspace_id", workspaceId)
+    .eq("profile_id", profileId);
 }

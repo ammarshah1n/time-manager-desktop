@@ -9,20 +9,32 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import Anthropic from "https://esm.sh/@anthropic-ai/sdk@0.27.0";
-import { verifyAuth, AuthError, authErrorResponse } from "../_shared/auth.ts";
+import {
+  assertOwnedTenant,
+  AuthError,
+  authErrorResponse,
+  resolveExecutiveId,
+  verifyAuth,
+} from "../_shared/auth.ts";
 import { withRetry } from "../_shared/retry.ts";
 import { requireEnv } from "../_shared/config.ts";
 
 const supabase = createClient(
   requireEnv("SUPABASE_URL"),
-  requireEnv("SUPABASE_SERVICE_ROLE_KEY")
+  requireEnv("SUPABASE_SERVICE_ROLE_KEY"),
 );
 const anthropic = new Anthropic({ apiKey: requireEnv("ANTHROPIC_API_KEY") });
 
 interface BehaviourRule {
   rule_text: string;
   rule_key?: string;
-  rule_type: "scheduling" | "avoidance" | "estimation" | "context" | "timing" | "ordering";
+  rule_type:
+    | "scheduling"
+    | "avoidance"
+    | "estimation"
+    | "context"
+    | "timing"
+    | "ordering";
   rule_value_json?: Record<string, unknown>;
   confidence: number;
   supporting_evidence: string;
@@ -35,59 +47,76 @@ interface ProfileCardResponse {
 
 serve(async (req: Request) => {
   // JWT auth
+  let authUserId: string;
   try {
-    await verifyAuth(req);
+    authUserId = await verifyAuth(req);
   } catch (err) {
     if (err instanceof AuthError) return authErrorResponse(err);
-    return new Response(JSON.stringify({ error: "Auth failed" }), { status: 401, headers: { "Content-Type": "application/json" } });
+    return new Response(JSON.stringify({ error: "Auth failed" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 
   const { workspaceId, profileId } = await req.json();
 
   if (!workspaceId || !profileId) {
     return new Response(
-      JSON.stringify({ error: "Missing required fields: workspaceId, profileId" }),
-      { status: 400, headers: { "Content-Type": "application/json" } }
+      JSON.stringify({
+        error: "Missing required fields: workspaceId, profileId",
+      }),
+      { status: 400, headers: { "Content-Type": "application/json" } },
     );
+  }
+
+  try {
+    const executiveId = await resolveExecutiveId(supabase, authUserId);
+    assertOwnedTenant(executiveId, workspaceId, profileId);
+  } catch (err) {
+    if (err instanceof AuthError) return authErrorResponse(err);
+    throw err;
   }
 
   const startTime = Date.now();
 
   try {
     // Fetch data in parallel
-    const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+    const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
+      .toISOString();
 
-    const [eventsResult, estimationResult, existingRulesResult] = await Promise.all([
-      supabase
-        .from("behaviour_events")
-        .select("*")
-        .eq("workspace_id", workspaceId)
-        .eq("profile_id", profileId)
-        .gte("occurred_at", ninetyDaysAgo)
-        .order("occurred_at", { ascending: false })
-        .limit(200),
-      supabase
-        .from("estimation_history")
-        .select("*")
-        .eq("workspace_id", workspaceId)
-        .eq("profile_id", profileId)
-        .not("actual_minutes", "is", null)
-        .order("created_at", { ascending: false })
-        .limit(50),
-      supabase
-        .from("behaviour_rules")
-        .select("rule_text,rule_type,confidence")
-        .eq("workspace_id", workspaceId)
-        .eq("profile_id", profileId)
-        .eq("is_active", true),
-    ]);
+    const [eventsResult, estimationResult, existingRulesResult] = await Promise
+      .all([
+        supabase
+          .from("behaviour_events")
+          .select("*")
+          .eq("workspace_id", workspaceId)
+          .eq("profile_id", profileId)
+          .gte("occurred_at", ninetyDaysAgo)
+          .order("occurred_at", { ascending: false })
+          .limit(200),
+        supabase
+          .from("estimation_history")
+          .select("*")
+          .eq("workspace_id", workspaceId)
+          .eq("profile_id", profileId)
+          .not("actual_minutes", "is", null)
+          .order("created_at", { ascending: false })
+          .limit(50),
+        supabase
+          .from("behaviour_rules")
+          .select("rule_text,rule_type,confidence")
+          .eq("workspace_id", workspaceId)
+          .eq("profile_id", profileId)
+          .eq("is_active", true),
+      ]);
 
     const events = eventsResult.data ?? [];
     const estimationHistory = estimationResult.data ?? [];
     const existingRules = existingRulesResult.data ?? [];
 
     // Build user message from fetched data
-    const userMessage = `BEHAVIOUR EVENTS (last 90 days, ${events.length} total):
+    const userMessage =
+      `BEHAVIOUR EVENTS (last 90 days, ${events.length} total):
 ${JSON.stringify(events.slice(0, 50), null, 2)}
 ${events.length > 50 ? `... and ${events.length - 50} more events` : ""}
 
@@ -95,19 +124,25 @@ ESTIMATION HISTORY (last ${estimationHistory.length} completed tasks):
 ${JSON.stringify(estimationHistory, null, 2)}
 
 EXISTING RULES (current active rules for context):
-${existingRules.length > 0 ? JSON.stringify(existingRules, null, 2) : "No existing rules yet."}
+${
+        existingRules.length > 0
+          ? JSON.stringify(existingRules, null, 2)
+          : "No existing rules yet."
+      }
 
 Based on the above data, generate an updated profile card and refined rules.`;
 
     // Call Claude Opus with retry
     const message = await withRetry(
-      () => anthropic.messages.create({
-        model: "claude-opus-4-6",
-        max_tokens: 1024,
-        system: [
-          {
-            type: "text",
-            text: `You are a behaviour pattern analyst for an executive productivity assistant. Given a log of how an executive actually worked over the past 90 days, extract actionable rules that should change how their daily plan is built. Focus on: timing preferences (when they do certain task types), avoidance patterns (tasks they consistently push), estimation errors (actual vs estimated), and context preferences (what they do during transit, focus time, etc).
+      () =>
+        anthropic.messages.create({
+          model: "claude-opus-4-6",
+          max_tokens: 1024,
+          system: [
+            {
+              type: "text",
+              text:
+                `You are a behaviour pattern analyst for an executive productivity assistant. Given a log of how an executive actually worked over the past 90 days, extract actionable rules that should change how their daily plan is built. Focus on: timing preferences (when they do certain task types), avoidance patterns (tasks they consistently push), estimation errors (actual vs estimated), and context preferences (what they do during transit, focus time, etc).
 
 TIMING ANALYSIS (IMPORTANT):
 Analyze the hour_of_day field in behaviour_events per bucket_type (action, reply, calls, transit, read). If a bucket_type has >60% of its task_completed events falling within a specific 4-hour window, emit a timing rule. The timing rule format is:
@@ -139,21 +174,23 @@ If the same bucket_type is consistently moved earlier or later, emit an ordering
 {"rule_type": "ordering", "rule_key": "ordering.<bucket>.<direction>", "rule_value_json": {"bucket_type": "<bucket>", "direction": "earlier|later"}, "confidence": <count/10 capped at 1.0>, "supporting_evidence": "User moved <bucket> tasks <direction> N times"}
 
 Return a JSON object: { "profile_summary": "2-3 sentence summary of this person's work style", "rules": [{ "rule_text": "string", "rule_key": "optional string for timing/estimation/ordering rules", "rule_type": "scheduling"|"avoidance"|"estimation"|"context"|"timing"|"ordering", "rule_value_json": "optional object for timing/estimation/ordering rules", "confidence": 0.0-1.0, "supporting_evidence": "brief" }] }`,
-            // @ts-ignore
-            cache_control: { type: "ephemeral" },
-          },
-        ],
-        messages: [
-          {
-            role: "user",
-            content: userMessage,
-          },
-        ],
-      }),
-      { label: "generate-profile-card-anthropic" }
-    );
+              // @ts-ignore
+              cache_control: { type: "ephemeral" },
+            },
+          ],
+          messages: [
+            {
+              role: "user",
+              content: userMessage,
+            },
+          ],
+        }),
+      { label: "generate-profile-card-anthropic" },
+    ) as any;
 
-    const text = message.content.find((b) => b.type === "text")?.text ?? "{}";
+    const text = message.content.find((b: { type: string; text?: string }) =>
+      b.type === "text"
+    )?.text ?? "{}";
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
       throw new Error("Claude returned no valid JSON object");
@@ -171,18 +208,24 @@ Return a JSON object: { "profile_summary": "2-3 sentence summary of this person'
           rules_json: profileData.rules,
           generated_at: new Date().toISOString(),
         },
-        { onConflict: "workspace_id,profile_id" }
+        { onConflict: "workspace_id,profile_id" },
       );
 
     if (profileUpsertError) {
-      throw new Error(`Upsert user_profiles failed: ${profileUpsertError.message}`);
+      throw new Error(
+        `Upsert user_profiles failed: ${profileUpsertError.message}`,
+      );
     }
 
     // Upsert each rule into behaviour_rules
     for (const rule of profileData.rules) {
       // Timing rules match on rule_key; other rules match on rule_text
-      const matchColumn = rule.rule_type === "timing" && rule.rule_key ? "rule_key" : "rule_text";
-      const matchValue = matchColumn === "rule_key" ? rule.rule_key! : rule.rule_text;
+      const matchColumn = rule.rule_type === "timing" && rule.rule_key
+        ? "rule_key"
+        : "rule_text";
+      const matchValue = matchColumn === "rule_key"
+        ? rule.rule_key!
+        : rule.rule_text;
 
       const { data: existing } = await supabase
         .from("behaviour_rules")
@@ -194,7 +237,9 @@ Return a JSON object: { "profile_summary": "2-3 sentence summary of this person'
 
       if (existing) {
         // Update confidence (and rule_value_json for timing rules) on existing rule
-        const updatePayload: Record<string, unknown> = { confidence: rule.confidence };
+        const updatePayload: Record<string, unknown> = {
+          confidence: rule.confidence,
+        };
         if (rule.rule_value_json) {
           updatePayload.rule_value_json = rule.rule_value_json;
         }
@@ -230,7 +275,8 @@ Return a JSON object: { "profile_summary": "2-3 sentence summary of this person'
       model: "claude-opus-4-6",
       input_tokens: message.usage.input_tokens,
       output_tokens: message.usage.output_tokens,
-      cached_tokens: (message.usage as { cache_read_input_tokens?: number }).cache_read_input_tokens ?? 0,
+      cached_tokens: (message.usage as { cache_read_input_tokens?: number })
+        .cache_read_input_tokens ?? 0,
       latency_ms: Date.now() - startTime,
       status: "success",
     });
@@ -240,7 +286,7 @@ Return a JSON object: { "profile_summary": "2-3 sentence summary of this person'
         rulesCount: profileData.rules.length,
         profileSummary: profileData.profile_summary,
       }),
-      { status: 200, headers: { "Content-Type": "application/json" } }
+      { status: 200, headers: { "Content-Type": "application/json" } },
     );
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err);
@@ -261,7 +307,7 @@ Return a JSON object: { "profile_summary": "2-3 sentence summary of this person'
 
     return new Response(
       JSON.stringify({ error: errorMsg }),
-      { status: 500, headers: { "Content-Type": "application/json" } }
+      { status: 500, headers: { "Content-Type": "application/json" } },
     );
   }
 });
