@@ -27,7 +27,7 @@ import { registerTools } from "./tools.js";
 const cfg = loadConfig();
 
 const neo4j = new Neo4jClient(cfg);
-const graphiti = new GraphitiClient(cfg.graphitiUrl);
+const graphiti = new GraphitiClient(cfg.graphitiUrl, cfg.graphitiToken);
 const snapshot = new SnapshotService(cfg, neo4j);
 
 const server = new McpServer(

@@ -9,6 +9,7 @@
 #       NEO4J_USER=neo4j \
 #       NEO4J_PASSWORD=<secret> \
 #       GRAPHITI_URL=http://timed-graphiti.internal:8000 \
+#       GRAPHITI_API_TOKEN=<same value configured on timed-graphiti> \
 #       SUPABASE_URL=https://fpmjuufefhtlwbfinxlx.supabase.co \
 #       SUPABASE_SERVICE_ROLE_KEY=<secret>
 #   fly deploy

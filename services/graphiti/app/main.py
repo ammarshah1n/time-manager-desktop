@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import logging
+import hmac
 import os
 import re
 import typing
@@ -28,7 +29,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 import openai
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException
 from openai.types.chat import ChatCompletionMessageParam
 from pydantic import BaseModel, Field
 
@@ -105,6 +106,27 @@ def _required(name: str) -> str:
     if not val:
         raise RuntimeError(f"Missing required env var: {name}")
     return val
+
+
+GRAPHITI_API_TOKEN = _required("GRAPHITI_API_TOKEN")
+
+
+def require_api_token(authorization: str | None = Header(default=None)) -> None:
+    if not authorization:
+        raise HTTPException(
+            status_code=401,
+            detail="unauthorized",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() != "bearer" or not token:
+        raise HTTPException(
+            status_code=401,
+            detail="unauthorized",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    if not hmac.compare_digest(token, GRAPHITI_API_TOKEN):
+        raise HTTPException(status_code=403, detail="forbidden")
 
 
 def build_graphiti() -> Graphiti:
@@ -217,7 +239,7 @@ async def readyz() -> dict[str, Any]:
         raise HTTPException(status_code=503, detail=f"neo4j: {exc}") from exc
 
 
-@app.post("/episode")
+@app.post("/episode", dependencies=[Depends(require_api_token)])
 async def add_episode(body: EpisodeIn) -> dict[str, Any]:
     g: Graphiti = app.state.graphiti
     source_map = {
@@ -241,7 +263,7 @@ async def add_episode(body: EpisodeIn) -> dict[str, Any]:
     return {"episode_uuid": ep.uuid if ep is not None else None}
 
 
-@app.post("/search")
+@app.post("/search", dependencies=[Depends(require_api_token)])
 async def search(body: SearchIn) -> dict[str, Any]:
     g: Graphiti = app.state.graphiti
     edges = await g.search(

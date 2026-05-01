@@ -15,6 +15,8 @@ export interface Config {
   neo4jPassword: string;
   /** Base URL of the sibling `graphiti` service (task 14) on Fly internal net. */
   graphitiUrl: string;
+  /** Bearer token for the sibling `graphiti` service. */
+  graphitiToken: string;
   /** Supabase credentials — service role, required for Storage uploads. */
   supabaseUrl: string;
   supabaseServiceRoleKey: string;
@@ -43,6 +45,7 @@ export function loadConfig(): Config {
     neo4jUser: required("NEO4J_USER"),
     neo4jPassword: required("NEO4J_PASSWORD"),
     graphitiUrl: required("GRAPHITI_URL"),
+    graphitiToken: required("GRAPHITI_API_TOKEN"),
     supabaseUrl: required("SUPABASE_URL"),
     supabaseServiceRoleKey: required("SUPABASE_SERVICE_ROLE_KEY"),
     snapshotBucket: optional("GRAPHITI_SNAPSHOT_BUCKET", "kg-snapshots"),

@@ -9,7 +9,10 @@ export interface GraphitiAddEpisodeResponse {
 }
 
 export class GraphitiClient {
-  constructor(private readonly baseUrl: string) {}
+  constructor(
+    private readonly baseUrl: string,
+    private readonly token: string,
+  ) {}
 
   async addEpisode(args: {
     name: string;
@@ -21,7 +24,10 @@ export class GraphitiClient {
   }): Promise<GraphitiAddEpisodeResponse> {
     const res = await fetch(`${this.baseUrl.replace(/\/$/, "")}/episode`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Authorization": `Bearer ${this.token}`,
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify({
         name: args.name,
         episode_body: args.episode_body,

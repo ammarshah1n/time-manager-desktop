@@ -29,6 +29,7 @@ call lands in `agent_traces` with full token accounting.
 | `NEO4J_URI` | yes | Bolt URI — AuraDB Professional or Fly Neo4j machine |
 | `NEO4J_USER` | yes | neo4j |
 | `NEO4J_PASSWORD` | yes | secret |
+| `GRAPHITI_API_TOKEN` | yes | Bearer token required for `/episode` and `/search` |
 | `INFERENCE_PROXY_URL` | yes | OpenAI-compatible base URL of the Trigger.dev `inference()` proxy (e.g. `https://timed-inference-proxy.fly.dev/v1`) |
 | `INFERENCE_PROXY_API_KEY` | yes | Bearer token accepted by the proxy |
 | `GRAPHITI_MODEL` | no (default `sonnet_extract`) | Alias routed to Sonnet inside `inference()` |
@@ -66,8 +67,8 @@ changes.
 |---|---|---|
 | GET  | `/healthz`  | Liveness (always returns 200 if process is up) |
 | GET  | `/readyz`   | Readiness — pings Neo4j |
-| POST | `/episode`  | `graphiti.add_episode(...)` passthrough |
-| POST | `/search`   | `graphiti.search(...)` hybrid BM25+semantic |
+| POST | `/episode`  | Bearer-authenticated `graphiti.add_episode(...)` passthrough |
+| POST | `/search`   | Bearer-authenticated `graphiti.search(...)` hybrid BM25+semantic |
 
 `graphiti-mcp` uses `/episode` when a caller invokes `add_episode(...)` so that
 entity extraction runs through Graphiti's canonical pipeline (which now routes
@@ -84,6 +85,7 @@ fly secrets set \
     NEO4J_URI=bolt+s://<host>:7687 \
     NEO4J_USER=neo4j \
     NEO4J_PASSWORD=<secret> \
+    GRAPHITI_API_TOKEN=<generate-256-bit-token> \
     INFERENCE_PROXY_URL=https://<trigger-proxy>/v1 \
     INFERENCE_PROXY_API_KEY=<secret>
 fly deploy
@@ -91,7 +93,7 @@ fly deploy
 
 ## Non-goals
 
-- No bearer auth on this service — it is internal only, reachable only on the
-  Fly private `.internal` network. Public ingress is `graphiti-mcp`.
+- No public data endpoints without bearer auth. Health/readiness remain public
+  for Fly checks; all graph reads/writes require `GRAPHITI_API_TOKEN`.
 - No direct Neo4j admin endpoints. For snapshots see `graphiti-mcp`'s
   `export_snapshot` which runs `apoc.export.json.all`.
