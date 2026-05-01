@@ -5,6 +5,8 @@
 
 import SwiftUI
 import AppKit
+import UniformTypeIdentifiers
+import Vision
 
 struct CapturePane: View {
     @Binding var tasks: [TimedTask]
@@ -15,7 +17,10 @@ struct CapturePane: View {
     @State private var textInput = ""
     @State private var pulseAnimation = false
     @State private var showBulkImport = false
+    @State private var showScreenshotImport = false
     @State private var bulkText = ""
+    @State private var screenshotImportError: String?
+    @State private var screenshotImportIsProcessing = false
 
     private var unconverted: [CaptureItem] { items.filter { !$0.isConverted } }
     private var converted: [CaptureItem]   { items.filter { $0.isConverted } }
@@ -249,6 +254,52 @@ struct CapturePane: View {
             .sheet(isPresented: $showBulkImport) {
                 bulkImportSheet
             }
+
+            Button {
+                showScreenshotImport = true
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "photo.on.rectangle")
+                        .font(.system(size: 13))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Import screenshot")
+                            .font(.system(size: 13))
+                        Text("Take a screenshot of your to-do list and insert it here")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    if screenshotImportIsProcessing {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
+                }
+                .foregroundStyle(.primary)
+                .padding(.horizontal, 12).padding(.vertical, 9)
+                .background(Color(.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 9))
+            }
+            .buttonStyle(.plain)
+            .disabled(screenshotImportIsProcessing)
+            .fileImporter(
+                isPresented: $showScreenshotImport,
+                allowedContentTypes: [.image],
+                allowsMultipleSelection: false
+            ) { result in
+                handleScreenshotImport(result)
+            }
+
+            if let screenshotImportError {
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(Color.Timed.destructive)
+                    Text(screenshotImportError)
+                        .font(.system(size: 11))
+                        .foregroundStyle(Color.Timed.destructive)
+                    Spacer()
+                }
+                .padding(.horizontal, 4)
+            }
         }
         .padding(.horizontal, 20).padding(.vertical, 16)
     }
@@ -258,7 +309,7 @@ struct CapturePane: View {
     private var bulkImportSheet: some View {
         VStack(spacing: 16) {
             HStack {
-                Text("Paste your task list")
+                Text("Import task list")
                     .font(.headline)
                 Spacer()
                 Button("Cancel") { showBulkImport = false }
@@ -301,19 +352,92 @@ struct CapturePane: View {
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
 
-        let newItems = lines.map { line in
-            CaptureItem(
-                id: UUID(),
-                inputType: .text,
-                rawText: line,
-                parsedTitle: line,
-                suggestedBucket: .action,
-                suggestedMinutes: 15,
-                capturedAt: Date()
-            )
+        let newItems = lines.flatMap { line -> [CaptureItem] in
+            let parsed = TranscriptParser.parse(line)
+            if parsed.isEmpty {
+                return [
+                    CaptureItem(
+                        id: UUID(),
+                        inputType: .text,
+                        rawText: line,
+                        parsedTitle: line,
+                        suggestedBucket: .action,
+                        suggestedMinutes: 15,
+                        capturedAt: Date()
+                    )
+                ]
+            }
+            return parsed.map { item in
+                CaptureItem(
+                    id: item.id,
+                    inputType: .text,
+                    rawText: line,
+                    parsedTitle: item.title,
+                    suggestedBucket: bucketFromVoice(item.bucketType),
+                    suggestedMinutes: item.estimatedMinutes ?? 15,
+                    capturedAt: Date()
+                )
+            }
         }
         items.insert(contentsOf: newItems, at: 0)
         bulkText = ""
+    }
+
+    private func handleScreenshotImport(_ result: Result<[URL], Error>) {
+        screenshotImportError = nil
+        guard case .success(let urls) = result, let url = urls.first else { return }
+        screenshotImportIsProcessing = true
+        Task {
+            do {
+                let text = try await recognizeTextInImage(at: url)
+                await MainActor.run {
+                    screenshotImportIsProcessing = false
+                    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if trimmed.isEmpty {
+                        screenshotImportError = "No readable tasks found in that screenshot."
+                    } else {
+                        bulkText = trimmed
+                        showBulkImport = true
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    screenshotImportIsProcessing = false
+                    screenshotImportError = "Could not read that screenshot."
+                }
+            }
+        }
+    }
+
+    private func recognizeTextInImage(at url: URL) async throws -> String {
+        try await Task.detached(priority: .userInitiated) {
+            let didStartAccess = url.startAccessingSecurityScopedResource()
+            defer {
+                if didStartAccess {
+                    url.stopAccessingSecurityScopedResource()
+                }
+            }
+
+            guard let image = NSImage(contentsOf: url) else {
+                throw CocoaError(.fileReadCorruptFile)
+            }
+            var rect = CGRect(origin: .zero, size: image.size)
+            guard let cgImage = image.cgImage(forProposedRect: &rect, context: nil, hints: nil) else {
+                throw CocoaError(.fileReadCorruptFile)
+            }
+
+            let request = VNRecognizeTextRequest()
+            request.recognitionLevel = .accurate
+            request.usesLanguageCorrection = true
+
+            let handler = VNImageRequestHandler(cgImage: cgImage)
+            try handler.perform([request])
+
+            return (request.results ?? [])
+                .compactMap { $0.topCandidates(1).first?.string.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+                .joined(separator: "\n")
+        }.value
     }
 
     // MARK: - Section
@@ -333,8 +457,8 @@ struct CapturePane: View {
 
             VStack(spacing: 2) {
                 ForEach(items) { item in
-                    CaptureRow(item: item) {
-                        convertItem(item)
+                    CaptureRow(item: item) { title, minutes, bucket in
+                        convertItem(item, title: title, minutes: minutes, bucket: bucket)
                     } onDelete: {
                         self.items.removeAll { $0.id == item.id }
                     }
@@ -422,17 +546,30 @@ struct CapturePane: View {
     }
 
     private func convertItem(_ item: CaptureItem) {
+        convertItem(
+            item,
+            title: item.parsedTitle,
+            minutes: item.suggestedMinutes,
+            bucket: item.suggestedBucket
+        )
+    }
+
+    private func convertItem(_ item: CaptureItem, title: String, minutes: Int, bucket: TaskBucket) {
+        let cleanTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         let task = TimedTask(
             id: UUID(),
-            title: item.parsedTitle,
+            title: cleanTitle.isEmpty ? item.parsedTitle : cleanTitle,
             sender: "Capture",
-            estimatedMinutes: item.suggestedMinutes,
-            bucket: item.suggestedBucket,
+            estimatedMinutes: minutes,
+            bucket: bucket,
             emailCount: 0,
             receivedAt: item.capturedAt
         )
         tasks.append(task)
         if let idx = items.firstIndex(where: { $0.id == item.id }) {
+            items[idx].parsedTitle = task.title
+            items[idx].suggestedMinutes = minutes
+            items[idx].suggestedBucket = bucket
             items[idx].isConverted = true
         }
     }
@@ -471,14 +608,14 @@ struct CapturePane: View {
 
 struct CaptureRow: View {
     var item: CaptureItem
-    let onConvert: () -> Void
+    let onConvert: (String, Int, TaskBucket) -> Void
     let onDelete: () -> Void
 
     @State private var editingTitle: String
     @State private var editingMins: Int
     @State private var editingBucket: TaskBucket
 
-    init(item: CaptureItem, onConvert: @escaping () -> Void, onDelete: @escaping () -> Void) {
+    init(item: CaptureItem, onConvert: @escaping (String, Int, TaskBucket) -> Void, onDelete: @escaping () -> Void) {
         self.item = item
         self.onConvert = onConvert
         self.onDelete = onDelete
@@ -535,7 +672,7 @@ struct CaptureRow: View {
                     .padding(.horizontal, 8).padding(.vertical, 4)
                     .background(Color(.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 6))
 
-                    Button("Add to Tasks") { onConvert() }
+                    Button("Add to Tasks") { onConvert(editingTitle, editingMins, editingBucket) }
                         .buttonStyle(.borderedProminent)
                         .tint(.primary)
                         .controlSize(.mini)
