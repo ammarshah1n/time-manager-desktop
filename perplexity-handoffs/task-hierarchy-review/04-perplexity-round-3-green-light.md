@@ -1,3 +1,12 @@
+---
+source_url: https://www.perplexity.ai/search/ac0459bd-58a5-4e58-8bfe-e26a3bd00f4e
+title: "Do not merely convert the uploaded files into a report. Treat them as starting..."
+captured_at: 2026-05-01T11:28:07.534Z
+length: 18993
+---
+
+Round 3 validation. The plan below incorporates your two material fixes from Round 2: parent deletion is owned by DB triggers with ON DELETE RESTRICT, RLS uses a private SECURITY DEFINER workspace helper, canonical buckets use a domain, estimate_priors is defined, and extra tests were added. Do not be contrarian for its own sake. Only flag material blockers that would make implementation unsafe. If there are no material blockers, explicitly say: GREEN LIGHT: implementable. Put non-blocking suggestions separately.
+
 # Revised Plan + Risk Gates
 
 This revision incorporates Perplexity's first review from `02-perplexity-review.md`.
@@ -47,17 +56,17 @@ Required constraints and indexes:
 - Create a `public.canonical_bucket` domain and use it for both `tasks.bucket_type` and `task_sections.canonical_bucket_type`.
 - The domain includes `action`, `reply_email`, `reply_wa`, `reply_other`, `read_today`, `read_this_week`, `calls`, `transit`, `waiting`, `cc_fyi`, and `other`.
 - Add indexes on `(workspace_id, profile_id, is_archived, sort_order)` and `parent_section_id`.
-- Enforce one visible subsection level with a DB trigger on `INSERT OR UPDATE OF parent_section_id`: a section with a parent cannot itself become a parent.
+- Enforce one visible subsection level with a DB trigger: a section with a parent cannot itself become a parent.
 - Seed default system sections server-side for every existing workspace with an idempotent migration or seed script. The Swift client must not be the source of truth for system section creation.
 - RLS must use a `private.user_workspace_ids()` `SECURITY DEFINER stable` helper, not inline joins against `workspaces` or `workspace_members`.
 
 Default section tree:
 
 - `Email`
-  - `Reply`
-  - `Read Today`
-  - `Read This Week`
-  - `CC / FYI`
+- `Reply`
+- `Read Today`
+- `Read This Week`
+- `CC / FYI`
 - `Action`
 - `Calls`
 - `Transit`
@@ -88,9 +97,6 @@ Trigger requirements:
 
 - `promote_orphaned_subtasks()` runs `BEFORE DELETE ON public.tasks`.
 - `restore_planning_unit_on_last_child_delete()` runs `AFTER DELETE ON public.tasks`.
-- The restore trigger must use active-child semantics, not raw child-row existence: remaining children with `status not in ('done','cancelled')` keep the parent as a container; when none remain, restore `is_planning_unit = true`.
-- Add an equivalent `AFTER UPDATE OF status, parent_task_id` trigger so completing/cancelling the last child restores the parent without requiring physical deletion.
-- If `promote_orphaned_subtasks()` changes a child's `section_id`, it also writes a structured `task_section_changed` behaviour event.
 - Both triggers must be covered by migration tests.
 
 ### Subtask Planning Model
@@ -113,12 +119,12 @@ Extend `behaviour_events`:
 - `parent_task_id uuid references public.tasks(id) on delete set null`
 - `event_metadata jsonb`
 - Add event types:
-  - `section_created`
-  - `section_renamed`
-  - `task_section_changed`
-  - `subtask_created`
-  - `subtask_completed`
-  - `manual_importance_changed`
+- `section_created`
+- `section_renamed`
+- `task_section_changed`
+- `subtask_created`
+- `subtask_completed`
+- `manual_importance_changed`
 
 Migration rule:
 
@@ -129,13 +135,13 @@ Payload rule:
 
 - Replace string `oldValue` / `newValue` handling in Swift with typed JSON payloads that encode to JSONB.
 - Minimum `estimate_override` payload:
-  - `minutes`
-  - `source`
-  - `task_id`
-  - `section_id`
-  - `parent_task_id`
-  - `is_subtask`
-  - `estimate_source`
+- `minutes`
+- `source`
+- `task_id`
+- `section_id`
+- `parent_task_id`
+- `is_subtask`
+- `estimate_source`
 
 Silent learning:
 
@@ -152,11 +158,10 @@ Add `public.estimate_priors` before shipping the learning job:
 - `bucket_type public.canonical_bucket not null`
 - `section_id uuid references public.task_sections(id) on delete cascade`
 - `prior_minutes integer not null`
-- `confidence numeric not null default 0 check (confidence between 0 and 1)`
+- `confidence numeric not null default 0`
 - `sample_size integer not null default 0`
 - `updated_at timestamptz not null default now()`
 - Unique key on `(workspace_id, profile_id, bucket_type, section_id)`.
-- V1 deliberately uses `section_id on delete cascade`: deleting a custom section deletes its section-level priors. System sections are not deleted. If product later needs historical priors after section deletion, switch to nullable `section_id on delete set null` and update the learning job's conflict policy.
 
 ## Swift Changes
 
@@ -198,16 +203,14 @@ Required tool fields:
 
 Contract enforcement:
 
-- Add `supabase/shared/tool-schemas.json` as the shared schema source.
-- Add a Deno parity test that compares the Edge schema to the shared JSON.
-- Generate or mechanically verify Swift `ConversationTools.schemas()` from the same JSON before the AI/backend PR can merge.
+- Add a shared schema source or an automated parity test that fails if Swift and Edge tool schemas diverge.
 - Do not ship a UI that can create sections/subtasks before Orb, voice context, and Dish Me Up can read them.
 
 Backend updates:
 
 - `generate-dish-me-up` filters to `is_planning_unit = true` so it plans standalone tasks and subtasks, not parent containers.
 - `voice-llm-proxy` reads `section_id`, `parent_task_id`, `manual_importance`, AI/manual estimates, and recent meaningful corrections.
-- `voice-llm-proxy` must stop conflating workspace UUID and profile UUID in `.or(workspace_id.eq.${userId},profile_id.eq.${userId})`; resolve workspace/profile context explicitly before querying hierarchy-aware tasks. Do this as a standalone Gate 0 or schema-PR commit so hierarchy voice tests are not blocked later.
+- `voice-llm-proxy` must stop conflating workspace UUID and profile UUID in `.or(workspace_id.eq.${userId},profile_id.eq.${userId})`; resolve workspace/profile context explicitly before querying hierarchy-aware tasks.
 - Morning voice context shows top-level tasks with a compact subtask summary, plus only the top correction prompts.
 - `estimate-time` can estimate any planning unit; parent containers use child estimate sums for display only.
 
@@ -266,15 +269,60 @@ Backend updates:
 - Morning review mentions only meaningful correction patterns.
 - Parent deletion promotes children: former children have `parent_task_id = null`, `is_planning_unit = true`, and the expected `section_id`.
 - Deleting the final subtask restores the parent `is_planning_unit = true`.
-- Completing or cancelling the final active subtask restores the parent `is_planning_unit = true`.
 - `task_sections` RLS uses `private.user_workspace_ids()` and does not evaluate a join per row.
 - `task_sections.canonical_bucket_type` rejects human labels like `Reply`.
-- `estimate_priors.confidence` rejects values outside `0...1`.
-- `task_sections` nesting trigger fires on both insert and update.
-- `promote_orphaned_subtasks()` logs `task_section_changed` when it changes a child's section.
 
 ## Perplexity Round 3 Validation Request
 
 Validate this second revision for implementability. Do not be contrarian for its own sake. Only flag material blockers that could cause data loss, backend drift, migration failure, AI/tool mismatch, security/RLS leakage, or broken user-facing behavior.
 
 If this plan is now implementable, say so clearly and list only non-blocking improvements separately.
+Show more
+Reviewing the revised plan for implementation risks and safe blockers
+
+GREEN LIGHT: implementable.
+
+No material blockers remain. The two fixes from Round 2 are correctly incorporated. The trigger model, RLS pattern, domain approach, and planning-unit model are all sound. The gate ordering and acceptance test matrix are complete.
+
+Confirmation of Round 2 Fixes
+
+Parent deletion trigger correctly uses ON DELETE RESTRICT + a BEFORE DELETE trigger owning promotion semantics. The FK cascade conflict described in Round 2 cannot occur under this design.
+01-normalisation-risk-gates.md
+
+RLS is correctly delegated to private.user_workspace_ids() as a SECURITY DEFINER stable function, avoiding per-row join evaluation and RLS-on-RLS cycles.
+supabase
++1
+
+canonical_bucket domain applied to both tasks.bucket_type and task_sections.canonical_bucket_type closes the silent mismatch gap.
+reddit
+
+estimate_priors table is defined with correct composite unique key and domain-typed bucket_type before the learning job ships.
+01-normalisation-risk-gates.md
+
+voice-llm-proxy workspace/profile conflation is explicitly called out for fix in the AI/backend PR.
+
+One Narrow Issue Worth Noting (Not a Blocker, But Address in the Schema PR)
+estimate_priors.section_id is ON DELETE CASCADE — verify intent
+
+The plan defines section_id uuid references public.task_sections(id) on delete cascade on estimate_priors. This means deleting a custom section silently deletes all learned priors for that section. For system sections (is_system = true) this never fires, so learned priors for canonical buckets are safe. For user-created custom sections it means the prior disappears when the user archives or deletes the section, which is probably acceptable — but if the intent is to retain priors even after section deletion (for post-hoc analysis or retraining), ON DELETE SET NULL with a nullable section_id on estimate_priors would be safer. Neither is wrong; just make it deliberate. Given that (workspace_id, profile_id, bucket_type, section_id) is the unique key, SET NULL would collapse multiple section-level priors onto the same (workspace_id, profile_id, bucket_type, NULL) key on conflict — so if you use SET NULL you need ON CONFLICT DO UPDATE logic in the learning job. CASCADE is simpler and likely fine for v1.
+
+Non-Blocking Improvements
+
+These will not cause implementation failure. Carry them as backlog items.
+
+task_sections nesting trigger should also fire on UPDATE of parent_section_id, not only INSERT. A user renaming or re-parenting a section via Orb or a future API call that issues an UPDATE rather than an INSERT could bypass the depth check if the trigger is BEFORE INSERT only. Make it BEFORE INSERT OR UPDATE OF parent_section_id.
+
+restore_planning_unit_on_last_child_delete needs to handle soft-delete if you ever add a status = 'cancelled' path for subtasks. Currently the trigger checks NOT EXISTS (SELECT 1 FROM tasks WHERE parent_task_id = OLD.parent_task_id). If cancelled/done subtasks remain as rows, the parent will never have is_planning_unit restored because child rows still exist. Consider filtering: WHERE parent_task_id = OLD.parent_task_id AND status NOT IN ('done','cancelled'), matching the planner's own status = 'pending' filter.
+
+promote_orphaned_subtasks trigger should log a task_section_changed behaviour event for any child whose section_id changed during promotion (i.e. where the child had no section_id of its own and inherited from the parent). Without this, the silent learning signal misses the reclassification. This is a low-priority nicety for v1 but will matter when the estimator tries to attribute priors to sections.
+
+estimate_priors.confidence is typed numeric with no precision. Postgres numeric without precision/scale is unconstrained, which is fine, but adding check (confidence between 0 and 1) makes the semantics explicit and prevents the learning job from accidentally writing raw event counts instead of a normalised score.
+
+Shared tool-schema source is required by Gate 7 but the concrete artefact (a supabase/shared/tool-schemas.json and a Deno parity test) is not defined in the plan. Adding this to the schema PR scope (even as a stub with a failing test) ensures Gate 7 is testable before the AI/backend PR opens.
+
+voice-llm-proxy workspace fix is called out in the AI/backend PR but the fix is one line and very low risk. Consider moving it to the Schema PR or Gate 0 PR as a standalone commit so it does not block hierarchy-related voice testing in Phase 3.
+
+Prepared by Deep Research
+4 sources
+Ask a follow-up
+Deep research
