@@ -23,6 +23,13 @@ struct MorningInterviewPane: View {
         case ambiguous(step: Int, prompt: String)
     }
 
+    enum VoicePresentationState: Equatable {
+        case ready
+        case speaking
+        case listening
+        case processing
+    }
+
     @Binding var tasks: [TimedTask]
     @Binding var blocks: [CalendarBlock]
     @Binding var isPresented: Bool
@@ -45,6 +52,8 @@ struct MorningInterviewPane: View {
     @State private var isListening: Bool = false
     @State private var voiceProcessing: Bool = false
     @State private var voiceStatusText: String = ""
+    @State private var voiceSessionStarted: Bool = false
+    @State private var pendingSpeechText: String = ""
     @State private var conversationState: ConversationState = .idle
 
     // Silence timeout tracking
@@ -87,6 +96,24 @@ struct MorningInterviewPane: View {
 
     // Steps: deferral review (0), time (1), energy (2), interruptibility (3), due today (4), estimates (5), confirm (6)
     private let totalSteps = 7
+
+    private var canUseVoice: Bool {
+        voiceMode && voiceSessionStarted
+    }
+
+    private var voicePresentationState: VoicePresentationState {
+        guard voiceSessionStarted else { return .ready }
+        switch conversationState {
+        case .appSpeaking, .waitingToListen:
+            return .speaking
+        case .listening, .correcting:
+            return .listening
+        case .processing, .interrupted, .ambiguous:
+            return .processing
+        case .idle:
+            return .ready
+        }
+    }
 
     init(tasks: Binding<[TimedTask]>, blocks: Binding<[CalendarBlock]>, isPresented: Binding<Bool>) {
         self._tasks = tasks
@@ -183,21 +210,15 @@ struct MorningInterviewPane: View {
         }
         .frame(width: 560, height: 520)
         .onChange(of: step) { _, newStep in
-            if voiceMode {
+            if canUseVoice {
                 speakForStep(newStep)
             }
         }
         .onChange(of: voiceMode) { _, isOn in
             if isOn {
-                speakForStep(step)
+                startVoiceSession()
             } else {
-                // Step 6: preserve step + confirmedIds when toggling voice off
-                // Only stop audio services, don't reset state machine position
-                speechService.stop()
-                stopListening()
-                cancelSilenceTimer()
-                conversationState = .idle
-                // step and confirmedIds intentionally preserved for touch continuation
+                endVoiceSession()
             }
         }
         .onChange(of: speechService.isSpeaking) { wasSpeaking, isSpeaking in
@@ -206,7 +227,7 @@ struct MorningInterviewPane: View {
                 conversationState = .waitingToListen
                 Task {
                     try? await Task.sleep(for: .milliseconds(300))
-                    guard voiceMode, step == spokenStep, conversationState == .waitingToListen else { return }
+                    guard canUseVoice, step == spokenStep, conversationState == .waitingToListen else { return }
                     conversationState = .listening(step: spokenStep)
                     silenceTimeoutCount = 0
                     startListening()
@@ -248,9 +269,9 @@ struct MorningInterviewPane: View {
             // Pre-fetch executive knowledge for Opus-powered interview
             Task { await interviewAI.loadContext() }
 
-            if voiceMode {
-                speakForStep(step)
-            }
+        }
+        .onDisappear {
+            endVoiceSession()
         }
     }
 
@@ -276,6 +297,8 @@ struct MorningInterviewPane: View {
                     stopListening()
                     cancelSilenceTimer()
                     conversationState = .idle
+                    voiceSessionStarted = false
+                    pendingSpeechText = ""
                     isPresented = false
                 } label: {
                     Image(systemName: "xmark.circle.fill")
@@ -330,22 +353,18 @@ struct MorningInterviewPane: View {
             if voiceMode {
                 VStack(spacing: 6) {
                     HStack(spacing: 10) {
-                        switch conversationState {
-                        case .appSpeaking:
+                        switch voicePresentationState {
+                        case .speaking:
                             speakingIndicator
-                        case .waitingToListen:
-                            speakingIndicator  // brief transition, show same as speaking
                         case .listening:
                             listeningIndicator
                         case .processing:
-                            processingIndicator
-                        case .interrupted:
-                            processingIndicator
-                        case .correcting:
-                            listeningIndicator
-                        case .ambiguous:
-                            ambiguousIndicator
-                        case .idle:
+                            if case .ambiguous = conversationState {
+                                ambiguousIndicator
+                            } else {
+                                processingIndicator
+                            }
+                        case .ready:
                             idleVoiceIndicator
                         }
                     }
@@ -403,11 +422,11 @@ struct MorningInterviewPane: View {
         HStack(spacing: 8) {
             PulsingIcon(systemName: "speaker.wave.2.fill", color: .primary)
             VStack(alignment: .leading, spacing: 2) {
-                Text("Speaking...")
+                Text("Assistant speaking")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(.primary)
-                if !voiceStatusText.isEmpty {
-                    Text(voiceStatusText)
+                if !pendingSpeechText.isEmpty {
+                    Text(pendingSpeechText)
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
@@ -476,23 +495,45 @@ struct MorningInterviewPane: View {
 
     private var idleVoiceIndicator: some View {
         HStack(spacing: 8) {
-            Image(systemName: "mic.circle")
+            Image(systemName: voiceSessionStarted ? "mic.circle" : "waveform.circle")
                 .font(.system(size: 16))
                 .foregroundStyle(.secondary)
-            Text("Tap to speak your answer")
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
-            Spacer()
-            Button {
-                startListening()
-            } label: {
-                Text("Speak")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 12).padding(.vertical, 4)
-                    .background(.primary, in: Capsule())
+            VStack(alignment: .leading, spacing: 2) {
+                Text(voiceSessionStarted ? "Tap to speak your answer" : "Assistant ready to speak")
+                    .font(.system(size: 12, weight: voiceSessionStarted ? .regular : .semibold))
+                    .foregroundStyle(voiceSessionStarted ? .secondary : .primary)
+                if !voiceSessionStarted {
+                    Text("Voice starts only when you press Start voice.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
             }
-            .buttonStyle(.plain)
+            Spacer()
+            if voiceSessionStarted {
+                Button {
+                    startListening()
+                } label: {
+                    Text("Speak")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 12).padding(.vertical, 4)
+                        .background(.primary, in: Capsule())
+                }
+                .buttonStyle(.plain)
+            } else {
+                Button("Use buttons") {
+                    voiceMode = false
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.mini)
+
+                Button("Start voice") {
+                    startVoiceSession()
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.primary)
+                .controlSize(.mini)
+            }
         }
     }
 
@@ -1162,8 +1203,35 @@ struct MorningInterviewPane: View {
 
     // MARK: - Voice: speak for step (state machine)
 
-    private func speakForStep(_ stepIndex: Int) {
+    private func startVoiceSession() {
         guard voiceMode else { return }
+        if !voiceSessionStarted {
+            voiceSessionStarted = true
+            showTextFallback = false
+            showConfirmationBanner = false
+        }
+        speakForStep(step)
+    }
+
+    private func endVoiceSession() {
+        speechService.stop()
+        stopListening()
+        cancelSilenceTimer()
+        conversationState = .idle
+        voiceSessionStarted = false
+        pendingSpeechText = ""
+        voiceStatusText = ""
+    }
+
+    private func speakIfVoiceActive(_ text: String) {
+        guard canUseVoice else { return }
+        pendingSpeechText = text
+        voiceStatusText = text
+        speechService.speak(text)
+    }
+
+    private func speakForStep(_ stepIndex: Int) {
+        guard canUseVoice else { return }
         if case .appSpeaking(let s) = conversationState, s == stepIndex { return }
 
         stopListening()
@@ -1184,6 +1252,7 @@ struct MorningInterviewPane: View {
             awaitingWorkHoursAnswer = true
             let text = "Quick question before we dive in — what time do you usually start and finish work? Something like nine to six."
             voiceStatusText = text
+            pendingSpeechText = text
             conversationState = .appSpeaking(step: stepIndex)
             speechService.speak(text)
             return
@@ -1197,17 +1266,22 @@ struct MorningInterviewPane: View {
             Task {
                 let context = buildStepContext(stepIndex)
                 if let aiText = await interviewAI.generateStepPrompt(step: stepIndex, context: context) {
+                    guard canUseVoice else { return }
                     voiceStatusText = aiText
+                    pendingSpeechText = aiText
                     speechService.speak(aiText)
                 } else {
+                    guard canUseVoice else { return }
                     let fallback = hardcodedTextForStep(stepIndex)
                     voiceStatusText = fallback
+                    pendingSpeechText = fallback
                     speechService.speak(fallback)
                 }
             }
         } else {
             let text = hardcodedTextForStep(stepIndex)
             voiceStatusText = text
+            pendingSpeechText = text
             speechService.speak(text)
         }
     }
@@ -1316,12 +1390,12 @@ struct MorningInterviewPane: View {
         if silenceTimeoutCount == 0 {
             // First timeout: prompt the user
             silenceTimeoutCount = 1
-            speechService.speak("Still there?")
+            speakIfVoiceActive("Still there?")
             // After this short prompt finishes, onChange(of: isSpeaking) won't match .appSpeaking
             // so we manually restart listening after a short delay
             Task {
                 try? await Task.sleep(for: .milliseconds(1500))
-                guard voiceMode, case .listening = conversationState else { return }
+                guard canUseVoice, case .listening = conversationState else { return }
                 startSilenceTimer(forStep: listenStep)
             }
         } else {
@@ -1368,14 +1442,14 @@ struct MorningInterviewPane: View {
             // Re-prompt with text fallback option
             showTextFallback = true
             conversationState = .ambiguous(step: step, prompt: "I didn't catch that clearly. Could you try again?")
-            speechService.speak("I didn't catch that clearly. Could you try again, or use the text input?")
+            speakIfVoiceActive("I didn't catch that clearly. Could you try again, or use the text input?")
             return
         } else if confidence < 0.75 {
             // Show confirmation banner
             pendingTranscript = transcript
             showConfirmationBanner = true
             conversationState = .ambiguous(step: step, prompt: "Did you mean: \(transcript)?")
-            speechService.speak("Did you mean: \(transcript)?")
+            speakIfVoiceActive("Did you mean: \(transcript)?")
             return
         }
 
@@ -1393,7 +1467,7 @@ struct MorningInterviewPane: View {
         showConfirmationBanner = false
         pendingTranscript = ""
         conversationState = .idle
-        if voiceMode {
+        if canUseVoice {
             speakForStep(step)
         }
     }
@@ -1412,17 +1486,17 @@ struct MorningInterviewPane: View {
                     if let mappedResponse {
                         // Speak acknowledgment, then process the intent
                         if !resolved.spokenResponse.isEmpty {
-                            speechService.speak(resolved.spokenResponse)
+                            speakIfVoiceActive(resolved.spokenResponse)
                         }
                         handleVoiceResponse(mappedResponse)
                     } else {
                         // Opus returned "unclear" — re-prompt
                         conversationState = .ambiguous(step: step, prompt: resolved.spokenResponse)
-                        speechService.speak(resolved.spokenResponse)
+                        speakIfVoiceActive(resolved.spokenResponse)
                     }
                 } else {
                     conversationState = .idle
-                    speechService.speak("I didn't quite get that. Could you say it differently?")
+                    speakIfVoiceActive("I didn't quite get that. Could you say it differently?")
                 }
                 voiceProcessing = false
                 if case .processing = conversationState {
@@ -1492,17 +1566,17 @@ struct MorningInterviewPane: View {
                 stopListening()
                 cancelSilenceTimer()
                 step -= 1
-                if voiceMode { speakForStep(step) }
+                if canUseVoice { speakForStep(step) }
             }
             return
         case .undo:
             if let last = undoStack.popLast() {
                 last.action()
-                if voiceMode {
-                    speechService.speak("Undone.")
+                if canUseVoice {
+                    speakIfVoiceActive("Undone.")
                     Task {
                         try? await Task.sleep(for: .milliseconds(600))
-                        guard voiceMode else { return }
+                        guard canUseVoice else { return }
                         speakForStep(step)
                     }
                 }
@@ -1516,8 +1590,8 @@ struct MorningInterviewPane: View {
             )
             tasks.append(newTask)
             confirmedIds.insert(newTask.id)
-            if voiceMode {
-                speechService.speak("Added: \(description).")
+            if canUseVoice {
+                speakIfVoiceActive("Added: \(description).")
             }
             return
         default:
@@ -1580,8 +1654,8 @@ struct MorningInterviewPane: View {
                 workHoursConfirmed = true
                 awaitingWorkHoursAnswer = false
                 recomputeFreeTime()
-                if voiceMode {
-                    speechService.speak("Got it, finishing at \(hour). " + buildCalendarNarration())
+                if canUseVoice {
+                    speakIfVoiceActive("Got it, finishing at \(hour). " + buildCalendarNarration())
                 }
                 return
             case .number(let mins):
@@ -1592,8 +1666,8 @@ struct MorningInterviewPane: View {
                 workHoursConfirmed = true
                 awaitingWorkHoursAnswer = false
                 recomputeFreeTime()
-                if voiceMode {
-                    speechService.speak("So about \(hours) hours. " + buildCalendarNarration())
+                if canUseVoice {
+                    speakIfVoiceActive("So about \(hours) hours. " + buildCalendarNarration())
                 }
                 return
             default:
@@ -1604,14 +1678,14 @@ struct MorningInterviewPane: View {
                     workHoursConfirmed = true
                     awaitingWorkHoursAnswer = false
                     recomputeFreeTime()
-                    if voiceMode {
-                        speechService.speak("Right, \(start) to \(end). " + buildCalendarNarration())
+                    if canUseVoice {
+                        speakIfVoiceActive("Right, \(start) to \(end). " + buildCalendarNarration())
                     }
                     return
                 }
                 // Couldn't parse — re-prompt
-                if voiceMode {
-                    speechService.speak("I didn't catch that. What time do you start and finish? Something like nine to five.")
+                if canUseVoice {
+                    speakIfVoiceActive("I didn't catch that. What time do you start and finish? Something like nine to five.")
                 }
                 return
             }
@@ -1632,8 +1706,8 @@ struct MorningInterviewPane: View {
                 self.recomputeFreeTime()
             }))
             recordOverride(forStep: step)
-            if voiceMode {
-                speechService.speak("Right, wrapping up at \(hour). That's \(spokenTime(effectiveFreeMinutes)) to play with. Sound right?")
+            if canUseVoice {
+                speakIfVoiceActive("Right, wrapping up at \(hour). That's \(spokenTime(effectiveFreeMinutes)) to play with. Sound right?")
             }
         case .subtractTime(let mins):
             let oldSubtract = manualSubtract
@@ -1644,8 +1718,8 @@ struct MorningInterviewPane: View {
                 self.availableMinutes = self.effectiveFreeMinutes
             }))
             recordOverride(forStep: step)
-            if voiceMode {
-                speechService.speak("Noted. That brings you down to \(spokenTime(effectiveFreeMinutes)) free. Sound right?")
+            if canUseVoice {
+                speakIfVoiceActive("Noted. That brings you down to \(spokenTime(effectiveFreeMinutes)) free. Sound right?")
             }
         case .number(let mins):
             let oldMins = availableMinutes
@@ -1654,9 +1728,9 @@ struct MorningInterviewPane: View {
             recordOverride(forStep: step)
             advanceStep()
         case .negative:
-            if voiceMode {
+            if canUseVoice {
                 conversationState = .ambiguous(step: step, prompt: "How would you like to adjust?")
-                speechService.speak("No worries. Tell me when you're finishing, or how much to subtract, or just give me a number of hours.")
+                speakIfVoiceActive("No worries. Tell me when you're finishing, or how much to subtract, or just give me a number of hours.")
             }
         default:
             break
@@ -1679,8 +1753,8 @@ struct MorningInterviewPane: View {
         case .affirmative:
             advanceStep()
         default:
-            if voiceMode {
-                speechService.speak("Just a number from one to ten. One is running on empty, ten is firing on all cylinders.")
+            if canUseVoice {
+                speakIfVoiceActive("Just a number from one to ten. One is running on empty, ten is firing on all cylinders.")
             }
         }
     }
