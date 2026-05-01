@@ -26,7 +26,17 @@ public struct TimedAppShell: View {
             .onOpenURL { url in
                 routeIncoming(url: url)
             }
-            .task { await auth.restoreSession() }
+            .task { await launchServices() }
+            .onChange(of: auth.isSignedIn) { _, isSignedIn in
+                guard isSignedIn else { return }
+                Task { await DataBridge.shared.flushOfflineReplay() }
+            }
+    }
+
+    private func launchServices() async {
+        await DataBridge.shared.startOfflineReplay()
+        await auth.restoreSession()
+        await DataBridge.shared.flushOfflineReplay()
     }
 
     /// Strict URL gate. The previous `host == "auth"` check accepted any

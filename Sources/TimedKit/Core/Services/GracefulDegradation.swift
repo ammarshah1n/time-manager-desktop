@@ -114,8 +114,8 @@ actor GracefulDegradation {
 
     /// Flush local SQLite buffers to Supabase on recovery
     private func flushBuffers() async {
-        // Triggers GRDB pending_operations flush via DataBridge
         TimedLogger.dataStore.info("GracefulDegradation: buffer flush initiated")
+        await DataBridge.shared.flushOfflineReplay()
     }
 
     // MARK: - Degradation Indicators

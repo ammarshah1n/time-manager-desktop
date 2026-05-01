@@ -3,11 +3,12 @@
 // Tests local storage path only (no Supabase, no network).
 
 import Foundation
+import Dependencies
 import Testing
 
 @testable import TimedKit
 
-@Suite("DataBridge Local Storage")
+@Suite("DataBridge", .serialized)
 struct DataBridgeTests {
 
     // MARK: - Load returns empty on fresh state
@@ -68,4 +69,210 @@ struct DataBridgeTests {
         // nil is expected on fresh state
         _ = session
     }
+    // MARK: - Offline Replay
+
+    @Test("idempotency key keeps latest pending payload")
+    func testIdempotencyKeyKeepsLatestPayload() async throws {
+        try await withIsolatedTimedStore {
+            let queue = OfflineSyncQueue()
+            let recorder = QueueReplayRecorder()
+
+            try await queue.enqueue(
+                operationType: "test.operation",
+                payload: Data(#"{"version":1}"#.utf8),
+                idempotencyKey: "same-op"
+            )
+            try await queue.enqueue(
+                operationType: "test.operation",
+                payload: Data(#"{"version":2}"#.utf8),
+                idempotencyKey: "same-op"
+            )
+
+            let before = try await queue.diagnostics()
+            #expect(before.pendingCount == 1)
+            #expect(before.activePendingCount == 1)
+
+            await queue.flush { operationType, payload in
+                await recorder.record(operationType: operationType, payload: payload)
+            }
+
+            let entries = await recorder.entries()
+            #expect(entries == [QueueReplayEntry(operationType: "test.operation", payload: #"{"version":2}"#)])
+
+            let after = try await queue.diagnostics()
+            #expect(after.pendingCount == 0)
+            #expect(after.permanentFailureCount == 0)
+        }
+    }
+    @Test("saveTasks queues failed task upserts")
+    func testSaveTasksQueuesFailedTaskUpserts() async throws {
+        try await withAuthenticatedTimedStore { _ in
+            try await withDependencies {
+                var dependency = SupabaseClientDependency()
+                dependency.upsertTask = { _ in throw DataBridgeReplayTestError.expectedFailure }
+                $0.supabaseClient = dependency
+            } operation: {
+                let queue = OfflineSyncQueue()
+                let bridge = DataBridge(offlineQueue: queue)
+
+                try await bridge.saveTasks([makeTask(title: "Queued failure")])
+                try await Task.sleep(for: .milliseconds(100))
+
+                let diagnostics = try await queue.diagnostics()
+                #expect(diagnostics.pendingCount == 1)
+                #expect(diagnostics.activePendingCount == 1)
+            }
+        }
+    }
+
+    @Test("flushOfflineReplay replays queued task upserts")
+    func testFlushOfflineReplayReplaysQueuedTaskUpserts() async throws {
+        let recorder = TaskUpsertRecorder()
+
+        try await withAuthenticatedTimedStore { executiveID in
+            try await withDependencies {
+                var dependency = SupabaseClientDependency()
+                dependency.upsertTask = { row in await recorder.record(row) }
+                $0.supabaseClient = dependency
+            } operation: {
+                let queue = OfflineSyncQueue()
+                let bridge = DataBridge(offlineQueue: queue)
+                let task = makeTask(title: "Replay me")
+
+                try await bridge.saveTasks([task])
+                await bridge.flushOfflineReplay()
+
+                let rows = await recorder.rows()
+                #expect(rows.contains { row in
+                    row.id == task.id && row.workspaceId == executiveID && row.profileId == executiveID
+                })
+
+                let diagnostics = try await queue.diagnostics()
+                #expect(diagnostics.pendingCount == 0)
+            }
+        }
+    }
+}
+
+private struct QueueReplayEntry: Equatable, Sendable {
+    let operationType: String
+    let payload: String
+}
+
+private actor QueueReplayRecorder {
+    private var storedEntries: [QueueReplayEntry] = []
+
+    func record(operationType: String, payload: Data) {
+        storedEntries.append(
+            QueueReplayEntry(
+                operationType: operationType,
+                payload: String(data: payload, encoding: .utf8) ?? ""
+            )
+        )
+    }
+
+    func entries() -> [QueueReplayEntry] {
+        storedEntries
+    }
+}
+
+private actor TaskUpsertRecorder {
+    private var storedRows: [TaskDBRow] = []
+
+    func record(_ row: TaskDBRow) {
+        storedRows.append(row)
+    }
+
+    func rows() -> [TaskDBRow] {
+        storedRows
+    }
+}
+
+private enum DataBridgeReplayTestError: Error {
+    case expectedFailure
+}
+
+private func makeTask(title: String) -> TimedTask {
+    TimedTask(
+        id: UUID(),
+        title: title,
+        sender: "Timed",
+        estimatedMinutes: 15,
+        bucket: .action,
+        emailCount: 0,
+        receivedAt: Date(timeIntervalSince1970: 1_700_000_000)
+    )
+}
+
+private func withIsolatedTimedStore<T>(_ operation: () async throws -> T) async throws -> T {
+    let previousExecutive = UserDefaults.standard.string(forKey: PlatformPaths.activeExecutiveDefaultsKey)
+    UserDefaults.standard.set(UUID().uuidString, forKey: PlatformPaths.activeExecutiveDefaultsKey)
+    resetOfflineQueueStore()
+
+    do {
+        let result = try await operation()
+        resetOfflineQueueStore()
+        restoreActiveExecutive(previousExecutive)
+        return result
+    } catch {
+        resetOfflineQueueStore()
+        restoreActiveExecutive(previousExecutive)
+        throw error
+    }
+}
+
+private func withAuthenticatedTimedStore<T>(_ operation: (UUID) async throws -> T) async throws -> T {
+    let executiveID = UUID()
+    let snapshot = await MainActor.run {
+        let snapshot = AuthSnapshot(
+            isSignedIn: AuthService.shared.isSignedIn,
+            executiveId: AuthService.shared.executiveId,
+            isConnected: NetworkMonitor.shared.isConnected,
+            activeExecutive: UserDefaults.standard.string(forKey: PlatformPaths.activeExecutiveDefaultsKey)
+        )
+        AuthService.shared.isSignedIn = true
+        AuthService.shared.executiveId = executiveID
+        NetworkMonitor.shared.isConnected = true
+        UserDefaults.standard.set(executiveID.uuidString, forKey: PlatformPaths.activeExecutiveDefaultsKey)
+        return snapshot
+    }
+    resetOfflineQueueStore()
+
+    do {
+        let result = try await operation(executiveID)
+        resetOfflineQueueStore()
+        await restoreAuthSnapshot(snapshot)
+        return result
+    } catch {
+        resetOfflineQueueStore()
+        await restoreAuthSnapshot(snapshot)
+        throw error
+    }
+}
+
+private func resetOfflineQueueStore() {
+    try? FileManager.default.removeItem(at: PlatformPaths.sqlite("offline_queue.sqlite"))
+}
+
+@MainActor
+private func restoreAuthSnapshot(_ snapshot: AuthSnapshot) {
+    AuthService.shared.isSignedIn = snapshot.isSignedIn
+    AuthService.shared.executiveId = snapshot.executiveId
+    NetworkMonitor.shared.isConnected = snapshot.isConnected
+    restoreActiveExecutive(snapshot.activeExecutive)
+}
+
+private func restoreActiveExecutive(_ value: String?) {
+    if let value {
+        UserDefaults.standard.set(value, forKey: PlatformPaths.activeExecutiveDefaultsKey)
+    } else {
+        UserDefaults.standard.removeObject(forKey: PlatformPaths.activeExecutiveDefaultsKey)
+    }
+}
+
+private struct AuthSnapshot: Sendable {
+    let isSignedIn: Bool
+    let executiveId: UUID?
+    let isConnected: Bool
+    let activeExecutive: String?
 }

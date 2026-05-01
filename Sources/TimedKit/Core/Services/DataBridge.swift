@@ -7,6 +7,7 @@
 import Foundation
 import Dependencies
 import os
+import Supabase
 
 actor DataBridge {
     static let shared = DataBridge()
@@ -14,6 +15,11 @@ actor DataBridge {
     @Dependency(\.supabaseClient) private var supabaseClient
 
     private let local = DataStore.shared
+    private let offlineQueue: OfflineSyncQueue
+
+    init(offlineQueue: OfflineSyncQueue = .shared) {
+        self.offlineQueue = offlineQueue
+    }
 
     // MARK: - Tasks
 
@@ -24,43 +30,14 @@ actor DataBridge {
     func saveTasks(_ tasks: [TimedTask]) async throws {
         try await local.saveTasks(tasks)
         // Dual-write to Supabase when authenticated
-        guard await isAuthenticated, await isOnline else { return }
+        guard await isAuthenticated else { return }
         guard let wsId = await authWorkspaceId, let profileId = await authProfileId else { return }
-        Task.detached(priority: .utility) { [supabaseClient] in
-            for task in tasks {
-                let row = TaskDBRow(
-                    id: task.id,
-                    workspaceId: wsId,
-                    profileId: profileId,
-                    sourceType: "manual",
-                    bucketType: task.bucket.rawValue,
-                    title: task.title,
-                    description: nil,
-                    status: task.isDone ? "done" : "pending",
-                    priority: task.isDoFirst ? 10 : 5,
-                    dueAt: task.dueToday ? Calendar.current.startOfDay(for: Date()) : nil,
-                    estimatedMinutesAi: nil,
-                    estimatedMinutesManual: task.estimatedMinutes,
-                    actualMinutes: nil,
-                    estimateSource: "manual",
-                    isDoFirst: task.isDoFirst,
-                    isTransitSafe: task.isTransitSafe,
-                    isOverdue: false,
-                    completedAt: task.isDone ? Date() : nil,
-                    createdAt: task.receivedAt,
-                    updatedAt: Date(),
-                    urgency: task.urgency,
-                    importance: task.importance,
-                    energyRequired: task.energyRequired,
-                    context: task.context,
-                    skipCount: task.skipCount
-                )
-                do {
-                    try await supabaseClient.upsertTask(row)
-                } catch {
-                    TimedLogger.supabase.error("DataBridge: task sync failed for \(task.id): \(error.localizedDescription, privacy: .public)")
-                }
-            }
+        let rows = tasks.map { makeTaskRow($0, workspaceId: wsId, profileId: profileId) }
+        try await enqueueTaskRows(rows)
+
+        guard await isOnline else { return }
+        Task(priority: .utility) { [weak self] in
+            await self?.flushOfflineReplay()
         }
     }
 
@@ -173,6 +150,68 @@ actor DataBridge {
         try await local.saveActiveFocusSession(session)
     }
 
+    // MARK: - Offline Replay
+
+    func startOfflineReplay() async {
+        await offlineQueue.startMonitoring { [weak self] operationType, payload in
+            guard let self else {
+                throw OfflineSyncQueue.QueueError.replayDeferred("DataBridge unavailable")
+            }
+            try await self.replayQueuedOperation(operationType: operationType, payload: payload)
+        }
+    }
+
+    func flushOfflineReplay() async {
+        await startOfflineReplay()
+        await offlineQueue.flushRegistered()
+        try? await offlineQueue.cleanup()
+    }
+
+    private func enqueueTaskRows(_ rows: [TaskDBRow]) async throws {
+        let encoder = Self.queueEncoder()
+        for row in rows {
+            let payload = try encoder.encode(row)
+            try await offlineQueue.enqueue(
+                operationType: "tasks.upsert",
+                payload: payload,
+                idempotencyKey: row.id.uuidString.lowercased()
+            )
+        }
+    }
+
+    private func replayQueuedOperation(operationType: String, payload: Data) async throws {
+        guard await isAuthenticated else {
+            throw OfflineSyncQueue.QueueError.replayDeferred("No signed-in executive for offline replay")
+        }
+        guard await isOnline else {
+            throw OfflineSyncQueue.QueueError.replayDeferred("Network is offline")
+        }
+
+        let decoder = Self.queueDecoder()
+        switch operationType {
+        case "tasks.upsert":
+            let row = try decoder.decode(TaskDBRow.self, from: payload)
+            try await supabaseClient.upsertTask(row)
+        case "email_observations.insert":
+            let row = try decoder.decode(EmailObservationRow.self, from: payload)
+            try await supabaseClient.insertEmailObservation(row)
+        case "calendar_observations.insert":
+            let row = try decoder.decode(CalendarObservationRow.self, from: payload)
+            try await supabaseClient.insertCalendarObservation(row)
+        case "tier0_observations.insert":
+            guard let client = supabaseClient.rawClient else {
+                throw OfflineSyncQueue.QueueError.replayDeferred("Supabase client unavailable")
+            }
+            let observation = try decoder.decode(Tier0Observation.self, from: payload)
+            try await client
+                .from("tier0_observations")
+                .upsert([observation], onConflict: "idempotency_key")
+                .execute()
+        default:
+            throw OfflineReplayError.unsupportedOperation(operationType)
+        }
+    }
+
     // MARK: - Network & Auth status
 
     private var isOnline: Bool {
@@ -189,6 +228,48 @@ actor DataBridge {
 
     private var authProfileId: UUID? {
         get async { await MainActor.run { AuthService.shared.profileId } }
+    }
+
+    private static func queueEncoder() -> JSONEncoder {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        return encoder
+    }
+
+    private static func queueDecoder() -> JSONDecoder {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return decoder
+    }
+
+    private func makeTaskRow(_ task: TimedTask, workspaceId: UUID, profileId: UUID) -> TaskDBRow {
+        TaskDBRow(
+            id: task.id,
+            workspaceId: workspaceId,
+            profileId: profileId,
+            sourceType: "manual",
+            bucketType: task.bucket.rawValue,
+            title: task.title,
+            description: nil,
+            status: task.isDone ? "done" : "pending",
+            priority: task.isDoFirst ? 10 : 5,
+            dueAt: task.dueToday ? Calendar.current.startOfDay(for: Date()) : nil,
+            estimatedMinutesAi: nil,
+            estimatedMinutesManual: task.estimatedMinutes,
+            actualMinutes: nil,
+            estimateSource: "manual",
+            isDoFirst: task.isDoFirst,
+            isTransitSafe: task.isTransitSafe,
+            isOverdue: false,
+            completedAt: task.isDone ? Date() : nil,
+            createdAt: task.receivedAt,
+            updatedAt: Date(),
+            urgency: task.urgency,
+            importance: task.importance,
+            energyRequired: task.energyRequired,
+            context: task.context,
+            skipCount: task.skipCount
+        )
     }
 
     private func rebuilt(_ task: TimedTask, bucket: TaskBucket) -> TimedTask {
@@ -219,5 +300,16 @@ actor DataBridge {
             skipCount: task.skipCount,
             snoozedUntil: task.snoozedUntil
         )
+    }
+
+    private enum OfflineReplayError: Error, LocalizedError {
+        case unsupportedOperation(String)
+
+        var errorDescription: String? {
+            switch self {
+            case .unsupportedOperation(let operationType):
+                "Unsupported offline operation: \(operationType)"
+            }
+        }
     }
 }

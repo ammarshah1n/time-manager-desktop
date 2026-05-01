@@ -11,6 +11,12 @@ import os
 actor OfflineSyncQueue {
     static let shared = OfflineSyncQueue()
 
+    struct Diagnostics: Equatable, Sendable {
+        let pendingCount: Int
+        let activePendingCount: Int
+        let permanentFailureCount: Int
+    }
+
     private var dbQueue: DatabaseQueue?
     private var isProcessing = false
     private var currentBackoff: TimeInterval = 1.0
@@ -55,6 +61,21 @@ actor OfflineSyncQueue {
             if !columns.contains("permanently_failed") {
                 try db.execute(sql: "ALTER TABLE pending_operations ADD COLUMN permanently_failed INTEGER NOT NULL DEFAULT 0")
             }
+            if !columns.contains("idempotency_key") {
+                try db.execute(sql: "ALTER TABLE pending_operations ADD COLUMN idempotency_key TEXT")
+            }
+            try db.create(
+                index: "idx_pending_operations_replay",
+                on: "pending_operations",
+                columns: ["synced_at", "permanently_failed", "created_at"],
+                ifNotExists: true
+            )
+            try db.create(
+                index: "idx_pending_operations_idempotency",
+                on: "pending_operations",
+                columns: ["operation_type", "idempotency_key"],
+                ifNotExists: true
+            )
         }
     }
 
@@ -62,13 +83,34 @@ actor OfflineSyncQueue {
 
     // MARK: - Enqueue
 
-    func enqueue(operationType: String, payload: Data) throws {
+    func enqueue(operationType: String, payload: Data, idempotencyKey: String? = nil) throws {
         guard let dbQueue else { throw QueueError.notInitialised }
         let payloadString = String(data: payload, encoding: .utf8) ?? "{}"
         try dbQueue.write { db in
+            if let idempotencyKey,
+               let existingID = try Int64.fetchOne(
+                db,
+                sql: """
+                    SELECT id FROM pending_operations
+                    WHERE operation_type = ? AND idempotency_key = ? AND synced_at IS NULL
+                    LIMIT 1
+                    """,
+                arguments: [operationType, idempotencyKey]
+               ) {
+                try db.execute(
+                    sql: """
+                        UPDATE pending_operations
+                        SET payload_json = ?, failed_count = 0, permanently_failed = 0
+                        WHERE id = ?
+                        """,
+                    arguments: [payloadString, existingID]
+                )
+                return
+            }
+
             try db.execute(
-                sql: "INSERT INTO pending_operations (operation_type, payload_json) VALUES (?, ?)",
-                arguments: [operationType, payloadString]
+                sql: "INSERT INTO pending_operations (operation_type, payload_json, idempotency_key) VALUES (?, ?, ?)",
+                arguments: [operationType, payloadString, idempotencyKey]
             )
         }
         TimedLogger.dataStore.debug("Enqueued \(operationType, privacy: .public)")
@@ -78,7 +120,12 @@ actor OfflineSyncQueue {
 
     func startMonitoring(execute: @escaping @Sendable (String, Data) async throws -> Void) {
         syncHandler = execute
+        guard monitorTask == nil else {
+            Task { await flushRegistered() }
+            return
+        }
         monitorTask = Task { [weak self] in
+            await self?.flushRegistered()
             var wasOffline = false
             while !Task.isCancelled {
                 let connected = await NetworkMonitor.shared.isConnected
@@ -96,6 +143,14 @@ actor OfflineSyncQueue {
         monitorTask?.cancel()
         monitorTask = nil
         syncHandler = nil
+    }
+
+    func flushRegistered() async {
+        while isProcessing {
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+        guard let syncHandler else { return }
+        await flush(execute: syncHandler)
     }
 
     // MARK: - Flush (called on network restore)
@@ -130,6 +185,13 @@ actor OfflineSyncQueue {
                     }
                     currentBackoff = 1.0 // Reset on success
                 } catch {
+                    if let queueError = error as? QueueError, case .replayDeferred = queueError {
+                        TimedLogger.dataStore.info(
+                            "Flush deferred for op \(id): \(error.localizedDescription, privacy: .public)"
+                        )
+                        break
+                    }
+
                     let newFailedCount = prevFailedCount + 1
                     let permanentlyFailed = newFailedCount >= Self.maxFailures
                     TimedLogger.dataStore.warning(
@@ -194,7 +256,42 @@ actor OfflineSyncQueue {
         }
     }
 
-    enum QueueError: Error {
+    func diagnostics() throws -> Diagnostics {
+        guard let dbQueue else {
+            return Diagnostics(pendingCount: 0, activePendingCount: 0, permanentFailureCount: 0)
+        }
+        return try dbQueue.read { db in
+            let pending = try Int.fetchOne(
+                db,
+                sql: "SELECT COUNT(*) FROM pending_operations WHERE synced_at IS NULL"
+            ) ?? 0
+            let active = try Int.fetchOne(
+                db,
+                sql: "SELECT COUNT(*) FROM pending_operations WHERE synced_at IS NULL AND permanently_failed = 0"
+            ) ?? 0
+            let permanent = try Int.fetchOne(
+                db,
+                sql: "SELECT COUNT(*) FROM pending_operations WHERE synced_at IS NULL AND permanently_failed = 1"
+            ) ?? 0
+            return Diagnostics(
+                pendingCount: pending,
+                activePendingCount: active,
+                permanentFailureCount: permanent
+            )
+        }
+    }
+
+    enum QueueError: Error, LocalizedError {
         case notInitialised
+        case replayDeferred(String)
+
+        var errorDescription: String? {
+            switch self {
+            case .notInitialised:
+                "Offline queue is not initialised"
+            case .replayDeferred(let reason):
+                reason
+            }
+        }
     }
 }
