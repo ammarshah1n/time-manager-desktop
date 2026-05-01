@@ -1,135 +1,241 @@
-# Proposed Plan + Risk Gates
+# Revised Plan + Risk Gates
 
-## Proposed Plan
+This revision incorporates Perplexity's first review from `02-perplexity-review.md`.
 
-# TickTick-Style Task Hierarchy + Silent AI Learning
+## Executive Ruling
 
-## Summary
+The original plan is not safe to implement until the task persistence contract is fixed. The revised plan adds a Gate 0 and chooses one coherent subtask planning model:
 
-Build a mapped task hierarchy: users can add sidebar sections/subsections and subtasks, while Timed keeps canonical planning buckets underneath so AI, voice, Dish Me Up, estimation, and backend learning stay coherent.
+- Gate 0: normalize `TaskBucket` Swift/DB serialization before any hierarchy work.
+- Subtasks are executable planning units.
+- Parent tasks with subtasks become containers and are excluded from planning.
+- Standalone top-level tasks remain executable planning units.
+- Only executable planning units produce time-estimation learning signals.
 
-Default model:
+## Gate 0: Bucket Serialization Fix
 
-- Sidebar hierarchy is user-facing: `Email > Reply / Read Today / Read This Week / CC/FYI`, plus `Action`, `Calls`, `Transit`, `Waiting`, and user-created sections.
-- Each section maps to one canonical `TaskBucket`; custom subsections inherit the parent bucket unless changed in detail view.
-- Subtasks are one level only and are stored as normal task rows with `parent_task_id`.
-- Time/priority edits are captured silently as feedback events. The next review asks about only meaningful or repeated corrections.
+Before adding sections or subtasks:
 
-## Coordination / Collision Controls
+- Add `TaskBucket.dbValue` and `TaskBucket.from(dbValue:)`.
+- Update `DataBridge.makeTaskRow` to write DB-safe values, not `TaskBucket.rawValue`.
+- Update `TimedTask.init(from:)` to decode DB values.
+- Add a migration/backfill that maps existing human labels to canonical DB values.
+- Resolve `ccFyi`: either add `cc_fyi` to the DB check constraint or deliberately map it to `other`; preferred is adding `cc_fyi` because `CC / FYI` is a first-class bucket in Swift.
+- Add a Swift test: `TaskBucket.from(dbValue: bucket.dbValue) == bucket` for every case.
 
-- Do not start implementation while current offline-sync work is active in `DataBridge.swift`, `OfflineSyncQueue.swift`, `TimedAppShell.swift`, or `DataBridgeTests.swift`; those overlap persistence.
-- First implementation step must normalize Swift/DB bucket IDs before adding hierarchy: Swift currently writes human `TaskBucket.rawValue`, while Supabase expects snake_case values.
-- Split work by ownership to avoid subagent clashes:
-  - Schema/backend worker: migrations, Edge Functions, Trigger tasks.
-  - Swift persistence worker: models, `SupabaseClient`, `DataBridge`.
-  - UI worker: sidebar, task list, subtasks, completed section.
-  - AI worker: voice/orb/Dish Me Up context and feedback learning.
-- One commit per change, conventional format. After code changes, run `graphify update .`.
+## Data Model
 
-## Interface / Data Model Changes
+### `task_sections`
 
-- Add `task_sections` table:
-  - `id`, `workspace_id`, `profile_id`, `parent_section_id`, `title`, `canonical_bucket_type`, `sort_order`, `color_key`, `is_system`, `is_archived`, timestamps.
-  - Enforce one visible subsection level in Swift/service logic.
-- Extend `tasks`:
-  - `section_id`, `parent_task_id`, `sort_order`, `manual_importance`, `completed_at`, optional `notes`.
-  - `manual_importance`: `blue = normal`, `orange = important`, `red = critical`; maps into existing planning `importance` but remains visibly user-authored.
-- Extend `behaviour_events`:
-  - Add `section_id`, `parent_task_id`, `event_metadata`.
-  - Add event types: `section_created`, `section_renamed`, `task_section_changed`, `subtask_created`, `subtask_completed`, `manual_importance_changed`.
-  - Keep using `estimate_override`, but require it from every edit surface, not just Today.
-- Treat subtasks as first-class planning rows:
-  - Incomplete subtasks can be ranked, estimated, completed, deferred, and learned from.
-  - A parent with incomplete subtasks is a container unless it has no children or explicit standalone work.
+Add `public.task_sections`:
 
-## Implementation Plan
+- `id uuid primary key default gen_random_uuid()`
+- `workspace_id uuid not null references public.workspaces(id) on delete cascade`
+- `profile_id uuid references public.profiles(id) on delete set null`
+- `parent_section_id uuid references public.task_sections(id) on delete set null`
+- `title text not null`
+- `canonical_bucket_type text not null`
+- `sort_order integer not null default 0`
+- `color_key text`
+- `is_system boolean not null default false`
+- `is_archived boolean not null default false`
+- `created_at timestamptz not null default now()`
+- `updated_at timestamptz not null default now()`
 
-1. Data model:
-   - Add Swift models for `TaskSection`, `ManualImportance`, and hierarchy helpers near the existing task model.
-   - Extend `TimedTask`/`TaskDBRow` mapping with section, parent, ordering, completed timestamp, and manual importance.
-   - Fix canonical bucket serialization before relying on remote hierarchy.
+Required constraints and indexes:
 
-2. Service layer:
-   - Add section load/save/upsert methods through `SupabaseClient` and `DataBridge`.
-   - Extend offline replay to queue `task_sections.upsert` and feedback event inserts after the existing offline-sync changes are settled.
-   - Centralize task mutations so `TasksPane`, `TaskDetailSheet`, Today, Capture, Triage, and Orb all log estimate/importance/section corrections consistently.
+- `canonical_bucket_type` must use the same canonical values as `tasks.bucket_type`.
+- Add indexes on `(workspace_id, profile_id, is_archived, sort_order)` and `parent_section_id`.
+- Enforce one visible subsection level with a DB trigger: a section with a parent cannot itself become a parent.
+- Seed default system sections server-side for every existing workspace with an idempotent migration or seed script. The Swift client must not be the source of truth for system section creation.
 
-3. View model/state:
-   - Add a hierarchy adapter that derives sidebar rows, active section tasks, parent/subtask rows, and completed rows from `[TaskSection] + [TimedTask]`.
-   - Keep `TimedRootView` as owner initially, but move grouping/sorting logic out of views.
-   - Sort incomplete rows by explicit `sort_order`, then existing planning score; completed rows go to a bottom collapsed group.
+Default section tree:
 
-4. UI:
-   - Replace fixed bucket-only sidebar rows with native macOS sidebar sections and disclosure groups.
-   - Add plus actions for top-level sections, subsections, tasks within a section, and one-level subtasks.
-   - Show AI recommended time on each task row, allow quick manual override, and mark overrides visually without noisy copy.
-   - Add blue/orange/red importance control in row/detail surfaces.
-   - Show completed tasks greyed out at the bottom in a collapsed "Completed" disclosure.
+- `Email`
+  - `Reply`
+  - `Read Today`
+  - `Read This Week`
+  - `CC / FYI`
+- `Action`
+- `Calls`
+- `Transit`
+- `Waiting`
 
-5. AI/backend:
-   - Extend `ConversationTools`, `orb-conversation`, `ConversationModel` client state, and voice context to include sections, subtasks, manual importance, AI/manual estimates, and recent corrections.
-   - Add safe tools for in-app-only changes: add section, add subtask, move task to section, update estimate, update manual importance.
-   - Update `generate-dish-me-up` and daily planning to plan over sections/subtasks while preserving observation-only behavior.
-   - Update morning review voice flow to read recent significant corrections and ask at most 1-3 follow-up questions.
+### `tasks`
 
-6. Silent learning:
-   - Log edits immediately without interrupting the user.
-   - "Meaningful correction" threshold: estimate changed by at least 15 minutes or 33%, manual importance changed to orange/red, repeated same-section corrections, or repeated same bucket estimate drift.
-   - Next review asks only when the correction is useful to explain. Otherwise the system silently updates future estimates/ranking.
-   - Feed actual minutes through existing `estimation_history`; feed override patterns through `behaviour_events`, profile-card generation, and relevant synthesis jobs.
+Extend `public.tasks`:
 
-7. Docs/memory:
-   - Update repo docs/PRD to define custom mapped sections, one-level subtasks, manual importance, completed-task behavior, and silent feedback learning as core product behavior.
-   - Update Timed-Brain memory notes for PRD, behaviour events schema, email taxonomy, and executive morning-list examples after implementation lands.
+- `section_id uuid references public.task_sections(id) on delete set null`
+- `parent_task_id uuid references public.tasks(id) on delete set null`
+- `sort_order integer not null default 0`
+- `manual_importance text not null default 'blue' check (manual_importance in ('blue','orange','red'))`
+- `notes text`
+- `is_planning_unit boolean not null default true`
 
-## Test Plan
+Required constraints and triggers:
 
-- Swift unit tests:
-  - Bucket canonical ID round-trip.
-  - `TaskSection`/`TimedTask` Codable round-trip.
-  - One-level subtask validation.
-  - Hierarchy grouping/sorting/completed-bottom behavior.
-  - Estimate and importance edits emit correct `behaviour_events`.
-- Backend tests/checks:
-  - Migration applies cleanly.
-  - RLS allows workspace/profile-owned sections and tasks only.
-  - `estimate_override` and subtask events insert successfully.
-  - Edge Functions type-check after schema updates.
-- Integration/manual acceptance:
-  - Create `Email > Read in 2 days`, add a task, add subtasks, set red/orange/blue importance.
-  - Override AI estimate from 45m to 30m and verify it is logged silently.
-  - Complete tasks/subtasks and verify completed rows collapse at bottom.
-  - Ask Orb/voice about the section and confirm it can read and update the right task.
-  - Next morning review references only meaningful correction patterns.
-  - Run `swift build`, `swift test`, relevant `deno check`, then `graphify update .`.
+- Prevent self-parenting: `parent_task_id != id`.
+- Enforce one-level subtasks at DB level: a task whose `parent_task_id` is not null cannot be used as another task's parent.
+- When a subtask is added to a parent, set the parent `is_planning_unit = false`.
+- Before deleting a parent task, promote children by setting `parent_task_id = null` and preserving or copying the parent's `section_id`.
+- A parent container may still be completed manually, but parent completion does not produce an estimate-learning signal unless it has its own explicit actual minutes and no incomplete subtasks.
 
-## Assumptions
+### Subtask Planning Model
 
-- Custom sections are display/organisation structure, not replacements for canonical planning buckets.
-- Subtasks are one level only.
-- AI may modify in-app task structure only when the user instructs it; it still never sends emails, books events, or acts outside Timed.
-- Views do not call Supabase directly; persistence remains through `DataBridge`/`SupabaseClient`.
+Use exactly this model:
+
+- Standalone top-level task: `parent_task_id is null`, no children, `is_planning_unit = true`; planned normally.
+- Parent container: has at least one child, `is_planning_unit = false`; displayed in UI but excluded from `generate-dish-me-up`.
+- Subtask: `parent_task_id is not null`, `is_planning_unit = true`; planned, ranked, estimated, completed, and learned from independently.
+- Parent effective estimate for display is the sum of incomplete child estimates; this is display-only and must not be added to planning totals.
+- Completing the final subtask does not auto-complete the parent. The parent can remain as context or be manually completed.
+
+This avoids double-counting while preserving the user's requirement that subtasks can be ranked and estimated.
+
+## Behaviour Events + Silent Learning
+
+Extend `behaviour_events`:
+
+- `section_id uuid references public.task_sections(id) on delete set null`
+- `parent_task_id uuid references public.tasks(id) on delete set null`
+- `event_metadata jsonb`
+- Add event types:
+  - `section_created`
+  - `section_renamed`
+  - `task_section_changed`
+  - `subtask_created`
+  - `subtask_completed`
+  - `manual_importance_changed`
+
+Migration rule:
+
+- Because `behaviour_events` is partitioned, the migration must drop/recreate the `event_type` check constraint on the parent table and validate the new constraint. Do not just edit the original migration or update Swift strings.
+
+Payload rule:
+
+- Replace string `oldValue` / `newValue` handling in Swift with typed JSON payloads that encode to JSONB.
+- Minimum `estimate_override` payload:
+  - `minutes`
+  - `source`
+  - `task_id`
+  - `section_id`
+  - `parent_task_id`
+  - `is_subtask`
+  - `estimate_source`
+
+Silent learning:
+
+- All estimate, section, completion, and importance mutations go through a new `TaskMutationService`.
+- Deduplicate rapid estimate edits: within a 30-minute window for the same task, keep first and final values only.
+- A correction is meaningful if it changes by at least 15 minutes or at least 33%, changes manual importance to orange/red, or repeats in the same bucket/section.
+- Meaningful corrections are processed server-side into `estimate_priors` keyed by `(workspace_id, bucket_type, section_id)`.
+- Morning review reads at most the three most relevant correction patterns and asks only when a follow-up would improve future recommendations.
+
+## Swift Changes
+
+Add defaulted fields to `TimedTask` so old local JSON can decode:
+
+- `sectionId: UUID? = nil`
+- `parentTaskId: UUID? = nil`
+- `sortOrder: Int = 0`
+- `manualImportance: ManualImportance = .blue`
+- `completedAt: Date? = nil`
+- `notes: String? = nil`
+- `isPlanningUnit: Bool = true`
+
+Add:
+
+- `TaskSection`
+- `ManualImportance`
+- `TaskHierarchyState` or equivalent pure grouping adapter
+- `TaskMutationService`
+- typed `BehaviourEventInsert` JSON payload support
+
+Persistence rules:
+
+- `DataBridge` and `SupabaseClient` load/save sections and tasks.
+- `completedAt` is set only when a task transitions from incomplete to complete, then preserved.
+- Local JSON migration must tolerate missing new fields and write the upgraded format on the next save.
+- No Swift view writes directly to Supabase.
+
+## Tool / AI Contract
+
+`ConversationTools.swift` and `supabase/functions/orb-conversation/index.ts` must be updated atomically.
+
+Required tool fields:
+
+- `sectionId`
+- `parentTaskId`
+- `manualImportance`
+- canonical bucket DB value
+
+Contract enforcement:
+
+- Add a shared schema source or an automated parity test that fails if Swift and Edge tool schemas diverge.
+- Do not ship a UI that can create sections/subtasks before Orb, voice context, and Dish Me Up can read them.
+
+Backend updates:
+
+- `generate-dish-me-up` filters to `is_planning_unit = true` so it plans standalone tasks and subtasks, not parent containers.
+- `voice-llm-proxy` reads `section_id`, `parent_task_id`, `manual_importance`, AI/manual estimates, and recent meaningful corrections.
+- Morning voice context shows top-level tasks with a compact subtask summary, plus only the top correction prompts.
+- `estimate-time` can estimate any planning unit; parent containers use child estimate sums for display only.
+
+## UI Plan
+
+- Sidebar uses native macOS disclosure sections.
+- Users can add top-level sections and one-level subsections.
+- Every section has an inline task add affordance.
+- Every task row can add one-level subtasks.
+- Blue/orange/red manual importance is shown as a compact control, not full-row color.
+- AI estimate is visible; manual override is visible without noisy explanatory text.
+- Completed tasks sit at the bottom of each section in a collapsed greyed-out group.
+- Parent containers show child progress and effective child-estimate total.
+
+## Implementation Sequence
+
+1. Merge or isolate current offline-sync work before touching task persistence.
+2. Gate 0 PR: bucket serialization + backfill + tests.
+3. Schema PR: `task_sections`, task hierarchy columns, constraints, triggers, RLS, default section seed, `behaviour_events` migration.
+4. Swift persistence PR: `TaskSection`, `ManualImportance`, `TimedTask` defaults, `TaskDBRow`, `SupabaseClient`, `DataBridge`, local JSON migration.
+5. Mutation PR: `TaskMutationService`, typed behaviour event payloads, complete/estimate/importance/section mutation paths.
+6. AI/backend PR: Orb schema parity, voice context, Dish Me Up planning-unit filter, estimate-priors learning job.
+7. UI PR: sidebar hierarchy, inline task/subtask add, importance controls, completed group, parent container display.
+8. Docs/memory PR: PRD, data model docs, behaviour-events docs, Timed-Brain updates.
 
 ## Risk Gates
 
-- Gate 1: bucket serialization normalized before hierarchy work.
-- Gate 2: schema migration reviewed before Swift model changes.
-- Gate 3: `DataBridge` offline queue changes landed before extending persistence.
-- Gate 4: every task mutation path logs estimate/importance/section corrections consistently.
-- Gate 5: Edge Function tool schemas match Swift tool schemas exactly.
-- Gate 6: Dish Me Up, voice context, and estimation all understand subtasks.
-- Gate 7: RLS and indexes verified for `task_sections`, `tasks.section_id`, and `tasks.parent_task_id`.
-- Gate 8: full `swift build`, `swift test`, relevant `deno check`, and migration checks pass.
+- Gate 0: bucket serialization normalized and backfilled.
+- Gate 1: schema migration reviewed before Swift model changes.
+- Gate 2: default sections seeded for existing workspaces.
+- Gate 3: one-level subtasks enforced at DB level.
+- Gate 4: `DataBridge` offline queue changes landed before extending persistence.
+- Gate 5: every mutation path logs structured behaviour events through `TaskMutationService`.
+- Gate 6: Edge Function tool schemas match Swift tool schemas by shared source or automated parity test.
+- Gate 7: Dish Me Up, voice context, estimate-time, and silent learning all understand planning units.
+- Gate 8: RLS and indexes verified for `task_sections`, `tasks.section_id`, and `tasks.parent_task_id`.
+- Gate 9: old local JSON decodes and upgrades.
+- Gate 10: `swift build`, `swift test`, relevant `deno check`, migration checks, and `graphify update .` pass.
 
-## Specific Areas Perplexity Should Stress-Test
+## Acceptance Tests
 
-- Whether `task_sections.parent_section_id` should be enforced at DB level or only in Swift.
-- Whether `tasks.parent_task_id` should reference `tasks(id)` with `on delete cascade`, `set null`, or restricted deletion.
-- Whether parent tasks should aggregate child estimates or be treated as non-executable containers.
-- How to avoid duplicate learning signals when both a parent and subtask are completed.
-- How to preserve old local JSON tasks that do not contain section or subtask fields.
-- How to seed default sections for existing users without relying on brittle client-only bootstrap.
-- How to keep Swift `ConversationTools.schemas()` and Edge `TOOL_SCHEMAS` in exact lockstep.
-- How to make `estimate_override` payloads machine-readable enough for future estimator training.
-- How to prevent `generate-dish-me-up` from double-counting parent and child tasks.
-- How to avoid a partial rollout where the UI creates sections that voice, Dish Me Up, or estimation ignore.
+- `TaskBucket` DB round-trip for every case.
+- Existing local `TimedTask` JSON without new fields decodes without crashing.
+- Every existing workspace gets system sections after migration.
+- Cross-workspace users cannot read or mutate another workspace's sections.
+- Inserting a subtask under a subtask fails.
+- A task cannot parent itself.
+- Deleting a parent preserves children as standalone tasks in the expected section.
+- Changing an estimate from Today, Tasks, Detail, and Orb each logs one structured `estimate_override`.
+- Rapid estimate edits dedupe to first/final values.
+- `generate-dish-me-up` never double-counts parent containers and subtasks.
+- Voice context includes section/subtask/estimate data.
+- Orb can add a subtask with `parent_task_id`.
+- Completed tasks render collapsed and greyed at the bottom.
+- Morning review mentions only meaningful correction patterns.
+
+## Perplexity Round 2 Validation Request
+
+Validate this revised plan for implementability. Do not be contrarian for its own sake. Only flag material blockers that could cause data loss, backend drift, migration failure, AI/tool mismatch, security/RLS leakage, or broken user-facing behavior.
+
+If this plan is now implementable, say so clearly and list only non-blocking improvements separately.
