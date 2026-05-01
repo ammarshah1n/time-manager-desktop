@@ -8,6 +8,11 @@ EXECUTABLE_NAME="timed"
 ICON_SOURCE="$ROOT_DIR/docs/timed-logo.svg"
 ICONSET_SOURCE="$ROOT_DIR/Assets.xcassets/AppIcon.appiconset"
 ICON_NAME="Timed"
+CODESIGN_IDENTITY="${TIMED_CODESIGN_IDENTITY:--}"
+CODESIGN_OPTIONS=()
+if [[ "$CODESIGN_IDENTITY" != "-" ]]; then
+  CODESIGN_OPTIONS=(--options runtime --timestamp)
+fi
 
 swift build -c release
 bash "$ROOT_DIR/scripts/render_app_icons.sh"
@@ -139,16 +144,14 @@ cat > "$APP_DIR/Contents/Info.plist" <<'PLIST'
 </plist>
 PLIST
 
-codesign --force --deep --sign - "$APP_DIR/Contents/Frameworks/MSAL.framework" 2>/dev/null || true
-codesign --force --deep --sign - "$APP_DIR/Contents/Frameworks/LiveKitWebRTC.framework" 2>/dev/null || true
-# Apply entitlements (especially `keychain-access-groups`) so MSAL silent
-# refresh can write to the bundle-private keychain partition. Without
-# `--entitlements`, the file at Platforms/Mac/Timed.entitlements is ignored
-# and MSAL falls back to the default group `com.microsoft.identity.universalstorage`,
-# which requires Apple Developer Program enrollment to write — the exact
-# `-34018` failure that forced manual reconnect every ~1h.
+codesign --force --deep "${CODESIGN_OPTIONS[@]}" --sign "$CODESIGN_IDENTITY" "$APP_DIR/Contents/Frameworks/MSAL.framework" 2>/dev/null || true
+codesign --force --deep "${CODESIGN_OPTIONS[@]}" --sign "$CODESIGN_IDENTITY" "$APP_DIR/Contents/Frameworks/LiveKitWebRTC.framework" 2>/dev/null || true
+# Apply the canonical macOS entitlements. Ad-hoc builds still cannot use a
+# keychain access group; pass TIMED_CODESIGN_IDENTITY with a Developer ID
+# Application identity for notarizable release artifacts.
 codesign --force --deep \
+    "${CODESIGN_OPTIONS[@]}" \
     --entitlements "$ROOT_DIR/Platforms/Mac/Timed.entitlements" \
-    --sign - "$APP_DIR"
+    --sign "$CODESIGN_IDENTITY" "$APP_DIR"
 
 echo "Packaged $APP_DIR"

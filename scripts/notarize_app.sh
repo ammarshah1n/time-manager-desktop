@@ -2,9 +2,9 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-DIST_DIR="$ROOT_DIR/dist"
-APP_PATH="$DIST_DIR/timed.app"
-ZIP_PATH="$DIST_DIR/timed-notarize.zip"
+DIST_DIR="$ROOT_DIR/dist.noindex"
+APP_PATH="$DIST_DIR/Timed.app"
+ZIP_PATH="$DIST_DIR/Timed-notarize.zip"
 
 if [[ ! -d "$APP_PATH" ]]; then
   echo "Missing $APP_PATH. Run bash scripts/package_app.sh first." >&2
@@ -26,6 +26,19 @@ Then run:
 EOF
   exit 1
 fi
+
+SIGNATURE_INFO="$(codesign -dv "$APP_PATH" 2>&1 || true)"
+if grep -q "Signature=adhoc" <<<"$SIGNATURE_INFO"; then
+  cat >&2 <<'EOF'
+Timed.app is ad-hoc signed and cannot be notarized.
+
+Re-run packaging with a Developer ID identity, for example:
+  TIMED_CODESIGN_IDENTITY="Developer ID Application: Example, Inc. (TEAMID)" bash scripts/package_app.sh
+EOF
+  exit 1
+fi
+
+codesign --verify --deep --strict "$APP_PATH"
 
 ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$ZIP_PATH"
 
