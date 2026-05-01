@@ -93,6 +93,40 @@ struct ProductionReadinessGuardTests {
                 "email_messages upsert must not use the old graph_message_id-only conflict target.")
     }
 
+    @Test func taskHierarchyMigrationDefinesDatabaseGuardrails() throws {
+        let migration = try read("supabase/migrations/20260501211829_task_hierarchy_schema.sql")
+
+        #expect(migration.contains("create domain public.canonical_bucket"),
+                "Task hierarchy schema must define a canonical bucket domain.")
+        #expect(migration.contains("create table if not exists public.task_sections"),
+                "Task hierarchy schema must add task_sections.")
+        #expect(migration.contains("private.user_workspace_ids()"),
+                "task_sections RLS must use the private workspace helper.")
+        #expect(migration.contains("trg_enforce_task_section_depth"),
+                "task_sections must enforce one subsection level in the database.")
+        #expect(migration.contains("tasks_parent_task_id_fkey") && migration.contains("on delete restrict"),
+                "Task parent deletion must be trigger-owned, not FK SET NULL.")
+        #expect(migration.contains("tasks_parent_not_self"),
+                "Tasks must reject self-parenting.")
+        #expect(migration.contains("trg_promote_orphaned_subtasks"),
+                "Parent deletion must promote children before delete.")
+        #expect(migration.contains("trg_sync_task_parent_insert_update"),
+                "Parent planning-unit state must update when subtasks change.")
+        #expect(migration.contains("status not in ('done', 'cancelled')"),
+                "Planning-unit restoration must use active-child semantics.")
+        #expect(migration.contains("'task_section_changed'"),
+                "Section-changing promotion must emit a behaviour event.")
+        #expect(migration.contains("create table if not exists public.estimate_priors"),
+                "Silent learning needs estimate_priors before backend jobs ship.")
+    }
+
+    @Test func bucketMigrationKeepsBriefingBehaviourEventsValid() throws {
+        let migration = try read("supabase/migrations/20260501211002_normalize_task_bucket_values.sql")
+
+        #expect(migration.contains("'briefing'"),
+                "behaviour_events.bucket_type must keep existing briefing interaction events valid.")
+    }
+
     @Test func disabledEmbeddingFunctionIsDocumentedAsNotProductionReady() throws {
         let function = try read("supabase/functions/generate-embedding/index.ts")
         let docs = try combinedReadinessDocs()

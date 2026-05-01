@@ -1,4 +1,10 @@
-# BUILD_STATE.md — Last updated: 2026-05-01 (task bucket normalization)
+# BUILD_STATE.md — Last updated: 2026-05-01 (task hierarchy schema)
+
+> **Task hierarchy schema 2026-05-01** — Implemented Gate 1 of the TickTick-style hierarchy plan. Added migration `20260501211829_task_hierarchy_schema.sql` with `canonical_bucket`, `task_sections` and system section seeding, task `section_id` / `parent_task_id` / `sort_order` / `manual_importance` / planning-unit fields, one-level hierarchy triggers, subtask parent planning sync, parent-delete promotion, hierarchy-aware behaviour events, `estimate_priors`, private-helper RLS, and future behaviour-event partitions through 2026-12. Swift model/UI persistence expansion is still intentionally not landed.
+
+> **Verified 2026-05-01 task hierarchy schema** — `swift build` ✅; `swift test --filter ProductionReadinessGuardTests` ✅ (7 tests); `swift test` ✅ (89 tests). `supabase db lint` could not run because local Postgres refused `127.0.0.1:54322`; `supabase start` could not start it because the OrbStack Docker socket was unavailable.
+
+> **Next after task hierarchy schema** — Gate 2: extend Swift task/section DTOs and `DataBridge` persistence against the new schema, then wire mutation logging so section, estimate, subtask, and importance corrections feed silent learning consistently.
 
 > **Task bucket normalization 2026-05-01** — Implemented Gate 0 of the task hierarchy plan. `TaskBucket` now has DB-safe `dbValue` / `from(dbValue:)` mapping, `DataBridge` task upserts and Today behaviour/estimate writes use snake_case bucket values, and migration `20260501211002_normalize_task_bucket_values.sql` backfills existing bucket-bearing tables while adding `cc_fyi` support and preserving `other`.
 
