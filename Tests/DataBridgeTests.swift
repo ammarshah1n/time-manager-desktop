@@ -84,6 +84,29 @@ struct DataBridgeTests {
         #expect(TimedTask(from: makeTaskRow(bucketType: "Read Today")).bucket == .readToday)
         #expect(TimedTask(from: makeTaskRow(bucketType: "cc_fyi")).bucket == .ccFyi)
     }
+
+    @Test("TimedTask decodes hierarchy values")
+    func testTimedTaskDecodesHierarchyValues() {
+        let sectionId = UUID()
+        let parentTaskId = UUID()
+        let task = TimedTask(from: makeTaskRow(
+            bucketType: "read_today",
+            sectionId: sectionId,
+            parentTaskId: parentTaskId,
+            sortOrder: 3,
+            manualImportance: "red",
+            notes: "Read before the board pack",
+            isPlanningUnit: true
+        ))
+
+        #expect(task.sectionId == sectionId)
+        #expect(task.parentTaskId == parentTaskId)
+        #expect(task.sortOrder == 3)
+        #expect(task.manualImportance == .red)
+        #expect(task.notes == "Read before the board pack")
+        #expect(task.isPlanningUnit == true)
+        #expect(task.isSubtask)
+    }
     // MARK: - Offline Replay
 
     @Test("idempotency key keeps latest pending payload")
@@ -192,6 +215,93 @@ struct DataBridgeTests {
             }
         }
     }
+
+    @Test("saveTasks writes hierarchy fields")
+    func testSaveTasksWritesHierarchyFields() async throws {
+        let recorder = TaskUpsertRecorder()
+
+        try await withAuthenticatedTimedStore { _ in
+            try await withDependencies {
+                var dependency = SupabaseClientDependency()
+                dependency.upsertTask = { row in await recorder.record(row) }
+                $0.supabaseClient = dependency
+            } operation: {
+                let queue = OfflineSyncQueue()
+                let bridge = DataBridge(offlineQueue: queue)
+                let sectionId = UUID()
+                let parent = makeTask(
+                    title: "Parent task",
+                    bucket: .action,
+                    sectionId: sectionId,
+                    sortOrder: 0,
+                    manualImportance: .red
+                )
+                let child = makeTask(
+                    title: "Child task",
+                    bucket: .action,
+                    sectionId: sectionId,
+                    parentTaskId: parent.id,
+                    sortOrder: 1,
+                    manualImportance: .orange,
+                    notes: "Smallest next action"
+                )
+
+                try await bridge.saveTasks([parent, child])
+                await bridge.flushOfflineReplay()
+
+                let rows = await recorder.rows()
+                let parentRow = try #require(rows.first { $0.id == parent.id })
+                let childRow = try #require(rows.first { $0.id == child.id })
+                #expect(parentRow.sectionId == sectionId)
+                #expect(parentRow.manualImportance == "red")
+                #expect(parentRow.isPlanningUnit == false)
+                #expect(childRow.parentTaskId == parent.id)
+                #expect(childRow.sortOrder == 1)
+                #expect(childRow.manualImportance == "orange")
+                #expect(childRow.notes == "Smallest next action")
+                #expect(childRow.isPlanningUnit == true)
+            }
+        }
+    }
+
+    @Test("saveTaskSections writes section rows")
+    func testSaveTaskSectionsWritesRows() async throws {
+        let recorder = TaskSectionUpsertRecorder()
+
+        try await withAuthenticatedTimedStore { executiveID in
+            try await withDependencies {
+                var dependency = SupabaseClientDependency()
+                dependency.upsertTaskSection = { row in await recorder.record(row) }
+                $0.supabaseClient = dependency
+            } operation: {
+                let queue = OfflineSyncQueue()
+                let bridge = DataBridge(offlineQueue: queue)
+                let section = TaskSection(
+                    id: UUID(),
+                    parentSectionId: nil,
+                    title: "Read in 2 days",
+                    canonicalBucketType: "read_this_week",
+                    sortOrder: 4,
+                    colorKey: "orange",
+                    isSystem: false,
+                    isArchived: false
+                )
+
+                try await bridge.saveTaskSections([section])
+                await bridge.flushOfflineReplay()
+
+                let rows = await recorder.rows()
+                let row = try #require(rows.first { $0.id == section.id })
+                #expect(row.workspaceId == executiveID)
+                #expect(row.profileId == executiveID)
+                #expect(row.title == "Read in 2 days")
+                #expect(row.canonicalBucketType == "read_this_week")
+                #expect(row.sortOrder == 4)
+                #expect(row.colorKey == "orange")
+                #expect(row.isSystem == false)
+            }
+        }
+    }
 }
 
 private struct QueueReplayEntry: Equatable, Sendable {
@@ -228,11 +338,31 @@ private actor TaskUpsertRecorder {
     }
 }
 
+private actor TaskSectionUpsertRecorder {
+    private var storedRows: [TaskSectionDBRow] = []
+
+    func record(_ row: TaskSectionDBRow) {
+        storedRows.append(row)
+    }
+
+    func rows() -> [TaskSectionDBRow] {
+        storedRows
+    }
+}
+
 private enum DataBridgeReplayTestError: Error {
     case expectedFailure
 }
 
-private func makeTask(title: String, bucket: TaskBucket = .action) -> TimedTask {
+private func makeTask(
+    title: String,
+    bucket: TaskBucket = .action,
+    sectionId: UUID? = nil,
+    parentTaskId: UUID? = nil,
+    sortOrder: Int? = nil,
+    manualImportance: TaskManualImportance? = nil,
+    notes: String? = nil
+) -> TimedTask {
     TimedTask(
         id: UUID(),
         title: title,
@@ -240,17 +370,36 @@ private func makeTask(title: String, bucket: TaskBucket = .action) -> TimedTask 
         estimatedMinutes: 15,
         bucket: bucket,
         emailCount: 0,
-        receivedAt: Date(timeIntervalSince1970: 1_700_000_000)
+        receivedAt: Date(timeIntervalSince1970: 1_700_000_000),
+        sectionId: sectionId,
+        parentTaskId: parentTaskId,
+        sortOrder: sortOrder,
+        manualImportance: manualImportance,
+        notes: notes
     )
 }
 
-private func makeTaskRow(bucketType: String) -> TaskDBRow {
+private func makeTaskRow(
+    bucketType: String,
+    sectionId: UUID? = nil,
+    parentTaskId: UUID? = nil,
+    sortOrder: Int? = nil,
+    manualImportance: String? = nil,
+    notes: String? = nil,
+    isPlanningUnit: Bool? = nil
+) -> TaskDBRow {
     TaskDBRow(
         id: UUID(),
         workspaceId: UUID(),
         profileId: UUID(),
         sourceType: "manual",
         bucketType: bucketType,
+        sectionId: sectionId,
+        parentTaskId: parentTaskId,
+        sortOrder: sortOrder,
+        manualImportance: manualImportance,
+        notes: notes,
+        isPlanningUnit: isPlanningUnit,
         title: "Decoded task",
         description: nil,
         status: "pending",

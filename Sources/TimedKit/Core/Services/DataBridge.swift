@@ -24,7 +24,18 @@ actor DataBridge {
     // MARK: - Tasks
 
     func loadTasks() async throws -> [TimedTask] {
-        return (try? await local.loadTasks()) ?? []
+        let cached = (try? await local.loadTasks()) ?? []
+        guard await isAuthenticated, await isOnline else { return cached }
+        guard let wsId = await authWorkspaceId, let profileId = await authProfileId else { return cached }
+        guard let rows = try? await supabaseClient.fetchTasks(wsId, profileId, ["pending", "in_progress", "done"]) else {
+            return cached
+        }
+        let tasks = rows.map(TimedTask.init(from:))
+        if !tasks.isEmpty {
+            try? await local.saveTasks(tasks)
+            return tasks
+        }
+        return cached
     }
 
     func saveTasks(_ tasks: [TimedTask]) async throws {
@@ -32,8 +43,44 @@ actor DataBridge {
         // Dual-write to Supabase when authenticated
         guard await isAuthenticated else { return }
         guard let wsId = await authWorkspaceId, let profileId = await authProfileId else { return }
-        let rows = tasks.map { makeTaskRow($0, workspaceId: wsId, profileId: profileId) }
+        let parentIdsWithActiveChildren = Set(tasks.compactMap { task in
+            task.isDone ? nil : task.parentTaskId
+        })
+        let rows = tasks.map {
+            makeTaskRow(
+                $0,
+                workspaceId: wsId,
+                profileId: profileId,
+                parentIdsWithActiveChildren: parentIdsWithActiveChildren
+            )
+        }
         try await enqueueTaskRows(rows)
+
+        guard await isOnline else { return }
+        Task(priority: .utility) { [weak self] in
+            await self?.flushOfflineReplay()
+        }
+    }
+
+    func loadTaskSections() async throws -> [TaskSection] {
+        let cached = (try? await local.loadTaskSections()) ?? []
+        guard await isAuthenticated, await isOnline else { return cached }
+        guard let wsId = await authWorkspaceId else { return cached }
+        guard let rows = try? await supabaseClient.fetchTaskSections(wsId) else { return cached }
+        let sections = rows.map(TaskSection.init(from:))
+        if !sections.isEmpty {
+            try? await local.saveTaskSections(sections)
+            return sections
+        }
+        return cached
+    }
+
+    func saveTaskSections(_ sections: [TaskSection]) async throws {
+        try await local.saveTaskSections(sections)
+        guard await isAuthenticated else { return }
+        guard let wsId = await authWorkspaceId, let profileId = await authProfileId else { return }
+        let rows = sections.map { makeTaskSectionRow($0, workspaceId: wsId, profileId: profileId) }
+        try await enqueueTaskSectionRows(rows)
 
         guard await isOnline else { return }
         Task(priority: .utility) { [weak self] in
@@ -179,6 +226,18 @@ actor DataBridge {
         }
     }
 
+    private func enqueueTaskSectionRows(_ rows: [TaskSectionDBRow]) async throws {
+        let encoder = Self.queueEncoder()
+        for row in rows {
+            let payload = try encoder.encode(row)
+            try await offlineQueue.enqueue(
+                operationType: "task_sections.upsert",
+                payload: payload,
+                idempotencyKey: row.id.uuidString.lowercased()
+            )
+        }
+    }
+
     private func replayQueuedOperation(operationType: String, payload: Data) async throws {
         guard await isAuthenticated else {
             throw OfflineSyncQueue.QueueError.replayDeferred("No signed-in executive for offline replay")
@@ -189,6 +248,9 @@ actor DataBridge {
 
         let decoder = Self.queueDecoder()
         switch operationType {
+        case "task_sections.upsert":
+            let row = try decoder.decode(TaskSectionDBRow.self, from: payload)
+            try await supabaseClient.upsertTaskSection(row)
         case "tasks.upsert":
             let row = try decoder.decode(TaskDBRow.self, from: payload)
             try await supabaseClient.upsertTask(row)
@@ -242,13 +304,24 @@ actor DataBridge {
         return decoder
     }
 
-    private func makeTaskRow(_ task: TimedTask, workspaceId: UUID, profileId: UUID) -> TaskDBRow {
+    private func makeTaskRow(
+        _ task: TimedTask,
+        workspaceId: UUID,
+        profileId: UUID,
+        parentIdsWithActiveChildren: Set<UUID>
+    ) -> TaskDBRow {
         TaskDBRow(
             id: task.id,
             workspaceId: workspaceId,
             profileId: profileId,
             sourceType: "manual",
             bucketType: task.bucket.dbValue,
+            sectionId: task.sectionId,
+            parentTaskId: task.parentTaskId,
+            sortOrder: task.sortOrder ?? 0,
+            manualImportance: task.effectiveManualImportance.rawValue,
+            notes: task.notes,
+            isPlanningUnit: task.isPlanningUnit ?? !parentIdsWithActiveChildren.contains(task.id),
             title: task.title,
             description: nil,
             status: task.isDone ? "done" : "pending",
@@ -272,6 +345,23 @@ actor DataBridge {
         )
     }
 
+    private func makeTaskSectionRow(_ section: TaskSection, workspaceId: UUID, profileId: UUID) -> TaskSectionDBRow {
+        TaskSectionDBRow(
+            id: section.id,
+            workspaceId: workspaceId,
+            profileId: section.isSystem ? nil : profileId,
+            parentSectionId: section.parentSectionId,
+            title: section.title,
+            canonicalBucketType: section.canonicalBucketType,
+            sortOrder: section.sortOrder,
+            colorKey: section.colorKey,
+            isSystem: section.isSystem,
+            isArchived: section.isArchived,
+            createdAt: nil,
+            updatedAt: Date()
+        )
+    }
+
     private func rebuilt(_ task: TimedTask, bucket: TaskBucket) -> TimedTask {
         TimedTask(
             id: task.id,
@@ -281,6 +371,12 @@ actor DataBridge {
             bucket: bucket,
             emailCount: task.emailCount,
             receivedAt: task.receivedAt,
+            sectionId: task.sectionId,
+            parentTaskId: task.parentTaskId,
+            sortOrder: task.sortOrder,
+            manualImportance: task.manualImportance,
+            notes: task.notes,
+            isPlanningUnit: task.isPlanningUnit,
             priority: task.priority,
             replyMedium: task.replyMedium,
             dueToday: task.dueToday,

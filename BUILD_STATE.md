@@ -1,4 +1,10 @@
-# BUILD_STATE.md — Last updated: 2026-05-01 (task hierarchy schema)
+# BUILD_STATE.md — Last updated: 2026-05-01 (task hierarchy Swift persistence)
+
+> **Task hierarchy Swift persistence 2026-05-01** — Implemented Gate 2 model/persistence wiring. `TimedTask` now carries optional `sectionId`, `parentTaskId`, `sortOrder`, manual blue/orange/red importance, notes, and planning-unit state; `TaskSection` / `TaskSectionDBRow` model the sidebar hierarchy; `SupabaseClient` can fetch/upsert `task_sections`; `DataBridge` can load/save task sections, queue offline section upserts, replay them, remote-overlay task loads, and persist hierarchy fields on task upserts while marking parents with active subtasks as non-planning units. Existing task rebuild paths preserve the new fields.
+
+> **Verified 2026-05-01 task hierarchy Swift persistence** — `swift build` ✅; `swift test --filter DataBridgeTests` ✅ (17 tests); `swift test` ✅ (92 tests). Supabase local lint/reset still blocked by unavailable local Postgres/OrbStack as recorded below.
+
+> **Next after Swift persistence** — Gate 3: add the mutation/logging service so estimate, section, subtask, and manual-importance corrections write consistent `behaviour_events` payloads for silent learning before UI controls are exposed.
 
 > **Task hierarchy schema 2026-05-01** — Implemented Gate 1 of the TickTick-style hierarchy plan. Added migration `20260501211829_task_hierarchy_schema.sql` with `canonical_bucket`, `task_sections` and system section seeding, task `section_id` / `parent_task_id` / `sort_order` / `manual_importance` / planning-unit fields, one-level hierarchy triggers, subtask parent planning sync, parent-delete promotion, hierarchy-aware behaviour events, `estimate_priors`, private-helper RLS, and future behaviour-event partitions through 2026-12. Swift model/UI persistence expansion is still intentionally not landed.
 

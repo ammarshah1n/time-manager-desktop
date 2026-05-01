@@ -53,6 +53,9 @@ actor DataStore {
     func loadTasks()                      throws -> [TimedTask]     { try load("tasks") }
     func saveTasks(_ v: [TimedTask])      throws                    { try save(v, "tasks") }
 
+    func loadTaskSections()                    throws -> [TaskSection] { try load("task_sections") }
+    func saveTaskSections(_ v: [TaskSection])  throws                 { try save(v, "task_sections") }
+
     func loadTriageItems()                throws -> [TriageItem]    { try load("triage") }
     func saveTriageItems(_ v: [TriageItem]) throws                  { try save(v, "triage") }
 

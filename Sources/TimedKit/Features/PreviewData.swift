@@ -133,6 +133,27 @@ enum TaskBucket: String, CaseIterable, Hashable, Codable {
     }
 }
 
+enum TaskManualImportance: String, CaseIterable, Codable, Sendable, Equatable {
+    case blue
+    case orange
+    case red
+}
+
+struct TaskSection: Identifiable, Codable, Sendable, Equatable {
+    let id: UUID
+    let parentSectionId: UUID?
+    var title: String
+    var canonicalBucketType: String
+    var sortOrder: Int
+    var colorKey: String?
+    var isSystem: Bool
+    var isArchived: Bool
+
+    var bucket: TaskBucket? {
+        TaskBucket.from(dbValue: canonicalBucketType)
+    }
+}
+
 // MARK: - Timed Task
 
 struct TimedTask: Identifiable, Codable, Sendable, Equatable {
@@ -143,6 +164,12 @@ struct TimedTask: Identifiable, Codable, Sendable, Equatable {
     let bucket: TaskBucket
     let emailCount: Int
     let receivedAt: Date
+    var sectionId: UUID? = nil
+    var parentTaskId: UUID? = nil
+    var sortOrder: Int? = nil
+    var manualImportance: TaskManualImportance? = nil
+    var notes: String? = nil
+    var isPlanningUnit: Bool? = nil
     // Reply
     var priority: Int? = nil
     var replyMedium: ReplyMedium? = nil
@@ -191,6 +218,14 @@ struct TimedTask: Identifiable, Codable, Sendable, Equatable {
     var isStale: Bool {
         if let snoozedUntil, snoozedUntil > Date() { return false }
         return !isDone && daysInQueue >= bucket.staleAfterDays
+    }
+
+    var isSubtask: Bool {
+        parentTaskId != nil
+    }
+
+    var effectiveManualImportance: TaskManualImportance {
+        manualImportance ?? .blue
     }
 }
 
@@ -623,10 +658,31 @@ extension TimedTask {
             bucket: bucket,
             emailCount: 0,
             receivedAt: row.createdAt,
+            sectionId: row.sectionId,
+            parentTaskId: row.parentTaskId,
+            sortOrder: row.sortOrder,
+            manualImportance: row.manualImportance.flatMap(TaskManualImportance.init(rawValue:)),
+            notes: row.notes,
+            isPlanningUnit: row.isPlanningUnit,
             dueToday: row.dueAt.map { Calendar.current.isDateInToday($0) } ?? false,
             isDoFirst: row.isDoFirst,
             isTransitSafe: row.isTransitSafe,
             isDone: row.status == "done"
+        )
+    }
+}
+
+extension TaskSection {
+    init(from row: TaskSectionDBRow) {
+        self.init(
+            id: row.id,
+            parentSectionId: row.parentSectionId,
+            title: row.title,
+            canonicalBucketType: row.canonicalBucketType,
+            sortOrder: row.sortOrder,
+            colorKey: row.colorKey,
+            isSystem: row.isSystem,
+            isArchived: row.isArchived
         )
     }
 }

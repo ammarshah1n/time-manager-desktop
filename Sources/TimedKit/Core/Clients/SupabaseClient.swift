@@ -15,6 +15,12 @@ struct TaskDBRow: Codable, Identifiable, Sendable {
     let profileId: UUID
     let sourceType: String
     let bucketType: String
+    let sectionId: UUID?
+    let parentTaskId: UUID?
+    let sortOrder: Int?
+    let manualImportance: String?
+    let notes: String?
+    let isPlanningUnit: Bool?
     let title: String
     let description: String?
     let status: String
@@ -43,6 +49,12 @@ struct TaskDBRow: Codable, Identifiable, Sendable {
         case profileId = "profile_id"
         case sourceType = "source_type"
         case bucketType = "bucket_type"
+        case sectionId = "section_id"
+        case parentTaskId = "parent_task_id"
+        case sortOrder = "sort_order"
+        case manualImportance = "manual_importance"
+        case notes
+        case isPlanningUnit = "is_planning_unit"
         case title
         case description
         case status
@@ -63,6 +75,36 @@ struct TaskDBRow: Codable, Identifiable, Sendable {
         case energyRequired = "energy_required"
         case context
         case skipCount = "skip_count"
+    }
+}
+
+struct TaskSectionDBRow: Codable, Identifiable, Sendable {
+    let id: UUID
+    let workspaceId: UUID
+    let profileId: UUID?
+    let parentSectionId: UUID?
+    let title: String
+    let canonicalBucketType: String
+    let sortOrder: Int
+    let colorKey: String?
+    let isSystem: Bool
+    let isArchived: Bool
+    let createdAt: Date?
+    let updatedAt: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case workspaceId = "workspace_id"
+        case profileId = "profile_id"
+        case parentSectionId = "parent_section_id"
+        case title
+        case canonicalBucketType = "canonical_bucket_type"
+        case sortOrder = "sort_order"
+        case colorKey = "color_key"
+        case isSystem = "is_system"
+        case isArchived = "is_archived"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
     }
 }
 
@@ -486,6 +528,8 @@ struct SupabaseClientDependency: Sendable {
     /// nil when running in local-only mode (no Supabase configured).
     var rawClient: SupabaseClient?
 
+    var fetchTaskSections: @Sendable (UUID) async throws -> [TaskSectionDBRow] = { _ in [] }
+    var upsertTaskSection: @Sendable (TaskSectionDBRow) async throws -> Void = { _ in }
     var fetchTasks: @Sendable (UUID, UUID, [String]) async throws -> [TaskDBRow] = { _, _, _ in [] }
     var upsertTask: @Sendable (TaskDBRow) async throws -> Void = { _ in }
     var updateTaskStatus: @Sendable (UUID, String, Int?) async throws -> Void = { _, _, _ in }
@@ -592,6 +636,23 @@ extension SupabaseClientDependency {
 
         return SupabaseClientDependency(
             rawClient: client,
+            fetchTaskSections: { workspaceId in
+                let rows: [TaskSectionDBRow] = try await client
+                    .from("task_sections")
+                    .select()
+                    .eq("workspace_id", value: workspaceId)
+                    .eq("is_archived", value: false)
+                    .order("sort_order", ascending: true)
+                    .execute()
+                    .value
+                return rows
+            },
+            upsertTaskSection: { section in
+                try await client
+                    .from("task_sections")
+                    .upsert(section, onConflict: "id")
+                    .execute()
+            },
             fetchTasks: { workspaceId, profileId, status in
                 let rows: [TaskDBRow] = try await client
                     .from("tasks")
