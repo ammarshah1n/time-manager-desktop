@@ -15,6 +15,7 @@ DerivedData/
 .env.*.local
 logs/
 .claude/scheduled_tasks.lock
+.codex/ralph/.telegram-chat-id.local
 
 # Local-dev docker stack (contains real secrets — never commit)
 docker-compose.local.yml

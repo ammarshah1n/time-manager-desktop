@@ -20,14 +20,19 @@ import { readFileSync, writeFileSync, existsSync, watchFile } from "fs";
 import { join } from "path";
 import { execSync } from "child_process";
 
-const TOKEN = "8644245004:AAGp9bCJm6V7dfT5YILzEpM6Z-deh7dEOXY";
+const TOKEN = process.env.RALPH_TELEGRAM_BOT_TOKEN ?? "";
+if (!TOKEN) {
+  console.error("RALPH_TELEGRAM_BOT_TOKEN is required");
+  process.exit(1);
+}
 const API = `https://api.telegram.org/bot${TOKEN}`;
 
 const REPO_ROOT = join(import.meta.dir, "..");
 const STATE_DIR = join(REPO_ROOT, ".codex/ralph");
 const PRD_JSON = join(STATE_DIR, "prd.json");
 const EVENTS_LOG = join(STATE_DIR, "events.log");
-const CHAT_ID_FILE = join(STATE_DIR, ".telegram-chat-id");
+const CHAT_ID_FILE = process.env.RALPH_TELEGRAM_CHAT_ID_FILE
+  ?? join(STATE_DIR, ".telegram-chat-id.local");
 const STOP_FLAG = join(STATE_DIR, ".ralph-stop");
 
 // ── Telegram API helpers ──────────────────────────────────────────────────────

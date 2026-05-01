@@ -178,11 +178,9 @@ Commits this sprint: `cf53995` substrate + 5 severed circuits → `3508abf` ASWe
 - HANDOFF's instruction `pnpm -F @timed/trigger exec ts-node trigger/src/tasks/graphiti-backfill.ts` is subtly wrong — the file exports `task({...})` from `@trigger.dev/sdk`, so ts-node imports the module but never invokes the run() body. The file's own docstring says "Triggered manually via `trigger.dev` dashboard or CLI once".
 - **Resume options:** (a) once Step 2 deploy lands, hit the dashboard's "Test" button on the `graphiti-backfill` task; (b) start `trigger dev` from Fedora to register the local worker against Dev env, then trigger the task via dashboard or `tasks.trigger("graphiti-backfill")` from a tiny SDK script — but Dev env's 10/10 cap may bite again; (c) export the internal `backfillOnaNodes`/`backfillOnaEdges`/`backfillTier0` functions and write a thin wrapper script that calls them sequentially — most decoupled from Trigger.dev runtime, ~30 min of code work.
 
-**Recovered secrets (already in Trigger.dev cloud env, safe to use on Fedora when needed):**
-- `GRAPHITI_MCP_URL` (Fedora-local): `http://localhost:8080` — note: cloud env has `http://localhost:8001` which is wrong if running on Fedora; cloud value was set assuming a different infra layout.
-- `GRAPHITI_MCP_TOKEN` (Fedora container): `cd5f6280c427fe736e0246f7d34a4887d365a602dbba0b738b2ada385dcc22e1` — note: cloud env has a DIFFERENT token (`133832017a2f...`); they need to be reconciled before deploy or the deployed tasks will fail to authenticate against the Fedora MCP.
-- `NEO4J_PASSWORD` mismatches too (Fedora container = `V5Z86JFUcrCjeRGDrEmupETS`, cloud = `timedneo4jdev`).
-- These mismatches are a pre-existing infra fork — fix before the cloud deploy can usefully exercise Fedora services. (Or the intent is for cloud to talk to a Cloudflare-tunneled Graphiti — see `scripts/refresh_graphiti_tunnel.sh`).
+**Recovered infrastructure note:**
+- Graphiti/Neo4j/MCP secret values were removed from this handoff. Recover them from the Timed vault or the relevant platform secret stores, then reconcile Fedora vs cloud values before deploying Graphiti-backed tasks.
+- The pre-existing infra fork still needs resolution before cloud Trigger tasks can usefully exercise Fedora services. Or route cloud to the intended Cloudflare-tunneled Graphiti endpoint; see `scripts/refresh_graphiti_tunnel.sh`.
 
 
 
