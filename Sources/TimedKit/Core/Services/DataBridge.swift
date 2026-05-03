@@ -39,6 +39,7 @@ actor DataBridge {
     }
 
     func saveTasks(_ tasks: [TimedTask]) async throws {
+        let previousTaskIds = Set(((try? await local.loadTasks()) ?? []).map(\.id))
         try await local.saveTasks(tasks)
         // Dual-write to Supabase when authenticated
         guard await isAuthenticated else { return }
@@ -54,11 +55,15 @@ actor DataBridge {
                 parentIdsWithActiveChildren: parentIdsWithActiveChildren
             )
         }
+        let newlyCreatedTasks = tasks.filter { !previousTaskIds.contains($0.id) }
         try await enqueueTaskRows(rows)
 
         guard await isOnline else { return }
         Task(priority: .utility) { [weak self] in
             await self?.flushOfflineReplay()
+            for task in newlyCreatedTasks {
+                await EstimationService.shared.estimate(task: task)
+            }
         }
     }
 

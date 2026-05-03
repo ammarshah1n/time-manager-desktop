@@ -78,6 +78,42 @@ struct TaskDBRow: Codable, Identifiable, Sendable {
     }
 }
 
+
+public struct EstimateTimeRequest: Encodable, Sendable {
+    public let taskId: UUID
+    public let workspaceId: UUID
+    public let profileId: UUID
+    public let title: String
+    public let bucketType: String
+    public let description: String?
+    public let fromAddress: String?
+}
+
+public struct EstimateTimeResponse: Decodable, Sendable {
+    // All optional — Edge Function may return any subset; degrade gracefully.
+    public let estimatedMinutes: Int?
+    public let source: String?       // "history" | "ai" | "default"
+    public let basis: String?
+    public let uncertainty: Double?
+
+    enum CodingKeys: String, CodingKey {
+        case estimatedMinutes
+        case source
+        case basis
+        case uncertainty
+        case estimateUncertainty = "estimate_uncertainty"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        estimatedMinutes = try container.decodeIfPresent(Int.self, forKey: .estimatedMinutes)
+        source = try container.decodeIfPresent(String.self, forKey: .source)
+        basis = try container.decodeIfPresent(String.self, forKey: .basis)
+        uncertainty = try container.decodeIfPresent(Double.self, forKey: .uncertainty)
+            ?? container.decodeIfPresent(Double.self, forKey: .estimateUncertainty)
+    }
+}
+
 struct TaskSectionDBRow: Codable, Identifiable, Sendable {
     let id: UUID
     let workspaceId: UUID
@@ -581,6 +617,11 @@ struct SupabaseClientDependency: Sendable {
     /// Syncs local EMA posterior to Supabase for cross-device consistency.
     var upsertBucketEstimate: @Sendable (UUID, UUID, String, Double, Int) async throws -> Void = { _, _, _, _, _ in }
 
+    /// Calls Edge Function `estimate-time`; returns AI estimate + basis. Best-effort, throws on transport error only.
+    var estimateTime: @Sendable (EstimateTimeRequest) async throws -> EstimateTimeResponse = { _ in
+        throw URLError(.badURL)
+    }
+
     // MARK: - Dish Me Up (generate-dish-me-up Edge Function)
     /// Invokes the Opus-backed planning Edge Function. Throws if Supabase isn't configured.
     var generateDishMeUp: @Sendable (_ availableMinutes: Int) async throws -> DishMeUpPlan = { _ in
@@ -930,6 +971,13 @@ extension SupabaseClientDependency {
                     .from("bucket_estimates")
                     .upsert(row, onConflict: "workspace_id,profile_id,bucket_type")
                     .execute()
+            },
+            estimateTime: { req in
+                let response: EstimateTimeResponse = try await client.functions.invoke(
+                    "estimate-time",
+                    options: FunctionInvokeOptions(method: .post, body: req)
+                )
+                return response
             },
             generateDishMeUp: { availableMinutes in
                 let request = DishMeUpRequest(
