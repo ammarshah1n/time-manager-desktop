@@ -176,18 +176,65 @@ serve(async (req: Request) => {
 
   // 2. Fallback: Claude Sonnet estimate
   try {
+    // ── Behavioural signature (Tier 2) ──
+    // In this schema, profile_id IS the executive_id (FK to executives.id).
+    const sigRes = await supabase
+      .from("tier2_behavioural_signatures")
+      .select("description, signature_name, created_at")
+      .eq("profile_id", profileId)
+      .eq("status", "confirmed")
+      .order("created_at", { ascending: false })
+      .limit(3);
+    const signatureText = (sigRes.data ?? [])
+      .map((s: any) => `- ${s.signature_name}: ${s.description}`)
+      .join("\n") || "(no confirmed signatures yet)";
+
+    // ── Recent same-bucket overrides (Bayesian-ish prior) ──
+    const overrideRes = await supabase
+      .from("behaviour_events")
+      .select("old_value, new_value, occurred_at")
+      .eq("workspace_id", workspaceId)
+      .eq("profile_id", profileId)
+      .eq("event_type", "estimate_override")
+      .eq("bucket_type", bucketType)
+      .gte("occurred_at", new Date(Date.now() - 30 * 86400000).toISOString())
+      .order("occurred_at", { ascending: false })
+      .limit(20);
+    const overrideHints = (overrideRes.data ?? [])
+      .map((r: any) => `${r.old_value}m → ${r.new_value}m`)
+      .join(", ");
+
+    // ── Time-of-day + day-of-week ──
+    const now = new Date();
+    const tod = `${now.getHours()}:00 (${["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][now.getDay()]})`;
+
+    // ── Calendar density (current ±2h) ──
+    // calendar_observations uses executive_id (== profile_id) and event_start/event_end.
+    const winStart = new Date(now.getTime() - 2 * 3600000).toISOString();
+    const winEnd = new Date(now.getTime() + 2 * 3600000).toISOString();
+    const calRes = await supabase
+      .from("calendar_observations")
+      .select("id")
+      .eq("executive_id", profileId)
+      .gte("event_start", winStart)
+      .lte("event_end", winEnd);
+    const calendarDensity = `${(calRes.data ?? []).length} events in ±2h window`;
+
     const message = await withRetry(
       () =>
         anthropic.messages.create({
           model: "claude-sonnet-4-6",
-          max_tokens: 128,
+          max_tokens: 2048,
+          // @ts-ignore
+          thinking: { type: "enabled", budget_tokens: 1500 },
           system: [
             {
               type: "text",
               text:
-                `You are a time estimation assistant for an executive productivity app.
-Estimate how many minutes a task will take. Be realistic, not optimistic.
-Respond ONLY with a JSON object: {"estimated_minutes": <integer>, "confidence": <0.0-1.0>}`,
+                `You are Timed's estimation engine for an executive. Estimate how many minutes a task will take given the user's behavioural signature, recent corrections on similar tasks, and the schedule context.
+
+You are reasoning about a real human's productivity, not running a generic classifier. Cite which signal drove your number. Prefer odd-but-honest numbers (37, 52) over round-but-empty ones (30, 60). Output JSON only — keys MUST be snake_case to match the parser:
+{"estimated_minutes": <int>, "uncertainty": <stddev minutes>, "basis": "<one short sentence>"}`,
               // @ts-ignore
               cache_control: { type: "ephemeral" },
             },
@@ -195,13 +242,19 @@ Respond ONLY with a JSON object: {"estimated_minutes": <integer>, "confidence": 
           messages: [
             {
               role: "user",
-              content: `Task type: ${bucketType}
-Title: ${title ?? "(untitled)"}
-Description: ${description ?? "(none)"}
-${fromAddress ? `From: ${fromAddress}` : ""}
-Category default: ${categoryDefault} min
+              content: `Task: "${title}"
+Type: ${bucketType}
+${description ? `Description: ${description}\n` : ""}${fromAddress ? `From: ${fromAddress}\n` : ""}
+Time-of-day: ${tod}
+Calendar density: ${calendarDensity}
 
-Estimate the actual time this will take.`,
+Behavioural signature (Tier 2):
+${signatureText || "(not yet computed)"}
+
+Recent overrides on same bucket (last 30d):
+${overrideHints || "(none)"}
+
+Category default: ${categoryDefault}m`,
             },
           ],
         }),
@@ -220,8 +273,11 @@ Estimate the actual time this will take.`,
       1,
       Math.round(parsed.estimated_minutes ?? categoryDefault),
     );
-    // AI LLM fallback: no historical data, so uncertainty = 50% of category default (high)
-    const aiUncertainty = Math.round(categoryDefault * 0.5);
+    const aiUncertainty = Math.max(
+      1,
+      Math.round(parsed.uncertainty ?? categoryDefault * 0.5),
+    );
+    const aiBasis = typeof parsed.basis === "string" ? parsed.basis : "AI estimate";
 
     if (titleEmbedding) {
       await storeEmbeddingOnTask(
@@ -237,7 +293,7 @@ Estimate the actual time this will take.`,
       profileId,
       estimated,
       "ai",
-      "AI estimate",
+      aiBasis,
       aiUncertainty,
     );
 
@@ -246,8 +302,7 @@ Estimate the actual time this will take.`,
         estimatedMinutes: estimated,
         estimate_uncertainty: aiUncertainty,
         confident: false,
-        basis: "ai",
-        confidence: parsed.confidence,
+        basis: aiBasis,
       }),
       { status: 200, headers: { "Content-Type": "application/json" } },
     );

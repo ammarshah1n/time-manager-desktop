@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { callAnthropic, extractText } from "../_shared/anthropic.ts";
 import { requireEnv } from "../_shared/config.ts";
+import { loadCalibrationContext, formatCalibrationForPrompt } from "../_shared/calibration.ts";
 
 import { verifyServiceRole, AuthError, authErrorResponse } from "../_shared/auth.ts";
 // Cron: 30 5 * * * (5:30 AM local, 15 min after refresh)
@@ -248,6 +249,8 @@ serve(async (req: Request) => {
       const node = (r as { ona_nodes?: { display_name?: string; relationship_type?: string } }).ona_nodes;
       return `${node?.display_name ?? "Unknown"} (${node?.relationship_type ?? "unknown"}): health=${r.health_score}, trajectory=${r.health_trajectory}`;
     }).join("\n");
+    const calibration = await loadCalibrationContext(client, executiveId, executiveId);
+    const calibrationText = formatCalibrationForPrompt(calibration);
 
     const pass1Response = await callAnthropic({
       model: "claude-opus-4-6",
@@ -265,10 +268,12 @@ Sections:
 4. Decision Observations — only include if there are decisions to note, otherwise omit
 5. Cognitive Load Forecast — predicted energy and capacity based on schedule + patterns
 6. Emerging Patterns — 0-2 patterns forming across multiple days (only if evidence supports)
-7. Forward-Looking Observation — one thing to watch over the next 48-72 hours (recency anchor)`,
+7. Forward-Looking Observation — one thing to watch over the next 48-72 hours (recency anchor)
+
+If the ESTIMATE CALIBRATION block shows non-trivial drift, overrides, or per-bucket bias, surface it inside an existing section (typically Emerging Patterns or Forward-Looking Observation). Do not invent a new section name.`,
       messages: [{
         role: "user",
-        content: `ACTIVE CONTEXT BUFFER:\n${acbText}\n\nLAST 7 DAILY SUMMARIES:\n${summaryText}\n\nTODAY'S CALENDAR:\n${calendarText}\n\nAT-RISK RELATIONSHIPS:\n${relationshipText}\n\nTOP CONTACTS:\n${JSON.stringify(topContacts ?? []).slice(0, 5000)}`,
+        content: `ACTIVE CONTEXT BUFFER:\n${acbText}\n\nLAST 7 DAILY SUMMARIES:\n${summaryText}\n\nTODAY'S CALENDAR:\n${calendarText}\n\nAT-RISK RELATIONSHIPS:\n${relationshipText}\n\nTOP CONTACTS:\n${JSON.stringify(topContacts ?? []).slice(0, 5000)}${calibrationText}`,
       }],
     });
 
