@@ -22,6 +22,8 @@ export type AnthropicRequest = {
   system?: string;
   max_tokens: number;
   temperature?: number;
+  timeout_ms?: number;
+  max_retries?: number;
   thinking?: {
     type: "enabled";
     budget_tokens?: number;
@@ -55,6 +57,8 @@ const FETCH_TIMEOUT_MS = 55000; // 55s — leave 5s headroom for Edge Function 6
 
 export async function callAnthropic(request: AnthropicRequest): Promise<AnthropicResponse> {
   const apiKey = getApiKey();
+  const timeoutMs = request.timeout_ms ?? FETCH_TIMEOUT_MS;
+  const maxRetries = request.max_retries ?? MAX_RETRIES;
 
   const body: Record<string, unknown> = {
     model: request.model,
@@ -68,7 +72,7 @@ export async function callAnthropic(request: AnthropicRequest): Promise<Anthropi
 
   let lastError: Error | undefined;
 
-  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       const response = await fetch(ANTHROPIC_API_URL, {
         method: "POST",
@@ -78,7 +82,7 @@ export async function callAnthropic(request: AnthropicRequest): Promise<Anthropi
           "anthropic-version": "2023-06-01",
         },
         body: JSON.stringify(body),
-        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+        signal: AbortSignal.timeout(timeoutMs),
       });
 
       if (response.ok) {
@@ -91,7 +95,7 @@ export async function callAnthropic(request: AnthropicRequest): Promise<Anthropi
       // Retry on transient errors only
       if (response.status === 429 || response.status === 529 || response.status >= 500) {
         const delay = RETRY_BASE_MS * Math.pow(2, attempt - 1);
-        console.warn(`[anthropic] ${response.status} on attempt ${attempt}/${MAX_RETRIES}, retrying in ${delay}ms`);
+        console.warn(`[anthropic] ${response.status} on attempt ${attempt}/${maxRetries}, retrying in ${delay}ms`);
         await new Promise((r) => setTimeout(r, delay));
         continue;
       }
@@ -100,9 +104,9 @@ export async function callAnthropic(request: AnthropicRequest): Promise<Anthropi
       throw lastError;
     } catch (err) {
       if (err instanceof DOMException && err.name === "TimeoutError") {
-        lastError = new Error(`Anthropic API timeout after ${FETCH_TIMEOUT_MS}ms [model=${request.model}]`);
-        console.warn(`[anthropic] Timeout on attempt ${attempt}/${MAX_RETRIES}`);
-        if (attempt < MAX_RETRIES) {
+        lastError = new Error(`Anthropic API timeout after ${timeoutMs}ms [model=${request.model}]`);
+        console.warn(`[anthropic] Timeout on attempt ${attempt}/${maxRetries}`);
+        if (attempt < maxRetries) {
           await new Promise((r) => setTimeout(r, RETRY_BASE_MS * Math.pow(2, attempt - 1)));
           continue;
         }

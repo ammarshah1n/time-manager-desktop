@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { callAnthropic, extractText } from "../_shared/anthropic.ts";
 import { requireEnv } from "../_shared/config.ts";
-import { loadCalibrationContext, formatCalibrationForPrompt } from "../_shared/calibration.ts";
+import { loadCalibrationContext, formatCalibrationForPrompt, type CalibrationContext } from "../_shared/calibration.ts";
 
 import { verifyServiceRole, AuthError, authErrorResponse } from "../_shared/auth.ts";
 // Cron: 30 5 * * * (5:30 AM local, 15 min after refresh)
@@ -104,6 +104,102 @@ async function emitRecommendations(
     }
   }
   return { healed, error: null };
+}
+
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+function calibrationBriefingSection(calibration: CalibrationContext): BriefingSection | null {
+  const overrides = calibration.yesterdayOverrides;
+  const hasDrift = calibration.thirtyDayDriftPct !== null
+    && Math.abs(calibration.thirtyDayDriftPct) >= 10;
+  const bucketBias = calibration.perBucketBias.filter((b) => Math.abs(b.bias_minutes) >= 10);
+
+  if (!overrides.length && !hasDrift && !bucketBias.length) return null;
+
+  const overrideSummary = overrides.slice(0, 3).map((o) => {
+    const direction = o.delta_pct >= 0 ? "+" : "";
+    const reason = o.reason ? `, reason: ${o.reason}` : "";
+    return `${o.old_minutes}m to ${o.new_minutes}m (${direction}${o.delta_pct}%${reason})`;
+  }).join("; ");
+  const driftSummary = hasDrift
+    ? `30-day average estimate error is ${calibration.thirtyDayDriftPct!.toFixed(1)}%.`
+    : null;
+  const bucketSummary = bucketBias.slice(0, 3)
+    .map((b) => `${b.bucket_type} bias ${b.bias_minutes >= 0 ? "+" : ""}${b.bias_minutes}m over ${b.n_samples} samples`)
+    .join("; ");
+
+  const evidence = [
+    overrides.length ? `manual overrides: ${overrideSummary}` : null,
+    driftSummary,
+    bucketSummary ? `bucket bias: ${bucketSummary}` : null,
+  ].filter(Boolean).join(" ");
+
+  return {
+    section: "Emerging Patterns",
+    insight: "Task estimates need calibration attention because recent manual corrections show material variance from the AI estimate.",
+    supporting_data: evidence,
+    confidence: overrides.length >= 2 || bucketBias.length ? "high" : "moderate",
+    category: "pattern",
+    source_signals: ["estimate_override/behaviour_events", "estimate_calibration"],
+  };
+}
+
+function ensureCalibrationSection(
+  sections: BriefingSection[],
+  calibration: CalibrationContext,
+): BriefingSection[] {
+  const calibrationSection = calibrationBriefingSection(calibration);
+  if (!calibrationSection) return sections;
+
+  const existing = sections.find((s) => sectionKey(s.section) === "emerging_patterns");
+  if (!existing) return [...sections, calibrationSection];
+
+  existing.insight = `${existing.insight}\n\n${calibrationSection.insight}`;
+  existing.supporting_data = [existing.supporting_data, calibrationSection.supporting_data]
+    .filter(Boolean)
+    .join("\n");
+  existing.source_signals = Array.from(new Set([
+    ...(existing.source_signals ?? []),
+    ...calibrationSection.source_signals,
+  ]));
+  return sections;
+}
+
+function fallbackSections(calibration: CalibrationContext): BriefingSection[] {
+  return ensureCalibrationSection([
+    {
+      section: "Lead Insight",
+      insight: "Timed could not complete the full AI briefing pass in time, so this briefing is limited to deterministic operational signals.",
+      supporting_data: "Generation fallback triggered before the briefing write completed.",
+      confidence: "moderate",
+      category: "anomaly",
+      source_signals: ["briefing_generation"],
+    },
+  ], calibration);
+}
+
+function parseSections(text: string): BriefingSection[] | null {
+  const candidates = [
+    text.trim(),
+    text.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim(),
+  ];
+  const firstBracket = text.indexOf("[");
+  const lastBracket = text.lastIndexOf("]");
+  if (firstBracket >= 0 && lastBracket > firstBracket) {
+    candidates.push(text.slice(firstBracket, lastBracket + 1));
+  }
+
+  for (const candidate of candidates) {
+    try {
+      const parsed = JSON.parse(candidate);
+      if (Array.isArray(parsed) && parsed.length) return parsed as BriefingSection[];
+    } catch {
+      // Try the next likely JSON shape.
+    }
+  }
+  return null;
 }
 
 serve(async (req: Request) => {
@@ -264,11 +360,17 @@ serve(async (req: Request) => {
     const calibration = await loadCalibrationContext(client, executiveId);
     const calibrationText = formatCalibrationForPrompt(calibration);
 
-    const pass1Response = await callAnthropic({
-      model: "claude-opus-4-6",
-      max_tokens: 8192,
-      thinking: { type: "enabled", effort: "high" },
-      system: `You are the morning intelligence director for a C-suite executive's cognitive operating system. Generate a 7-section cognitive briefing. Each section must cite specific data from the observations provided. Be precise, not verbose. Every claim must trace to a data point.${engagementContext}
+    let pass1Response: Awaited<ReturnType<typeof callAnthropic>> | null = null;
+    let pass1Error: string | null = null;
+    let sections: BriefingSection[];
+    try {
+      pass1Response = await callAnthropic({
+        model: "claude-opus-4-6",
+        max_tokens: 8192,
+        timeout_ms: 45000,
+        max_retries: 1,
+        thinking: { type: "enabled", budget_tokens: 2048 },
+        system: `You are the morning intelligence director for a C-suite executive's cognitive operating system. Generate a 7-section cognitive briefing. Each section must cite specific data from the observations provided. Be precise, not verbose. Every claim must trace to a data point.${engagementContext}
 
 Output valid JSON array of sections:
 [{"section": "Lead Insight|Calendar Intelligence|Email Patterns|Decision Observations|Cognitive Load Forecast|Emerging Patterns|Forward-Looking Observation", "insight": "the finding", "supporting_data": "specific evidence", "confidence": "high|moderate", "category": "pattern|anomaly|prediction|relationship|workload", "source_signals": ["signal_type/source"]}]
@@ -283,19 +385,20 @@ Sections:
 7. Forward-Looking Observation — one thing to watch over the next 48-72 hours (recency anchor)
 
 If the ESTIMATE CALIBRATION block shows non-trivial drift, overrides, or per-bucket bias, surface it inside an existing section (typically Emerging Patterns or Forward-Looking Observation). Do not invent a new section name.`,
-      messages: [{
-        role: "user",
-        content: `ACTIVE CONTEXT BUFFER:\n${acbText}\n\nLAST 7 DAILY SUMMARIES:\n${summaryText}\n\nTODAY'S CALENDAR:\n${calendarText}\n\nAT-RISK RELATIONSHIPS:\n${relationshipText}\n\nTOP CONTACTS:\n${JSON.stringify(topContacts ?? []).slice(0, 5000)}${calibrationText}`,
-      }],
-    });
+        messages: [{
+          role: "user",
+          content: `ACTIVE CONTEXT BUFFER:\n${acbText}\n\nLAST 7 DAILY SUMMARIES:\n${summaryText}\n\nTODAY'S CALENDAR:\n${calendarText}\n\nAT-RISK RELATIONSHIPS:\n${relationshipText}\n\nTOP CONTACTS:\n${JSON.stringify(topContacts ?? []).slice(0, 5000)}${calibrationText}`,
+        }],
+      });
 
-    const pass1Text = extractText(pass1Response);
-    let sections: BriefingSection[];
-    try {
-      sections = JSON.parse(pass1Text);
-    } catch {
-      sections = [{ section: "Lead Insight", insight: pass1Text, supporting_data: null, confidence: "moderate", category: "pattern", source_signals: [] }];
+      const pass1Text = extractText(pass1Response);
+      sections = parseSections(pass1Text)
+        ?? [{ section: "Lead Insight", insight: pass1Text, supporting_data: null, confidence: "moderate", category: "pattern", source_signals: [] }];
+    } catch (err) {
+      pass1Error = errorMessage(err);
+      sections = fallbackSections(calibration);
     }
+    sections = ensureCalibrationSection(sections, calibration);
 
     // ── Pass 2: Adversarial CCR Review (fresh context, no generation prompt) ──
     const dataSourceManifest = [
@@ -312,11 +415,23 @@ If the ESTIMATE CALIBRATION block shows non-trivial drift, overrides, or per-buc
       return forwardLooking ? `[${b.date}] ${forwardLooking.insight}` : null;
     }).filter(Boolean).join("\n");
 
-    const pass2Response = await callAnthropic({
-      model: "claude-opus-4-6",
-      max_tokens: 4096,
-      thinking: { type: "enabled", effort: "medium" },
-      system: `You are an adversarial intelligence analyst. Your role is to find analytical failures in the briefing you are about to read. You did not write this briefing. You have no stake in its conclusions. Your job is to prosecute it.
+    let pass2Response: Awaited<ReturnType<typeof callAnthropic>> | null = null;
+    let pass2Error: string | null = null;
+    let adversarialReview: {
+      checks?: unknown[];
+      overall_quality_score?: number;
+      release_recommendation?: string;
+      critical_findings_count?: number;
+      summary?: string;
+    };
+    if (pass1Response) {
+      try {
+        pass2Response = await callAnthropic({
+          model: "claude-opus-4-6",
+          max_tokens: 4096,
+          timeout_ms: 45000,
+          max_retries: 1,
+          system: `You are an adversarial intelligence analyst. Your role is to find analytical failures in the briefing you are about to read. You did not write this briefing. You have no stake in its conclusions. Your job is to prosecute it.
 
 Complete the following ten checks in sequence. For each check:
 1. State whether the failure mode is present, absent, or undetectable without external data.
@@ -350,21 +465,29 @@ CHECK 7 — Linchpin Instability [LI]: Conclusion depends on single assumption t
 CHECK 8 — Anomaly Classification Error [AC]: Normal variation flagged as anomaly, or vice versa
 CHECK 9 — Resolution Insufficiency [RI]: Prior prediction should have been resolved but wasn't
 CHECK 10 — False False-Certainty [FFC]: Unnecessary hedging that reduces actionability`,
-      }],
-    });
+          }],
+        });
 
-    const pass2Text = extractText(pass2Response);
-    let adversarialReview: {
-      checks?: unknown[];
-      overall_quality_score?: number;
-      release_recommendation?: string;
-      critical_findings_count?: number;
-      summary?: string;
-    };
-    try {
-      adversarialReview = JSON.parse(pass2Text);
-    } catch {
-      adversarialReview = { overall_quality_score: 75, release_recommendation: "RELEASE_WITH_RIDER", summary: pass2Text };
+        const pass2Text = extractText(pass2Response);
+        try {
+          adversarialReview = JSON.parse(pass2Text);
+        } catch {
+          adversarialReview = { overall_quality_score: 75, release_recommendation: "RELEASE_WITH_RIDER", summary: pass2Text };
+        }
+      } catch (err) {
+        pass2Error = errorMessage(err);
+        adversarialReview = {
+          overall_quality_score: 70,
+          release_recommendation: "RELEASE_WITH_RIDER",
+          summary: `Adversarial review did not complete: ${pass2Error}`,
+        };
+      }
+    } else {
+      adversarialReview = {
+        overall_quality_score: 65,
+        release_recommendation: "RELEASE_WITH_RIDER",
+        summary: `Primary AI generation did not complete: ${pass1Error}`,
+      };
     }
 
     // ── Pass 3: Apply release decision ──
@@ -377,6 +500,7 @@ CHECK 10 — False False-Certainty [FFC]: Unnecessary hedging that reduces actio
       sections,
       word_count: wordCount,
       generated_by: "claude-opus-4-6",
+      generation_errors: [pass1Error, pass2Error].filter(Boolean),
       adversarial_review: adversarialReview,
       quality_score: qualityScore,
       release_status: releaseStatus,
@@ -389,10 +513,11 @@ CHECK 10 — False False-Certainty [FFC]: Unnecessary hedging that reduces actio
         at_risk_relationships: atRiskRelationships?.length ?? 0,
         top_contacts: topContacts?.length ?? 0,
         low_engagement_trigger: lowEngagement,
+        calibration_overrides: calibration.yesterdayOverrides.length,
       },
       tokens_used: {
-        pass1: pass1Response.usage.input_tokens + pass1Response.usage.output_tokens,
-        pass2: pass2Response.usage.input_tokens + pass2Response.usage.output_tokens,
+        pass1: pass1Response ? pass1Response.usage.input_tokens + pass1Response.usage.output_tokens : 0,
+        pass2: pass2Response ? pass2Response.usage.input_tokens + pass2Response.usage.output_tokens : 0,
       },
     };
 
