@@ -60,7 +60,7 @@ Task POSTs {} to /functions/v1/generate-morning-briefing with service-role
     ↓
 Edge Function loads executives → for each:
   - loads calibration context (yesterday's overrides, 30d drift, per-bucket bias)
-  - runs Pass 1 Opus 4.7 briefing (7-section JSON output)
+  - runs Pass 1 Opus briefing (7-section JSON output; legacy Edge Function uses claude-opus-4-6 — Trigger.dev tasks route Opus to 4-7 via inference.ts but this function predates that alias)
   - injects calibration as Emerging Patterns section (calibrationBriefingSection helper)
   - runs Pass 2 adversarial review
   - inserts briefings row for today
@@ -80,13 +80,19 @@ KEY=$(supabase projects api-keys --project-ref fpmjuufefhtlwbfinxlx | awk '/serv
 curl -sS "$SUPA/rest/v1/behaviour_events?select=id,task_id,old_value,new_value,event_metadata,occurred_at&event_type=eq.estimate_override&order=occurred_at.desc&limit=3" \
   -H "apikey: $KEY" -H "Authorization: Bearer $KEY"
 
-# 2. Confirm tomorrow's briefing was auto-generated
-TOMORROW=$(date -v+1d +%Y-%m-%d)   # macOS; Linux: date -d tomorrow +%Y-%m-%d
-curl -sS "$SUPA/rest/v1/briefings?select=id,profile_id,date,generated_at&date=eq.$TOMORROW" \
+# 2. Confirm today's (Adelaide-local) briefing was auto-generated.
+# The cron fires at 05:30 ACST, so when you run this in the morning, the
+# briefing is dated TODAY (Adelaide), not yesterday or tomorrow. The Edge
+# Function now uses each executive's `timezone` column (defaulting to
+# Australia/Adelaide) to compute the correct local date — without that,
+# the row would be stored under yesterday's UTC date and your client
+# query would miss it.
+TODAY_ADL=$(TZ=Australia/Adelaide date +%Y-%m-%d)
+curl -sS "$SUPA/rest/v1/briefings?select=id,profile_id,date,generated_at&date=eq.$TODAY_ADL" \
   -H "apikey: $KEY" -H "Authorization: Bearer $KEY"
 
 # 3. Spot-check that the briefing content references the override
-curl -sS "$SUPA/rest/v1/briefings?select=content&date=eq.$TOMORROW&limit=1" \
+curl -sS "$SUPA/rest/v1/briefings?select=content&date=eq.$TODAY_ADL&limit=1" \
   -H "apikey: $KEY" -H "Authorization: Bearer $KEY" | \
   python3 -c "import json,sys; b=json.load(sys.stdin)[0]; sects=b['content']['sections']; \
     print('\n---\n'.join([f\"[{s['section']}] {s['insight']}\" for s in sects]))"

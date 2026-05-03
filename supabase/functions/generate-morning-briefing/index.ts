@@ -4,7 +4,7 @@ import { callAnthropic, extractText } from "../_shared/anthropic.ts";
 import { requireEnv } from "../_shared/config.ts";
 import { loadCalibrationContext, formatCalibrationForPrompt, type CalibrationContext } from "../_shared/calibration.ts";
 
-import { verifyServiceRole, AuthError, authErrorResponse } from "../_shared/auth.ts";
+import { verifyAuth, verifyServiceRole, resolveExecutiveId, AuthError, authErrorResponse } from "../_shared/auth.ts";
 // Cron: 30 5 * * * (5:30 AM local, 15 min after refresh)
 // Two-pass Opus briefing generation with adversarial review
 
@@ -206,14 +206,6 @@ serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { status: 200 });
   }
-  try {
-    verifyServiceRole(req);
-  } catch (err) {
-    if (err instanceof AuthError) return authErrorResponse(err);
-    throw err;
-  }
-
-
   const client = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
   const start = Date.now();
   let body: { executiveId?: string; executive_id?: string; date?: string } = {};
@@ -222,8 +214,29 @@ serve(async (req: Request) => {
   } catch {
     body = {};
   }
-  const requestedExecutiveId = body.executiveId ?? body.executive_id;
+  let requestedExecutiveId = body.executiveId ?? body.executive_id;
   const requestedDate = body.date;
+
+  let userScopedExecutiveId: string | null = null;
+  try {
+    verifyServiceRole(req);
+  } catch (serviceRoleError) {
+    try {
+      const authUserId = await verifyAuth(req);
+      userScopedExecutiveId = await resolveExecutiveId(client, authUserId);
+    } catch (userError) {
+      if (userError instanceof AuthError) return authErrorResponse(userError);
+      if (serviceRoleError instanceof AuthError) return authErrorResponse(serviceRoleError);
+      throw userError;
+    }
+  }
+
+  if (userScopedExecutiveId) {
+    if (requestedExecutiveId && requestedExecutiveId !== userScopedExecutiveId) {
+      return authErrorResponse(new AuthError("Cannot generate a briefing for another executive", 403));
+    }
+    requestedExecutiveId = userScopedExecutiveId;
+  }
 
   let executivesQuery = client.from("executives").select("id, timezone");
   if (requestedExecutiveId) {
@@ -249,7 +262,19 @@ serve(async (req: Request) => {
 
   for (const executive of executives) {
     const executiveId = executive.id;
-    const today = requestedDate ?? new Date().toISOString().slice(0, 10);
+    try {
+    // Use the executive's local timezone (falls back to Adelaide for Timed
+    // executives without an explicit tz). Fixes the bug where 05:30 ACST cron
+    // = ~20:00 UTC the previous day, causing the briefing to be stored under
+    // the previous calendar date and the next-morning client query to miss it.
+    const executiveTz = (executive as { timezone?: string | null }).timezone ?? "Australia/Adelaide";
+    const localDate = new Intl.DateTimeFormat("en-CA", {
+      timeZone: executiveTz,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+    const today = requestedDate ?? localDate;
 
     // Check if briefing already exists for today
     const { data: existing } = await client
@@ -580,6 +605,18 @@ CHECK 10 — False False-Certainty [FFC]: Unnecessary hedging that reduces actio
       recommendations_error: recommendationsError,
       duration_ms: Date.now() - start,
     };
+    } catch (err) {
+      console.error("[morning-briefing] executive_failed", {
+        executiveId,
+        error: errorMessage(err),
+        stack: err instanceof Error ? err.stack : undefined,
+      });
+      results[executiveId] = {
+        status: "failed",
+        detail: errorMessage(err),
+        duration_ms: Date.now() - start,
+      };
+    }
   }
 
   // Compact status histogram for log scanability
