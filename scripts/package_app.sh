@@ -9,10 +9,14 @@ ICON_SOURCE="$ROOT_DIR/docs/timed-logo.svg"
 ICONSET_SOURCE="$ROOT_DIR/Assets.xcassets/AppIcon.appiconset"
 ICON_NAME="Timed"
 CODESIGN_IDENTITY="${TIMED_CODESIGN_IDENTITY:--}"
-CODESIGN_OPTIONS=()
-if [[ "$CODESIGN_IDENTITY" != "-" ]]; then
-  CODESIGN_OPTIONS=(--options runtime --timestamp)
-fi
+
+codesign_bundle() {
+  if [[ "$CODESIGN_IDENTITY" != "-" ]]; then
+    codesign --force --deep --options runtime --timestamp "$@"
+  else
+    codesign --force --deep "$@"
+  fi
+}
 
 swift build -c release
 bash "$ROOT_DIR/scripts/render_app_icons.sh"
@@ -144,13 +148,12 @@ cat > "$APP_DIR/Contents/Info.plist" <<'PLIST'
 </plist>
 PLIST
 
-codesign --force --deep "${CODESIGN_OPTIONS[@]}" --sign "$CODESIGN_IDENTITY" "$APP_DIR/Contents/Frameworks/MSAL.framework" 2>/dev/null || true
-codesign --force --deep "${CODESIGN_OPTIONS[@]}" --sign "$CODESIGN_IDENTITY" "$APP_DIR/Contents/Frameworks/LiveKitWebRTC.framework" 2>/dev/null || true
+codesign_bundle --sign "$CODESIGN_IDENTITY" "$APP_DIR/Contents/Frameworks/MSAL.framework" 2>/dev/null || true
+codesign_bundle --sign "$CODESIGN_IDENTITY" "$APP_DIR/Contents/Frameworks/LiveKitWebRTC.framework" 2>/dev/null || true
 # Apply the canonical macOS entitlements. Ad-hoc builds still cannot use a
 # keychain access group; pass TIMED_CODESIGN_IDENTITY with a Developer ID
 # Application identity for notarizable release artifacts.
-codesign --force --deep \
-    "${CODESIGN_OPTIONS[@]}" \
+codesign_bundle \
     --entitlements "$ROOT_DIR/Platforms/Mac/Timed.entitlements" \
     --sign "$CODESIGN_IDENTITY" "$APP_DIR"
 
