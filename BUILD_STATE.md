@@ -1,4 +1,10 @@
-# BUILD_STATE.md — Last updated: 2026-05-03 (AI estimation remote gate)
+# BUILD_STATE.md — Last updated: 2026-05-03 (timed loop closure shipped)
+
+> **Timed loop closure shipped 2026-05-03** — Closed the JCODE wave DoD after the remote-gate repair. Bucket migration drift is repaired remotely, AI task estimation writes and preserves AI provenance, bucket moves preserve estimate source/basis, reason-chip writes target the exact inserted `behaviour_events.id`, and morning briefings now deterministically surface recent estimate override reasons inside stored briefing sections even when the LLM would otherwise omit or fence the calibration JSON.
+
+> **Verified 2026-05-03 timed loop closure** — `deno check supabase/functions/_shared/anthropic.ts supabase/functions/generate-morning-briefing/index.ts supabase/functions/estimate-time/index.ts` ✅; `generate-morning-briefing` redeployed ✅; remote DoD #2 smoke ✅ with briefing `3233dd90-7e1d-4d16-b342-1e70280d330d` storing six real sections, no generation errors, review `RELEASE_WITH_RIDER`, and exact reason text (`hidden complexity`, `scope ballooned`, `blocked context`) in Emerging Patterns; `swift build` ✅; `swift test` ✅ (95 tests); `git diff --check` ✅; `graphify update .` ✅; `bash scripts/package_app.sh` ✅; `bash scripts/install_app.sh` ✅; `/Applications/Timed.app` codesign verify ✅; installed binary matches packaged binary at SHA-256 `a29abf1408fa1d3992e191e92f4e46d7c16df4e77e0777c2133e1eec534f40d0`; launched `/Applications/Timed.app` as PID `47227`.
+
+> **Cleanup pending 2026-05-03** — Synthetic remote smoke rows remain until Ammar explicitly approves deletion: task `ae664b0f-84db-49a9-a5ad-96408df2f063`, three `estimate_override` events, and four smoke briefings dated 2026-05-04 through 2026-05-07.
 
 > **AI estimation remote gate 2026-05-03** — Repaired the Wave 2 estimation path after the remote gate failed. `bucket_completion_stats` / `bucket_estimates` now exist before bucket normalization runs, task estimate writeback checks PostgREST errors and clears stale manual estimates, Swift task saves preserve AI provenance, reload prefers AI estimates when `estimate_source` says AI/default, reason chips attach to the inserted override event id, authenticated behaviour-event insert/update policies are live, and public RLS helper execution is granted for authenticated users.
 
