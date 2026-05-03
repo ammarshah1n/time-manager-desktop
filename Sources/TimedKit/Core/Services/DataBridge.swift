@@ -524,7 +524,10 @@ actor DataBridge {
             energyRequired: task.energyRequired,
             context: task.context,
             skipCount: task.skipCount,
-            snoozedUntil: task.snoozedUntil
+            snoozedUntil: task.snoozedUntil,
+            source: task.source,
+            estimateSource: task.estimateSource,
+            estimateBasis: task.estimateBasis
         )
     }
 
