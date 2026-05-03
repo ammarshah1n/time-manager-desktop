@@ -231,8 +231,19 @@ serve(async (req: Request) => {
   }
   const { data: executives } = await executivesQuery;
   if (!executives?.length) {
+    console.error("[morning-briefing] no executives found", {
+      requestedExecutiveId,
+      requestedDate,
+    });
     return new Response(JSON.stringify({ error: "No executives found" }), { status: 500 });
   }
+
+  console.log("[morning-briefing] start", {
+    executiveCount: executives.length,
+    requestedExecutiveId: requestedExecutiveId ?? null,
+    requestedDate: requestedDate ?? null,
+    startedAt: new Date(start).toISOString(),
+  });
 
   const results: Record<string, unknown> = {};
 
@@ -571,9 +582,23 @@ CHECK 10 — False False-Certainty [FFC]: Unnecessary hedging that reduces actio
     };
   }
 
+  // Compact status histogram for log scanability
+  const statusCounts: Record<string, number> = {};
+  for (const v of Object.values(results)) {
+    const s = (v as { status?: string })?.status ?? "unknown";
+    statusCounts[s] = (statusCounts[s] ?? 0) + 1;
+  }
+
+  const totalDurationMs = Date.now() - start;
+  console.log("[morning-briefing] complete", {
+    executiveCount: executives.length,
+    totalDurationMs,
+    statusCounts,
+  });
+
   return new Response(JSON.stringify({
     pipeline: "generate-morning-briefing",
-    duration_ms: Date.now() - start,
+    duration_ms: totalDurationMs,
     results,
   }), {
     status: 200,
