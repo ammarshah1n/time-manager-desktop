@@ -213,35 +213,47 @@ struct VoiceOnboardingView: View {
     private func finalise(extractProfile: Bool, skipped: Bool) async {
         isFinalising = true
         await manager.end()
-        if extractProfile {
-            await postTranscriptToExtractor()
+        let profilePersisted = extractProfile ? await postTranscriptToExtractor() : false
+        let shouldResumeVoiceSetup = skipped || (extractProfile && !profilePersisted)
+        if extractProfile && !profilePersisted {
+            TimedLogger.supabase.warning("Voice onboarding profile extraction did not persist; leaving setup resumable")
         }
-        // Always dismiss the sheet by setting hasCompletedOnboarding. If the user
-        // explicitly skipped, set pendingVoiceOnboarding so Preferences offers a
-        // "Resume voice setup" row — they aren't trapped, but we don't pretend
-        // onboarding ran.
+        // Always dismiss the sheet by setting hasCompletedOnboarding so a transient
+        // backend issue does not trap the user on first launch. If they skipped OR
+        // the extractor failed, keep pendingVoiceOnboarding true so Preferences
+        // offers a native "Resume voice setup" row instead of pretending the
+        // backend learned the user.
         UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
-        UserDefaults.standard.set(skipped, forKey: "pendingVoiceOnboarding")
+        UserDefaults.standard.set(shouldResumeVoiceSetup, forKey: "pendingVoiceOnboarding")
         onComplete()
     }
 
-    private func postTranscriptToExtractor() async {
+    private func postTranscriptToExtractor() async -> Bool {
         let transcriptText = manager.transcript
             .map { "\($0.role): \(cleanForDisplay($0.content))" }
             .joined(separator: "\n")
-        guard !transcriptText.isEmpty else { return }
-        await fireFunction("extract-onboarding-profile",
-                           body: ["transcript": transcriptText])
+        guard !transcriptText.isEmpty else { return false }
+        do {
+            try await fireFunction("extract-onboarding-profile",
+                                   body: ["transcript": transcriptText])
+            return true
+        } catch {
+            TimedLogger.supabase.warning("Voice onboarding extractor failed: \(error.localizedDescription, privacy: .public)")
+            return false
+        }
     }
 
-    private func fireFunction(_ name: String, body: [String: Any]) async {
-        guard let url = SupabaseEndpoints.functionURL(name) else { return }
+    private func fireFunction(_ name: String, body: [String: Any]) async throws {
+        guard let url = SupabaseEndpoints.functionURL(name) else { throw EdgeFunctions.FnError.missingURL }
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        guard let authHeader = try? await EdgeFunctions.shared.authorizationHeader() else { return }
+        let authHeader = try await EdgeFunctions.shared.authorizationHeader()
         req.setValue(authHeader, forHTTPHeaderField: "Authorization")
-        req.httpBody = try? JSONSerialization.data(withJSONObject: body)
-        _ = try? await URLSession.shared.data(for: req)
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (data, response) = try await URLSession.shared.data(for: req)
+        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+            throw EdgeFunctions.FnError.http(http.statusCode, String(data: data, encoding: .utf8) ?? "")
+        }
     }
 }
