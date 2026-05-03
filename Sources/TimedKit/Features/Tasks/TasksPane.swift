@@ -333,7 +333,9 @@ fileprivate extension TimedTask {
             replyMedium: replyMedium, dueToday: dueToday,
             isDoFirst: isDoFirst, isTransitSafe: isTransitSafe,
             waitingOn: waitingOn, askedDate: askedDate,
-            expectedByDate: expectedByDate, isDone: isDone
+            expectedByDate: expectedByDate, isDone: isDone,
+            source: source, estimateSource: estimateSource,
+            estimateBasis: estimateBasis
         )
     }
 }
@@ -350,6 +352,25 @@ struct TaskRow: View {
 
     private func formatMins(_ m: Int) -> String {
         m < 60 ? "\(m)m" : (m % 60 == 0 ? "\(m/60)h" : "\(m/60)h \(m%60)m")
+    }
+
+    private var provenanceLabel: String {
+        // Source overrides estimate source when it's more specific.
+        switch task.source {
+        case .voice: return "Voice"
+        case .email: return "Email"
+        case .whatsapp: return "WA"
+        case .manual:
+            switch task.estimateSource {
+            case .ai: return "AI"
+            case .manual: return "Manual"
+            case .defaultBucket: return "Default"
+            }
+        }
+    }
+
+    private var provenanceColor: Color {
+        task.estimateSource == .ai ? Color.accentColor : .secondary
     }
 
     var body: some View {
@@ -438,6 +459,19 @@ struct TaskRow: View {
                     .padding(16)
                     .frame(width: 200)
                 }
+
+                Text(provenanceLabel)
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(provenanceColor)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 2)
+                    .background(
+                        Capsule().fill(
+                            task.estimateSource == .ai
+                                ? Color.accentColor.opacity(0.12)
+                                : Color(.controlBackgroundColor)
+                        )
+                    )
 
                 Button {
                     onBlock()

@@ -30,6 +30,7 @@ struct TaskDBRow: Codable, Identifiable, Sendable {
     let estimatedMinutesManual: Int?
     let actualMinutes: Int?
     let estimateSource: String?
+    var estimateBasis: String? = nil
     let isDoFirst: Bool
     let isTransitSafe: Bool
     let isOverdue: Bool
@@ -64,6 +65,7 @@ struct TaskDBRow: Codable, Identifiable, Sendable {
         case estimatedMinutesManual = "estimated_minutes_manual"
         case actualMinutes = "actual_minutes"
         case estimateSource = "estimate_source"
+        case estimateBasis = "estimate_basis"
         case isDoFirst = "is_do_first"
         case isTransitSafe = "is_transit_safe"
         case isOverdue = "is_overdue"

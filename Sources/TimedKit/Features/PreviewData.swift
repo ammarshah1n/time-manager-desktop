@@ -139,6 +139,14 @@ enum TaskManualImportance: String, CaseIterable, Codable, Sendable, Equatable {
     case red
 }
 
+enum TaskSource: String, Codable, Sendable {
+    case email, whatsapp, voice, manual
+}
+
+enum EstimateSource: String, Codable, Sendable {
+    case ai, manual, defaultBucket = "default"
+}
+
 struct TaskSection: Identifiable, Codable, Sendable, Equatable {
     let id: UUID
     let parentSectionId: UUID?
@@ -196,6 +204,9 @@ struct TimedTask: Identifiable, Codable, Sendable, Equatable {
     var context: String = "anywhere"       // desk/transit/anywhere
     var skipCount: Int = 0        // times skipped when ranked highly
     var snoozedUntil: Date? = nil
+    var source: TaskSource = .manual
+    var estimateSource: EstimateSource = .manual
+    var estimateBasis: String? = nil
 
     /// True when uncertainty exceeds 25% of the estimated time
     var isUncertain: Bool {
@@ -226,6 +237,84 @@ struct TimedTask: Identifiable, Codable, Sendable, Equatable {
 
     var effectiveManualImportance: TaskManualImportance {
         manualImportance ?? .blue
+    }
+}
+
+
+extension TimedTask {
+    enum CodingKeys: String, CodingKey {
+        case id
+        case title
+        case sender
+        case estimatedMinutes
+        case bucket
+        case emailCount
+        case receivedAt
+        case sectionId
+        case parentTaskId
+        case sortOrder
+        case manualImportance
+        case notes
+        case isPlanningUnit
+        case priority
+        case replyMedium
+        case dueToday
+        case isDoFirst
+        case isTransitSafe
+        case waitingOn
+        case askedDate
+        case expectedByDate
+        case isDone
+        case estimateUncertainty
+        case planScore
+        case scheduledStartTime
+        case urgency
+        case importance
+        case energyRequired
+        case context
+        case skipCount
+        case snoozedUntil
+        case source
+        case estimateSource
+        case estimateBasis
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        title = try c.decode(String.self, forKey: .title)
+        sender = try c.decode(String.self, forKey: .sender)
+        estimatedMinutes = try c.decode(Int.self, forKey: .estimatedMinutes)
+        bucket = try c.decode(TaskBucket.self, forKey: .bucket)
+        emailCount = try c.decode(Int.self, forKey: .emailCount)
+        receivedAt = try c.decode(Date.self, forKey: .receivedAt)
+        sectionId = try c.decodeIfPresent(UUID.self, forKey: .sectionId)
+        parentTaskId = try c.decodeIfPresent(UUID.self, forKey: .parentTaskId)
+        sortOrder = try c.decodeIfPresent(Int.self, forKey: .sortOrder)
+        manualImportance = try c.decodeIfPresent(TaskManualImportance.self, forKey: .manualImportance)
+        notes = try c.decodeIfPresent(String.self, forKey: .notes)
+        isPlanningUnit = try c.decodeIfPresent(Bool.self, forKey: .isPlanningUnit)
+        priority = try c.decodeIfPresent(Int.self, forKey: .priority)
+        replyMedium = try c.decodeIfPresent(ReplyMedium.self, forKey: .replyMedium)
+        dueToday = try c.decodeIfPresent(Bool.self, forKey: .dueToday) ?? false
+        isDoFirst = try c.decodeIfPresent(Bool.self, forKey: .isDoFirst) ?? false
+        isTransitSafe = try c.decodeIfPresent(Bool.self, forKey: .isTransitSafe) ?? false
+        waitingOn = try c.decodeIfPresent(String.self, forKey: .waitingOn)
+        askedDate = try c.decodeIfPresent(Date.self, forKey: .askedDate)
+        expectedByDate = try c.decodeIfPresent(Date.self, forKey: .expectedByDate)
+        isDone = try c.decodeIfPresent(Bool.self, forKey: .isDone) ?? false
+        estimateUncertainty = try c.decodeIfPresent(Int.self, forKey: .estimateUncertainty)
+        planScore = try c.decodeIfPresent(Int.self, forKey: .planScore)
+        scheduledStartTime = try c.decodeIfPresent(Date.self, forKey: .scheduledStartTime)
+        urgency = try c.decodeIfPresent(Int.self, forKey: .urgency) ?? 3
+        importance = try c.decodeIfPresent(Int.self, forKey: .importance) ?? 3
+        energyRequired = try c.decodeIfPresent(String.self, forKey: .energyRequired) ?? "medium"
+        context = try c.decodeIfPresent(String.self, forKey: .context) ?? "anywhere"
+        skipCount = try c.decodeIfPresent(Int.self, forKey: .skipCount) ?? 0
+        snoozedUntil = try c.decodeIfPresent(Date.self, forKey: .snoozedUntil)
+        source = try c.decodeIfPresent(TaskSource.self, forKey: .source) ?? .manual
+        estimateSource = try c.decodeIfPresent(EstimateSource.self, forKey: .estimateSource) ?? .manual
+        estimateBasis = try c.decodeIfPresent(String.self, forKey: .estimateBasis)
     }
 }
 
@@ -650,6 +739,8 @@ extension TriageItem {
 extension TimedTask {
     init(from row: TaskDBRow) {
         let bucket = TaskBucket.from(dbValue: row.bucketType) ?? .action
+        let source = TaskSource(rawValue: row.sourceType) ?? .manual
+        let estimateSource = EstimateSource(rawValue: row.estimateSource ?? "manual") ?? .manual
         self.init(
             id: row.id,
             title: row.title,
@@ -667,7 +758,10 @@ extension TimedTask {
             dueToday: row.dueAt.map { Calendar.current.isDateInToday($0) } ?? false,
             isDoFirst: row.isDoFirst,
             isTransitSafe: row.isTransitSafe,
-            isDone: row.status == "done"
+            isDone: row.status == "done",
+            source: source,
+            estimateSource: estimateSource,
+            estimateBasis: row.estimateBasis
         )
     }
 }
