@@ -604,6 +604,9 @@ struct SupabaseClientDependency: Sendable {
     /// Inserts a behaviour event for the learning loop.
     var insertBehaviourEvent: @Sendable (BehaviourEventInsert) async throws -> Void = { _ in }
 
+    /// Patches event_metadata.reason onto the latest matching behaviour event for a task.
+    var attachReasonToBehaviourEvent: @Sendable (UUID, String, String) async throws -> Void = { _, _, _ in }
+
     /// Upserts a sender rule: (workspaceId, profileId, fromAddress, ruleType).
     /// ruleType is one of: "inbox_always", "black_hole", "later", "delegate".
     var upsertSenderRule: @Sendable (UUID, UUID, String, String) async throws -> Void = { _, _, _, _ in }
@@ -893,6 +896,43 @@ extension SupabaseClientDependency {
                 try await client
                     .from("behaviour_events")
                     .insert(event)
+                    .execute()
+            },
+            attachReasonToBehaviourEvent: { taskId, eventType, reason in
+                struct EventMetadataRow: Decodable, Sendable {
+                    let id: UUID
+                    let eventMetadata: [String: String]?
+
+                    enum CodingKeys: String, CodingKey {
+                        case id
+                        case eventMetadata = "event_metadata"
+                    }
+                }
+                struct EventMetadataUpdate: Encodable, Sendable {
+                    let eventMetadata: [String: String]
+
+                    enum CodingKeys: String, CodingKey {
+                        case eventMetadata = "event_metadata"
+                    }
+                }
+
+                let rows: [EventMetadataRow] = try await client
+                    .from("behaviour_events")
+                    .select("id,event_metadata")
+                    .eq("task_id", value: taskId)
+                    .eq("event_type", value: eventType)
+                    .order("occurred_at", ascending: false)
+                    .limit(1)
+                    .execute()
+                    .value
+                guard let row = rows.first else { return }
+
+                var metadata = row.eventMetadata ?? [:]
+                metadata["reason"] = reason
+                try await client
+                    .from("behaviour_events")
+                    .update(EventMetadataUpdate(eventMetadata: metadata))
+                    .eq("id", value: row.id)
                     .execute()
             },
             upsertSenderRule: { workspaceId, profileId, fromAddress, ruleType in

@@ -348,7 +348,15 @@ struct TaskRow: View {
     let onBlock: () -> Void
 
     @State private var showTimePicker = false
+    @State private var showReasonChips = false
     @State private var draftMinutes: Int = 0
+
+    private let reasonOptions = [
+        "Took longer",
+        "Took shorter",
+        "Wrong category",
+        "Hidden complexity"
+    ]
 
     private func formatMins(_ m: Int) -> String {
         m < 60 ? "\(m)m" : (m % 60 == 0 ? "\(m/60)h" : "\(m/60)h \(m%60)m")
@@ -422,6 +430,7 @@ struct TaskRow: View {
                 // Time pill — clickable to edit
                 Button {
                     draftMinutes = task.estimatedMinutes
+                    showReasonChips = false
                     showTimePicker = true
                 } label: {
                     Text(formatMins(task.estimatedMinutes))
@@ -435,29 +444,59 @@ struct TaskRow: View {
                 }
                 .buttonStyle(.plain)
                 .popover(isPresented: $showTimePicker, arrowEdge: .bottom) {
-                    VStack(spacing: 12) {
-                        Text("Adjust time")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                        Stepper(
-                            value: $draftMinutes,
-                            in: 5...480,
-                            step: 15
-                        ) {
-                            Text(formatMins(draftMinutes))
-                                .font(.system(size: 15, weight: .semibold))
-                                .monospacedDigit()
-                                .frame(minWidth: 60)
+                    if showReasonChips {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Why?")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                            HStack(spacing: 6) {
+                                ForEach(reasonOptions, id: \.self) { reason in
+                                    Button(reason) {
+                                        Task {
+                                            try? await DataBridge.shared.attachReasonToLastOverride(
+                                                taskId: task.id,
+                                                reason: reason
+                                            )
+                                        }
+                                        showReasonChips = false
+                                        showTimePicker = false
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .controlSize(.mini)
+                                }
+                            }
                         }
-                        Button("Done") {
-                            onUpdateTime(draftMinutes)
-                            showTimePicker = false
+                        .padding(10)
+                    } else {
+                        VStack(spacing: 12) {
+                            Text("Adjust time")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                            Stepper(
+                                value: $draftMinutes,
+                                in: 5...480,
+                                step: 15
+                            ) {
+                                Text(formatMins(draftMinutes))
+                                    .font(.system(size: 15, weight: .semibold))
+                                    .monospacedDigit()
+                                    .frame(minWidth: 60)
+                            }
+                            Button("Done") {
+                                let didChange = draftMinutes != task.estimatedMinutes
+                                if didChange {
+                                    onUpdateTime(draftMinutes)
+                                    showReasonChips = true
+                                } else {
+                                    showTimePicker = false
+                                }
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
                         }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.small)
+                        .padding(16)
+                        .frame(width: 200)
                     }
-                    .padding(16)
-                    .frame(width: 200)
                 }
 
                 Text(provenanceLabel)

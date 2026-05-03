@@ -158,6 +158,10 @@ actor DataBridge {
         )
     }
 
+    func attachReasonToLastOverride(taskId: UUID, reason: String) async throws {
+        try await supabaseClient.attachReasonToBehaviourEvent(taskId, "estimate_override", reason)
+    }
+
     func logTaskSectionChanged(task: TimedTask, oldSectionId: UUID?, newSectionId: UUID?) async throws {
         guard oldSectionId != newSectionId else { return }
         try await insertTaskBehaviourEvent(
