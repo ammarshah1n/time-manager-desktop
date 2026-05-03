@@ -172,7 +172,7 @@ create policy "task_sections_select_member"
 on public.task_sections
 for select
 to authenticated
-using (workspace_id = any((select private.user_workspace_ids())));
+using (workspace_id = any(private.user_workspace_ids()));
 
 drop policy if exists "task_sections_insert_member" on public.task_sections;
 create policy "task_sections_insert_member"
@@ -181,8 +181,8 @@ for insert
 to authenticated
 with check (
   is_system = false
-  and workspace_id = any((select private.user_workspace_ids()))
-  and profile_id = any((select private.user_profile_ids()))
+  and workspace_id = any(private.user_workspace_ids())
+  and profile_id = any(private.user_profile_ids())
 );
 
 drop policy if exists "task_sections_update_member" on public.task_sections;
@@ -192,12 +192,12 @@ for update
 to authenticated
 using (
   is_system = false
-  and workspace_id = any((select private.user_workspace_ids()))
+  and workspace_id = any(private.user_workspace_ids())
 )
 with check (
   is_system = false
-  and workspace_id = any((select private.user_workspace_ids()))
-  and profile_id = any((select private.user_profile_ids()))
+  and workspace_id = any(private.user_workspace_ids())
+  and profile_id = any(private.user_profile_ids())
 );
 
 drop policy if exists "task_sections_delete_member" on public.task_sections;
@@ -207,7 +207,7 @@ for delete
 to authenticated
 using (
   is_system = false
-  and workspace_id = any((select private.user_workspace_ids()))
+  and workspace_id = any(private.user_workspace_ids())
 );
 
 drop policy if exists "task_sections_service_all" on public.task_sections;
@@ -529,6 +529,32 @@ alter table public.behaviour_events
   add column if not exists parent_task_id uuid references public.tasks(id) on delete set null,
   add column if not exists event_metadata jsonb;
 
+drop policy if exists "behaviour_events_insert_own" on public.behaviour_events;
+create policy "behaviour_events_insert_own"
+on public.behaviour_events
+for insert
+to authenticated
+with check (
+  workspace_id = any(private.user_workspace_ids())
+  and profile_id = any(private.user_profile_ids())
+);
+
+drop policy if exists "behaviour_events_update_own_estimate_override" on public.behaviour_events;
+create policy "behaviour_events_update_own_estimate_override"
+on public.behaviour_events
+for update
+to authenticated
+using (
+  workspace_id = any(private.user_workspace_ids())
+  and profile_id = any(private.user_profile_ids())
+  and event_type = 'estimate_override'
+)
+with check (
+  workspace_id = any(private.user_workspace_ids())
+  and profile_id = any(private.user_profile_ids())
+  and event_type = 'estimate_override'
+);
+
 create index if not exists behaviour_events_section_idx
   on public.behaviour_events(section_id, occurred_at desc)
   where section_id is not null;
@@ -586,7 +612,7 @@ create policy "estimate_priors_select_member"
 on public.estimate_priors
 for select
 to authenticated
-using (workspace_id = any((select private.user_workspace_ids())));
+using (workspace_id = any(private.user_workspace_ids()));
 
 drop policy if exists "estimate_priors_service_all" on public.estimate_priors;
 create policy "estimate_priors_service_all"

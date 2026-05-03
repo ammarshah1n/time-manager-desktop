@@ -147,9 +147,10 @@ actor DataBridge {
         return tasks
     }
 
-    func logEstimateOverride(task: TimedTask, oldMinutes: Int, newMinutes: Int) async throws {
-        guard oldMinutes != newMinutes else { return }
-        try await insertTaskBehaviourEvent(
+    @discardableResult
+    func logEstimateOverride(task: TimedTask, oldMinutes: Int, newMinutes: Int) async throws -> UUID? {
+        guard oldMinutes != newMinutes else { return nil }
+        return try await insertTaskBehaviourEvent(
             task: task,
             eventType: "estimate_override",
             oldValue: "\(oldMinutes)",
@@ -158,8 +159,8 @@ actor DataBridge {
         )
     }
 
-    func attachReasonToLastOverride(taskId: UUID, reason: String) async throws {
-        try await supabaseClient.attachReasonToBehaviourEvent(taskId, "estimate_override", reason)
+    func attachReasonToOverride(eventId: UUID, reason: String) async throws {
+        try await supabaseClient.attachReasonToBehaviourEvent(eventId, reason)
     }
 
     func logTaskSectionChanged(task: TimedTask, oldSectionId: UUID?, newSectionId: UUID?) async throws {
@@ -392,15 +393,16 @@ actor DataBridge {
         )
     }
 
+    @discardableResult
     private func insertTaskBehaviourEvent(
         task: TimedTask,
         eventType: String,
         oldValue: String?,
         newValue: String?,
         metadata: [String: String]
-    ) async throws {
-        guard await isAuthenticated else { return }
-        guard let wsId = await authWorkspaceId, let profileId = await authProfileId else { return }
+    ) async throws -> UUID? {
+        guard await isAuthenticated else { return nil }
+        guard let wsId = await authWorkspaceId, let profileId = await authProfileId else { return nil }
         let now = Date()
         let event = BehaviourEventInsert(
             workspaceId: wsId,
@@ -416,7 +418,7 @@ actor DataBridge {
             newValue: newValue,
             eventMetadata: metadata
         )
-        try await supabaseClient.insertBehaviourEvent(event)
+        return try await supabaseClient.insertBehaviourEvent(event)
     }
 
     private static func queueEncoder() -> JSONEncoder {
@@ -441,7 +443,7 @@ actor DataBridge {
             id: task.id,
             workspaceId: workspaceId,
             profileId: profileId,
-            sourceType: "manual",
+            sourceType: task.source.rawValue,
             bucketType: task.bucket.dbValue,
             sectionId: task.sectionId,
             parentTaskId: task.parentTaskId,
@@ -454,10 +456,11 @@ actor DataBridge {
             status: task.isDone ? "done" : "pending",
             priority: task.isDoFirst ? 10 : 5,
             dueAt: task.dueToday ? Calendar.current.startOfDay(for: Date()) : nil,
-            estimatedMinutesAi: nil,
-            estimatedMinutesManual: task.estimatedMinutes,
+            estimatedMinutesAi: task.estimateSource == .manual ? nil : task.estimatedMinutes,
+            estimatedMinutesManual: task.estimateSource == .manual ? task.estimatedMinutes : nil,
             actualMinutes: nil,
-            estimateSource: "manual",
+            estimateSource: task.estimateSource.rawValue,
+            estimateBasis: task.estimateBasis,
             isDoFirst: task.isDoFirst,
             isTransitSafe: task.isTransitSafe,
             isOverdue: false,

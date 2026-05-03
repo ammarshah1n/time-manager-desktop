@@ -33,6 +33,57 @@ as $$
   end
 $$;
 
+create table if not exists public.bucket_completion_stats (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id uuid not null references public.workspaces(id) on delete cascade,
+  profile_id uuid not null references public.profiles(id) on delete cascade,
+  bucket_type text not null,
+  hour_range text not null,
+  completions int not null default 0,
+  deferrals int not null default 0,
+  updated_at timestamptz not null default now(),
+  unique (workspace_id, profile_id, bucket_type, hour_range)
+);
+
+alter table public.bucket_completion_stats enable row level security;
+alter table public.bucket_completion_stats force row level security;
+
+drop policy if exists "bucket_stats_workspace_isolation" on public.bucket_completion_stats;
+create policy "bucket_stats_workspace_isolation"
+on public.bucket_completion_stats
+for all
+to authenticated
+using (workspace_id = any(public.current_workspace_ids()))
+with check (workspace_id = any(public.current_workspace_ids()));
+
+create index if not exists bucket_completion_stats_profile_idx
+  on public.bucket_completion_stats(workspace_id, profile_id);
+
+create table if not exists public.bucket_estimates (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id uuid not null references public.workspaces(id) on delete cascade,
+  profile_id uuid not null references public.profiles(id) on delete cascade,
+  bucket_type text not null,
+  mean_minutes double precision not null,
+  sample_count int not null default 0,
+  updated_at timestamptz not null default now(),
+  unique (workspace_id, profile_id, bucket_type)
+);
+
+alter table public.bucket_estimates enable row level security;
+alter table public.bucket_estimates force row level security;
+
+drop policy if exists "bucket_estimates_workspace_isolation" on public.bucket_estimates;
+create policy "bucket_estimates_workspace_isolation"
+on public.bucket_estimates
+for all
+to authenticated
+using (workspace_id = any(public.current_workspace_ids()))
+with check (workspace_id = any(public.current_workspace_ids()));
+
+create index if not exists bucket_estimates_profile_idx
+  on public.bucket_estimates(workspace_id, profile_id);
+
 alter table public.tasks
   drop constraint if exists tasks_bucket_type_check;
 alter table public.estimation_history

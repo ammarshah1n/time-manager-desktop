@@ -418,8 +418,9 @@ private actor TaskSectionUpsertRecorder {
 private actor BehaviourEventRecorder {
     private var storedEvents: [BehaviourEventInsert] = []
 
-    func record(_ event: BehaviourEventInsert) {
+    func record(_ event: BehaviourEventInsert) -> UUID {
         storedEvents.append(event)
+        return UUID()
     }
 
     func events() -> [BehaviourEventInsert] {

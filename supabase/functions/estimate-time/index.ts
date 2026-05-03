@@ -126,6 +126,7 @@ serve(async (req: Request) => {
       return new Response(
         JSON.stringify({
           estimatedMinutes: embeddingResult.estimate,
+          source: "ai",
           estimate_uncertainty: embeddingResult.uncertainty,
           confident: embeddingResult.confident,
           basis: "embedding_similarity",
@@ -163,12 +164,13 @@ serve(async (req: Request) => {
       "Based on similar task",
       historicalResult.uncertainty,
     );
-    return new Response(
-      JSON.stringify({
-        estimatedMinutes: historicalResult.estimate,
-        estimate_uncertainty: historicalResult.uncertainty,
-        confident: historicalResult.confident,
-        basis: "historical",
+      return new Response(
+        JSON.stringify({
+          estimatedMinutes: historicalResult.estimate,
+          source: "ai",
+          estimate_uncertainty: historicalResult.uncertainty,
+          confident: historicalResult.confident,
+          basis: "historical",
       }),
       { status: 200, headers: { "Content-Type": "application/json" } },
     );
@@ -300,6 +302,7 @@ Category default: ${categoryDefault}m`,
     return new Response(
       JSON.stringify({
         estimatedMinutes: estimated,
+        source: "ai",
         estimate_uncertainty: aiUncertainty,
         confident: false,
         basis: aiBasis,
@@ -330,6 +333,7 @@ Category default: ${categoryDefault}m`,
     return new Response(
       JSON.stringify({
         estimatedMinutes: def,
+        source: "default",
         estimate_uncertainty: defaultUncertainty,
         confident: false,
         basis: "default",
@@ -532,10 +536,11 @@ async function updateTaskEstimate(
   basis: string,
   uncertainty?: number,
 ): Promise<void> {
-  await supabase
+  const { data, error } = await supabase
     .from("tasks")
     .update({
       estimated_minutes_ai: estimatedMinutes,
+      estimated_minutes_manual: null,
       estimate_source: source,
       estimate_basis: basis,
       estimate_uncertainty: uncertainty ?? null,
@@ -543,5 +548,14 @@ async function updateTaskEstimate(
     })
     .eq("id", taskId)
     .eq("workspace_id", workspaceId)
-    .eq("profile_id", profileId);
+    .eq("profile_id", profileId)
+    .select("id")
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to update task estimate: ${error.message}`);
+  }
+  if (!data) {
+    throw new Error("Failed to update task estimate: task not found");
+  }
 }

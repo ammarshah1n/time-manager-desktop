@@ -52,7 +52,7 @@ struct TasksPane: View {
                             TaskRow(
                                 task: task,
                                 onUpdateTime: { newMins in
-                                    updateEstimate(task.id, newMins)
+                                    await updateEstimate(task.id, newMins)
                                 }
                             ) {
                                 blockTarget = task
@@ -131,19 +131,19 @@ struct TasksPane: View {
         }
     }
 
-    private func updateEstimate(_ id: UUID, _ minutes: Int) {
-        guard let index = tasks.firstIndex(where: { $0.id == id }) else { return }
+    private func updateEstimate(_ id: UUID, _ minutes: Int) async -> UUID? {
+        guard let index = tasks.firstIndex(where: { $0.id == id }) else { return nil }
         let oldMinutes = tasks[index].estimatedMinutes
-        guard oldMinutes != minutes else { return }
+        guard oldMinutes != minutes else { return nil }
         tasks[index].estimatedMinutes = minutes
+        tasks[index].estimateSource = .manual
+        tasks[index].estimateBasis = nil
         let updatedTask = tasks[index]
-        Task {
-            try? await DataBridge.shared.logEstimateOverride(
-                task: updatedTask,
-                oldMinutes: oldMinutes,
-                newMinutes: minutes
-            )
-        }
+        return try? await DataBridge.shared.logEstimateOverride(
+            task: updatedTask,
+            oldMinutes: oldMinutes,
+            newMinutes: minutes
+        )
     }
 
     // MARK: - Header
@@ -344,12 +344,13 @@ fileprivate extension TimedTask {
 
 struct TaskRow: View {
     let task: TimedTask
-    let onUpdateTime: (Int) -> Void
+    let onUpdateTime: (Int) async -> UUID?
     let onBlock: () -> Void
 
     @State private var showTimePicker = false
     @State private var showReasonChips = false
     @State private var draftMinutes: Int = 0
+    @State private var pendingOverrideEventId: UUID?
 
     private let reasonOptions = [
         "Took longer",
@@ -453,10 +454,12 @@ struct TaskRow: View {
                                 ForEach(reasonOptions, id: \.self) { reason in
                                     Button(reason) {
                                         Task {
-                                            try? await DataBridge.shared.attachReasonToLastOverride(
-                                                taskId: task.id,
-                                                reason: reason
-                                            )
+                                            if let pendingOverrideEventId {
+                                                try? await DataBridge.shared.attachReasonToOverride(
+                                                    eventId: pendingOverrideEventId,
+                                                    reason: reason
+                                                )
+                                            }
                                         }
                                         showReasonChips = false
                                         showTimePicker = false
@@ -485,8 +488,12 @@ struct TaskRow: View {
                             Button("Done") {
                                 let didChange = draftMinutes != task.estimatedMinutes
                                 if didChange {
-                                    onUpdateTime(draftMinutes)
-                                    showReasonChips = true
+                                    Task {
+                                        let eventId = await onUpdateTime(draftMinutes)
+                                        pendingOverrideEventId = eventId
+                                        showReasonChips = eventId != nil
+                                        showTimePicker = eventId != nil
+                                    }
                                 } else {
                                     showTimePicker = false
                                 }

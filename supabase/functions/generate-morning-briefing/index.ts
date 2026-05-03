@@ -120,8 +120,20 @@ serve(async (req: Request) => {
 
   const client = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
   const start = Date.now();
+  let body: { executiveId?: string; executive_id?: string; date?: string } = {};
+  try {
+    body = await req.json();
+  } catch {
+    body = {};
+  }
+  const requestedExecutiveId = body.executiveId ?? body.executive_id;
+  const requestedDate = body.date;
 
-  const { data: executives } = await client.from("executives").select("id, timezone");
+  let executivesQuery = client.from("executives").select("id, timezone");
+  if (requestedExecutiveId) {
+    executivesQuery = executivesQuery.eq("id", requestedExecutiveId);
+  }
+  const { data: executives } = await executivesQuery;
   if (!executives?.length) {
     return new Response(JSON.stringify({ error: "No executives found" }), { status: 500 });
   }
@@ -130,7 +142,7 @@ serve(async (req: Request) => {
 
   for (const executive of executives) {
     const executiveId = executive.id;
-    const today = new Date().toISOString().slice(0, 10);
+    const today = requestedDate ?? new Date().toISOString().slice(0, 10);
 
     // Check if briefing already exists for today
     const { data: existing } = await client

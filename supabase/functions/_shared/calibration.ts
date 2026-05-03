@@ -41,6 +41,16 @@ export async function loadCalibrationContext(
       .gte("created_at", thirtyDaysAgo),
   ]);
 
+  if (overridesRes.error) {
+    throw new Error(`Failed to load estimate overrides: ${overridesRes.error.message}`);
+  }
+  if (profileRes.error) {
+    throw new Error(`Failed to load profile calibration: ${profileRes.error.message}`);
+  }
+  if (bucketsRes.error) {
+    throw new Error(`Failed to load bucket calibration: ${bucketsRes.error.message}`);
+  }
+
   const overrides = (overridesRes.data ?? []).map((r: any) => {
     const oldM = parseInt(r.old_value || "0", 10);
     const newM = parseInt(r.new_value || "0", 10);

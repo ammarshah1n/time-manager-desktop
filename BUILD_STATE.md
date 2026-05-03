@@ -1,4 +1,10 @@
-# BUILD_STATE.md — Last updated: 2026-05-03 (briefing empty-state copy)
+# BUILD_STATE.md — Last updated: 2026-05-03 (AI estimation remote gate)
+
+> **AI estimation remote gate 2026-05-03** — Repaired the Wave 2 estimation path after the remote gate failed. `bucket_completion_stats` / `bucket_estimates` now exist before bucket normalization runs, task estimate writeback checks PostgREST errors and clears stale manual estimates, Swift task saves preserve AI provenance, reload prefers AI estimates when `estimate_source` says AI/default, reason chips attach to the inserted override event id, authenticated behaviour-event insert/update policies are live, and public RLS helper execution is granted for authenticated users.
+
+> **Verified 2026-05-03 AI estimation remote gate** — `swift build` ✅; `swift test` ✅ (95 tests); `deno check supabase/functions/estimate-time/index.ts supabase/functions/generate-morning-briefing/index.ts` ✅; `supabase db push --include-all --linked --yes` ✅ through `20260503202000_grant_public_rls_helper_execution.sql`; `estimate-time` and `generate-morning-briefing` redeployed ✅; authenticated remote smoke ✅: schema columns visible, bootstrap succeeds, task insert succeeds, `estimate-time` writes `estimated_minutes_ai`, clears `estimated_minutes_manual`, sets `estimate_source`/`estimate_uncertainty`, and authenticated `behaviour_events` insert/update stores the reason metadata. Test rows were deleted after smoke. `graphify update .` ✅.
+
+> **Known after AI estimation remote gate** — `supabase db lint --linked` still reports pre-existing broken legacy SQL functions (`match_tier0_observations`, `compute_baselines`, `compute_degree_centrality`, `compute_relationship_health`, `check_validation_gates`, `compute_weekly_ccr`) against missing/renamed tables or vector operator casts. This is separate from the estimation/task remote gate, which passed.
 
 > **Briefing empty-state copy 2026-05-03** — Removed the consumer-visible Trigger.dev dashboard instruction from the Morning Briefing empty state. The post-onboarding fallback now explains that Timed needs enough recent activity before it can create a useful briefing.
 

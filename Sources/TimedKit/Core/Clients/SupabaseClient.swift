@@ -601,11 +601,11 @@ struct SupabaseClientDependency: Sendable {
     /// Fetches bucket completion stats for Thompson sampling (workspaceId, profileId).
     var fetchBucketStats: @Sendable (UUID, UUID) async throws -> [BucketCompletionStat] = { _, _ in [] }
 
-    /// Inserts a behaviour event for the learning loop.
-    var insertBehaviourEvent: @Sendable (BehaviourEventInsert) async throws -> Void = { _ in }
+    /// Inserts a behaviour event for the learning loop and returns its database id.
+    var insertBehaviourEvent: @Sendable (BehaviourEventInsert) async throws -> UUID = { _ in UUID() }
 
-    /// Patches event_metadata.reason onto the latest matching behaviour event for a task.
-    var attachReasonToBehaviourEvent: @Sendable (UUID, String, String) async throws -> Void = { _, _, _ in }
+    /// Patches event_metadata.reason onto a specific behaviour event.
+    var attachReasonToBehaviourEvent: @Sendable (UUID, String) async throws -> Void = { _, _ in }
 
     /// Upserts a sender rule: (workspaceId, profileId, fromAddress, ruleType).
     /// ruleType is one of: "inbox_always", "black_hole", "later", "delegate".
@@ -893,12 +893,19 @@ extension SupabaseClientDependency {
                 return rows
             },
             insertBehaviourEvent: { event in
-                try await client
+                struct InsertedEvent: Decodable, Sendable {
+                    let id: UUID
+                }
+                let row: InsertedEvent = try await client
                     .from("behaviour_events")
                     .insert(event)
+                    .select("id")
+                    .single()
                     .execute()
+                    .value
+                return row.id
             },
-            attachReasonToBehaviourEvent: { taskId, eventType, reason in
+            attachReasonToBehaviourEvent: { eventId, reason in
                 struct EventMetadataRow: Decodable, Sendable {
                     let id: UUID
                     let eventMetadata: [String: String]?
@@ -919,9 +926,7 @@ extension SupabaseClientDependency {
                 let rows: [EventMetadataRow] = try await client
                     .from("behaviour_events")
                     .select("id,event_metadata")
-                    .eq("task_id", value: taskId)
-                    .eq("event_type", value: eventType)
-                    .order("occurred_at", ascending: false)
+                    .eq("id", value: eventId)
                     .limit(1)
                     .execute()
                     .value

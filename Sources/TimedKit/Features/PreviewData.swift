@@ -741,11 +741,17 @@ extension TimedTask {
         let bucket = TaskBucket.from(dbValue: row.bucketType) ?? .action
         let source = TaskSource(rawValue: row.sourceType) ?? .manual
         let estimateSource = EstimateSource(rawValue: row.estimateSource ?? "manual") ?? .manual
+        let estimatedMinutes = switch estimateSource {
+        case .ai, .defaultBucket:
+            row.estimatedMinutesAi ?? row.estimatedMinutesManual ?? 15
+        case .manual:
+            row.estimatedMinutesManual ?? row.estimatedMinutesAi ?? 15
+        }
         self.init(
             id: row.id,
             title: row.title,
             sender: "",
-            estimatedMinutes: row.estimatedMinutesManual ?? row.estimatedMinutesAi ?? 15,
+            estimatedMinutes: estimatedMinutes,
             bucket: bucket,
             emailCount: 0,
             receivedAt: row.createdAt,
