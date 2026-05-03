@@ -236,6 +236,14 @@ serve(async (req: Request) => {
       return authErrorResponse(new AuthError("Cannot generate a briefing for another executive", 403));
     }
     requestedExecutiveId = userScopedExecutiveId;
+    // Cost / security guardrail: user-auth callers cannot specify an arbitrary
+    // requestedDate. Only the cron / service-role path (no userScopedExecutiveId)
+    // may target historical or future dates. User callers always get today's
+    // briefing for their own executive — Opus generation cost is bounded by the
+    // existing-briefing skip check downstream.
+    if (requestedDate) {
+      return authErrorResponse(new AuthError("User-auth callers cannot specify a date", 403));
+    }
   }
 
   let executivesQuery = client.from("executives").select("id, timezone");
