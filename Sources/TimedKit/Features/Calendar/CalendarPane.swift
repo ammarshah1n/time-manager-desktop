@@ -232,7 +232,7 @@ struct CalendarHeaderRow: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            Color.clear.frame(width: kTimeW)
+            Color.clear.frame(width: kTimeW, height: 56)
             ForEach(Array(dates.enumerated()), id: \.offset) { idx, date in
                 let isToday = idx == todayIdx
                 VStack(spacing: 3) {
@@ -250,6 +250,7 @@ struct CalendarHeaderRow: View {
                 .frame(height: 56)
             }
         }
+        .frame(height: 56)
     }
 }
 

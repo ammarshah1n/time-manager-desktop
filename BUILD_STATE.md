@@ -1,4 +1,8 @@
-# BUILD_STATE.md — Last updated: 2026-05-03 (morning interview spacing)
+# BUILD_STATE.md — Last updated: 2026-05-03 (calendar header spacing)
+
+> **Calendar header spacing 2026-05-03** — Fixed the weekly Calendar header row so the empty time-column spacer cannot stretch the header vertically. The week title, day labels, and hour grid now stay pinned together at the top instead of leaving the days halfway down the screen.
+
+> **Verified 2026-05-03 calendar fix** — `swift build` ✅; `swift test` ✅ (94 tests); `bash scripts/package_app.sh` ✅; `bash scripts/install_app.sh` ✅; `/Applications/Timed.app` `codesign --verify --deep --strict --verbose=2` ✅; installed binary matches `dist.noindex/Timed.app` at SHA-256 `2b2e2e630154218d7090ffb82237f4b02f26b8933fb46e22a28da086af9562b7`; `graphify update .` ✅.
 
 > **Morning interview spacing 2026-05-03** — Rebalanced the morning interview card after the energy-step screenshot review. The modal is taller, header/footer padding is roomier, the energy step has more top/bottom breathing room, and each energy option row has larger horizontal/vertical padding.
 
@@ -236,7 +240,7 @@
 - **3 architecture syntheses:** `research/ARCHITECTURE-MEMORY.md`, `ARCHITECTURE-SIGNALS.md`, `ARCHITECTURE-DELIVERY.md`
 
 Any future build session should read `CLAUDE.md` → `BUILD_STATE.md` → relevant `ARCHITECTURE-*.md` → build.
-Last Session: 2026-05-03 16:08
+Last Session: 2026-05-03 16:18
 
 ### Intro + Brand System (new)
 - [x] IntroFeature.swift — TCA 1.15+ @Reducer, phase machine (reveal → tagline → holding → exiting → finished)
