@@ -75,7 +75,7 @@ struct MorningBriefingPane: View {
         switch daysSinceOnboard {
         case 0:  return "Your first briefing is being prepared"
         case 1:  return "Overnight analysis in progress"
-        default: return "No briefing available yet"
+        default: return "Briefing needs more signal"
         }
     }
 
@@ -86,7 +86,7 @@ struct MorningBriefingPane: View {
         case 1:
             return "Your briefing usually appears by 6am. Refresh shortly."
         default:
-            return "The engine could not produce a briefing for today. Check that the nightly tasks ran in the Trigger.dev dashboard."
+            return "Timed does not have enough recent activity to create a useful briefing yet. Keep using Timed today and check back after the next overnight analysis."
         }
     }
 

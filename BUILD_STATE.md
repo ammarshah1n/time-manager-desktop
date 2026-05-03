@@ -1,4 +1,8 @@
-# BUILD_STATE.md — Last updated: 2026-05-03 (calendar header spacing)
+# BUILD_STATE.md — Last updated: 2026-05-03 (briefing empty-state copy)
+
+> **Briefing empty-state copy 2026-05-03** — Removed the consumer-visible Trigger.dev dashboard instruction from the Morning Briefing empty state. The post-onboarding fallback now explains that Timed needs enough recent activity before it can create a useful briefing.
+
+> **Verified 2026-05-03 briefing copy fix** — `swift build` ✅; `swift test` ✅ (94 tests); `bash scripts/package_app.sh` ✅; `bash scripts/install_app.sh` ✅; `/Applications/Timed.app` `codesign --verify --deep --strict --verbose=2` ✅; installed binary matches `dist.noindex/Timed.app` at SHA-256 `8bb426f0fb4e72840f4ed68b020c4fa6bffa4972c7b88cc91fd59716ae9c0592`; `graphify update .` ✅.
 
 > **Calendar header spacing 2026-05-03** — Fixed the weekly Calendar header row so the empty time-column spacer cannot stretch the header vertically. The week title, day labels, and hour grid now stay pinned together at the top instead of leaving the days halfway down the screen.
 
