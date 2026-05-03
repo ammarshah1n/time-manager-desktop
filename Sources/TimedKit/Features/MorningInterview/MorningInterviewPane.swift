@@ -208,7 +208,7 @@ struct MorningInterviewPane: View {
 
             footer
         }
-        .frame(width: 560, height: 520)
+        .frame(width: 580, height: 600)
         .onChange(of: step) { _, newStep in
             if canUseVoice {
                 speakForStep(newStep)
@@ -278,7 +278,7 @@ struct MorningInterviewPane: View {
     // MARK: - Header
 
     private var header: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: TimedLayout.Spacing.sm) {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(greeting)
@@ -319,7 +319,9 @@ struct MorningInterviewPane: View {
                 }
             }
         }
-        .padding(.horizontal, 28).padding(.top, 22).padding(.bottom, 16)
+        .padding(.horizontal, TimedLayout.Spacing.xxl)
+        .padding(.top, TimedLayout.Spacing.xxl)
+        .padding(.bottom, TimedLayout.Spacing.xl)
     }
 
     // MARK: - Voice mode toggle
@@ -814,7 +816,7 @@ struct MorningInterviewPane: View {
     // MARK: - Step 2: Energy Level (Q2)
 
     private var stepEnergyLevel: some View {
-        VStack(alignment: .leading, spacing: TimedLayout.Spacing.sm) {
+        VStack(alignment: .leading, spacing: TimedLayout.Spacing.lg) {
             voiceStatusBar
 
             VStack(alignment: .leading, spacing: TimedLayout.Spacing.xxs) {
@@ -825,7 +827,7 @@ struct MorningInterviewPane: View {
                     .foregroundStyle(Color.Timed.labelSecondary)
             }
 
-            VStack(spacing: TimedLayout.Spacing.xs) {
+            VStack(spacing: TimedLayout.Spacing.sm) {
                 energyButton(range: 9...10, label: "Peak energy",       desc: "Deep analytical work, big decisions", icon: "bolt.fill",             tint: Color.Timed.labelSecondary)
                 energyButton(range: 7...8,  label: "Good energy",       desc: "Focused work, meetings, calls",       icon: "sun.max.fill",          tint: Color.Timed.labelSecondary)
                 energyButton(range: 5...6,  label: "Moderate",          desc: "Mix of focused and routine tasks",     icon: "cloud.sun.fill",        tint: Color.Timed.labelSecondary)
@@ -834,7 +836,9 @@ struct MorningInterviewPane: View {
             }
             .padding(.top, TimedLayout.Spacing.xs)
         }
-        .padding(.horizontal, TimedLayout.Spacing.xl).padding(.top, TimedLayout.Spacing.xs)
+        .padding(.horizontal, TimedLayout.Spacing.xxl)
+        .padding(.top, TimedLayout.Spacing.lg)
+        .padding(.bottom, TimedLayout.Spacing.xl)
     }
 
     private func energyButton(range: ClosedRange<Int>, label: String, desc: String, icon: String, tint: Color) -> some View {
@@ -842,7 +846,7 @@ struct MorningInterviewPane: View {
         return Button {
             energyLevel = (range.lowerBound + range.upperBound) / 2
         } label: {
-            HStack(spacing: TimedLayout.Spacing.sm) {
+            HStack(spacing: TimedLayout.Spacing.md) {
                 Image(systemName: icon)
                     .font(TimedType.subheadline)
                     .foregroundStyle(tint)
@@ -861,8 +865,9 @@ struct MorningInterviewPane: View {
                         .foregroundStyle(.primary)
                 }
             }
-            .padding(.horizontal, TimedLayout.Spacing.md)
-            .frame(minHeight: TimedLayout.Height.row)
+            .padding(.horizontal, TimedLayout.Spacing.lg)
+            .padding(.vertical, TimedLayout.Spacing.sm)
+            .frame(minHeight: TimedLayout.Height.primaryButton)
             .background(
                 RoundedRectangle(cornerRadius: TimedLayout.Radius.input)
                     .fill(isSelected ? Color.primary.opacity(0.08) : Color(.controlBackgroundColor))
@@ -1198,7 +1203,9 @@ struct MorningInterviewPane: View {
                 .controlSize(.regular)
             }
         }
-        .padding(.horizontal, 28).padding(.vertical, 18)
+        .padding(.horizontal, TimedLayout.Spacing.xxl)
+        .padding(.top, TimedLayout.Spacing.md)
+        .padding(.bottom, TimedLayout.Spacing.xl)
     }
 
     // MARK: - Voice: speak for step (state machine)

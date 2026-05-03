@@ -1,4 +1,8 @@
-# BUILD_STATE.md — Last updated: 2026-05-03 (installed app refresh)
+# BUILD_STATE.md — Last updated: 2026-05-03 (morning interview spacing)
+
+> **Morning interview spacing 2026-05-03** — Rebalanced the morning interview card after the energy-step screenshot review. The modal is taller, header/footer padding is roomier, the energy step has more top/bottom breathing room, and each energy option row has larger horizontal/vertical padding.
+
+> **Verified 2026-05-03 spacing fix** — `swift build` ✅; `swift test` ✅ (94 tests); `bash scripts/package_app.sh` ✅; `bash scripts/install_app.sh` ✅; `/Applications/Timed.app` `codesign --verify --deep --strict --verbose=2` ✅; installed binary matches `dist.noindex/Timed.app` at SHA-256 `3c56ce3d5727b0d8973402001954a37e4501cc4c8df0eb81d3b667c59bf728f9`.
 
 > **Installed app refresh 2026-05-03** — Rebuilt the macOS app from `unified` through `a6fdc4e` plus the existing local Swift worktree edits, installed it to `/Applications/Timed.app`, and relaunched the Dock-pinned app from that path. Fixed `scripts/package_app.sh` so ad-hoc signing no longer fails on macOS Bash when the codesign options list is empty.
 
@@ -232,7 +236,7 @@
 - **3 architecture syntheses:** `research/ARCHITECTURE-MEMORY.md`, `ARCHITECTURE-SIGNALS.md`, `ARCHITECTURE-DELIVERY.md`
 
 Any future build session should read `CLAUDE.md` → `BUILD_STATE.md` → relevant `ARCHITECTURE-*.md` → build.
-Last Session: 2026-05-01 17:12
+Last Session: 2026-05-03 16:08
 
 ### Intro + Brand System (new)
 - [x] IntroFeature.swift — TCA 1.15+ @Reducer, phase machine (reveal → tagline → holding → exiting → finished)
