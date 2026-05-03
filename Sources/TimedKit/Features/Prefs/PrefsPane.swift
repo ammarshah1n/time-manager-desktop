@@ -336,8 +336,16 @@ struct VoiceTab: View {
                                 .foregroundStyle(.secondary)
                         }
                         Spacer()
-                        Button("Resume") { auth.replayOnboarding() }
+                        Button {
+                            auth.replayOnboarding()
+                        } label: {
+                            Text("Resume setup")
+                                .font(TimedType.caption.weight(.medium))
+                                .lineLimit(1)
+                        }
+                            .buttonStyle(.bordered)
                             .controlSize(.small)
+                            .frame(minHeight: TimedLayout.Height.iconButton)
                     }
                 }
             }
