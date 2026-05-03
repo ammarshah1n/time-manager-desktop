@@ -1,4 +1,10 @@
-# BUILD_STATE.md — Last updated: 2026-05-01 (task correction logging)
+# BUILD_STATE.md — Last updated: 2026-05-03 (installed app refresh)
+
+> **Installed app refresh 2026-05-03** — Rebuilt the macOS app from `unified` through `a6fdc4e` plus the existing local Swift worktree edits, installed it to `/Applications/Timed.app`, and relaunched the Dock-pinned app from that path. Fixed `scripts/package_app.sh` so ad-hoc signing no longer fails on macOS Bash when the codesign options list is empty.
+
+> **Verified 2026-05-03 app refresh** — `bash scripts/package_app.sh` ✅; `bash scripts/install_app.sh` ✅; `/Applications/Timed.app` `codesign --verify --deep --strict --verbose=2` ✅; `/Applications/Timed.app/Contents/MacOS/timed` matches `dist.noindex/Timed.app/Contents/MacOS/timed` at SHA-256 `9c934118c83c1e201131c994349176db54cceb3fd10ddd3162e02b42673011bd`; `swift test` ✅ (94 tests); `graphify update .` ✅.
+
+> **Next after app refresh** — Use the Dock-pinned Timed app; it points at `/Applications/Timed.app`. The local worktree still has uncommitted Swift edits in `DataBridge.swift`, `PreviewData.swift`, `TasksPane.swift`, and `TimedRootView.swift`.
 
 > **Task correction logging 2026-05-01** — Implemented Gate 3 silent-learning event wiring. `BehaviourEventInsert` now carries `section_id`, `parent_task_id`, and event metadata; `DataBridge` centralizes task completion, bucket/section, estimate override, subtask-created, and manual-importance correction events; ConversationTools, Today, Tasks, Task Detail, and Morning Review estimate changes now route estimate corrections through that shared event writer.
 
