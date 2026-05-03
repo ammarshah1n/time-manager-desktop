@@ -17,8 +17,7 @@ export interface CalibrationContext {
 
 export async function loadCalibrationContext(
   supabase: any,
-  workspaceId: string,
-  profileId: string,
+  executiveId: string,
 ): Promise<CalibrationContext> {
   const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
@@ -26,19 +25,17 @@ export async function loadCalibrationContext(
   const [overridesRes, profileRes, bucketsRes] = await Promise.all([
     supabase.from("behaviour_events")
       .select("task_id, old_value, new_value, occurred_at, event_metadata")
-      .eq("workspace_id", workspaceId)
-      .eq("profile_id", profileId)
+      .eq("profile_id", executiveId)
       .eq("event_type", "estimate_override")
       .gte("occurred_at", yesterday)
       .order("occurred_at", { ascending: false }),
     supabase.from("user_profiles")
       .select("avg_estimate_error_pct")
-      .eq("profile_id", profileId)
+      .eq("profile_id", executiveId)
       .maybeSingle(),
     supabase.from("estimation_history")
       .select("bucket_type, estimated_minutes_ai, actual_minutes")
-      .eq("workspace_id", workspaceId)
-      .eq("profile_id", profileId)
+      .eq("profile_id", executiveId)
       .not("actual_minutes", "is", null)
       .not("estimated_minutes_ai", "is", null)
       .gte("created_at", thirtyDaysAgo),

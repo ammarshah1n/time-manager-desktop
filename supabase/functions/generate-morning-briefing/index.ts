@@ -249,7 +249,7 @@ serve(async (req: Request) => {
       const node = (r as { ona_nodes?: { display_name?: string; relationship_type?: string } }).ona_nodes;
       return `${node?.display_name ?? "Unknown"} (${node?.relationship_type ?? "unknown"}): health=${r.health_score}, trajectory=${r.health_trajectory}`;
     }).join("\n");
-    const calibration = await loadCalibrationContext(client, executiveId, executiveId);
+    const calibration = await loadCalibrationContext(client, executiveId);
     const calibrationText = formatCalibrationForPrompt(calibration);
 
     const pass1Response = await callAnthropic({
