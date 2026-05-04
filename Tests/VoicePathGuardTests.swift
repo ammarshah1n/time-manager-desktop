@@ -153,6 +153,21 @@ struct ProductionReadinessGuardTests {
         }
     }
 
+    @Test func voiceOnboardingDoesNotClearResumeWhenExtractorFails() throws {
+        let contents = try read("Sources/TimedKit/Features/Onboarding/VoiceOnboardingView.swift")
+
+        #expect(contents.contains("EdgeFunctions.shared.authorizationHeader()"),
+                "Voice onboarding must call extract-onboarding-profile with the current Supabase session JWT.")
+        #expect(contents.contains("postTranscriptToExtractor() async -> Bool"),
+                "Voice onboarding must know whether backend profile extraction persisted.")
+        #expect(contents.contains("HTTPURLResponse") && contents.contains("200..<300"),
+                "Voice onboarding must check non-2xx extractor responses instead of swallowing them.")
+        #expect(contents.contains("let shouldResumeVoiceSetup = skipped || (extractProfile && !profilePersisted)"),
+                "Failed profile extraction must leave pendingVoiceOnboarding true so setup remains resumable.")
+        #expect(contents.contains("UserDefaults.standard.set(shouldResumeVoiceSetup, forKey: \"pendingVoiceOnboarding\")"),
+                "Voice onboarding must persist the resumable setup flag after extractor failure.")
+    }
+
     @Test func unwiredIOSSurfacesAreDocumentedHonestly() throws {
         let docs = try combinedReadinessDocs()
         let iosRoot = try read("Sources/TimedKit/AppEntry/TimediOSRootView.swift")
