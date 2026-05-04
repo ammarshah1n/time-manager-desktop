@@ -30,6 +30,11 @@ struct TaskBehaviourEventContext: Sendable {
     }
 }
 
+struct WorkspaceMutationContext: Sendable {
+    let workspaceId: UUID?
+    fileprivate let generation: Int
+}
+
 actor DataBridge {
     static let shared = DataBridge()
 
@@ -77,14 +82,19 @@ actor DataBridge {
     }
 
     func saveTasks(_ tasks: [TimedTask], workspaceId: UUID?) async throws {
-        let generation = workspaceGeneration
+        let context = WorkspaceMutationContext(workspaceId: workspaceId, generation: workspaceGeneration)
+        _ = try await saveTasks(tasks, context: context)
+    }
+
+    @discardableResult
+    func saveTasks(_ tasks: [TimedTask], context: WorkspaceMutationContext) async throws -> Bool {
         let previousTaskIds = Set(((try? await local.loadTasks()) ?? []).map(\.id))
-        guard await isCurrentWorkspace(workspaceId, generation: generation) else { return }
+        guard await isCurrentWorkspace(context) else { return false }
         try await local.saveTasks(tasks)
         // Dual-write to Supabase when authenticated
-        guard await isAuthenticated else { return }
-        guard await isCurrentWorkspace(workspaceId, generation: generation) else { return }
-        guard let wsId = workspaceId, let profileId = await authProfileId else { return }
+        guard await isAuthenticated else { return true }
+        guard await isCurrentWorkspace(context) else { return false }
+        guard let wsId = context.workspaceId, let profileId = await authProfileId else { return true }
         let parentIdsWithActiveChildren = Set(tasks.compactMap { task in
             task.isDone ? nil : task.parentTaskId
         })
@@ -99,13 +109,14 @@ actor DataBridge {
         let newlyCreatedTasks = tasks.filter { !previousTaskIds.contains($0.id) }
         try await enqueueTaskRows(rows)
 
-        guard automaticallyFlushOfflineReplay, await isOnline else { return }
+        guard automaticallyFlushOfflineReplay, await isOnline else { return true }
         Task(priority: .utility) { [weak self] in
             await self?.flushOfflineReplay()
             for task in newlyCreatedTasks {
                 await EstimationService.shared.estimate(task: task)
             }
         }
+        return true
     }
 
     func loadTaskSections(workspaceId requestedWorkspaceId: UUID? = nil) async throws -> [TaskSection] {
@@ -168,12 +179,38 @@ actor DataBridge {
         return tasks
     }
 
+    func markDone(id: UUID, context: WorkspaceMutationContext) async throws -> [TimedTask] {
+        let eventContext = await taskBehaviourEventContext(context)
+        var tasks = try await loadTasks(workspaceId: context.workspaceId)
+        guard await isCurrentWorkspace(context) else { return [] }
+        guard let index = tasks.firstIndex(where: { $0.id == id }) else { return tasks }
+        tasks[index].isDone = true
+        guard try await saveTasks(tasks, context: context) else { return [] }
+        guard await isCurrentWorkspace(context) else { return [] }
+        if let eventContext {
+            try? await logTaskCompleted(task: tasks[index], context: eventContext)
+        }
+        return tasks
+    }
+
     func snooze(id: UUID, until: Date) async throws -> [TimedTask] {
+        let generation = workspaceGeneration
         let workspaceId = await authWorkspaceId
         var tasks = try await loadTasks(workspaceId: workspaceId)
         guard let index = tasks.firstIndex(where: { $0.id == id }) else { return tasks }
         tasks[index].snoozedUntil = until
         try await saveTasks(tasks, workspaceId: workspaceId)
+        guard await isCurrentWorkspace(workspaceId, generation: generation) else { return [] }
+        return tasks
+    }
+
+    func snooze(id: UUID, until: Date, context: WorkspaceMutationContext) async throws -> [TimedTask] {
+        var tasks = try await loadTasks(workspaceId: context.workspaceId)
+        guard await isCurrentWorkspace(context) else { return [] }
+        guard let index = tasks.firstIndex(where: { $0.id == id }) else { return tasks }
+        tasks[index].snoozedUntil = until
+        guard try await saveTasks(tasks, context: context) else { return [] }
+        guard await isCurrentWorkspace(context) else { return [] }
         return tasks
     }
 
@@ -187,6 +224,21 @@ actor DataBridge {
         tasks[index] = rebuilt(tasks[index], bucket: bucket)
         try await saveTasks(tasks, workspaceId: workspaceId)
         guard await isCurrentWorkspace(workspaceId, generation: generation) else { return [] }
+        if let eventContext {
+            try? await logTaskBucketChanged(task: tasks[index], oldBucket: oldBucket, context: eventContext)
+        }
+        return tasks
+    }
+
+    func moveBucket(id: UUID, to bucket: TaskBucket, context: WorkspaceMutationContext) async throws -> [TimedTask] {
+        let eventContext = await taskBehaviourEventContext(context)
+        var tasks = try await loadTasks(workspaceId: context.workspaceId)
+        guard await isCurrentWorkspace(context) else { return [] }
+        guard let index = tasks.firstIndex(where: { $0.id == id }) else { return tasks }
+        let oldBucket = tasks[index].bucket
+        tasks[index] = rebuilt(tasks[index], bucket: bucket)
+        guard try await saveTasks(tasks, context: context) else { return [] }
+        guard await isCurrentWorkspace(context) else { return [] }
         if let eventContext {
             try? await logTaskBucketChanged(task: tasks[index], oldBucket: oldBucket, context: eventContext)
         }
@@ -552,12 +604,26 @@ actor DataBridge {
         return TaskBehaviourEventContext(workspaceId: workspaceId, profileId: profileId, generation: workspaceGeneration)
     }
 
+    func workspaceMutationContext() async -> WorkspaceMutationContext {
+        let workspaceId = await authWorkspaceId
+        return WorkspaceMutationContext(workspaceId: workspaceId, generation: workspaceGeneration)
+    }
+
+    func isCurrentWorkspace(_ context: WorkspaceMutationContext) async -> Bool {
+        await isCurrentWorkspace(context.workspaceId, generation: context.generation)
+    }
+
     private func taskBehaviourEventContext(
         workspaceId: UUID?,
         generation: Int
     ) async -> TaskBehaviourEventContext? {
         guard let workspaceId, let profileId = await authProfileId else { return nil }
         return TaskBehaviourEventContext(workspaceId: workspaceId, profileId: profileId, generation: generation)
+    }
+
+    private func taskBehaviourEventContext(_ context: WorkspaceMutationContext) async -> TaskBehaviourEventContext? {
+        guard let workspaceId = context.workspaceId, let profileId = await authProfileId else { return nil }
+        return TaskBehaviourEventContext(workspaceId: workspaceId, profileId: profileId, generation: context.generation)
     }
 
     private func isCurrentWorkspace(_ workspaceId: UUID?, generation: Int) async -> Bool {

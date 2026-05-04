@@ -169,6 +169,30 @@ struct DataBridgeWorkspaceSwitchTests {
                 "Fallback workspace hydration must not bypass cache invalidation")
     }
 
+    @Test("Conversation tools guard stale workspace publishes")
+    func conversationToolsGuardStaleWorkspacePublishes() throws {
+        let bridge = try source("Sources/TimedKit/Core/Services/DataBridge.swift")
+        let tools = try source("Sources/TimedKit/Core/Tools/ConversationTools.swift")
+        #expect(bridge.contains("struct WorkspaceMutationContext"),
+                "DataBridge must expose a workspace generation token for long-running UI mutations")
+        #expect(bridge.contains("func workspaceMutationContext() async -> WorkspaceMutationContext"),
+                "Conversation tools must be able to capture the workspace generation before awaiting")
+        #expect(bridge.contains("func isCurrentWorkspace(_ context: WorkspaceMutationContext) async -> Bool"),
+                "Conversation tools must be able to revalidate the captured workspace before publishing")
+        #expect(bridge.contains("func snooze(id: UUID, until: Date) async throws -> [TimedTask] {\n        let generation = workspaceGeneration"),
+                "Snooze must capture the workspace generation like other task mutators")
+        #expect(bridge.contains("try await saveTasks(tasks, workspaceId: workspaceId)\n        guard await isCurrentWorkspace(workspaceId, generation: generation) else { return [] }\n        return tasks"),
+                "Snooze must not return a stale task array after a workspace switch")
+        #expect(tools.contains("let context = await DataBridge.shared.workspaceMutationContext()"),
+                "Conversation task tools must capture the workspace context before async task mutation")
+        #expect(tools.contains("try await publishTasks(tasks, context: context)"),
+                "Conversation task tools must not publish directly to the root task binding")
+        #expect(tools.contains("private func publishTasks(_ tasks: [TimedTask], context: WorkspaceMutationContext) async throws -> Bool"),
+                "Conversation task tools must centralize workspace validation before publishing")
+        #expect(!tools.contains("publishTasks(tasks)\n"),
+                "Conversation task tools must not publish stale task arrays without a workspace validation guard")
+    }
+
     private func source(_ path: String) throws -> String {
         try String(contentsOf: URL(fileURLWithPath: path))
     }

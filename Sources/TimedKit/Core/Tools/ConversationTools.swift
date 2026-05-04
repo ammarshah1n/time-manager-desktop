@@ -11,12 +11,13 @@ struct ConversationToolResult {
 final class ConversationTools {
     @Dependency(\.supabaseClient) private var supabase
 
-    private let publishTasks: ([TimedTask]) -> Void
+    private let publishTaskSnapshot: ([TimedTask]) -> Void
     private var replansThisTurn = 0
     private static let maxReplansPerTurn = 1
+    private static let workspaceChangedMessage = "workspace changed — no change applied"
 
     init(publishTasks: @escaping ([TimedTask]) -> Void = { _ in }) {
-        self.publishTasks = publishTasks
+        self.publishTaskSnapshot = publishTasks
     }
 
     /// Called by the AI client at the start of each user turn. Resets
@@ -178,8 +179,9 @@ final class ConversationTools {
         let importance = clamp(int(input["importance"]) ?? 3, to: Self.importanceRange)
         let notes = clean((input["notes"] as? String) ?? "voice", maxChars: Self.maxNotesChars)
 
-        let workspaceId = await MainActor.run { AuthService.shared.activeOrPrimaryWorkspaceId }
-        var tasks = try await DataBridge.shared.loadTasks(workspaceId: workspaceId)
+        let context = await DataBridge.shared.workspaceMutationContext()
+        var tasks = try await DataBridge.shared.loadTasks(workspaceId: context.workspaceId)
+        guard await DataBridge.shared.isCurrentWorkspace(context) else { return Self.workspaceChangedMessage }
         let task = TimedTask(
             id: UUID(),
             title: title,
@@ -194,16 +196,17 @@ final class ConversationTools {
             context: notes
         )
         tasks.append(task)
-        try await DataBridge.shared.saveTasks(tasks, workspaceId: workspaceId)
-        publishTasks(tasks)
+        guard try await DataBridge.shared.saveTasks(tasks, context: context) else { return Self.workspaceChangedMessage }
+        guard try await publishTasks(tasks, context: context) else { return Self.workspaceChangedMessage }
         return "added task \(task.id.uuidString): \(task.title)"
     }
 
     private func updateTask(_ input: [String: Any]) async throws -> String {
         guard let id = uuid(input["taskId"]) else { return "invalid task id" }
-        let workspaceId = await MainActor.run { AuthService.shared.activeOrPrimaryWorkspaceId }
-        let eventContext = await DataBridge.shared.taskBehaviourEventContext(workspaceId: workspaceId)
-        var tasks = try await DataBridge.shared.loadTasks(workspaceId: workspaceId)
+        let context = await DataBridge.shared.workspaceMutationContext()
+        let eventContext = await DataBridge.shared.taskBehaviourEventContext(workspaceId: context.workspaceId)
+        var tasks = try await DataBridge.shared.loadTasks(workspaceId: context.workspaceId)
+        guard await DataBridge.shared.isCurrentWorkspace(context) else { return Self.workspaceChangedMessage }
         guard let index = tasks.firstIndex(where: { $0.id == id }) else {
             return "task not found — no change applied"
         }
@@ -224,7 +227,7 @@ final class ConversationTools {
             task = rebuilt(task, title: title, bucket: bucket)
         }
         tasks[index] = task
-        try await DataBridge.shared.saveTasks(tasks, workspaceId: workspaceId)
+        guard try await DataBridge.shared.saveTasks(tasks, context: context) else { return Self.workspaceChangedMessage }
         if let eventContext {
             try? await DataBridge.shared.logEstimateOverride(
                 task: task,
@@ -234,7 +237,7 @@ final class ConversationTools {
             )
             try? await DataBridge.shared.logTaskBucketChanged(task: task, oldBucket: oldTask.bucket, context: eventContext)
         }
-        publishTasks(tasks)
+        guard try await publishTasks(tasks, context: context) else { return Self.workspaceChangedMessage }
         return "updated task \(id.uuidString)"
     }
 
@@ -244,23 +247,27 @@ final class ConversationTools {
               let bucket = parseBucket(newBucketString) else {
             return "invalid task id or bucket"
         }
-        let tasksBefore = try await DataBridge.shared.loadTasks()
+        let context = await DataBridge.shared.workspaceMutationContext()
+        let tasksBefore = try await DataBridge.shared.loadTasks(workspaceId: context.workspaceId)
+        guard await DataBridge.shared.isCurrentWorkspace(context) else { return Self.workspaceChangedMessage }
         guard tasksBefore.contains(where: { $0.id == id }) else {
             return "task not found — no change applied"
         }
-        let tasks = try await DataBridge.shared.moveBucket(id: id, to: bucket)
-        publishTasks(tasks)
+        let tasks = try await DataBridge.shared.moveBucket(id: id, to: bucket, context: context)
+        guard try await publishTasks(tasks, context: context) else { return Self.workspaceChangedMessage }
         return "moved task \(id.uuidString) to \(bucket.rawValue)"
     }
 
     private func markDone(_ input: [String: Any]) async throws -> String {
         guard let id = uuid(input["taskId"]) else { return "invalid task id" }
-        let tasksBefore = try await DataBridge.shared.loadTasks()
+        let context = await DataBridge.shared.workspaceMutationContext()
+        let tasksBefore = try await DataBridge.shared.loadTasks(workspaceId: context.workspaceId)
+        guard await DataBridge.shared.isCurrentWorkspace(context) else { return Self.workspaceChangedMessage }
         guard tasksBefore.contains(where: { $0.id == id }) else {
             return "task not found — no change applied"
         }
-        let tasks = try await DataBridge.shared.markDone(id: id)
-        publishTasks(tasks)
+        let tasks = try await DataBridge.shared.markDone(id: id, context: context)
+        guard try await publishTasks(tasks, context: context) else { return Self.workspaceChangedMessage }
         return "marked task \(id.uuidString) done"
     }
 
@@ -270,12 +277,14 @@ final class ConversationTools {
               let until = ISO8601DateFormatter().date(from: rawUntil) else {
             return "invalid task id or snooze date"
         }
-        let tasksBefore = try await DataBridge.shared.loadTasks()
+        let context = await DataBridge.shared.workspaceMutationContext()
+        let tasksBefore = try await DataBridge.shared.loadTasks(workspaceId: context.workspaceId)
+        guard await DataBridge.shared.isCurrentWorkspace(context) else { return Self.workspaceChangedMessage }
         guard tasksBefore.contains(where: { $0.id == id }) else {
             return "task not found — no change applied"
         }
-        let tasks = try await DataBridge.shared.snooze(id: id, until: until)
-        publishTasks(tasks)
+        let tasks = try await DataBridge.shared.snooze(id: id, until: until, context: context)
+        guard try await publishTasks(tasks, context: context) else { return Self.workspaceChangedMessage }
         return "snoozed task \(id.uuidString) until \(rawUntil)"
     }
 
@@ -322,6 +331,12 @@ final class ConversationTools {
         if let bool = value as? Bool { return bool }
         if let string = value as? String { return Bool(string) }
         return nil
+    }
+
+    private func publishTasks(_ tasks: [TimedTask], context: WorkspaceMutationContext) async throws -> Bool {
+        guard await DataBridge.shared.isCurrentWorkspace(context) else { return false }
+        publishTaskSnapshot(tasks)
+        return true
     }
 
     private func rebuilt(_ task: TimedTask, title: String?, bucket: TaskBucket?) -> TimedTask {
