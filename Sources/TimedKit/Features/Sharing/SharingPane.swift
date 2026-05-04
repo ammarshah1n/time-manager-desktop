@@ -34,6 +34,7 @@ struct SharingPane: View {
                 inviteSection
                 activeInvitesSection
                 membersSection
+                leaveWorkspaceSection
             }
             Spacer()
         }
@@ -163,6 +164,45 @@ struct SharingPane: View {
                 }
             }
         }
+    }
+
+    private var currentRoleIsPA: Bool {
+        auth.availableWorkspaces.first { $0.id == auth.activeWorkspaceId }?.role == "pa"
+    }
+
+    private var leaveWorkspaceSection: some View {
+        Group {
+            if currentRoleIsPA, let activeId = auth.activeWorkspaceId, let myId = auth.executiveId {
+                VStack(alignment: .leading, spacing: 10) {
+                    Divider().padding(.vertical, 6)
+                    Text("Leave this workspace")
+                        .font(.headline)
+                    Text("You'll lose access to this workspace's tasks. The owner can re-invite you anytime.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Button("Leave \(currentName)") {
+                        Task {
+                            do {
+                                let fallbackOwner = auth.availableWorkspaces.first(where: { $0.role == "owner" })?.id
+                                try await SharingService.shared.leaveWorkspace(workspaceId: activeId, profileId: myId)
+                                if let fallbackOwner {
+                                    await auth.switchWorkspace(to: fallbackOwner)
+                                }
+                                await auth.reloadAvailableWorkspaces()
+                            } catch {
+                                errorMessage = error.localizedDescription
+                            }
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(.red)
+                }
+            }
+        }
+    }
+
+    private var currentName: String {
+        auth.availableWorkspaces.first(where: { $0.id == auth.activeWorkspaceId })?.name ?? "this workspace"
     }
 
     // MARK: - Members
