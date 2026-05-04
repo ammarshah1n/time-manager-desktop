@@ -69,12 +69,19 @@ final class AuthService: ObservableObject {
             let session = try await client.auth.session
             authUserId = session.user.id
             userEmail = session.user.email
-            await bootstrapExecutive()
-            await finishBootstrapSideEffects()
-            isSignedIn = true
-            TimedLogger.supabase.info("Session restored for \(session.user.email ?? "unknown", privacy: .private)")
+            if await bootstrapExecutive() {
+                await finishBootstrapSideEffects()
+                isSignedIn = true
+                TimedLogger.supabase.info("Session restored for \(session.user.email ?? "unknown", privacy: .private)")
+            } else {
+                isSignedIn = false
+            }
         } catch {
             TimedLogger.supabase.debug("No stored session — user needs to sign in")
+            authUserId = nil
+            userEmail = nil
+            graphAccessToken = nil
+            clearScopedAuthState()
             isSignedIn = false
         }
         // Attempt Google silent restore in parallel with the Supabase session.
@@ -147,6 +154,14 @@ final class AuthService: ObservableObject {
     private func finishBootstrapSideEffects() async {
         await reloadAvailableWorkspaces()
         loadPendingInviteCodeFromDefaults()
+    }
+
+    private func clearScopedAuthState() {
+        executiveId = nil
+        activeWorkspaceId = nil
+        availableWorkspaces = []
+        UserDefaults.standard.removeObject(forKey: PlatformPaths.activeExecutiveDefaultsKey)
+        UserDefaults.standard.removeObject(forKey: activeWorkspaceKey)
     }
 
     // MARK: - Sign in with Microsoft (Azure provider via Supabase OAuth)
@@ -267,10 +282,13 @@ final class AuthService: ObservableObject {
             authUserId = session.user.id
             userEmail = session.user.email
             flashWelcome("Welcome back.")
-            await bootstrapExecutive()
-            await finishBootstrapSideEffects()
-            isSignedIn = true
-            TimedLogger.supabase.info("Signed in as \(session.user.email ?? "unknown", privacy: .private)")
+            if await bootstrapExecutive() {
+                await finishBootstrapSideEffects()
+                isSignedIn = true
+                TimedLogger.supabase.info("Signed in as \(session.user.email ?? "unknown", privacy: .private)")
+            } else {
+                isSignedIn = false
+            }
         } catch {
             // Reset to a clean signed-out state so LoginView re-renders cleanly
             // and a fresh attempt isn't blocked by the idempotency guard.
@@ -313,10 +331,13 @@ final class AuthService: ObservableObject {
             authUserId = session.user.id
             userEmail = session.user.email
             flashWelcome("Welcome back.")
-            await bootstrapExecutive()
-            await finishBootstrapSideEffects()
-            isSignedIn = true
-            TimedLogger.supabase.info("Signed in (email) as \(session.user.email ?? "unknown", privacy: .private)")
+            if await bootstrapExecutive() {
+                await finishBootstrapSideEffects()
+                isSignedIn = true
+                TimedLogger.supabase.info("Signed in (email) as \(session.user.email ?? "unknown", privacy: .private)")
+            } else {
+                isSignedIn = false
+            }
         } catch {
             self.error = friendlyMessage(for: error, fallback: "Sign-in failed. Check your email and password.")
             TimedLogger.supabase.error("Email sign-in failed: \(error.localizedDescription, privacy: .private)")
@@ -342,10 +363,13 @@ final class AuthService: ObservableObject {
                 authUserId = response.user.id
                 userEmail = response.user.email
                 flashWelcome("Welcome to Timed.")
-                await bootstrapExecutive()
-                await finishBootstrapSideEffects()
-                isSignedIn = true
-                TimedLogger.supabase.info("Account created + signed in (email) as \(response.user.email ?? "unknown", privacy: .private)")
+                if await bootstrapExecutive() {
+                    await finishBootstrapSideEffects()
+                    isSignedIn = true
+                    TimedLogger.supabase.info("Account created + signed in (email) as \(response.user.email ?? "unknown", privacy: .private)")
+                } else {
+                    isSignedIn = false
+                }
             } else {
                 self.error = "Account created. Check your inbox to confirm your email, then sign in."
                 TimedLogger.supabase.info("Account created, awaiting email confirmation")
@@ -550,14 +574,16 @@ final class AuthService: ObservableObject {
         activeWorkspaceId = nil
         availableWorkspaces = []
         lastHandledCallbackURL = nil
-        UserDefaults.standard.removeObject(forKey: PlatformPaths.activeExecutiveDefaultsKey)
-        UserDefaults.standard.removeObject(forKey: activeWorkspaceKey)
+        clearScopedAuthState()
     }
 
     // MARK: - Bootstrap executive on first sign-in
 
-    private func bootstrapExecutive() async {
-        guard let client else { return }
+    private func bootstrapExecutive() async -> Bool {
+        guard let client else {
+            clearScopedAuthState()
+            return false
+        }
         // Retry with exponential backoff — cold-start Edge Functions can fail on first call
         let delays: [UInt64] = [2_000_000_000, 4_000_000_000, 8_000_000_000] // 2s, 4s, 8s
         for attempt in 0...2 {
@@ -586,7 +612,7 @@ final class AuthService: ObservableObject {
                 // Parallel cascade for Google. Best-effort; if no Google
                 // session is restored / signed-in, this is a no-op.
                 await connectGmailIfPossible(executiveId: executive.id)
-                return
+                return true
             } catch {
                 TimedLogger.supabase.error("Executive bootstrap attempt \(attempt + 1) failed: \(error.localizedDescription, privacy: .private)")
                 if attempt < 2 {
@@ -595,14 +621,20 @@ final class AuthService: ObservableObject {
             }
         }
         self.error = "Could not reach Timed servers. Check your connection and restart the app."
+        clearScopedAuthState()
+        return false
     }
 
     /// Manual retry for bootstrap — callable from Settings or error banner
     func retryBootstrap() async {
         isLoading = true
         error = nil
-        await bootstrapExecutive()
-        await finishBootstrapSideEffects()
+        if await bootstrapExecutive() {
+            await finishBootstrapSideEffects()
+            isSignedIn = true
+        } else {
+            isSignedIn = false
+        }
         isLoading = false
     }
 

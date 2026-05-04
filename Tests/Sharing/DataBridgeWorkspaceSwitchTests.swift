@@ -146,10 +146,18 @@ struct DataBridgeWorkspaceSwitchTests {
                 "Sign-in must not mount TimedRootView before workspace hydration")
         #expect(!content.contains("isSignedIn = true\n                flashWelcome(\"Welcome to Timed.\")"),
                 "Session-backed sign-up must not mount TimedRootView before workspace hydration")
-        #expect(occurrences(of: "await finishBootstrapSideEffects()\n            isSignedIn = true", in: content) >= 3,
+        #expect(occurrences(of: "if await bootstrapExecutive() {", in: content) >= 5,
+                "Restore, callback, email sign-in, sign-up, and retry must gate signed-in UI on bootstrap success")
+        #expect(occurrences(of: "await finishBootstrapSideEffects()\n                isSignedIn = true", in: content) >= 3,
                 "Restore, callback, and email sign-in must publish after workspace hydration")
-        #expect(content.contains("await finishBootstrapSideEffects()\n                isSignedIn = true"),
+        #expect(content.contains("await finishBootstrapSideEffects()\n                    isSignedIn = true"),
                 "Session-backed sign-up must publish after workspace hydration")
+        #expect(content.contains("private func bootstrapExecutive() async -> Bool"),
+                "Bootstrap must report failure so auth does not publish stale signed-in state")
+        #expect(content.contains("clearScopedAuthState()\n            isSignedIn = false"),
+                "Restore failure must clear stale scoped storage before staying signed out")
+        #expect(content.contains("self.error = \"Could not reach Timed servers. Check your connection and restart the app.\"\n        clearScopedAuthState()\n        return false"),
+                "Bootstrap failure must clear stale scoped storage and stop authenticated UI")
     }
 
     @Test("Auth workspace hydration clears caches before active assignment")
