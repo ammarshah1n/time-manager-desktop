@@ -1235,14 +1235,8 @@ extension SupabaseClientDependency {
                 return rows
             },
             revokeWorkspaceInvite: { inviteId in
-                struct InviteRevocationUpdate: Encodable, Sendable {
-                    let isRevoked: Bool
-                    enum CodingKeys: String, CodingKey { case isRevoked = "is_revoked" }
-                }
                 try await client
-                    .from("workspace_invites")
-                    .update(InviteRevocationUpdate(isRevoked: true))
-                    .eq("id", value: inviteId)
+                    .rpc("revoke_workspace_invite", params: ["p_invite_id": inviteId.uuidString])
                     .execute()
             },
             leaveWorkspace: { workspaceId, profileId in

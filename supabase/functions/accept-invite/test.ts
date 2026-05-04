@@ -35,3 +35,13 @@ Deno.test({
     assert(true);
   },
 });
+
+Deno.test("invite RPC error map covers role and stale-owner cases", async () => {
+  seedRequiredEnv();
+  const mod = await import("./index.ts");
+
+  assertEquals(mod.ERRCODE_TO_MSG.P0004.status, 409);
+  assertEquals(mod.ERRCODE_TO_MSG.P0005.status, 410);
+  assertEquals(mod.ERRCODE_TO_MSG.P0004.msg.includes("different role"), true);
+  assertEquals(mod.ERRCODE_TO_MSG.P0005.msg.includes("no longer valid"), true);
+});

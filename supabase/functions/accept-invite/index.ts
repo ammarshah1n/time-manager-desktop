@@ -29,6 +29,8 @@ export const ERRCODE_TO_MSG: Record<string, { msg: string; status: number }> = {
   P0001: { msg: "This invite was revoked.", status: 410 },
   P0002: { msg: "This invite has already been used.", status: 410 },
   P0003: { msg: "This invite has expired.", status: 410 },
+  P0004: { msg: "You are already a member of this workspace with a different role.", status: 409 },
+  P0005: { msg: "This invite is no longer valid.", status: 410 },
   P0404: { msg: "Invite not found.", status: 404 },
   "22023": { msg: "You can't accept your own invite.", status: 400 },
   "42501": { msg: "Sign in first.", status: 401 },
