@@ -142,6 +142,27 @@ struct PARoleRLSGuardTests {
                 "Ownership transfer guard must fire before task workspace/profile changes")
     }
 
+    @Test("Task profile ids cannot be forged through direct writes")
+    func taskProfileIdsCannotBeForgedThroughDirectWrites() throws {
+        let sql = try source(Self.hardeningMigration).lowercased()
+        #expect(sql.contains("create or replace function public.prevent_task_profile_forgery()"),
+                "PA hardening must block callers from writing tasks for another profile")
+        #expect(sql.contains("caller_profile_id uuid := public.get_executive_id(auth.uid())"),
+                "Task profile guard must bind task ownership to the authenticated caller")
+        #expect(sql.contains("if tg_op = 'insert' then"),
+                "Task profile guard must cover new task inserts, not only profile updates")
+        #expect(sql.contains("new.profile_id = caller_profile_id"),
+                "New tasks must be owned by the caller profile")
+        #expect(sql.contains("where t.id = new.id"),
+                "Existing task upserts must be identified before conflict update")
+        #expect(sql.contains("new.workspace_id is not distinct from existing_workspace_id"),
+                "Existing task upserts must not change workspace ownership")
+        #expect(sql.contains("new.profile_id is not distinct from existing_profile_id"),
+                "Existing task upserts must not change profile ownership")
+        #expect(sql.contains("before insert or update of profile_id on public.tasks"),
+                "Task profile guard must fire for inserts and direct profile changes")
+    }
+
     private func source(_ path: String) throws -> String {
         try String(contentsOf: URL(fileURLWithPath: path))
     }

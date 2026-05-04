@@ -159,6 +159,59 @@ create trigger tasks_prevent_pa_ownership_transfer
   for each row
   execute function public.prevent_pa_task_ownership_transfer();
 
+create or replace function public.prevent_task_profile_forgery()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  caller_profile_id uuid := public.get_executive_id(auth.uid());
+  existing_workspace_id uuid;
+  existing_profile_id uuid;
+begin
+  if auth.role() = 'service_role' then
+    return NEW;
+  end if;
+
+  if TG_OP = 'INSERT' then
+    if caller_profile_id is not null
+      and NEW.profile_id = caller_profile_id then
+      return NEW;
+    end if;
+
+    select t.workspace_id, t.profile_id
+      into existing_workspace_id, existing_profile_id
+      from public.tasks t
+      where t.id = NEW.id;
+
+    if FOUND
+      and NEW.workspace_id is not distinct from existing_workspace_id
+      and NEW.profile_id is not distinct from existing_profile_id then
+      return NEW;
+    end if;
+
+    raise exception 'task profile forgery denied' using errcode = '42501';
+  end if;
+
+  if NEW.profile_id is distinct from OLD.profile_id
+    and (
+      caller_profile_id is null
+      or NEW.profile_id is distinct from caller_profile_id
+    ) then
+    raise exception 'task profile forgery denied' using errcode = '42501';
+  end if;
+
+  return NEW;
+end;
+$$;
+
+drop trigger if exists tasks_prevent_profile_forgery on public.tasks;
+create trigger tasks_prevent_profile_forgery
+  before insert or update of profile_id on public.tasks
+  for each row
+  execute function public.prevent_task_profile_forgery();
+
 create or replace function public.get_top_observations(
     p_exec_id uuid,
     p_hours integer default 24,
