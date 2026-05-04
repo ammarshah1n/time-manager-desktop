@@ -87,7 +87,8 @@ security definer
 set search_path = public
 as $$
 begin
-  if NEW.workspace_id = any(public.pa_workspace_ids()) then
+  if OLD.workspace_id = any(public.pa_workspace_ids())
+    or NEW.workspace_id = any(public.pa_workspace_ids()) then
     return NEW;
   end if;
 
