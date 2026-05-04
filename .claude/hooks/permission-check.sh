@@ -35,10 +35,13 @@ if [[ "$TOOL" == "Write" || "$TOOL" == "Edit" ]]; then
   fi
 fi
 
-# Migration deletion
-if echo "$INPUT" | grep -qE "supabase/migrations/.*\.(sql|ts)" && \
-   echo "$INPUT" | grep -qE "\\brm\\b|\\bunlink\\b|\\bdelete\\b"; then
-  echo "BLOCKED: deleting migration files not allowed." >&2
+# Migration deletion — only block actual bash file-deletion verbs targeting
+# migration files. Previously also matched the word `delete`, which trips on
+# legitimate SQL inside Write/Edit content (e.g. `on delete cascade`).
+if [[ "$TOOL" == "Bash" ]] && \
+   echo "$INPUT" | grep -qE "supabase/migrations/.*\.(sql|ts)" && \
+   echo "$INPUT" | grep -qE "\\brm\\b|\\bunlink\\b"; then
+  echo "BLOCKED: deleting migration files via bash not allowed." >&2
   exit 2
 fi
 
