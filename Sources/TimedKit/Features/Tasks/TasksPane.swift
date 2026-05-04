@@ -382,8 +382,9 @@ struct TasksPane: View {
 
             Spacer()
 
-            // Stats
-            HStack(spacing: 16) {
+            // Stats — wider inter-column spacing so the labels (TASKS / TOTAL /
+            // REVIEW) don't visually run into each other in the header.
+            HStack(spacing: 28) {
                 stat("\(bucketTasks.count)", "tasks")
                 if totalMins > 0 {
                     stat(formatMins(totalMins), "total")
