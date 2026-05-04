@@ -561,7 +561,7 @@ struct TasksPane: View {
 fileprivate extension TimedTask {
     func withBucket(_ newBucket: TaskBucket, sectionId newSectionId: UUID?) -> TimedTask {
         TimedTask(
-            id: id, title: title, sender: sender,
+            id: id, profileId: profileId, title: title, sender: sender,
             estimatedMinutes: estimatedMinutes, bucket: newBucket,
             emailCount: emailCount, receivedAt: receivedAt,
             sectionId: newSectionId, parentTaskId: parentTaskId,

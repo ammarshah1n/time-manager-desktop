@@ -811,6 +811,7 @@ actor DataBridge {
     private func rebuilt(_ task: TimedTask, bucket: TaskBucket) -> TimedTask {
         TimedTask(
             id: task.id,
+            profileId: task.profileId,
             title: task.title,
             sender: task.sender,
             estimatedMinutes: task.estimatedMinutes,

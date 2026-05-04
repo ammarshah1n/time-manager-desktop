@@ -222,6 +222,51 @@ struct DataBridgeTests {
         }
     }
 
+    @Test("moveBucket preserves loaded task profile id")
+    func testMoveBucketPreservesLoadedTaskProfileId() async throws {
+        let recorder = TaskUpsertRecorder()
+
+        try await withAuthenticatedTimedStore { executiveID in
+            let taskId = UUID()
+            let ownerProfileId = UUID()
+            try await withDependencies {
+                var dependency = SupabaseClientDependency()
+                dependency.fetchTasks = { _, _, _ in
+                    [makeTaskRow(id: taskId, bucketType: "action", profileId: ownerProfileId)]
+                }
+                dependency.upsertTask = { row in await recorder.record(row) }
+                $0.supabaseClient = dependency
+            } operation: {
+                let queue = OfflineSyncQueue()
+                let bridge = DataBridge(offlineQueue: queue, automaticallyFlushOfflineReplay: false)
+                let context = await bridge.workspaceMutationContext()
+
+                _ = try await bridge.moveBucket(id: taskId, to: .readToday, context: context)
+                await bridge.flushOfflineReplay()
+
+                let row = try #require(await recorder.rows().first { $0.id == taskId })
+                #expect(row.workspaceId == executiveID)
+                #expect(row.profileId == ownerProfileId)
+                #expect(row.bucketType == "read_today")
+            }
+        }
+    }
+
+    @Test("task rebuild helpers preserve profile id")
+    func testTaskRebuildHelpersPreserveProfileId() throws {
+        let expectations = [
+            ("Sources/TimedKit/Core/Tools/ConversationTools.swift", "profileId: task.profileId"),
+            ("Sources/TimedKit/Core/Services/DataBridge.swift", "profileId: task.profileId"),
+            ("Sources/TimedKit/Features/Tasks/TasksPane.swift", "id: id, profileId: profileId"),
+            ("Sources/TimedKit/Features/Tasks/TaskDetailSheet.swift", "profileId: task.profileId")
+        ]
+
+        for (path, needle) in expectations {
+            let source = try source(path)
+            #expect(source.contains(needle), "Task rebuild helper must preserve profile id in \(path)")
+        }
+    }
+
     @Test("saveTasks writes canonical task bucket values")
     func testSaveTasksWritesCanonicalBucketValues() async throws {
         let recorder = TaskUpsertRecorder()
@@ -711,6 +756,7 @@ private func makeTaskRow(
 }
 
 private func makeTaskRow(
+    id: UUID = UUID(),
     bucketType: String,
     profileId: UUID = UUID(),
     sectionId: UUID? = nil,
@@ -721,7 +767,7 @@ private func makeTaskRow(
     isPlanningUnit: Bool? = nil
 ) -> TaskDBRow {
     TaskDBRow(
-        id: UUID(),
+        id: id,
         workspaceId: UUID(),
         profileId: profileId,
         sourceType: "manual",
@@ -753,6 +799,10 @@ private func makeTaskRow(
         context: "desk",
         skipCount: 0
     )
+}
+
+private func source(_ path: String) throws -> String {
+    try String(contentsOf: URL(fileURLWithPath: path))
 }
 
 private func withIsolatedTimedStore<T>(_ operation: () async throws -> T) async throws -> T {

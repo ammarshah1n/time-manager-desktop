@@ -223,6 +223,7 @@ struct TaskDetailSheet: View {
             set: { newBucket in
                 task = TimedTask(
                     id: task.id,
+                    profileId: task.profileId,
                     title: task.title,
                     sender: task.sender,
                     estimatedMinutes: task.estimatedMinutes,

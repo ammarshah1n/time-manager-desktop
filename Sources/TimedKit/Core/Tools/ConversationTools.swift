@@ -342,6 +342,7 @@ final class ConversationTools {
     private func rebuilt(_ task: TimedTask, title: String?, bucket: TaskBucket?) -> TimedTask {
         TimedTask(
             id: task.id,
+            profileId: task.profileId,
             title: title ?? task.title,
             sender: task.sender,
             estimatedMinutes: task.estimatedMinutes,
