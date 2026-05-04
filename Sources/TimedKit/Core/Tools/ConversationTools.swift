@@ -178,7 +178,8 @@ final class ConversationTools {
         let importance = clamp(int(input["importance"]) ?? 3, to: Self.importanceRange)
         let notes = clean((input["notes"] as? String) ?? "voice", maxChars: Self.maxNotesChars)
 
-        var tasks = try await DataBridge.shared.loadTasks()
+        let workspaceId = await MainActor.run { AuthService.shared.activeOrPrimaryWorkspaceId }
+        var tasks = try await DataBridge.shared.loadTasks(workspaceId: workspaceId)
         let task = TimedTask(
             id: UUID(),
             title: title,
@@ -193,14 +194,15 @@ final class ConversationTools {
             context: notes
         )
         tasks.append(task)
-        try await DataBridge.shared.saveTasks(tasks)
+        try await DataBridge.shared.saveTasks(tasks, workspaceId: workspaceId)
         publishTasks(tasks)
         return "added task \(task.id.uuidString): \(task.title)"
     }
 
     private func updateTask(_ input: [String: Any]) async throws -> String {
         guard let id = uuid(input["taskId"]) else { return "invalid task id" }
-        var tasks = try await DataBridge.shared.loadTasks()
+        let workspaceId = await MainActor.run { AuthService.shared.activeOrPrimaryWorkspaceId }
+        var tasks = try await DataBridge.shared.loadTasks(workspaceId: workspaceId)
         guard let index = tasks.firstIndex(where: { $0.id == id }) else {
             return "task not found — no change applied"
         }
@@ -221,7 +223,7 @@ final class ConversationTools {
             task = rebuilt(task, title: title, bucket: bucket)
         }
         tasks[index] = task
-        try await DataBridge.shared.saveTasks(tasks)
+        try await DataBridge.shared.saveTasks(tasks, workspaceId: workspaceId)
         try? await DataBridge.shared.logEstimateOverride(
             task: task,
             oldMinutes: oldTask.estimatedMinutes,

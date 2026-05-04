@@ -17,6 +17,7 @@ actor DataBridge {
     private let local = DataStore.shared
     private let offlineQueue: OfflineSyncQueue
     private let automaticallyFlushOfflineReplay: Bool
+    private var workspaceGeneration = 0
 
     init(offlineQueue: OfflineSyncQueue = .shared, automaticallyFlushOfflineReplay: Bool = true) {
         self.offlineQueue = offlineQueue
@@ -24,31 +25,37 @@ actor DataBridge {
     }
 
     func handleWorkspaceSwitch() async {
+        workspaceGeneration += 1
         await local.clearWorkspaceCaches()
         // Public load* calls repopulate from Supabase under the new active workspace id.
     }
 
     // MARK: - Tasks
 
-    func loadTasks() async throws -> [TimedTask] {
+    func loadTasks(workspaceId requestedWorkspaceId: UUID? = nil) async throws -> [TimedTask] {
+        let generation = workspaceGeneration
         let cached = (try? await local.loadTasks()) ?? []
         guard await isAuthenticated, await isOnline else { return cached }
-        guard let wsId = await authWorkspaceId, let profileId = await authProfileId else { return cached }
-        guard let rows = try? await supabaseClient.fetchTasks(wsId, profileId, ["pending", "in_progress", "done"]) else {
+        let workspaceId = if let requestedWorkspaceId { requestedWorkspaceId } else { await authWorkspaceId }
+        guard let workspaceId, let profileId = await authProfileId else { return cached }
+        guard let rows = try? await supabaseClient.fetchTasks(workspaceId, profileId, ["pending", "in_progress", "done"]) else {
             return cached
         }
+        guard await isCurrentWorkspace(workspaceId, generation: generation) else { return [] }
         let tasks = rows.map(TimedTask.init(from:))
         try? await local.saveTasks(tasks)
         return tasks
     }
 
-    func saveTasks(_ tasks: [TimedTask], workspaceId: UUID? = nil) async throws {
+    func saveTasks(_ tasks: [TimedTask], workspaceId: UUID?) async throws {
+        let generation = workspaceGeneration
         let previousTaskIds = Set(((try? await local.loadTasks()) ?? []).map(\.id))
+        guard await isCurrentWorkspace(workspaceId, generation: generation) else { return }
         try await local.saveTasks(tasks)
         // Dual-write to Supabase when authenticated
         guard await isAuthenticated else { return }
-        let wsId = if let workspaceId { workspaceId } else { await authWorkspaceId }
-        guard let wsId, let profileId = await authProfileId else { return }
+        guard await isCurrentWorkspace(workspaceId, generation: generation) else { return }
+        guard let wsId = workspaceId, let profileId = await authProfileId else { return }
         let parentIdsWithActiveChildren = Set(tasks.compactMap { task in
             task.isDone ? nil : task.parentTaskId
         })
@@ -72,21 +79,26 @@ actor DataBridge {
         }
     }
 
-    func loadTaskSections() async throws -> [TaskSection] {
+    func loadTaskSections(workspaceId requestedWorkspaceId: UUID? = nil) async throws -> [TaskSection] {
+        let generation = workspaceGeneration
         let cached = (try? await local.loadTaskSections()) ?? []
         guard await isAuthenticated, await isOnline else { return cached }
-        guard let wsId = await authWorkspaceId else { return cached }
-        guard let rows = try? await supabaseClient.fetchTaskSections(wsId) else { return cached }
+        let workspaceId = if let requestedWorkspaceId { requestedWorkspaceId } else { await authWorkspaceId }
+        guard let workspaceId else { return cached }
+        guard let rows = try? await supabaseClient.fetchTaskSections(workspaceId) else { return cached }
+        guard await isCurrentWorkspace(workspaceId, generation: generation) else { return [] }
         let sections = rows.map(TaskSection.init(from:))
         try? await local.saveTaskSections(sections)
         return sections
     }
 
-    func saveTaskSections(_ sections: [TaskSection], workspaceId: UUID? = nil) async throws {
+    func saveTaskSections(_ sections: [TaskSection], workspaceId: UUID?) async throws {
+        let generation = workspaceGeneration
+        guard await isCurrentWorkspace(workspaceId, generation: generation) else { return }
         try await local.saveTaskSections(sections)
         guard await isAuthenticated else { return }
-        let wsId = if let workspaceId { workspaceId } else { await authWorkspaceId }
-        guard let wsId, let profileId = await authProfileId else { return }
+        guard await isCurrentWorkspace(workspaceId, generation: generation) else { return }
+        guard let wsId = workspaceId, let profileId = await authProfileId else { return }
         // System sections are owned/seeded by the service role. User sessions
         // should only write user-created sections; trying to upsert system
         // rows trips task_sections RLS and makes the UI look saved while sync
@@ -103,58 +115,75 @@ actor DataBridge {
     }
 
     func markDone(id: UUID) async throws -> [TimedTask] {
-        var tasks = try await loadTasks()
+        let generation = workspaceGeneration
+        let workspaceId = await authWorkspaceId
+        var tasks = try await loadTasks(workspaceId: workspaceId)
         guard let index = tasks.firstIndex(where: { $0.id == id }) else { return tasks }
         tasks[index].isDone = true
-        try await saveTasks(tasks)
+        try await saveTasks(tasks, workspaceId: workspaceId)
+        guard await isCurrentWorkspace(workspaceId, generation: generation) else { return [] }
         try? await logTaskCompleted(task: tasks[index])
         return tasks
     }
 
     func snooze(id: UUID, until: Date) async throws -> [TimedTask] {
-        var tasks = try await loadTasks()
+        let workspaceId = await authWorkspaceId
+        var tasks = try await loadTasks(workspaceId: workspaceId)
         guard let index = tasks.firstIndex(where: { $0.id == id }) else { return tasks }
         tasks[index].snoozedUntil = until
-        try await saveTasks(tasks)
+        try await saveTasks(tasks, workspaceId: workspaceId)
         return tasks
     }
 
     func moveBucket(id: UUID, to bucket: TaskBucket) async throws -> [TimedTask] {
-        var tasks = try await loadTasks()
+        let generation = workspaceGeneration
+        let workspaceId = await authWorkspaceId
+        var tasks = try await loadTasks(workspaceId: workspaceId)
         guard let index = tasks.firstIndex(where: { $0.id == id }) else { return tasks }
         let oldBucket = tasks[index].bucket
         tasks[index] = rebuilt(tasks[index], bucket: bucket)
-        try await saveTasks(tasks)
+        try await saveTasks(tasks, workspaceId: workspaceId)
+        guard await isCurrentWorkspace(workspaceId, generation: generation) else { return [] }
         try? await logTaskBucketChanged(task: tasks[index], oldBucket: oldBucket)
         return tasks
     }
 
     func updateEstimate(id: UUID, minutes: Int) async throws -> [TimedTask] {
-        var tasks = try await loadTasks()
+        let generation = workspaceGeneration
+        let workspaceId = await authWorkspaceId
+        var tasks = try await loadTasks(workspaceId: workspaceId)
         guard let index = tasks.firstIndex(where: { $0.id == id }) else { return tasks }
         let oldMinutes = tasks[index].estimatedMinutes
         tasks[index].estimatedMinutes = minutes
-        try await saveTasks(tasks)
+        try await saveTasks(tasks, workspaceId: workspaceId)
+        guard await isCurrentWorkspace(workspaceId, generation: generation) else { return [] }
         try? await logEstimateOverride(task: tasks[index], oldMinutes: oldMinutes, newMinutes: minutes)
         return tasks
     }
 
     func updateManualImportance(id: UUID, importance: TaskManualImportance) async throws -> [TimedTask] {
-        var tasks = try await loadTasks()
+        let generation = workspaceGeneration
+        let workspaceId = await authWorkspaceId
+        var tasks = try await loadTasks(workspaceId: workspaceId)
         guard let index = tasks.firstIndex(where: { $0.id == id }) else { return tasks }
         let oldImportance = tasks[index].effectiveManualImportance
         tasks[index].manualImportance = importance
-        try await saveTasks(tasks)
+        try await saveTasks(tasks, workspaceId: workspaceId)
+        guard await isCurrentWorkspace(workspaceId, generation: generation) else { return [] }
         try? await logManualImportanceChanged(task: tasks[index], oldImportance: oldImportance, newImportance: importance)
         return tasks
     }
 
     func delete(id: UUID) async throws -> [TimedTask] {
-        var tasks = try await loadTasks()
+        let generation = workspaceGeneration
+        let workspaceId = await authWorkspaceId
+        var tasks = try await loadTasks(workspaceId: workspaceId)
         guard tasks.contains(where: { $0.id == id }) else { return tasks }
         tasks.removeAll { $0.id == id }
+        guard await isCurrentWorkspace(workspaceId, generation: generation) else { return [] }
         try await local.saveTasks(tasks)
         guard await isAuthenticated else { return tasks }
+        guard await isCurrentWorkspace(workspaceId, generation: generation) else { return tasks }
         try await enqueueTaskStatusUpdate(taskId: id, status: "deleted", actualMinutes: nil)
 
         guard automaticallyFlushOfflineReplay, await isOnline else { return tasks }
@@ -441,6 +470,11 @@ actor DataBridge {
 
     private var authProfileId: UUID? {
         get async { await MainActor.run { AuthService.shared.profileId } }
+    }
+
+    private func isCurrentWorkspace(_ workspaceId: UUID?, generation: Int) async -> Bool {
+        guard workspaceGeneration == generation else { return false }
+        return await authWorkspaceId == workspaceId
     }
 
     private func logTaskCompleted(task: TimedTask) async throws {

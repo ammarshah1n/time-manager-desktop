@@ -144,7 +144,7 @@ struct DataBridgeTests {
     }
     @Test("saveTasks queues failed task upserts")
     func testSaveTasksQueuesFailedTaskUpserts() async throws {
-        try await withAuthenticatedTimedStore { _ in
+        try await withAuthenticatedTimedStore { executiveID in
             try await withDependencies {
                 var dependency = SupabaseClientDependency()
                 dependency.upsertTask = { _ in throw DataBridgeReplayTestError.expectedFailure }
@@ -153,7 +153,7 @@ struct DataBridgeTests {
                 let queue = OfflineSyncQueue()
                 let bridge = DataBridge(offlineQueue: queue, automaticallyFlushOfflineReplay: false)
 
-                try await bridge.saveTasks([makeTask(title: "Queued failure")])
+                try await bridge.saveTasks([makeTask(title: "Queued failure")], workspaceId: executiveID)
                 try await Task.sleep(for: .milliseconds(100))
 
                 let diagnostics = try await queue.diagnostics()
@@ -177,7 +177,7 @@ struct DataBridgeTests {
                 let bridge = DataBridge(offlineQueue: queue, automaticallyFlushOfflineReplay: false)
                 let task = makeTask(title: "Replay me")
 
-                try await bridge.saveTasks([task])
+                try await bridge.saveTasks([task], workspaceId: executiveID)
                 await bridge.flushOfflineReplay()
 
                 let rows = await recorder.rows()
@@ -195,7 +195,7 @@ struct DataBridgeTests {
     func testSaveTasksWritesCanonicalBucketValues() async throws {
         let recorder = TaskUpsertRecorder()
 
-        try await withAuthenticatedTimedStore { _ in
+        try await withAuthenticatedTimedStore { executiveID in
             try await withDependencies {
                 var dependency = SupabaseClientDependency()
                 dependency.upsertTask = { row in await recorder.record(row) }
@@ -205,7 +205,7 @@ struct DataBridgeTests {
                 let bridge = DataBridge(offlineQueue: queue, automaticallyFlushOfflineReplay: false)
                 let task = makeTask(title: "Canonical bucket", bucket: .readToday)
 
-                try await bridge.saveTasks([task])
+                try await bridge.saveTasks([task], workspaceId: executiveID)
                 await bridge.flushOfflineReplay()
 
                 let rows = await recorder.rows()
@@ -220,7 +220,7 @@ struct DataBridgeTests {
     func testSaveTasksWritesHierarchyFields() async throws {
         let recorder = TaskUpsertRecorder()
 
-        try await withAuthenticatedTimedStore { _ in
+        try await withAuthenticatedTimedStore { executiveID in
             try await withDependencies {
                 var dependency = SupabaseClientDependency()
                 dependency.upsertTask = { row in await recorder.record(row) }
@@ -246,7 +246,7 @@ struct DataBridgeTests {
                     notes: "Smallest next action"
                 )
 
-                try await bridge.saveTasks([parent, child])
+                try await bridge.saveTasks([parent, child], workspaceId: executiveID)
                 await bridge.flushOfflineReplay()
 
                 let rows = await recorder.rows()
@@ -287,7 +287,7 @@ struct DataBridgeTests {
                     isArchived: false
                 )
 
-                try await bridge.saveTaskSections([section])
+                try await bridge.saveTaskSections([section], workspaceId: executiveID)
                 await bridge.flushOfflineReplay()
 
                 let rows = await recorder.rows()
@@ -307,7 +307,7 @@ struct DataBridgeTests {
     func testSaveTaskSectionsSkipsSystemRows() async throws {
         let recorder = TaskSectionUpsertRecorder()
 
-        try await withAuthenticatedTimedStore { _ in
+        try await withAuthenticatedTimedStore { executiveID in
             try await withDependencies {
                 var dependency = SupabaseClientDependency()
                 dependency.upsertTaskSection = { row in await recorder.record(row) }
@@ -336,7 +336,7 @@ struct DataBridgeTests {
                     isArchived: false
                 )
 
-                try await bridge.saveTaskSections([systemSection, userSection])
+                try await bridge.saveTaskSections([systemSection, userSection], workspaceId: executiveID)
                 await bridge.flushOfflineReplay()
 
                 let rows = await recorder.rows()
@@ -387,16 +387,19 @@ struct DataBridgeTests {
     func testUpdateManualImportanceLogsCorrectionEvent() async throws {
         let recorder = BehaviourEventRecorder()
 
-        try await withAuthenticatedTimedStore { _ in
+        try await withAuthenticatedTimedStore { executiveID in
+            let task = makeTask(title: "Rank manually", bucket: .action, manualImportance: .blue)
             try await withDependencies {
                 var dependency = SupabaseClientDependency()
+                dependency.fetchTasks = { _, _, _ in
+                    [makeTaskRow(from: task, workspaceId: executiveID, profileId: executiveID)]
+                }
                 dependency.insertBehaviourEvent = { event in await recorder.record(event) }
                 $0.supabaseClient = dependency
             } operation: {
                 let bridge = DataBridge()
-                let task = makeTask(title: "Rank manually", bucket: .action, manualImportance: .blue)
 
-                try await bridge.saveTasks([task])
+                try await bridge.saveTasks([task], workspaceId: executiveID)
                 let tasks = try await bridge.updateManualImportance(id: task.id, importance: .red)
 
                 #expect(tasks.first(where: { $0.id == task.id })?.manualImportance == .red)
@@ -414,9 +417,13 @@ struct DataBridgeTests {
     func testDeleteQueuesRemoteTombstone() async throws {
         let recorder = TaskStatusRecorder()
 
-        try await withAuthenticatedTimedStore { _ in
+        try await withAuthenticatedTimedStore { executiveID in
+            let task = makeTask(title: "Delete remotely")
             try await withDependencies {
                 var dependency = SupabaseClientDependency()
+                dependency.fetchTasks = { _, _, _ in
+                    [makeTaskRow(from: task, workspaceId: executiveID, profileId: executiveID)]
+                }
                 dependency.updateTaskStatus = { taskId, status, actualMinutes in
                     await recorder.record(taskId: taskId, status: status, actualMinutes: actualMinutes)
                 }
@@ -424,9 +431,8 @@ struct DataBridgeTests {
             } operation: {
                 let queue = OfflineSyncQueue()
                 let bridge = DataBridge(offlineQueue: queue, automaticallyFlushOfflineReplay: false)
-                let task = makeTask(title: "Delete remotely")
 
-                try await bridge.saveTasks([task])
+                try await bridge.saveTasks([task], workspaceId: executiveID)
                 _ = try await bridge.delete(id: task.id)
                 await bridge.flushOfflineReplay()
 
@@ -595,6 +601,47 @@ private func makeTask(
         sortOrder: sortOrder,
         manualImportance: manualImportance,
         notes: notes
+    )
+}
+
+private func makeTaskRow(
+    from task: TimedTask,
+    workspaceId: UUID,
+    profileId: UUID
+) -> TaskDBRow {
+    TaskDBRow(
+        id: task.id,
+        workspaceId: workspaceId,
+        profileId: profileId,
+        sourceType: task.source.rawValue,
+        bucketType: task.bucket.dbValue,
+        sectionId: task.sectionId,
+        parentTaskId: task.parentTaskId,
+        sortOrder: task.sortOrder ?? 0,
+        manualImportance: task.effectiveManualImportance.rawValue,
+        notes: task.notes,
+        isPlanningUnit: task.isPlanningUnit ?? true,
+        title: task.title,
+        description: nil,
+        status: task.isDone ? "done" : "pending",
+        priority: task.isDoFirst ? 10 : 5,
+        dueAt: task.dueToday ? Calendar.current.startOfDay(for: Date()) : nil,
+        estimatedMinutesAi: task.estimateSource == .manual ? nil : task.estimatedMinutes,
+        estimatedMinutesManual: task.estimateSource == .manual ? task.estimatedMinutes : nil,
+        actualMinutes: nil,
+        estimateSource: task.estimateSource.rawValue,
+        estimateBasis: task.estimateBasis,
+        isDoFirst: task.isDoFirst,
+        isTransitSafe: task.isTransitSafe,
+        isOverdue: false,
+        completedAt: task.isDone ? Date() : nil,
+        createdAt: task.receivedAt,
+        updatedAt: Date(),
+        urgency: task.urgency,
+        importance: task.importance,
+        energyRequired: task.energyRequired,
+        context: task.context,
+        skipCount: task.skipCount
     )
 }
 

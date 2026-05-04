@@ -95,10 +95,24 @@ struct DataBridgeWorkspaceSwitchTests {
                 "Section saves must bind to the captured workspace id")
         #expect(occurrences(of: "guard auth.activeOrPrimaryWorkspaceId == workspaceId else { return }", in: content) >= 2,
                 "Stale task and section saves must be skipped before writing local cache")
-        #expect(bridge.contains("func saveTasks(_ tasks: [TimedTask], workspaceId: UUID? = nil)"),
-                "DataBridge task saves must accept an explicit workspace id")
-        #expect(bridge.contains("func saveTaskSections(_ sections: [TaskSection], workspaceId: UUID? = nil)"),
-                "DataBridge section saves must accept an explicit workspace id")
+        #expect(bridge.contains("private var workspaceGeneration"),
+                "DataBridge must invalidate stale task completions across workspace switches")
+        #expect(bridge.contains("workspaceGeneration += 1"),
+                "Workspace switches must advance the DataBridge generation")
+        #expect(bridge.contains("func loadTasks(workspaceId requestedWorkspaceId: UUID? = nil)"),
+                "DataBridge task loads must be able to bind to a captured workspace id")
+        #expect(bridge.contains("func saveTasks(_ tasks: [TimedTask], workspaceId: UUID?)"),
+                "DataBridge task saves must require an explicit workspace id")
+        #expect(bridge.contains("func saveTaskSections(_ sections: [TaskSection], workspaceId: UUID?)"),
+                "DataBridge section saves must require an explicit workspace id")
+        #expect(!bridge.contains("func saveTasks(_ tasks: [TimedTask], workspaceId: UUID? = nil)"),
+                "DataBridge task saves must not silently resolve workspace at save time")
+        #expect(!bridge.contains("try await saveTasks(tasks)"),
+                "DataBridge task mutators must pass the captured workspace id when saving")
+        #expect(occurrences(of: "try await saveTasks(tasks, workspaceId: workspaceId)", in: bridge) >= 5,
+                "DataBridge task mutators must carry workspace id from read to write")
+        #expect(occurrences(of: "guard await isCurrentWorkspace(workspaceId, generation: generation) else { return [] }", in: bridge) >= 2,
+                "Remote task and section load completions must revalidate workspace generation before caching")
         #expect(!bridge.contains("if !tasks.isEmpty"),
                 "Successful empty remote task fetches must clear stale local task cache")
         #expect(!bridge.contains("if !sections.isEmpty"),
