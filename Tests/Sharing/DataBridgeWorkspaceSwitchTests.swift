@@ -140,6 +140,7 @@ struct DataBridgeWorkspaceSwitchTests {
     @Test("Auth publishes signed in after workspace hydration")
     func authPublishesSignedInAfterWorkspaceHydration() throws {
         let content = try source("Sources/TimedKit/Core/Services/AuthService.swift")
+        let bridge = try source("Sources/TimedKit/Core/Services/DataBridge.swift")
         #expect(!content.contains("isSignedIn = true\n            await bootstrapExecutive()"),
                 "Session restore must not mount TimedRootView before workspace hydration")
         #expect(!content.contains("isSignedIn = true\n            flashWelcome(\"Welcome back.\")"),
@@ -156,8 +157,12 @@ struct DataBridgeWorkspaceSwitchTests {
                 "Bootstrap must report failure so auth does not publish stale signed-in state")
         #expect(content.contains("clearScopedAuthState()\n            isSignedIn = false"),
                 "Restore failure must clear stale scoped storage before staying signed out")
+        #expect(content.contains("lastHandledCallbackURL = nil\n            isSignedIn = false\n            authUserId = nil\n            userEmail = nil\n            graphAccessToken = nil\n            clearScopedAuthState()"),
+                "OAuth callback failure must clear stale scoped storage before staying signed out")
         #expect(content.contains("self.error = \"Could not reach Timed servers. Check your connection and restart the app.\"\n        clearScopedAuthState()\n        return false"),
                 "Bootstrap failure must clear stale scoped storage and stop authenticated UI")
+        #expect(bridge.contains("AuthService.shared.isSignedIn && AuthService.shared.executiveId != nil"),
+                "Offline replay must require a fully bootstrapped signed-in auth state")
     }
 
     @Test("Auth workspace hydration clears caches before active assignment")

@@ -621,7 +621,7 @@ actor DataBridge {
     }
 
     private var isAuthenticated: Bool {
-        get async { await MainActor.run { AuthService.shared.executiveId != nil } }
+        get async { await MainActor.run { AuthService.shared.isSignedIn && AuthService.shared.executiveId != nil } }
     }
 
     private var authWorkspaceId: UUID? {

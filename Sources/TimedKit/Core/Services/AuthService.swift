@@ -294,7 +294,10 @@ final class AuthService: ObservableObject {
             // and a fresh attempt isn't blocked by the idempotency guard.
             lastHandledCallbackURL = nil
             isSignedIn = false
+            authUserId = nil
             userEmail = nil
+            graphAccessToken = nil
+            clearScopedAuthState()
             self.error = "Auth callback failed: \(error.localizedDescription)"
             TimedLogger.supabase.error("Auth callback failed: \(error.localizedDescription, privacy: .private)")
         }
