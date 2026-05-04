@@ -40,11 +40,17 @@ struct TimedRootView: View {
 
     private func saveTasks(_ v: [TimedTask]) {
         let workspaceId = auth.activeOrPrimaryWorkspaceId
-        Task { try? await DataBridge.shared.saveTasks(v, workspaceId: workspaceId) }
+        Task { @MainActor in
+            guard auth.activeOrPrimaryWorkspaceId == workspaceId else { return }
+            try? await DataBridge.shared.saveTasks(v, workspaceId: workspaceId)
+        }
     }
     private func saveTaskSections(_ v: [TaskSection]) {
         let workspaceId = auth.activeOrPrimaryWorkspaceId
-        Task { try? await DataBridge.shared.saveTaskSections(v, workspaceId: workspaceId) }
+        Task { @MainActor in
+            guard auth.activeOrPrimaryWorkspaceId == workspaceId else { return }
+            try? await DataBridge.shared.saveTaskSections(v, workspaceId: workspaceId)
+        }
     }
     private func saveTriage(_ v: [TriageItem])    { Task { try? await DataBridge.shared.saveTriageItems(v) } }
     private func saveWOO(_ v: [WOOItem])          { Task { try? await DataBridge.shared.saveWOOItems(v) } }

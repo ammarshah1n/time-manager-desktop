@@ -93,6 +93,8 @@ struct DataBridgeWorkspaceSwitchTests {
                 "Task saves must bind to the captured workspace id")
         #expect(content.contains("DataBridge.shared.saveTaskSections(v, workspaceId: workspaceId)"),
                 "Section saves must bind to the captured workspace id")
+        #expect(occurrences(of: "guard auth.activeOrPrimaryWorkspaceId == workspaceId else { return }", in: content) >= 2,
+                "Stale task and section saves must be skipped before writing local cache")
         #expect(bridge.contains("func saveTasks(_ tasks: [TimedTask], workspaceId: UUID? = nil)"),
                 "DataBridge task saves must accept an explicit workspace id")
         #expect(bridge.contains("func saveTaskSections(_ sections: [TaskSection], workspaceId: UUID? = nil)"),
@@ -101,6 +103,10 @@ struct DataBridgeWorkspaceSwitchTests {
 
     private func source(_ path: String) throws -> String {
         try String(contentsOf: URL(fileURLWithPath: path))
+    }
+
+    private func occurrences(of needle: String, in haystack: String) -> Int {
+        haystack.components(separatedBy: needle).count - 1
     }
 
     private func restoreActiveExecutive(_ value: String?) {
