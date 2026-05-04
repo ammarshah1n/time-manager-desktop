@@ -1228,9 +1228,11 @@ extension SupabaseClientDependency {
                     }
                 }
 
+                let session = try await client.auth.session
                 let rows: [Row] = try await client
                     .from("workspace_members")
                     .select("role, workspaces(id, name)")
+                    .eq("profile_id", value: session.user.id)
                     .execute()
                     .value
                 return rows.map { UserWorkspaceRow(id: $0.workspace.id, name: $0.workspace.name, role: $0.role) }

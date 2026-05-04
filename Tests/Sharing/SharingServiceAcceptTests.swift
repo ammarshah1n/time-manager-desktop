@@ -135,3 +135,15 @@ struct WorkspaceMemberRowDecodingTests {
         #expect(rows.first?.fullName == "Karen PA")
     }
 }
+
+@Suite("User workspace role hydration")
+struct UserWorkspaceRoleHydrationTests {
+    @Test("filters workspace memberships to signed-in user")
+    func filtersWorkspaceMembershipsToSignedInUser() throws {
+        let content = try String(contentsOf: URL(fileURLWithPath: "Sources/TimedKit/Core/Clients/SupabaseClient.swift"))
+        #expect(content.contains("let session = try await client.auth.session"),
+                "Workspace hydration must use the signed-in auth user id")
+        #expect(content.contains(".eq(\"profile_id\", value: session.user.id)"),
+                "Workspace hydration must not map other visible members' roles into availableWorkspaces")
+    }
+}
