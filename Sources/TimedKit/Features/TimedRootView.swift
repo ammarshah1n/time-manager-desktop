@@ -58,13 +58,15 @@ struct TimedRootView: View {
     private func saveCaptures(_ v: [CaptureItem])   { Task { try? await DataBridge.shared.saveCaptureItems(v) } }
     private func deleteTasks(_ ids: [UUID]) {
         guard !ids.isEmpty else { return }
-        Task {
+        let workspaceId = auth.activeOrPrimaryWorkspaceId
+        Task { @MainActor in
             var latest = tasks
             for id in ids {
                 if let updated = try? await DataBridge.shared.delete(id: id) {
                     latest = updated
                 }
             }
+            guard auth.activeOrPrimaryWorkspaceId == workspaceId else { return }
             tasks = latest
             syncMenuBar()
         }

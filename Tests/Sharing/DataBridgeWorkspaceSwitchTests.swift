@@ -99,6 +99,14 @@ struct DataBridgeWorkspaceSwitchTests {
                 "DataBridge task saves must accept an explicit workspace id")
         #expect(bridge.contains("func saveTaskSections(_ sections: [TaskSection], workspaceId: UUID? = nil)"),
                 "DataBridge section saves must accept an explicit workspace id")
+        #expect(!bridge.contains("if !tasks.isEmpty"),
+                "Successful empty remote task fetches must clear stale local task cache")
+        #expect(!bridge.contains("if !sections.isEmpty"),
+                "Successful empty remote section fetches must clear stale local section cache")
+        #expect(content.contains("let workspaceId = auth.activeOrPrimaryWorkspaceId\n        Task"),
+                "Task deletes must capture the workspace before awaiting")
+        #expect(content.contains("guard auth.activeOrPrimaryWorkspaceId == workspaceId else { return }\n            tasks = latest"),
+                "Task deletes must ignore stale completions after workspace switches")
     }
 
     private func source(_ path: String) throws -> String {

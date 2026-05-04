@@ -38,11 +38,8 @@ actor DataBridge {
             return cached
         }
         let tasks = rows.map(TimedTask.init(from:))
-        if !tasks.isEmpty {
-            try? await local.saveTasks(tasks)
-            return tasks
-        }
-        return cached
+        try? await local.saveTasks(tasks)
+        return tasks
     }
 
     func saveTasks(_ tasks: [TimedTask], workspaceId: UUID? = nil) async throws {
@@ -81,11 +78,8 @@ actor DataBridge {
         guard let wsId = await authWorkspaceId else { return cached }
         guard let rows = try? await supabaseClient.fetchTaskSections(wsId) else { return cached }
         let sections = rows.map(TaskSection.init(from:))
-        if !sections.isEmpty {
-            try? await local.saveTaskSections(sections)
-            return sections
-        }
-        return cached
+        try? await local.saveTaskSections(sections)
+        return sections
     }
 
     func saveTaskSections(_ sections: [TaskSection], workspaceId: UUID? = nil) async throws {
