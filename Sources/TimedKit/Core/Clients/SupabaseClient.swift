@@ -573,6 +573,45 @@ struct WorkspaceMemberRow: Codable, Identifiable, Sendable {
     }
 }
 
+struct AcceptInviteResponse: Codable, Sendable {
+    let workspaceId: UUID
+    let workspaceName: String
+    let ownerEmail: String
+    let role: String
+    let alreadyMember: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case workspaceId = "workspace_id"
+        case workspaceName = "workspace_name"
+        case ownerEmail = "owner_email"
+        case role
+        case alreadyMember = "already_member"
+    }
+}
+
+struct UserWorkspaceRow: Codable, Identifiable, Sendable {
+    let id: UUID
+    let name: String
+    let role: String
+}
+
+struct WorkspaceInviteSummary: Codable, Identifiable, Sendable {
+    let id: UUID
+    let code: UUID
+    let createdAt: Date
+    let expiresAt: Date
+    let isRevoked: Bool
+    let consumedAt: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case id, code
+        case createdAt = "created_at"
+        case expiresAt = "expires_at"
+        case isRevoked = "is_revoked"
+        case consumedAt = "consumed_at"
+    }
+}
+
 struct SupabaseClientDependency: Sendable {
     /// Raw Supabase client for auth operations and Edge Function calls.
     /// nil when running in local-only mode (no Supabase configured).
@@ -649,6 +688,13 @@ struct SupabaseClientDependency: Sendable {
     var insertWorkspaceInvite: @Sendable (UUID, UUID) async throws -> Void = { _, _ in }
     var fetchWorkspaceMembers: @Sendable (UUID) async throws -> [WorkspaceMemberRow] = { _ in [] }
     var deleteWorkspaceMember: @Sendable (UUID) async throws -> Void = { _ in }
+    var acceptInvite: @Sendable (_ code: String) async throws -> AcceptInviteResponse = { _ in
+        AcceptInviteResponse(workspaceId: UUID(), workspaceName: "", ownerEmail: "", role: "pa", alreadyMember: false)
+    }
+    var fetchUserWorkspaces: @Sendable () async throws -> [UserWorkspaceRow] = { [] }
+    var fetchWorkspaceInvites: @Sendable (_ workspaceId: UUID) async throws -> [WorkspaceInviteSummary] = { _ in [] }
+    var revokeWorkspaceInvite: @Sendable (_ inviteId: UUID) async throws -> Void = { _ in }
+    var leaveWorkspace: @Sendable (_ workspaceId: UUID, _ profileId: UUID) async throws -> Void = { _, _ in }
 }
 
 // MARK: - DependencyKey
@@ -1146,6 +1192,66 @@ extension SupabaseClientDependency {
                     .from("workspace_members")
                     .delete()
                     .eq("id", value: memberId)
+                    .execute()
+            },
+            acceptInvite: { code in
+                struct Body: Encodable, Sendable { let code: String }
+                let response: AcceptInviteResponse = try await client.functions.invoke(
+                    "accept-invite",
+                    options: FunctionInvokeOptions(method: .post, body: Body(code: code))
+                )
+                return response
+            },
+            fetchUserWorkspaces: {
+                struct Row: Decodable {
+                    let role: String
+                    let workspace: WorkspaceJoin
+
+                    struct WorkspaceJoin: Decodable {
+                        let id: UUID
+                        let name: String
+                    }
+
+                    enum CodingKeys: String, CodingKey {
+                        case role
+                        case workspace = "workspaces"
+                    }
+                }
+
+                let rows: [Row] = try await client
+                    .from("workspace_members")
+                    .select("role, workspaces(id, name)")
+                    .execute()
+                    .value
+                return rows.map { UserWorkspaceRow(id: $0.workspace.id, name: $0.workspace.name, role: $0.role) }
+            },
+            fetchWorkspaceInvites: { workspaceId in
+                let rows: [WorkspaceInviteSummary] = try await client
+                    .from("workspace_invites")
+                    .select("id, code, created_at, expires_at, is_revoked, consumed_at")
+                    .eq("workspace_id", value: workspaceId)
+                    .order("created_at", ascending: false)
+                    .execute()
+                    .value
+                return rows
+            },
+            revokeWorkspaceInvite: { inviteId in
+                struct InviteRevocationUpdate: Encodable, Sendable {
+                    let isRevoked: Bool
+                    enum CodingKeys: String, CodingKey { case isRevoked = "is_revoked" }
+                }
+                try await client
+                    .from("workspace_invites")
+                    .update(InviteRevocationUpdate(isRevoked: true))
+                    .eq("id", value: inviteId)
+                    .execute()
+            },
+            leaveWorkspace: { workspaceId, profileId in
+                try await client
+                    .from("workspace_members")
+                    .delete()
+                    .eq("workspace_id", value: workspaceId)
+                    .eq("profile_id", value: profileId)
                     .execute()
             }
         )
