@@ -3734,3 +3734,11 @@ cbc53cc merge: jcode voice-onboarding resumable fix into unified
 .build/arm64-apple-macosx/debug/time-manager-desktop
 .build/arm64-apple-macosx/debug/Functions.build/output-file-map.json
 .build/arm64-apple-macosx/debug/HTTPTypes.build/output-file-map.json
+
+
+### 2026-05-04 — PA co-edit invite shipped end-to-end
+**Done**: Built and deployed PA invite creation, share-sheet link, facilitated landing/DMG fallback, deep-link accept sheet, workspace switch/cache clearing, PA revoke/leave, Supabase invite RPC, and restrictive PA RLS deny-list.
+**In progress**: none — SHIPPED.
+**Discovered**: Invite acceptance belongs in a Postgres RPC with row locking and explicit errcodes; PA task co-edit needs owner/shared-workspace fetches while cognitive tables stay denied via restrictive policies.
+**Next**: Complete Apple Developer enrollment/notarization, then replace ad-hoc DMG fallback with production distribution links; iOS PA invite UI remains unbuilt.
+**State**: SHIPPED.

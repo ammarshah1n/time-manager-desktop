@@ -51,11 +51,11 @@ Last updated: 2026-05-04 (PA co-edit invite shipped)
 - `graphify update .` ✅ (foreground; background run hit a harness/Python bad-fd quirk)
 
 **Three unblock chains:**
-1. **DMG to Yasser / packaging:** local script guards are in place, but a production DMG still needs Apple Developer enrollment, Developer ID Application identity, Team ID, and notarization. Do not send an ad-hoc DMG as production.
-2. **Wave 2 nightly engine / backend:** cron migration and Edge Function changes are local and checked, but remote Supabase deploy plus live cron/user-auth/webhook smokes are still pending.
-3. **Apple Developer enrollment:** still blocked because Ammar does not yet have the Apple developer account. This blocks notarized macOS release and iOS/TestFlight.
+1. **DMG to Yasser / packaging:** PA invite fallback DMG is published on `facilitated.com.au`, but production-quality delivery still needs Apple Developer enrollment, Developer ID Application identity, Team ID, and notarization. Do not present the ad-hoc DMG as the final production release.
+2. **Wave 2 nightly engine / backend:** cron/Trigger/Supabase work is deployed; current follow-up is live verification that Trigger.dev morning fan-out creates all 3 briefings without manual back-fill. TickTick has the scheduled verification task.
+3. **Apple Developer enrollment:** still blocked because Ammar does not yet have the Apple developer account. This blocks notarized macOS release, iOS/TestFlight, and replacing the ad-hoc DMG fallback.
 
-**Next:** deploy `supabase/migrations/20260503203000_schedule_morning_briefings.sql`, `generate-morning-briefing`, and `graph-webhook` to Supabase, run remote smokes, ask Ammar before deleting any remote smoke rows, then complete Apple Developer enrollment and notarized DMG packaging.
+**Next:** verify the Trigger.dev 05:30 ACST fan-out task, ask Ammar before deleting any remote smoke rows, then complete Apple Developer enrollment and notarized DMG packaging.
 
 **TickTick follow-ups created:**
 - `69f7e3328f08cbca66af444b` — Deploy and smoke launch UX Supabase briefing/webhook changes.
