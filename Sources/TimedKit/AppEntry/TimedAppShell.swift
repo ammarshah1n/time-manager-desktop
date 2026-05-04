@@ -99,7 +99,10 @@ public struct TimedAppShell: View {
                     code: pending.code,
                     onAccepted: { response in
                         auth.clearPendingInviteCode()
-                        Task { await auth.switchWorkspace(to: response.workspaceId) }
+                        Task {
+                            await auth.reloadAvailableWorkspaces()
+                            await auth.switchWorkspace(to: response.workspaceId)
+                        }
                     },
                     onDismiss: { auth.clearPendingInviteCode() }
                 )

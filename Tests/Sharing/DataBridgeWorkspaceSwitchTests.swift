@@ -45,6 +45,26 @@ struct DataBridgeWorkspaceSwitchTests {
         #expect(sections.isEmpty)
     }
 
+    @Test("TimedRootView observes active workspace changes")
+    func rootObservesActiveWorkspaceChanges() throws {
+        let content = try source("Sources/TimedKit/Features/TimedRootView.swift")
+        #expect(content.contains(".onChange(of: auth.activeWorkspaceId)"),
+                "TimedRootView must reload task state when the active workspace changes")
+        #expect(content.contains("resetWorkspaceScopedState()"),
+                "Workspace switch must clear in-memory task state before refetch")
+    }
+
+    @Test("TimedRootView assigns empty Supabase task results")
+    func rootAssignsEmptyTaskFetches() throws {
+        let content = try source("Sources/TimedKit/Features/TimedRootView.swift")
+        #expect(!content.contains("if !dbTasks.isEmpty { tasks = dbTasks.map"),
+                "Empty remote task results must replace stale in-memory tasks")
+    }
+
+    private func source(_ path: String) throws -> String {
+        try String(contentsOf: URL(fileURLWithPath: path))
+    }
+
     private func restoreActiveExecutive(_ value: String?) {
         if let value {
             UserDefaults.standard.set(value, forKey: PlatformPaths.activeExecutiveDefaultsKey)

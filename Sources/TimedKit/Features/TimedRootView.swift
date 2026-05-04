@@ -105,6 +105,10 @@ struct TimedRootView: View {
                 Task { await fetchFromSupabaseIfConnected() }
             }
         }
+        .onChange(of: auth.activeWorkspaceId) { _, _ in
+            resetWorkspaceScopedState()
+            Task { await fetchFromSupabaseIfConnected() }
+        }
         .sheet(isPresented: onboardingBinding) { onboardingSheet }
         .sheet(isPresented: $showMorningInterview) { morningInterviewSheet }
         .sheet(isPresented: $showDishMeUp) { dishMeUpSheet }
@@ -217,6 +221,13 @@ struct TimedRootView: View {
         }
     }
 
+    private func resetWorkspaceScopedState() {
+        tasks = []
+        taskSections = []
+        focusTask = nil
+        syncMenuBar()
+    }
+
     private func fetchFromSupabaseIfConnected() async {
         guard auth.isSignedIn,
               let profileId = auth.profileId else { return }
@@ -224,11 +235,9 @@ struct TimedRootView: View {
         do {
             if let taskWorkspaceId = auth.activeOrPrimaryWorkspaceId {
                 let dbTasks = try await supa.fetchTasks(taskWorkspaceId, profileId, ["pending", "in_progress"])
-                if !dbTasks.isEmpty { tasks = dbTasks.map(TimedTask.init(from:)) }
+                tasks = dbTasks.map(TimedTask.init(from:))
             }
-            if let sections = try? await DataBridge.shared.loadTaskSections(), !sections.isEmpty {
-                taskSections = sections
-            }
+            taskSections = (try? await DataBridge.shared.loadTaskSections()) ?? []
 
             if let primaryWorkspaceId = auth.workspaceId {
                 let dbEmails = try await supa.fetchEmailMessages(primaryWorkspaceId, "inbox", 100)
