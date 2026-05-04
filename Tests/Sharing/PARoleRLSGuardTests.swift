@@ -66,6 +66,41 @@ struct PARoleRLSGuardTests {
                 "Authenticated users must only request their own top observations")
     }
 
+    @Test("Active context buffer RPCs are caller scoped")
+    func activeContextBufferRPCsAreCallerScoped() throws {
+        let sql = try source(Self.hardeningMigration).lowercased()
+        #expect(sql.contains("create or replace function public.get_acb_full"),
+                "PA hardening must override get_acb_full")
+        #expect(sql.contains("create or replace function public.get_acb_light"),
+                "PA hardening must override get_acb_light")
+        #expect(sql.contains("exec_id = public.get_executive_id(auth.uid())"),
+                "ACB RPCs must only expose the caller's own executive context")
+    }
+
+    @Test("Tier0 match RPC is caller scoped")
+    func tier0MatchRPCIsCallerScoped() throws {
+        let sql = try source(Self.hardeningMigration).lowercased()
+        #expect(sql.contains("create or replace function public.match_tier0_observations"),
+                "PA hardening must override match_tier0_observations")
+        #expect(sql.contains("match_profile_id is distinct from public.get_executive_id(auth.uid())"),
+                "Tier0 match must reject arbitrary owner profile ids")
+        #expect(sql.contains("raise exception 'tier0 observation match denied'"),
+                "Tier0 match must deny non-service callers outside their own profile")
+    }
+
+    @Test("Estimation history match RPC is caller and workspace scoped")
+    func estimationHistoryMatchRPCIsCallerScoped() throws {
+        let sql = try source(Self.hardeningMigration).lowercased()
+        #expect(sql.contains("create or replace function public.match_estimation_history"),
+                "PA hardening must override match_estimation_history")
+        #expect(sql.contains("match_profile_id = public.get_executive_id(auth.uid())"),
+                "Estimation history match must only expose the caller's own profile")
+        #expect(sql.contains("match_workspace_id = any(public.current_workspace_ids())"),
+                "Estimation history match must require caller membership in the workspace")
+        #expect(sql.contains("match_workspace_id <> all(public.pa_workspace_ids())"),
+                "Estimation history match must not expose PA workspaces")
+    }
+
     @Test("Invite revocation is narrowed to an RPC")
     func inviteRevocationUsesRPC() throws {
         let sql = try source(Self.hardeningMigration).lowercased()

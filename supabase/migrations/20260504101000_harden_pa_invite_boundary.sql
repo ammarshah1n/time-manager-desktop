@@ -195,6 +195,135 @@ $$;
 revoke all on function public.get_top_observations(uuid, integer, integer) from public, anon;
 grant execute on function public.get_top_observations(uuid, integer, integer) to authenticated, service_role;
 
+create or replace function public.get_acb_full(exec_id uuid)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select acb_full
+  from public.active_context_buffer
+  where profile_id = exec_id
+    and (
+      auth.role() = 'service_role'
+      or exec_id = public.get_executive_id(auth.uid())
+    );
+$$;
+
+create or replace function public.get_acb_light(exec_id uuid)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select acb_light
+  from public.active_context_buffer
+  where profile_id = exec_id
+    and (
+      auth.role() = 'service_role'
+      or exec_id = public.get_executive_id(auth.uid())
+    );
+$$;
+
+revoke all on function public.get_acb_full(uuid) from public, anon;
+revoke all on function public.get_acb_light(uuid) from public, anon;
+grant execute on function public.get_acb_full(uuid) to authenticated, service_role;
+grant execute on function public.get_acb_light(uuid) to authenticated, service_role;
+
+create or replace function public.match_tier0_observations(
+  query_embedding vector(1024),
+  match_profile_id uuid,
+  match_threshold float default 0.5,
+  match_count int default 30
+) returns table (
+  id uuid,
+  summary text,
+  source text,
+  event_type text,
+  occurred_at timestamptz,
+  importance_score float,
+  similarity float
+)
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+begin
+  if auth.role() = 'service_role' then
+    null;
+  elsif match_profile_id is distinct from public.get_executive_id(auth.uid()) then
+    raise exception 'tier0 observation match denied' using errcode = '42501';
+  end if;
+
+  return query
+    select
+      t.id,
+      t.summary,
+      t.source,
+      t.event_type,
+      t.occurred_at,
+      t.importance_score::float,
+      (1 - (t.embedding <=> query_embedding))::float as similarity
+    from public.tier0_observations t
+    where t.profile_id = match_profile_id
+      and t.embedding is not null
+      and 1 - (t.embedding <=> query_embedding) > match_threshold
+    order by t.embedding <=> query_embedding
+    limit greatest(1, least(coalesce(match_count, 30), 30));
+end;
+$$;
+
+revoke all on function public.match_tier0_observations(vector(1024), uuid, float, int) from public, anon;
+grant execute on function public.match_tier0_observations(vector(1024), uuid, float, int) to authenticated, service_role;
+
+create or replace function public.match_estimation_history(
+  query_embedding vector(1024),
+  match_workspace_id uuid,
+  match_profile_id uuid,
+  match_threshold float default 0.7,
+  match_count int default 5
+) returns table (
+  id uuid,
+  actual_minutes integer,
+  bucket_type text,
+  estimate_error real,
+  similarity float
+)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select
+    eh.id,
+    eh.actual_minutes,
+    eh.bucket_type,
+    eh.estimate_error,
+    1 - (eh.embedding <=> query_embedding) as similarity
+  from public.estimation_history eh
+  where eh.workspace_id = match_workspace_id
+    and eh.profile_id = match_profile_id
+    and eh.actual_minutes is not null
+    and eh.embedding is not null
+    and 1 - (eh.embedding <=> query_embedding) > match_threshold
+    and (
+      auth.role() = 'service_role'
+      or (
+        match_profile_id = public.get_executive_id(auth.uid())
+        and match_workspace_id = any(public.current_workspace_ids())
+        and match_workspace_id <> all(public.pa_workspace_ids())
+      )
+    )
+  order by eh.embedding <=> query_embedding
+  limit greatest(1, least(coalesce(match_count, 5), 20));
+$$;
+
+revoke all on function public.match_estimation_history(vector(1024), uuid, uuid, float, int) from public, anon;
+grant execute on function public.match_estimation_history(vector(1024), uuid, uuid, float, int) to authenticated, service_role;
+
 drop policy if exists "workspace_invites_update_owner" on public.workspace_invites;
 
 create or replace function public.revoke_workspace_invite(p_invite_id uuid)
