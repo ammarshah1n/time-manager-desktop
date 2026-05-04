@@ -56,6 +56,13 @@ actor DataStore {
     func loadTaskSections()                    throws -> [TaskSection] { try load("task_sections") }
     func saveTaskSections(_ v: [TaskSection])  throws                 { try save(v, "task_sections") }
 
+    func clearWorkspaceCaches() async {
+        // These caches are intentionally user-scoped but not workspace-keyed.
+        // Clear before switching active workspaces to avoid a flash of stale rows.
+        try? saveTasks([])
+        try? saveTaskSections([])
+    }
+
     func loadTriageItems()                throws -> [TriageItem]    { try load("triage") }
     func saveTriageItems(_ v: [TriageItem]) throws                  { try save(v, "triage") }
 

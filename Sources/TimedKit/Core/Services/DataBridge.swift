@@ -23,6 +23,11 @@ actor DataBridge {
         self.automaticallyFlushOfflineReplay = automaticallyFlushOfflineReplay
     }
 
+    func handleWorkspaceSwitch() async {
+        await local.clearWorkspaceCaches()
+        // Public load* calls repopulate from Supabase under the new active workspace id.
+    }
+
     // MARK: - Tasks
 
     func loadTasks() async throws -> [TimedTask] {
