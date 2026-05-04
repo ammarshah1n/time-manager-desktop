@@ -49,6 +49,21 @@ begin
         tbl
       );
     end if;
+
+    if exists (
+      select 1
+      from information_schema.columns
+      where table_schema = 'public'
+        and table_name = tbl
+        and column_name = 'profile_id'
+    ) then
+      execute format('drop policy if exists %I on public.%I', tbl || '_pa_profile_deny', tbl);
+      execute format(
+        'create policy %I on public.%I as restrictive for all to authenticated using (profile_id is null or profile_id = any(private.user_profile_ids())) with check (profile_id is null or profile_id = any(private.user_profile_ids()))',
+        tbl || '_pa_profile_deny',
+        tbl
+      );
+    end if;
   end loop;
 end;
 $$;
@@ -57,6 +72,7 @@ do $$
 declare
   partition_name regclass;
   policy_name text;
+  profile_policy_name text;
 begin
   if to_regclass('public.behaviour_events') is null then
     return;
@@ -76,6 +92,22 @@ begin
       policy_name,
       partition_name
     );
+
+    if exists (
+      select 1
+      from pg_attribute
+      where attrelid = partition_name
+        and attname = 'profile_id'
+        and not attisdropped
+    ) then
+      profile_policy_name := replace(partition_name::text, 'public.', '') || '_pa_profile_deny';
+      execute format('drop policy if exists %I on %s', profile_policy_name, partition_name);
+      execute format(
+        'create policy %I on %s as restrictive for all to authenticated using (profile_id is null or profile_id = any(private.user_profile_ids())) with check (profile_id is null or profile_id = any(private.user_profile_ids()))',
+        profile_policy_name,
+        partition_name
+      );
+    end if;
   end loop;
 end;
 $$;

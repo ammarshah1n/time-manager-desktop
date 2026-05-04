@@ -44,6 +44,17 @@ struct PARoleRLSGuardTests {
                 "PA policy must include WITH CHECK so INSERT and UPDATE are denied")
     }
 
+    @Test("PA hardening migration blocks forged profile writes")
+    func hardeningPolicyBlocksForgedProfileWrites() throws {
+        let sql = try source(Self.hardeningMigration).lowercased()
+        #expect(sql.contains("column_name = 'profile_id'"),
+                "PA hardening must detect denied tables that carry profile ownership")
+        #expect(sql.contains("profile_id is null or profile_id = any(private.user_profile_ids())"),
+                "Denied cognitive tables must reject rows owned by another profile")
+        #expect(sql.contains("_pa_profile_deny"),
+                "Profile ownership guard must be installed as a restrictive policy")
+    }
+
     @Test("PA hardening migration covers behaviour event partitions")
     func hardeningPolicyCoversBehaviourEventPartitions() throws {
         let sql = try source(Self.hardeningMigration).lowercased()
@@ -53,6 +64,8 @@ struct PARoleRLSGuardTests {
                 "Behaviour event partition coverage must discover children from the parent relation")
         #expect(sql.contains("alter table %s force row level security"),
                 "Behaviour event partitions must keep forced RLS enabled")
+        #expect(sql.contains("attname = 'profile_id'"),
+                "Behaviour event partitions must also guard profile ownership")
     }
 
     @Test("Top observations RPC is caller scoped")
