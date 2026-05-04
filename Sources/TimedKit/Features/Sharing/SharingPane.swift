@@ -372,10 +372,15 @@ struct SharingPane: View {
         }
         isGenerating = true
         errorMessage = nil
-        defer { isGenerating = false }
+        defer {
+            if auth.activeOrPrimaryWorkspaceId == workspaceId {
+                isGenerating = false
+            }
+        }
 
         do {
             let appURL = try await SharingService.shared.generateInviteLink(workspaceId: workspaceId)
+            guard auth.activeOrPrimaryWorkspaceId == workspaceId else { return }
             let code = appURL.lastPathComponent
             let webURL = "https://facilitated.com.au/timed/invite/\(code)"
             inviteURL = webURL
@@ -383,6 +388,7 @@ struct SharingPane: View {
             presentSystemShareSheet(for: webURL)
             await loadInvites()
         } catch {
+            guard auth.activeOrPrimaryWorkspaceId == workspaceId else { return }
             errorMessage = error.localizedDescription
         }
     }

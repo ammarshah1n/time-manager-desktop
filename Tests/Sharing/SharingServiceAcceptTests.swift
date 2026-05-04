@@ -65,6 +65,17 @@ struct SharingPaneRoleGuardTests {
                 "Invite state must only receive the guarded fetch result")
     }
 
+    @Test("sharing pane ignores stale invite generation completions")
+    func ignoresStaleInviteGenerationCompletions() throws {
+        let content = try source("Sources/TimedKit/Features/Sharing/SharingPane.swift")
+        #expect(content.contains("let appURL = try await SharingService.shared.generateInviteLink(workspaceId: workspaceId)\n            guard auth.activeOrPrimaryWorkspaceId == workspaceId else { return }"),
+                "Generated invite links must not be assigned or presented after a workspace switch")
+        #expect(content.contains("if auth.activeOrPrimaryWorkspaceId == workspaceId {\n                isGenerating = false"),
+                "Stale invite generation completions must not clear a new workspace generation state")
+        #expect(content.contains("} catch {\n            guard auth.activeOrPrimaryWorkspaceId == workspaceId else { return }\n            errorMessage = error.localizedDescription"),
+                "Stale invite generation failures must not write errors into the new workspace UI")
+    }
+
     @Test("sharing pane clears workspace-scoped state")
     func clearsWorkspaceScopedState() throws {
         let content = try source("Sources/TimedKit/Features/Sharing/SharingPane.swift")
