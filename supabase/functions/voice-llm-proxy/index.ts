@@ -347,6 +347,7 @@ TOOLS YOU CAN CALL (use sparingly — only when concrete inbox / relationship re
  - search_graphiti(query, num_results?) — temporal knowledge graph search over everything Timed has ever observed about ${principal} and the people in their orbit. Use this when ${principal} asks about a person, a recurring decision, or "what do we know about X". Returns facts (subject-predicate-object) with valid_at / invalid_at dates so you can speak in the right tense.` : `
  - (search_graphiti is unavailable — do not invent it.)`
  }
+ - set_task_estimate(task_id, minutes, reason?) — when ${principal} says a specific task will actually take longer/shorter than the current estimate ("actually that one's 45 min, not 20"), call this. Captures their correction into the behaviour_events calibration loop so tomorrow morning's briefing references it. Do NOT call speculatively — only when ${principal} both names the task and gives a duration.
 
 MANDATORY: Before answering any question about a named person or a specific
 project, call search_graphiti first (when available). If it returns 0 facts,
@@ -509,6 +510,19 @@ function buildTools(hasGraphiti: boolean) {
       },
     });
   }
+  tools.push({
+    name: "set_task_estimate",
+    description: "Update a task's estimated time when the principal says it'll take longer or shorter than the current estimate. Writes a behaviour_events override with reason='voice_correction' (used by the morning briefing's calibration loop) and updates the task's manual estimate. Only call this when the principal explicitly mentions a duration AND a specific task — never speculate.",
+    input_schema: {
+      type: "object",
+      properties: {
+        task_id: { type: "string", description: "The UUID of the task to update. Must be one the principal owns." },
+        minutes: { type: "integer", description: "New estimated minutes (1–480).", minimum: 1, maximum: 480 },
+        reason:  { type: "string", description: "Short reason in the principal's words (e.g. 'hidden complexity', 'took longer than I thought'). Max 200 chars." },
+      },
+      required: ["task_id", "minutes"],
+    },
+  });
   return tools;
 }
 
@@ -579,6 +593,73 @@ async function dispatchTool(name: string, input: any, executiveId: string): Prom
     const j = await haikuRes.json();
     const summary = (j.content ?? []).filter((b: any) => b.type === "text").map((b: any) => b.text).join("\n").trim();
     return { thread_id: threadId, message_count: data.length, summary };
+  }
+
+  if (name === "set_task_estimate") {
+    // Voice-driven estimate override. Mirrors the time-chip stepper path
+    // (DataBridge.logEstimateOverride) but is callable mid-conversation by
+    // the orb. Writes an `estimate_override` behaviour_event so the morning
+    // briefing's calibration helper sees the correction tomorrow.
+    const taskIdRaw = typeof input?.task_id === "string" ? input.task_id.trim() : "";
+    const minutesRaw = Number.isInteger(input?.minutes) ? input.minutes : NaN;
+    const reasonRaw = typeof input?.reason === "string" ? input.reason.trim().slice(0, 200) : "";
+
+    // Strict input validation. UUID v4-ish shape; bail on garbage.
+    const taskIdOk = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(taskIdRaw);
+    if (!taskIdOk) return { error: "set_task_estimate requires a valid task_id (UUID)" };
+    const minutes = Math.max(1, Math.min(480, minutesRaw));
+    if (!Number.isFinite(minutes)) return { error: "set_task_estimate requires minutes between 1 and 480" };
+
+    // Scope read to the executive — RLS would catch a foreign task too, but
+    // we want a clear error message rather than a silent zero-row response.
+    const { data: task, error: tErr } = await supabase
+      .from("tasks")
+      .select("id, workspace_id, profile_id, bucket_type, estimated_minutes_manual, estimated_minutes_ai")
+      .eq("id", taskIdRaw)
+      .eq("profile_id", executiveId)
+      .maybeSingle();
+    if (tErr) return { error: `task lookup failed: ${tErr.message}` };
+    if (!task) return { error: "task not found" };
+
+    const oldMins = task.estimated_minutes_manual ?? task.estimated_minutes_ai ?? null;
+
+    const now = new Date();
+    const { error: evErr } = await supabase.from("behaviour_events").insert({
+      workspace_id: task.workspace_id,
+      profile_id: task.profile_id,
+      event_type: "estimate_override",
+      task_id: task.id,
+      bucket_type: task.bucket_type,
+      hour_of_day: now.getHours(),
+      day_of_week: now.getDay(),
+      old_value: oldMins !== null ? String(oldMins) : null,
+      new_value: String(minutes),
+      event_metadata: {
+        field: "estimated_minutes",
+        reason: reasonRaw || null,
+        source: "voice_correction",
+      },
+    });
+    if (evErr) return { error: `behaviour_events insert failed: ${evErr.message}` };
+
+    const { error: uErr } = await supabase
+      .from("tasks")
+      .update({
+        estimated_minutes_manual: minutes,
+        estimate_source: "manual",
+        updated_at: now.toISOString(),
+      })
+      .eq("id", task.id)
+      .eq("profile_id", executiveId);
+    if (uErr) return { error: `task update failed: ${uErr.message}` };
+
+    return {
+      task_id: task.id,
+      old_minutes: oldMins,
+      new_minutes: minutes,
+      reason: reasonRaw || null,
+      source: "voice_correction",
+    };
   }
 
   if (name === "search_graphiti") {
