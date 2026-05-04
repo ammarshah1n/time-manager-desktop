@@ -76,6 +76,12 @@ struct DataBridgeWorkspaceSwitchTests {
                 "Task sections must be fetched with the same captured workspace id as tasks")
         #expect(!content.contains("DataBridge.shared.loadTaskSections()) ?? []"),
                 "Root Supabase fetch must not reload sections through global active workspace state")
+        #expect(content.contains("let localStore = DataStore.shared"),
+                "Initial task hydration must use local DataStore, not DataBridge remote workspace loads")
+        #expect(!content.contains("await store.loadTasks()"),
+                "Initial load must not fetch tasks through global active workspace state")
+        #expect(!content.contains("await store.loadTaskSections()"),
+                "Initial load must not fetch sections through global active workspace state")
     }
 
     private func source(_ path: String) throws -> String {

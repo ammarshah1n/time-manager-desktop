@@ -198,15 +198,16 @@ struct TimedRootView: View {
 
     private func loadData() {
         Task {
-            let store = DataBridge.shared
+            let localStore = DataStore.shared
+            let bridge = DataBridge.shared
 
             // Load from local DataStore first (offline-first)
-            if let v = try? await store.loadTasks(),        !v.isEmpty { tasks       = v }
-            if let v = try? await store.loadTaskSections(), !v.isEmpty { taskSections = v }
-            if let v = try? await store.loadTriageItems(),  !v.isEmpty { triageItems = v }
-            if let v = try? await store.loadWOOItems(),     !v.isEmpty { wooItems    = v }
-            if let v = try? await store.loadBlocks(),       !v.isEmpty { blocks      = v }
-            if let v = try? await store.loadCaptureItems(), !v.isEmpty { captureItems = v }
+            if let v = try? await localStore.loadTasks(),        !v.isEmpty { tasks       = v }
+            if let v = try? await localStore.loadTaskSections(), !v.isEmpty { taskSections = v }
+            if let v = try? await bridge.loadTriageItems(),      !v.isEmpty { triageItems = v }
+            if let v = try? await bridge.loadWOOItems(),         !v.isEmpty { wooItems    = v }
+            if let v = try? await bridge.loadBlocks(),           !v.isEmpty { blocks      = v }
+            if let v = try? await bridge.loadCaptureItems(),     !v.isEmpty { captureItems = v }
 
             // Start email sync if Graph token is available
             startEmailSyncIfReady()
