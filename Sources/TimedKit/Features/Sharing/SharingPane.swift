@@ -319,6 +319,7 @@ struct SharingPane: View {
         inviteURL = ""
         memberToRemove = nil
         showRemoveConfirmation = false
+        isGenerating = false
         copied = false
         errorMessage = nil
     }

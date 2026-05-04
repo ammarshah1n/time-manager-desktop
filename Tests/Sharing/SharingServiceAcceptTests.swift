@@ -87,6 +87,8 @@ struct SharingPaneRoleGuardTests {
                 "SharingPane must clear stale invite rows on switch and failed/current non-owner reloads")
         #expect(content.contains("inviteURL = \"\""),
                 "Generated invite links must not carry across workspace switches")
+        #expect(content.contains("showRemoveConfirmation = false\n        isGenerating = false\n        copied = false"),
+                "Workspace switches must clear stale invite generation state")
         #expect(content.contains("guard auth.activeOrPrimaryWorkspaceId == workspaceId else { return }\n            members = []"),
                 "Current-workspace member reload failures must clear stale member rows")
         #expect(content.contains("guard auth.activeOrPrimaryWorkspaceId == workspaceId else { return }\n            activeInvites = []"),
