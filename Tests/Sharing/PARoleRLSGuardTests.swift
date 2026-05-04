@@ -88,6 +88,8 @@ struct PARoleRLSGuardTests {
                 "Task completion trigger must exit before the estimation_history insert for PA callers")
         #expect(sql.contains("insert into public.estimation_history"),
                 "Owner/service task completion history must continue to work outside the PA guard")
+        #expect(sql.contains("em.workspace_id = new.workspace_id"),
+                "Task completion trigger must not copy email metadata across workspaces under SECURITY DEFINER")
     }
 
     @Test("PA cannot transfer task ownership out of workspace")

@@ -112,7 +112,10 @@ begin
       NEW.profile_id,
       NEW.bucket_type,
       regexp_split_to_array(lower(coalesce(NEW.title, '')), '[^a-z0-9]+'),
-      (select em.from_address from public.email_messages em where em.id = NEW.source_email_id),
+      (select em.from_address
+       from public.email_messages em
+       where em.id = NEW.source_email_id
+         and em.workspace_id = NEW.workspace_id),
       NEW.estimated_minutes_ai,
       NEW.estimated_minutes_manual,
       NEW.actual_minutes,
