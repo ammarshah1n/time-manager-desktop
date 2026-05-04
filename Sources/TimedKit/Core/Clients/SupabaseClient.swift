@@ -757,12 +757,11 @@ extension SupabaseClientDependency {
                     .upsert(section, onConflict: "id")
                     .execute()
             },
-            fetchTasks: { workspaceId, profileId, status in
+            fetchTasks: { workspaceId, _, status in
                 let rows: [TaskDBRow] = try await client
                     .from("tasks")
                     .select()
                     .eq("workspace_id", value: workspaceId)
-                    .eq("profile_id", value: profileId)
                     .in("status", values: status)
                     .order("due_at", ascending: true, nullsFirst: false)
                     .order("created_at", ascending: false)
