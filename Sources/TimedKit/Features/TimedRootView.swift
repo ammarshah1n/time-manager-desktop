@@ -240,9 +240,11 @@ struct TimedRootView: View {
                 guard auth.activeOrPrimaryWorkspaceId == taskWorkspaceId else { return }
                 tasks = dbTasks.map(TimedTask.init(from:))
             }
-            let loadedTaskSections = (try? await DataBridge.shared.loadTaskSections()) ?? []
-            guard auth.activeOrPrimaryWorkspaceId == taskWorkspaceId else { return }
-            taskSections = loadedTaskSections
+            if let taskWorkspaceId {
+                let sectionRows = (try? await supa.fetchTaskSections(taskWorkspaceId)) ?? []
+                guard auth.activeOrPrimaryWorkspaceId == taskWorkspaceId else { return }
+                taskSections = sectionRows.map(TaskSection.init(from:))
+            }
 
             if let primaryWorkspaceId = auth.workspaceId {
                 let dbEmails = try await supa.fetchEmailMessages(primaryWorkspaceId, "inbox", 100)

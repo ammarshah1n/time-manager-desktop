@@ -72,6 +72,10 @@ struct DataBridgeWorkspaceSwitchTests {
                 "Supabase fetches must accept an expected workspace id")
         #expect(content.contains("auth.activeOrPrimaryWorkspaceId == taskWorkspaceId"),
                 "Supabase fetches must guard the active workspace before assigning task state")
+        #expect(content.contains("supa.fetchTaskSections(taskWorkspaceId)"),
+                "Task sections must be fetched with the same captured workspace id as tasks")
+        #expect(!content.contains("DataBridge.shared.loadTaskSections()) ?? []"),
+                "Root Supabase fetch must not reload sections through global active workspace state")
     }
 
     private func source(_ path: String) throws -> String {
