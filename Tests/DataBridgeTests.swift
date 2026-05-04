@@ -200,6 +200,56 @@ struct DataBridgeTests {
         #expect(diagnosticsA.activePendingCount == 1)
     }
 
+    @Test("offline queue stops replay when active executive changes mid-flush")
+    func testOfflineQueueStopsReplayWhenActiveExecutiveChangesMidFlush() async throws {
+        let previousExecutive = UserDefaults.standard.string(forKey: PlatformPaths.activeExecutiveDefaultsKey)
+        let executiveA = UUID().uuidString
+        let executiveB = UUID().uuidString
+
+        UserDefaults.standard.set(executiveA, forKey: PlatformPaths.activeExecutiveDefaultsKey)
+        let queuePathA = PlatformPaths.sqlite("offline_queue.sqlite")
+        try? FileManager.default.removeItem(at: queuePathA)
+
+        UserDefaults.standard.set(executiveB, forKey: PlatformPaths.activeExecutiveDefaultsKey)
+        let queuePathB = PlatformPaths.sqlite("offline_queue.sqlite")
+        try? FileManager.default.removeItem(at: queuePathB)
+
+        defer {
+            try? FileManager.default.removeItem(at: queuePathA)
+            try? FileManager.default.removeItem(at: queuePathB)
+            restoreActiveExecutive(previousExecutive)
+        }
+
+        UserDefaults.standard.set(executiveA, forKey: PlatformPaths.activeExecutiveDefaultsKey)
+        let queue = OfflineSyncQueue()
+        try await queue.enqueue(
+            operationType: "test.operation",
+            payload: Data(#"{"owner":"a","step":1}"#.utf8),
+            idempotencyKey: "row-1"
+        )
+        try await queue.enqueue(
+            operationType: "test.operation",
+            payload: Data(#"{"owner":"a","step":2}"#.utf8),
+            idempotencyKey: "row-2"
+        )
+
+        let recorder = QueueReplayRecorder()
+        await queue.flush { operationType, payload in
+            await recorder.record(operationType: operationType, payload: payload)
+            UserDefaults.standard.set(executiveB, forKey: PlatformPaths.activeExecutiveDefaultsKey)
+        }
+
+        let entries = await recorder.entries()
+        #expect(entries == [
+            QueueReplayEntry(operationType: "test.operation", payload: #"{"owner":"a","step":1}"#)
+        ])
+
+        UserDefaults.standard.set(executiveA, forKey: PlatformPaths.activeExecutiveDefaultsKey)
+        let diagnosticsA = try await queue.diagnostics()
+        #expect(diagnosticsA.pendingCount == 2)
+        #expect(diagnosticsA.activePendingCount == 2)
+    }
+
     @Test("saveTasks queues failed task upserts")
     func testSaveTasksQueuesFailedTaskUpserts() async throws {
         try await withAuthenticatedTimedStore { executiveID in

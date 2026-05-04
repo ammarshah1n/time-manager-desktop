@@ -29,7 +29,7 @@ actor OfflineSyncQueue {
 
     init() {
         do {
-            let path = PlatformPaths.sqlite("offline_queue.sqlite").path
+            let path = Self.currentScopedDatabasePath()
             let queue = try DatabaseQueue(path: path)
             try Self.createTableIfNeeded(in: queue)
             dbQueue = queue
@@ -83,8 +83,12 @@ actor OfflineSyncQueue {
 
     private static let maxFailures = 3
 
+    private static func currentScopedDatabasePath() -> String {
+        PlatformPaths.sqlite("offline_queue.sqlite").path
+    }
+
     private func openCurrentScopedDatabase() throws {
-        let path = PlatformPaths.sqlite("offline_queue.sqlite").path
+        let path = Self.currentScopedDatabasePath()
         guard dbPath != path else { return }
         let queue = try DatabaseQueue(path: path)
         try Self.createTableIfNeeded(in: queue)
@@ -176,6 +180,7 @@ actor OfflineSyncQueue {
             return
         }
         guard let dbQueue, !isProcessing else { return }
+        let flushPath = dbQueue.path
         isProcessing = true
         defer { isProcessing = false }
 
@@ -193,8 +198,17 @@ actor OfflineSyncQueue {
 
             for (id, opType, payloadJson, prevFailedCount) in pending {
                 guard let payloadData = payloadJson.data(using: .utf8) else { continue }
+                guard Self.currentScopedDatabasePath() == flushPath else {
+                    TimedLogger.dataStore.info("Flush deferred because offline queue scope changed")
+                    break
+                }
+
                 do {
                     try await execute(opType, payloadData)
+                    guard Self.currentScopedDatabasePath() == flushPath else {
+                        TimedLogger.dataStore.info("Flush result left pending because offline queue scope changed")
+                        break
+                    }
                     // Mark as synced
                     try await dbQueue.write { db in
                         try db.execute(
