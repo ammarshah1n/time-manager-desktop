@@ -58,9 +58,15 @@ actor DataBridge {
         let workspaceId = if let requestedWorkspaceId { requestedWorkspaceId } else { await authWorkspaceId }
         let cached = (try? await local.loadTasks()) ?? []
         guard await isCurrentWorkspace(workspaceId, generation: generation) else { return [] }
-        guard await isAuthenticated, await isOnline else { return cached }
-        guard let workspaceId, let profileId = await authProfileId else { return cached }
-        guard let rows = try? await supabaseClient.fetchTasks(workspaceId, profileId, ["pending", "in_progress", "done"]) else {
+        guard await isAuthenticated, await isOnline else {
+            guard await isCurrentWorkspace(workspaceId, generation: generation) else { return [] }
+            return cached
+        }
+        guard let resolvedWorkspaceId = workspaceId, let profileId = await authProfileId else {
+            guard await isCurrentWorkspace(workspaceId, generation: generation) else { return [] }
+            return cached
+        }
+        guard let rows = try? await supabaseClient.fetchTasks(resolvedWorkspaceId, profileId, ["pending", "in_progress", "done"]) else {
             guard await isCurrentWorkspace(workspaceId, generation: generation) else { return [] }
             return cached
         }
@@ -107,9 +113,15 @@ actor DataBridge {
         let workspaceId = if let requestedWorkspaceId { requestedWorkspaceId } else { await authWorkspaceId }
         let cached = (try? await local.loadTaskSections()) ?? []
         guard await isCurrentWorkspace(workspaceId, generation: generation) else { return [] }
-        guard await isAuthenticated, await isOnline else { return cached }
-        guard let workspaceId else { return cached }
-        guard let rows = try? await supabaseClient.fetchTaskSections(workspaceId) else {
+        guard await isAuthenticated, await isOnline else {
+            guard await isCurrentWorkspace(workspaceId, generation: generation) else { return [] }
+            return cached
+        }
+        guard let resolvedWorkspaceId = workspaceId else {
+            guard await isCurrentWorkspace(workspaceId, generation: generation) else { return [] }
+            return cached
+        }
+        guard let rows = try? await supabaseClient.fetchTaskSections(resolvedWorkspaceId) else {
             guard await isCurrentWorkspace(workspaceId, generation: generation) else { return [] }
             return cached
         }
