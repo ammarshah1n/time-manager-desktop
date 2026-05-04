@@ -383,6 +383,40 @@ struct DataBridgeTests {
         }
     }
 
+    @Test("logEstimateOverride writes to captured workspace context")
+    func testLogEstimateOverrideUsesCapturedWorkspaceContext() async throws {
+        let recorder = BehaviourEventRecorder()
+
+        try await withAuthenticatedTimedStore { executiveID in
+            let otherWorkspaceID = UUID()
+            try await withDependencies {
+                var dependency = SupabaseClientDependency()
+                dependency.insertBehaviourEvent = { event in await recorder.record(event) }
+                $0.supabaseClient = dependency
+            } operation: {
+                let bridge = DataBridge()
+                let task = makeTask(title: "Bound event", bucket: .action)
+                let context = TaskBehaviourEventContext(workspaceId: executiveID, profileId: executiveID)
+
+                await MainActor.run {
+                    AuthService.shared.activeWorkspaceId = otherWorkspaceID
+                }
+                try await bridge.logEstimateOverride(
+                    task: task,
+                    oldMinutes: 45,
+                    newMinutes: 30,
+                    context: context
+                )
+
+                let event = try #require(await recorder.events().first)
+                #expect(event.workspaceId == executiveID)
+                #expect(event.profileId == executiveID)
+                #expect(event.taskId == task.id)
+                #expect(event.eventType == "estimate_override")
+            }
+        }
+    }
+
     @Test("updateManualImportance logs correction event")
     func testUpdateManualImportanceLogsCorrectionEvent() async throws {
         let recorder = BehaviourEventRecorder()
@@ -712,11 +746,13 @@ private func withAuthenticatedTimedStore<T>(_ operation: (UUID) async throws -> 
         let snapshot = AuthSnapshot(
             isSignedIn: AuthService.shared.isSignedIn,
             executiveId: AuthService.shared.executiveId,
+            activeWorkspaceId: AuthService.shared.activeWorkspaceId,
             isConnected: NetworkMonitor.shared.isConnected,
             activeExecutive: UserDefaults.standard.string(forKey: PlatformPaths.activeExecutiveDefaultsKey)
         )
         AuthService.shared.isSignedIn = true
         AuthService.shared.executiveId = executiveID
+        AuthService.shared.activeWorkspaceId = executiveID
         NetworkMonitor.shared.isConnected = true
         UserDefaults.standard.set(executiveID.uuidString, forKey: PlatformPaths.activeExecutiveDefaultsKey)
         return snapshot
@@ -743,6 +779,7 @@ private func resetOfflineQueueStore() {
 private func restoreAuthSnapshot(_ snapshot: AuthSnapshot) {
     AuthService.shared.isSignedIn = snapshot.isSignedIn
     AuthService.shared.executiveId = snapshot.executiveId
+    AuthService.shared.activeWorkspaceId = snapshot.activeWorkspaceId
     NetworkMonitor.shared.isConnected = snapshot.isConnected
     restoreActiveExecutive(snapshot.activeExecutive)
 }
@@ -758,6 +795,7 @@ private func restoreActiveExecutive(_ value: String?) {
 private struct AuthSnapshot: Sendable {
     let isSignedIn: Bool
     let executiveId: UUID?
+    let activeWorkspaceId: UUID?
     let isConnected: Bool
     let activeExecutive: String?
 }

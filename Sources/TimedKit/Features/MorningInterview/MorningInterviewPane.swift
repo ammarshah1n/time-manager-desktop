@@ -2072,12 +2072,16 @@ struct MorningInterviewPane: View {
                 tasks[idx].estimatedMinutes = mins
                 if oldMinutes != mins {
                     let updatedTask = tasks[idx]
-                    Task {
-                        try? await DataBridge.shared.logEstimateOverride(
-                            task: updatedTask,
-                            oldMinutes: oldMinutes,
-                            newMinutes: mins
-                        )
+                    let eventContext = TaskBehaviourEventContext.current()
+                    if let eventContext {
+                        Task {
+                            try? await DataBridge.shared.logEstimateOverride(
+                                task: updatedTask,
+                                oldMinutes: oldMinutes,
+                                newMinutes: mins,
+                                context: eventContext
+                            )
+                        }
                     }
                 }
             }

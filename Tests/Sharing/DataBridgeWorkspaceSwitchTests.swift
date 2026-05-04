@@ -113,6 +113,12 @@ struct DataBridgeWorkspaceSwitchTests {
                 "DataBridge task mutators must carry workspace id from read to write")
         #expect(occurrences(of: "guard await isCurrentWorkspace(workspaceId, generation: generation) else { return [] }", in: bridge) >= 2,
                 "Remote task and section load completions must revalidate workspace generation before caching")
+        #expect(bridge.contains("struct TaskBehaviourEventContext"),
+                "Behaviour event logging must support captured workspace context")
+        #expect(bridge.contains("context: TaskBehaviourEventContext?"),
+                "Behaviour event calls must be able to pass captured workspace context")
+        #expect(!bridge.contains("guard let wsId = await authWorkspaceId, let profileId = await authProfileId else { return nil }"),
+                "Behaviour events must not always resolve workspace/profile at log time")
         #expect(!bridge.contains("if !tasks.isEmpty"),
                 "Successful empty remote task fetches must clear stale local task cache")
         #expect(!bridge.contains("if !sections.isEmpty"),

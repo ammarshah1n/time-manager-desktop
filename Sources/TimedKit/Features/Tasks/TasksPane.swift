@@ -250,10 +250,13 @@ struct TasksPane: View {
         tasks[index].estimateSource = .manual
         tasks[index].estimateBasis = nil
         let updatedTask = tasks[index]
+        let eventContext = TaskBehaviourEventContext.current()
+        guard let eventContext else { return nil }
         return try? await DataBridge.shared.logEstimateOverride(
             task: updatedTask,
             oldMinutes: oldMinutes,
-            newMinutes: minutes
+            newMinutes: minutes,
+            context: eventContext
         )
     }
 
@@ -263,11 +266,14 @@ struct TasksPane: View {
         guard oldImportance != importance else { return }
         tasks[index].manualImportance = importance
         let updatedTask = tasks[index]
+        let eventContext = TaskBehaviourEventContext.current()
+        guard let eventContext else { return }
         Task {
             try? await DataBridge.shared.logManualImportanceChanged(
                 task: updatedTask,
                 oldImportance: oldImportance,
-                newImportance: importance
+                newImportance: importance,
+                context: eventContext
             )
         }
     }
@@ -278,8 +284,14 @@ struct TasksPane: View {
         guard oldBucket != newBucket else { return }
         tasks[index] = tasks[index].withBucket(newBucket, sectionId: nil)
         let updatedTask = tasks[index]
+        let eventContext = TaskBehaviourEventContext.current()
+        guard let eventContext else { return }
         Task {
-            try? await DataBridge.shared.logTaskBucketChanged(task: updatedTask, oldBucket: oldBucket)
+            try? await DataBridge.shared.logTaskBucketChanged(
+                task: updatedTask,
+                oldBucket: oldBucket,
+                context: eventContext
+            )
         }
     }
 
@@ -334,7 +346,11 @@ struct TasksPane: View {
         )
         tasks.append(task)
         if let parent {
-            Task { try? await DataBridge.shared.logSubtaskCreated(parent: parent, child: task) }
+            let eventContext = TaskBehaviourEventContext.current()
+            guard let eventContext else { return }
+            Task {
+                try? await DataBridge.shared.logSubtaskCreated(parent: parent, child: task, context: eventContext)
+            }
         }
     }
 

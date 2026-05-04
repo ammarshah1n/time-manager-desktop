@@ -267,19 +267,30 @@ struct TaskDetailSheet: View {
     private func logCorrectionsAndDismiss() {
         if let oldMinutes = originalEstimatedMinutes, oldMinutes != task.estimatedMinutes {
             let updatedTask = task
-            Task {
-                try? await DataBridge.shared.logEstimateOverride(
-                    task: updatedTask,
-                    oldMinutes: oldMinutes,
-                    newMinutes: updatedTask.estimatedMinutes
-                )
+            let eventContext = TaskBehaviourEventContext.current()
+            if let eventContext {
+                Task {
+                    try? await DataBridge.shared.logEstimateOverride(
+                        task: updatedTask,
+                        oldMinutes: oldMinutes,
+                        newMinutes: updatedTask.estimatedMinutes,
+                        context: eventContext
+                    )
+                }
             }
         }
 
         if let oldBucket = originalBucket, oldBucket != task.bucket {
             let updatedTask = task
-            Task {
-                try? await DataBridge.shared.logTaskBucketChanged(task: updatedTask, oldBucket: oldBucket)
+            let eventContext = TaskBehaviourEventContext.current()
+            if let eventContext {
+                Task {
+                    try? await DataBridge.shared.logTaskBucketChanged(
+                        task: updatedTask,
+                        oldBucket: oldBucket,
+                        context: eventContext
+                    )
+                }
             }
         }
 

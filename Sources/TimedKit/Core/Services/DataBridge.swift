@@ -9,6 +9,27 @@ import Dependencies
 import os
 import Supabase
 
+struct TaskBehaviourEventContext: Sendable {
+    let workspaceId: UUID
+    let profileId: UUID
+    fileprivate let generation: Int?
+
+    init(workspaceId: UUID, profileId: UUID, generation: Int? = nil) {
+        self.workspaceId = workspaceId
+        self.profileId = profileId
+        self.generation = generation
+    }
+
+    @MainActor
+    static func current() -> TaskBehaviourEventContext? {
+        guard let workspaceId = AuthService.shared.activeOrPrimaryWorkspaceId,
+              let profileId = AuthService.shared.profileId else {
+            return nil
+        }
+        return TaskBehaviourEventContext(workspaceId: workspaceId, profileId: profileId)
+    }
+}
+
 actor DataBridge {
     static let shared = DataBridge()
 
@@ -117,12 +138,15 @@ actor DataBridge {
     func markDone(id: UUID) async throws -> [TimedTask] {
         let generation = workspaceGeneration
         let workspaceId = await authWorkspaceId
+        let eventContext = await taskBehaviourEventContext(workspaceId: workspaceId, generation: generation)
         var tasks = try await loadTasks(workspaceId: workspaceId)
         guard let index = tasks.firstIndex(where: { $0.id == id }) else { return tasks }
         tasks[index].isDone = true
         try await saveTasks(tasks, workspaceId: workspaceId)
         guard await isCurrentWorkspace(workspaceId, generation: generation) else { return [] }
-        try? await logTaskCompleted(task: tasks[index])
+        if let eventContext {
+            try? await logTaskCompleted(task: tasks[index], context: eventContext)
+        }
         return tasks
     }
 
@@ -138,39 +162,58 @@ actor DataBridge {
     func moveBucket(id: UUID, to bucket: TaskBucket) async throws -> [TimedTask] {
         let generation = workspaceGeneration
         let workspaceId = await authWorkspaceId
+        let eventContext = await taskBehaviourEventContext(workspaceId: workspaceId, generation: generation)
         var tasks = try await loadTasks(workspaceId: workspaceId)
         guard let index = tasks.firstIndex(where: { $0.id == id }) else { return tasks }
         let oldBucket = tasks[index].bucket
         tasks[index] = rebuilt(tasks[index], bucket: bucket)
         try await saveTasks(tasks, workspaceId: workspaceId)
         guard await isCurrentWorkspace(workspaceId, generation: generation) else { return [] }
-        try? await logTaskBucketChanged(task: tasks[index], oldBucket: oldBucket)
+        if let eventContext {
+            try? await logTaskBucketChanged(task: tasks[index], oldBucket: oldBucket, context: eventContext)
+        }
         return tasks
     }
 
     func updateEstimate(id: UUID, minutes: Int) async throws -> [TimedTask] {
         let generation = workspaceGeneration
         let workspaceId = await authWorkspaceId
+        let eventContext = await taskBehaviourEventContext(workspaceId: workspaceId, generation: generation)
         var tasks = try await loadTasks(workspaceId: workspaceId)
         guard let index = tasks.firstIndex(where: { $0.id == id }) else { return tasks }
         let oldMinutes = tasks[index].estimatedMinutes
         tasks[index].estimatedMinutes = minutes
         try await saveTasks(tasks, workspaceId: workspaceId)
         guard await isCurrentWorkspace(workspaceId, generation: generation) else { return [] }
-        try? await logEstimateOverride(task: tasks[index], oldMinutes: oldMinutes, newMinutes: minutes)
+        if let eventContext {
+            try? await logEstimateOverride(
+                task: tasks[index],
+                oldMinutes: oldMinutes,
+                newMinutes: minutes,
+                context: eventContext
+            )
+        }
         return tasks
     }
 
     func updateManualImportance(id: UUID, importance: TaskManualImportance) async throws -> [TimedTask] {
         let generation = workspaceGeneration
         let workspaceId = await authWorkspaceId
+        let eventContext = await taskBehaviourEventContext(workspaceId: workspaceId, generation: generation)
         var tasks = try await loadTasks(workspaceId: workspaceId)
         guard let index = tasks.firstIndex(where: { $0.id == id }) else { return tasks }
         let oldImportance = tasks[index].effectiveManualImportance
         tasks[index].manualImportance = importance
         try await saveTasks(tasks, workspaceId: workspaceId)
         guard await isCurrentWorkspace(workspaceId, generation: generation) else { return [] }
-        try? await logManualImportanceChanged(task: tasks[index], oldImportance: oldImportance, newImportance: importance)
+        if let eventContext {
+            try? await logManualImportanceChanged(
+                task: tasks[index],
+                oldImportance: oldImportance,
+                newImportance: importance,
+                context: eventContext
+            )
+        }
         return tasks
     }
 
@@ -194,14 +237,20 @@ actor DataBridge {
     }
 
     @discardableResult
-    func logEstimateOverride(task: TimedTask, oldMinutes: Int, newMinutes: Int) async throws -> UUID? {
+    func logEstimateOverride(
+        task: TimedTask,
+        oldMinutes: Int,
+        newMinutes: Int,
+        context: TaskBehaviourEventContext? = nil
+    ) async throws -> UUID? {
         guard oldMinutes != newMinutes else { return nil }
         return try await insertTaskBehaviourEvent(
             task: task,
             eventType: "estimate_override",
             oldValue: "\(oldMinutes)",
             newValue: "\(newMinutes)",
-            metadata: ["field": "estimated_minutes"]
+            metadata: ["field": "estimated_minutes"],
+            context: context
         )
     }
 
@@ -218,24 +267,31 @@ actor DataBridge {
         }
     }
 
-    func logTaskSectionChanged(task: TimedTask, oldSectionId: UUID?, newSectionId: UUID?) async throws {
+    func logTaskSectionChanged(
+        task: TimedTask,
+        oldSectionId: UUID?,
+        newSectionId: UUID?,
+        context: TaskBehaviourEventContext? = nil
+    ) async throws {
         guard oldSectionId != newSectionId else { return }
         try await insertTaskBehaviourEvent(
             task: task,
             eventType: "task_section_changed",
             oldValue: oldSectionId?.uuidString,
             newValue: newSectionId?.uuidString,
-            metadata: ["field": "section_id"]
+            metadata: ["field": "section_id"],
+            context: context
         )
     }
 
-    func logSubtaskCreated(parent: TimedTask, child: TimedTask) async throws {
+    func logSubtaskCreated(parent: TimedTask, child: TimedTask, context: TaskBehaviourEventContext? = nil) async throws {
         try await insertTaskBehaviourEvent(
             task: child,
             eventType: "subtask_created",
             oldValue: nil,
             newValue: child.id.uuidString,
-            metadata: ["parent_task_id": parent.id.uuidString]
+            metadata: ["parent_task_id": parent.id.uuidString],
+            context: context
         )
     }
 
@@ -472,36 +528,62 @@ actor DataBridge {
         get async { await MainActor.run { AuthService.shared.profileId } }
     }
 
+    func taskBehaviourEventContext(workspaceId requestedWorkspaceId: UUID? = nil) async -> TaskBehaviourEventContext? {
+        let workspaceId = if let requestedWorkspaceId { requestedWorkspaceId } else { await authWorkspaceId }
+        guard let workspaceId, let profileId = await authProfileId else { return nil }
+        return TaskBehaviourEventContext(workspaceId: workspaceId, profileId: profileId, generation: workspaceGeneration)
+    }
+
+    private func taskBehaviourEventContext(
+        workspaceId: UUID?,
+        generation: Int
+    ) async -> TaskBehaviourEventContext? {
+        guard let workspaceId, let profileId = await authProfileId else { return nil }
+        return TaskBehaviourEventContext(workspaceId: workspaceId, profileId: profileId, generation: generation)
+    }
+
     private func isCurrentWorkspace(_ workspaceId: UUID?, generation: Int) async -> Bool {
         guard workspaceGeneration == generation else { return false }
         return await authWorkspaceId == workspaceId
     }
 
-    private func logTaskCompleted(task: TimedTask) async throws {
+    private func isCurrentWorkspace(_ context: TaskBehaviourEventContext) async -> Bool {
+        guard let generation = context.generation else { return true }
+        return await isCurrentWorkspace(context.workspaceId, generation: generation)
+    }
+
+    private func logTaskCompleted(task: TimedTask, context: TaskBehaviourEventContext) async throws {
         try await insertTaskBehaviourEvent(
             task: task,
             eventType: task.parentTaskId == nil ? "task_completed" : "subtask_completed",
             oldValue: "pending",
             newValue: "done",
-            metadata: ["field": "status"]
+            metadata: ["field": "status"],
+            context: context
         )
     }
 
-    func logTaskBucketChanged(task: TimedTask, oldBucket: TaskBucket) async throws {
+    func logTaskBucketChanged(
+        task: TimedTask,
+        oldBucket: TaskBucket,
+        context: TaskBehaviourEventContext? = nil
+    ) async throws {
         guard oldBucket != task.bucket else { return }
         try await insertTaskBehaviourEvent(
             task: task,
             eventType: "task_section_changed",
             oldValue: oldBucket.dbValue,
             newValue: task.bucket.dbValue,
-            metadata: ["field": "bucket_type"]
+            metadata: ["field": "bucket_type"],
+            context: context
         )
     }
 
     func logManualImportanceChanged(
         task: TimedTask,
         oldImportance: TaskManualImportance,
-        newImportance: TaskManualImportance
+        newImportance: TaskManualImportance,
+        context: TaskBehaviourEventContext? = nil
     ) async throws {
         guard oldImportance != newImportance else { return }
         try await insertTaskBehaviourEvent(
@@ -509,7 +591,8 @@ actor DataBridge {
             eventType: "manual_importance_changed",
             oldValue: oldImportance.rawValue,
             newValue: newImportance.rawValue,
-            metadata: ["field": "manual_importance"]
+            metadata: ["field": "manual_importance"],
+            context: context
         )
     }
 
@@ -519,14 +602,23 @@ actor DataBridge {
         eventType: String,
         oldValue: String?,
         newValue: String?,
-        metadata: [String: String]
+        metadata: [String: String],
+        context: TaskBehaviourEventContext? = nil
     ) async throws -> UUID? {
         guard await isAuthenticated else { return nil }
-        guard let wsId = await authWorkspaceId, let profileId = await authProfileId else { return nil }
+        let eventContext: TaskBehaviourEventContext
+        if let context {
+            guard await isCurrentWorkspace(context) else { return nil }
+            eventContext = context
+        } else {
+            guard let currentContext = await taskBehaviourEventContext() else { return nil }
+            guard await isCurrentWorkspace(currentContext) else { return nil }
+            eventContext = currentContext
+        }
         let now = Date()
         let event = BehaviourEventInsert(
-            workspaceId: wsId,
-            profileId: profileId,
+            workspaceId: eventContext.workspaceId,
+            profileId: eventContext.profileId,
             eventType: eventType,
             taskId: task.id,
             sectionId: task.sectionId,

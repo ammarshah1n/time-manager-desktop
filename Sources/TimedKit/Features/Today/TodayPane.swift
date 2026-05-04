@@ -114,11 +114,14 @@ struct TodayPane: View {
         guard oldMinutes != minutes else { return }
         tasks[index].estimatedMinutes = minutes
         let updatedTask = tasks[index]
+        let eventContext = TaskBehaviourEventContext.current()
+        guard let eventContext else { return }
         Task {
             try? await DataBridge.shared.logEstimateOverride(
                 task: updatedTask,
                 oldMinutes: oldMinutes,
-                newMinutes: minutes
+                newMinutes: minutes,
+                context: eventContext
             )
         }
     }
@@ -793,12 +796,11 @@ struct TodayPane: View {
                             completedIds.remove(task.id)
 
                             // Log task_deferred behaviour event
-                            if let wsId = AuthService.shared.activeOrPrimaryWorkspaceId,
-                               let profileId = AuthService.shared.profileId {
+                            if let eventContext = TaskBehaviourEventContext.current() {
                                 Task {
                                     @Dependency(\.supabaseClient) var supa
                                     let event = BehaviourEventInsert(
-                                        workspaceId: wsId, profileId: profileId,
+                                        workspaceId: eventContext.workspaceId, profileId: eventContext.profileId,
                                         eventType: "task_deferred", taskId: task.id,
                                         bucketType: task.bucket.dbValue,
                                         hourOfDay: Calendar.current.component(.hour, from: Date()),
@@ -1035,12 +1037,11 @@ struct TodayTaskRow: View {
                             completedIds.remove(task.id)
 
                             // Log task_deferred behaviour event (un-completing = deferring)
-                            if let wsId = AuthService.shared.activeOrPrimaryWorkspaceId,
-                               let profileId = AuthService.shared.profileId {
+                            if let eventContext = TaskBehaviourEventContext.current() {
                                 Task {
                                     @Dependency(\.supabaseClient) var supa
                                     let event = BehaviourEventInsert(
-                                        workspaceId: wsId, profileId: profileId,
+                                        workspaceId: eventContext.workspaceId, profileId: eventContext.profileId,
                                         eventType: "task_deferred", taskId: task.id,
                                         bucketType: task.bucket.dbValue,
                                         hourOfDay: Calendar.current.component(.hour, from: Date()),
@@ -1078,6 +1079,7 @@ struct TodayTaskRow: View {
                             .frame(minWidth: 50)
                     }
                     Button("Save") {
+                        let eventContext = TaskBehaviourEventContext.current()
                         let record = CompletionRecord(
                             id: UUID(),
                             taskId: task.id,
@@ -1107,11 +1109,10 @@ struct TodayTaskRow: View {
                             try? await store.saveBucketEstimates(estimates)
 
                             // Log behaviour event + sync EMA to Supabase
-                            if let wsId = AuthService.shared.activeOrPrimaryWorkspaceId,
-                               let profileId = AuthService.shared.profileId {
+                            if let eventContext {
                                 @Dependency(\.supabaseClient) var supa
                                 let event = BehaviourEventInsert(
-                                    workspaceId: wsId, profileId: profileId,
+                                    workspaceId: eventContext.workspaceId, profileId: eventContext.profileId,
                                     eventType: "task_completed", taskId: task.id,
                                     bucketType: task.bucket.dbValue,
                                     hourOfDay: Calendar.current.component(.hour, from: Date()),
@@ -1119,7 +1120,13 @@ struct TodayTaskRow: View {
                                     oldValue: nil, newValue: "\(actualMinutes)"
                                 )
                                 try? await supa.insertBehaviourEvent(event)
-                                try? await supa.upsertBucketEstimate(wsId, profileId, task.bucket.dbValue, est.meanMinutes, est.sampleCount)
+                                try? await supa.upsertBucketEstimate(
+                                    eventContext.workspaceId,
+                                    eventContext.profileId,
+                                    task.bucket.dbValue,
+                                    est.meanMinutes,
+                                    est.sampleCount
+                                )
 
                                 // Update tasks.actual_minutes — DB trigger auto-inserts to estimation_history
                                 try? await supa.updateTaskActualMinutes(task.id, actualMinutes)
