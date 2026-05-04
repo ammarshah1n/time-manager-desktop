@@ -127,9 +127,35 @@ After writing, call `mcp__basic-memory__write_note` to make it retrievable.
 
 ## Phase 9 (Verify) Timed-specific overrides
 
-The global Phase 9 spawns a subagent that tests the handoff. For Timed sessions, also include this question in the subagent prompt:
+The global Phase 9 spawns a Haiku subagent that tests the handoff. For Timed sessions, keep the global single-bash discipline. Do not add `Open`, `Read`, MCP, or a second `bash:` instruction.
 
-> Question C: Open `~/time-manager-desktop/HANDOFF.md` and confirm the trunk branch is `unified` (per `CLAUDE.md` mandatory rule #1) and that the three unblock chains (DMG to Yasser / Wave 2 nightly engine / Apple Developer enrollment) are listed with their current state. PASS if all three present and current; FAIL if any missing or stale.
+When substituting the global Phase 9 prompt, insert these lines inside the existing single bash block after the file-existence guards:
+
+```sh
+  TIMED_HANDOFF="$HOME/time-manager-desktop/HANDOFF.md"
+  [ -f "$TIMED_HANDOFF" ] || { echo "ERROR: Timed HANDOFF not found at $TIMED_HANDOFF"; exit 1; }
+```
+
+Then insert this check before the D-check loop or after it:
+
+```sh
+  echo "===TIMED-HANDOFF-CHECKS==="
+  for p in "unified" "DMG to Yasser" "Wave 2 nightly engine" "Apple Developer enrollment"; do
+    if grep -qF "$p" "$TIMED_HANDOFF"; then
+      printf "TIMED:%s: present\n" "$p"
+    else
+      printf "TIMED:%s: missing\n" "$p"
+    fi
+  done
+```
+
+Add this as the final answer question:
+
+> D. Are all `TIMED:*` checks present? Yes or no.
+
+Add this as the final rubric item:
+
+> `(4) Each TIMED check printed "present"; any "missing" is FAIL.`
 
 The Timed wrap-up cannot pass verify if the unified-branch invariant or the three-chain structure is broken in the HANDOFF.
 
