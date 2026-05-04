@@ -25,14 +25,25 @@ struct SharingPane: View {
         return !url.contains("fake.supabase.co")
     }
 
+    private var activeWorkspaceRole: String? {
+        guard let id = auth.activeOrPrimaryWorkspaceId else { return nil }
+        return auth.availableWorkspaces.first(where: { $0.id == id })?.role
+    }
+
+    private var isActiveWorkspaceOwner: Bool {
+        activeWorkspaceRole == "owner"
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             if !isConnected {
                 disconnectedBanner
             } else {
                 statusIndicator
-                inviteSection
-                activeInvitesSection
+                if isActiveWorkspaceOwner {
+                    inviteSection
+                    activeInvitesSection
+                }
                 membersSection
                 leaveWorkspaceSection
             }
@@ -41,6 +52,12 @@ struct SharingPane: View {
         .task {
             await loadMembers()
             await loadInvites()
+        }
+        .onChange(of: auth.activeWorkspaceId) { _, _ in
+            Task {
+                await loadMembers()
+                await loadInvites()
+            }
         }
         .alert("Remove Member", isPresented: $showRemoveConfirmation, presenting: memberToRemove) { member in
             Button("Remove", role: .destructive) { Task { await removeMember(member) } }
@@ -259,7 +276,7 @@ struct SharingPane: View {
 
             Spacer()
 
-            if member.role != "owner" {
+            if isActiveWorkspaceOwner && member.role != "owner" {
                 Button("Remove", role: .destructive) {
                     memberToRemove = member
                     showRemoveConfirmation = true
@@ -309,6 +326,10 @@ struct SharingPane: View {
 
     private func loadInvites() async {
         guard isConnected, let workspaceId = auth.activeOrPrimaryWorkspaceId else { return }
+        guard isActiveWorkspaceOwner else {
+            activeInvites = []
+            return
+        }
         do {
             activeInvites = try await SharingService.shared.fetchInvites(workspaceId: workspaceId)
         } catch {
@@ -319,6 +340,10 @@ struct SharingPane: View {
     private func generateAndShare() async {
         guard let workspaceId = auth.activeOrPrimaryWorkspaceId else {
             errorMessage = "Not signed in — no workspace available."
+            return
+        }
+        guard isActiveWorkspaceOwner else {
+            errorMessage = "Only the workspace owner can create invite links."
             return
         }
         isGenerating = true

@@ -32,6 +32,29 @@ struct SharingServiceAcceptTests {
     }
 }
 
+@Suite("SharingPane role guards")
+struct SharingPaneRoleGuardTests {
+    @Test("member removal is owner gated")
+    func memberRemovalIsOwnerGated() throws {
+        let content = try source("Sources/TimedKit/Features/Sharing/SharingPane.swift")
+        #expect(content.contains("isActiveWorkspaceOwner"),
+                "SharingPane must derive the active workspace role")
+        #expect(content.contains("if isActiveWorkspaceOwner && member.role != \"owner\""),
+                "Remove button must be owner-only")
+    }
+
+    @Test("sharing pane reloads when active workspace changes")
+    func reloadsOnWorkspaceChange() throws {
+        let content = try source("Sources/TimedKit/Features/Sharing/SharingPane.swift")
+        #expect(content.contains(".onChange(of: auth.activeWorkspaceId)"),
+                "SharingPane must reload members and invites after workspace switch")
+    }
+
+    private func source(_ path: String) throws -> String {
+        try String(contentsOf: URL(fileURLWithPath: path))
+    }
+}
+
 private actor AcceptInviteRecorder {
     private var recordedCodes: [String] = []
 
