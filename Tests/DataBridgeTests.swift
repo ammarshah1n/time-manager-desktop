@@ -136,7 +136,7 @@ struct DataBridgeTests {
             #expect(before.pendingCount == 1)
             #expect(before.activePendingCount == 1)
 
-            await queue.flush { operationType, payload in
+            await queue.flush { operationType, payload, _ in
                 await recorder.record(operationType: operationType, payload: payload)
             }
 
@@ -185,7 +185,7 @@ struct DataBridgeTests {
         )
 
         let recorder = QueueReplayRecorder()
-        await queue.flush { operationType, payload in
+        await queue.flush { operationType, payload, _ in
             await recorder.record(operationType: operationType, payload: payload)
         }
 
@@ -234,7 +234,7 @@ struct DataBridgeTests {
         )
 
         let recorder = QueueReplayRecorder()
-        await queue.flush { operationType, payload in
+        await queue.flush { operationType, payload, _ in
             await recorder.record(operationType: operationType, payload: payload)
             UserDefaults.standard.set(executiveB, forKey: PlatformPaths.activeExecutiveDefaultsKey)
         }
@@ -248,6 +248,52 @@ struct DataBridgeTests {
         let diagnosticsA = try await queue.diagnostics()
         #expect(diagnosticsA.pendingCount == 2)
         #expect(diagnosticsA.activePendingCount == 2)
+    }
+
+    @Test("offline replay defers if scope changes inside handler")
+    func testOfflineReplayDefersIfScopeChangesInsideHandler() async throws {
+        let previousExecutive = UserDefaults.standard.string(forKey: PlatformPaths.activeExecutiveDefaultsKey)
+        let executiveA = UUID().uuidString
+        let executiveB = UUID().uuidString
+
+        UserDefaults.standard.set(executiveA, forKey: PlatformPaths.activeExecutiveDefaultsKey)
+        let queuePathA = PlatformPaths.sqlite("offline_queue.sqlite")
+        try? FileManager.default.removeItem(at: queuePathA)
+
+        UserDefaults.standard.set(executiveB, forKey: PlatformPaths.activeExecutiveDefaultsKey)
+        let queuePathB = PlatformPaths.sqlite("offline_queue.sqlite")
+        try? FileManager.default.removeItem(at: queuePathB)
+
+        defer {
+            try? FileManager.default.removeItem(at: queuePathA)
+            try? FileManager.default.removeItem(at: queuePathB)
+            restoreActiveExecutive(previousExecutive)
+        }
+
+        UserDefaults.standard.set(executiveA, forKey: PlatformPaths.activeExecutiveDefaultsKey)
+        let queue = OfflineSyncQueue()
+        try await queue.enqueue(
+            operationType: "test.operation",
+            payload: Data(#"{"owner":"a"}"#.utf8),
+            idempotencyKey: "row-1"
+        )
+
+        let recorder = QueueReplayRecorder()
+        await queue.flush { operationType, payload, expectedQueuePath in
+            #expect(expectedQueuePath == queuePathA.path)
+            UserDefaults.standard.set(executiveB, forKey: PlatformPaths.activeExecutiveDefaultsKey)
+            guard OfflineSyncQueue.isCurrentScope(expectedQueuePath) else {
+                throw OfflineSyncQueue.QueueError.replayDeferred("scope changed")
+            }
+            await recorder.record(operationType: operationType, payload: payload)
+        }
+
+        #expect(await recorder.entries().isEmpty)
+
+        UserDefaults.standard.set(executiveA, forKey: PlatformPaths.activeExecutiveDefaultsKey)
+        let diagnosticsA = try await queue.diagnostics()
+        #expect(diagnosticsA.pendingCount == 1)
+        #expect(diagnosticsA.activePendingCount == 1)
     }
 
     @Test("saveTasks queues failed task upserts")

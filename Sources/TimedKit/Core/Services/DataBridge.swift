@@ -446,11 +446,15 @@ actor DataBridge {
     // MARK: - Offline Replay
 
     func startOfflineReplay() async {
-        await offlineQueue.startMonitoring { [weak self] operationType, payload in
+        await offlineQueue.startMonitoring { [weak self] operationType, payload, expectedQueuePath in
             guard let self else {
                 throw OfflineSyncQueue.QueueError.replayDeferred("DataBridge unavailable")
             }
-            try await self.replayQueuedOperation(operationType: operationType, payload: payload)
+            try await self.replayQueuedOperation(
+                operationType: operationType,
+                payload: payload,
+                expectedQueuePath: expectedQueuePath
+            )
         }
     }
 
@@ -535,42 +539,55 @@ actor DataBridge {
         )
     }
 
-    private func replayQueuedOperation(operationType: String, payload: Data) async throws {
+    private func replayQueuedOperation(
+        operationType: String,
+        payload: Data,
+        expectedQueuePath: String
+    ) async throws {
         guard await isAuthenticated else {
             throw OfflineSyncQueue.QueueError.replayDeferred("No signed-in executive for offline replay")
         }
+        try ensureOfflineReplayScope(expectedQueuePath)
         guard await isOnline else {
             throw OfflineSyncQueue.QueueError.replayDeferred("Network is offline")
         }
+        try ensureOfflineReplayScope(expectedQueuePath)
 
         let decoder = Self.queueDecoder()
         switch operationType {
         case "task_sections.upsert":
             let row = try decoder.decode(TaskSectionDBRow.self, from: payload)
-            try await replayTaskSection(row)
+            try await replayTaskSection(row, expectedQueuePath: expectedQueuePath)
         case "tasks.upsert":
             let row = try decoder.decode(TaskDBRow.self, from: payload)
+            try ensureOfflineReplayScope(expectedQueuePath)
             try await supabaseClient.upsertTask(row)
         case "tasks.status":
             let update = try decoder.decode(TaskStatusQueuePayload.self, from: payload)
+            try ensureOfflineReplayScope(expectedQueuePath)
             try await supabaseClient.updateTaskStatus(update.taskId, update.status, update.actualMinutes)
         case "behaviour_events.insert":
             let event = try decoder.decode(BehaviourEventInsert.self, from: payload)
+            try ensureOfflineReplayScope(expectedQueuePath)
             _ = try await supabaseClient.insertBehaviourEvent(event)
         case "behaviour_events.attach_reason":
             let update = try decoder.decode(BehaviourEventReasonQueuePayload.self, from: payload)
+            try ensureOfflineReplayScope(expectedQueuePath)
             try await supabaseClient.attachReasonToBehaviourEvent(update.eventId, update.reason)
         case "email_observations.insert":
             let row = try decoder.decode(EmailObservationRow.self, from: payload)
+            try ensureOfflineReplayScope(expectedQueuePath)
             try await supabaseClient.insertEmailObservation(row)
         case "calendar_observations.insert":
             let row = try decoder.decode(CalendarObservationRow.self, from: payload)
+            try ensureOfflineReplayScope(expectedQueuePath)
             try await supabaseClient.insertCalendarObservation(row)
         case "tier0_observations.insert":
             guard let client = supabaseClient.rawClient else {
                 throw OfflineSyncQueue.QueueError.replayDeferred("Supabase client unavailable")
             }
             let observation = try decoder.decode(Tier0Observation.self, from: payload)
+            try ensureOfflineReplayScope(expectedQueuePath)
             try await client
                 .from("tier0_observations")
                 .upsert([observation], onConflict: "idempotency_key")
@@ -580,8 +597,15 @@ actor DataBridge {
         }
     }
 
-    private func replayTaskSection(_ row: TaskSectionDBRow) async throws {
+    private func ensureOfflineReplayScope(_ expectedQueuePath: String) throws {
+        guard OfflineSyncQueue.isCurrentScope(expectedQueuePath) else {
+            throw OfflineSyncQueue.QueueError.replayDeferred("Offline replay scope changed")
+        }
+    }
+
+    private func replayTaskSection(_ row: TaskSectionDBRow, expectedQueuePath: String) async throws {
         let currentProfileId = await authProfileId
+        try ensureOfflineReplayScope(expectedQueuePath)
         if let rowProfileId = row.profileId, rowProfileId != currentProfileId {
             try await supabaseClient.updateTaskSection(row)
             return

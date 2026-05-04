@@ -23,7 +23,7 @@ actor OfflineSyncQueue {
     private let maxBackoff: TimeInterval = 300.0 // 5 minutes
     private let retentionDays = 7
     private let maxSizeBytes: UInt64 = 50_000_000 // ~50MB
-    private var syncHandler: (@Sendable (String, Data) async throws -> Void)?
+    private var syncHandler: (@Sendable (String, Data, String) async throws -> Void)?
     private var monitorTask: Task<Void, Never>?
     private var dbPath: String?
 
@@ -87,6 +87,10 @@ actor OfflineSyncQueue {
         PlatformPaths.sqlite("offline_queue.sqlite").path
     }
 
+    static func isCurrentScope(_ path: String) -> Bool {
+        currentScopedDatabasePath() == path
+    }
+
     private func openCurrentScopedDatabase() throws {
         let path = Self.currentScopedDatabasePath()
         guard dbPath != path else { return }
@@ -135,7 +139,7 @@ actor OfflineSyncQueue {
 
     // MARK: - Network Monitor Integration
 
-    func startMonitoring(execute: @escaping @Sendable (String, Data) async throws -> Void) {
+    func startMonitoring(execute: @escaping @Sendable (String, Data, String) async throws -> Void) {
         syncHandler = execute
         guard monitorTask == nil else {
             Task { await flushRegistered() }
@@ -172,7 +176,7 @@ actor OfflineSyncQueue {
 
     // MARK: - Flush (called on network restore)
 
-    func flush(execute: @Sendable (String, Data) async throws -> Void) async {
+    func flush(execute: @Sendable (String, Data, String) async throws -> Void) async {
         do {
             try openCurrentScopedDatabase()
         } catch {
@@ -204,7 +208,7 @@ actor OfflineSyncQueue {
                 }
 
                 do {
-                    try await execute(opType, payloadData)
+                    try await execute(opType, payloadData, flushPath)
                     guard Self.currentScopedDatabasePath() == flushPath else {
                         TimedLogger.dataStore.info("Flush result left pending because offline queue scope changed")
                         break
