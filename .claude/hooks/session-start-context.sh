@@ -70,6 +70,19 @@ build_context() {
     fi
   fi
 
+  # ──────── PreCompact snapshot (if this is a post-compact / post-clear resume) ────────
+  PRECOMPACT_FILE="$PROJECT_ROOT/.claude/precompact-state.md"
+  if [ -f "$PRECOMPACT_FILE" ]; then
+    SNAPSHOT_AGE=$(( $(date +%s) - $(stat -f %m "$PRECOMPACT_FILE" 2>/dev/null || echo 0) ))
+    # Only surface if written in the last 15 min — otherwise it's stale from a previous session
+    if [ "$SNAPSHOT_AGE" -lt 900 ]; then
+      printf '## ♻️  PreCompact snapshot (last %dm — likely a post-compact resume)\n\n' "$((SNAPSHOT_AGE / 60))"
+      printf '_Captured by `precompact-snapshot.sh` just before the most recent compaction. Read this if you need to recover in-flight working state that compaction may have summarised away._\n\n'
+      cat "$PRECOMPACT_FILE"
+      printf '\n\n'
+    fi
+  fi
+
   printf -- '─────────────────────────────────────────────────────────────────\n\n'
 
   # ──────── existing continuity context ────────
