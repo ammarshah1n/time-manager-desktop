@@ -90,6 +90,21 @@ struct PARoleRLSGuardTests {
                 "Owner/service task completion history must continue to work outside the PA guard")
     }
 
+    @Test("PA cannot transfer task ownership out of workspace")
+    func paCannotTransferTaskOwnershipOutOfWorkspace() throws {
+        let sql = try source(Self.hardeningMigration).lowercased()
+        #expect(sql.contains("create or replace function public.prevent_pa_task_ownership_transfer()"),
+                "PA hardening must add a task trigger that blocks ownership transfer bypasses")
+        #expect(sql.contains("old.workspace_id = any(public.pa_workspace_ids())"),
+                "Task ownership transfer guard must identify PA-origin tasks")
+        #expect(sql.contains("new.workspace_id is distinct from old.workspace_id"),
+                "PA task updates must not move tasks into another workspace")
+        #expect(sql.contains("new.profile_id is distinct from old.profile_id"),
+                "PA task updates must not reassign task profile ownership")
+        #expect(sql.contains("before update of workspace_id, profile_id on public.tasks"),
+                "Ownership transfer guard must fire before task workspace/profile changes")
+    }
+
     private func source(_ path: String) throws -> String {
         try String(contentsOf: URL(fileURLWithPath: path))
     }

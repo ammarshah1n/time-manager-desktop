@@ -130,6 +130,32 @@ begin
 end;
 $$;
 
+create or replace function public.prevent_pa_task_ownership_transfer()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if (OLD.workspace_id = any(public.pa_workspace_ids())
+      or NEW.workspace_id = any(public.pa_workspace_ids()))
+    and (
+      NEW.workspace_id is distinct from OLD.workspace_id
+      or NEW.profile_id is distinct from OLD.profile_id
+    ) then
+    raise exception 'pa task ownership transfer denied' using errcode = '42501';
+  end if;
+
+  return NEW;
+end;
+$$;
+
+drop trigger if exists tasks_prevent_pa_ownership_transfer on public.tasks;
+create trigger tasks_prevent_pa_ownership_transfer
+  before update of workspace_id, profile_id on public.tasks
+  for each row
+  execute function public.prevent_pa_task_ownership_transfer();
+
 create or replace function public.get_top_observations(
     p_exec_id uuid,
     p_hours integer default 24,
