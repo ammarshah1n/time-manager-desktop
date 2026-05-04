@@ -12,6 +12,7 @@ struct TaskDetailSheet: View {
     @State private var notes: String = ""
     @State private var originalEstimatedMinutes: Int?
     @State private var originalBucket: TaskBucket?
+    @State private var isEditingWaitingOn = false
 
     var body: some View {
         NavigationStack {
@@ -127,8 +128,7 @@ struct TaskDetailSheet: View {
             Toggle("Do First", isOn: $task.isDoFirst)
             Toggle("Transit Safe", isOn: $task.isTransitSafe)
 
-            // Waiting On
-            TextField("Waiting On", text: waitingOnBinding, prompt: Text("Person or team…"))
+            waitingOnRow
 
             // Expected By Date
             Toggle("Has expected date", isOn: hasExpectedDateBinding)
@@ -140,6 +140,36 @@ struct TaskDetailSheet: View {
                 )
             }
         }
+    }
+
+    @ViewBuilder
+    private var waitingOnRow: some View {
+        if isEditingWaitingOn {
+            TextField("Waiting On", text: waitingOnBinding, prompt: Text("Person or team…"))
+                .onSubmit { isEditingWaitingOn = false }
+        } else {
+            HStack(spacing: 8) {
+                Text("Waiting On")
+                Spacer()
+                Text(waitingOnDisplay)
+                    .foregroundStyle(task.waitingOn == nil ? .tertiary : .secondary)
+                Image(systemName: "pencil")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
+            .contentShape(Rectangle())
+            .onTapGesture { isEditingWaitingOn = true }
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isButton)
+            .help("Edit who this task is waiting on")
+        }
+    }
+
+    private var waitingOnDisplay: String {
+        guard let waitingOn = task.waitingOn?.trimmingCharacters(in: .whitespacesAndNewlines), !waitingOn.isEmpty else {
+            return "Not waiting"
+        }
+        return waitingOn
     }
 
     // MARK: - Status

@@ -38,7 +38,7 @@ esac
 
 # ── 2. Not a research-class tool → silent pass-through ────────────────────────
 case "$TOOL" in
-  WebSearch|WebFetch|Agent|Task|mcp__perplexity-comet__*)
+  WebSearch|WebFetch|Agent|Task|mcp__comet_bridge__*|mcp__comet-bridge__*)
     : # fall through to gate logic
     ;;
   *)

@@ -1,6 +1,7 @@
 // graph-webhook/index.ts
 // Receives Microsoft Graph push notifications for email changes.
-// Returns 202 immediately; queues processing to pgmq for idempotent async handling.
+// Returns 202 only after accepted notifications are queued, so Microsoft retries
+// when pgmq or the idempotency insert fails.
 // See: ~/Timed-Brain/06 - Context/edge-function-pipeline-architecture.md
 
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
@@ -11,10 +12,6 @@ const supabase = createClient(
   requireEnv("SUPABASE_URL"),
   requireEnv("SUPABASE_SERVICE_ROLE_KEY"),
 );
-
-declare const EdgeRuntime: {
-  waitUntil: (promise: Promise<unknown>) => void;
-};
 
 function timingSafeEqual(a: string, b: string): boolean {
   const maxLength = Math.max(a.length, b.length);
@@ -36,24 +33,21 @@ serve(async (req: Request) => {
     });
   }
 
-  // Acknowledge immediately — Graph requires 202 within 3s
-  const response = new Response(null, { status: 202 });
-
-  // Process in background (up to 400s on paid plan via waitUntil)
-  EdgeRuntime.waitUntil(processNotifications(req));
-
-  return response;
-});
-
-async function processNotifications(req: Request): Promise<void> {
   let payload: { value: GraphNotification[] };
   try {
     payload = await req.json();
-  } catch {
-    console.error("[graph-webhook] Failed to parse payload");
-    return;
+    await processNotifications(payload);
+    return new Response(null, { status: 202 });
+  } catch (error) {
+    console.error("[graph-webhook] Queueing failed before ack:", error);
+    return new Response(JSON.stringify({ error: "queue_failed" }), {
+      status: 503,
+      headers: { "Content-Type": "application/json" },
+    });
   }
+});
 
+async function processNotifications(payload: { value: GraphNotification[] }): Promise<void> {
   for (const notification of payload.value ?? []) {
     const { data: subscription, error: subscriptionError } = await supabase
       .from("graph_subscriptions")
@@ -97,18 +91,25 @@ async function processNotifications(req: Request): Promise<void> {
 
     if (error && error.code !== "23505") {
       console.error("[graph-webhook] DB insert error:", error.message);
-      continue;
+      throw error;
     }
 
-    // Queue to pgmq for async processing
-    await supabase.rpc("pgmq.send", {
-      queue_name: "email_pipeline",
-      msg: {
-        graph_event_id: notification.id,
-        message_id: notification.resourceData?.id,
-        change_type: notification.changeType,
-      },
-    });
+    await queueNotification(notification);
+  }
+}
+
+async function queueNotification(notification: GraphNotification): Promise<void> {
+  const { error } = await supabase.rpc("pgmq.send", {
+    queue_name: "email_pipeline",
+    msg: {
+      graph_event_id: notification.id,
+      message_id: notification.resourceData?.id,
+      change_type: notification.changeType,
+    },
+  });
+  if (error) {
+    console.error("[graph-webhook] pgmq.send error:", error.message);
+    throw error;
   }
 }
 

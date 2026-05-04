@@ -5,6 +5,8 @@ import Supabase
 struct MorningBriefingPane: View {
     @State private var briefing: MorningBriefing?
     @State private var isLoading = true
+    @State private var isGenerating = false
+    @State private var loadError: String?
     @State private var viewStartTime: Date?
     @State private var viewedSectionKeys: Set<String> = []
     @State private var dismissedSectionKeys: Set<String> = []
@@ -55,6 +57,34 @@ struct MorningBriefingPane: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 320)
+            if let loadError {
+                Text(loadError)
+                    .font(.caption)
+                    .foregroundStyle(Color.Timed.destructive)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 360)
+            }
+            HStack(spacing: 8) {
+                Button("Refresh") {
+                    Task { await refreshBriefing() }
+                }
+                .buttonStyle(.bordered)
+                .disabled(isGenerating)
+
+                Button {
+                    Task { await generateBriefingNow() }
+                } label: {
+                    if isGenerating {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("Generating")
+                    } else {
+                        Text("Generate briefing now")
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(isGenerating)
+            }
         }
         .frame(maxWidth: .infinity, minHeight: 200)
         .padding()
@@ -252,13 +282,75 @@ struct MorningBriefingPane: View {
 
     // MARK: - Data Loading
 
+    private struct GenerateMorningBriefingRequest: Encodable, Sendable {
+        let executiveId: String
+        let date: String
+    }
+
+    private struct GenerateMorningBriefingResponse: Decodable, Sendable {
+        let results: [String: GenerateMorningBriefingResult]
+    }
+
+    private struct GenerateMorningBriefingResult: Decodable, Sendable {
+        let status: String?
+        let detail: String?
+        let recommendationsError: String?
+
+        enum CodingKeys: String, CodingKey {
+            case status
+            case detail
+            case recommendationsError = "recommendations_error"
+        }
+    }
+
+    private func refreshBriefing() async {
+        isLoading = true
+        loadError = nil
+        await loadBriefing()
+    }
+
+    private func generateBriefingNow() async {
+        guard let client = supabaseClient.rawClient else {
+            loadError = "Timed is not connected to Supabase, so it cannot generate a briefing yet."
+            return
+        }
+        guard let executiveId = await MainActor.run(body: { AuthService.shared.executiveId }) else {
+            loadError = "Sign in before generating a briefing."
+            return
+        }
+
+        isGenerating = true
+        loadError = nil
+        defer { isGenerating = false }
+
+        let today = Date().formatted(.iso8601.year().month().day().dateSeparator(.dash))
+        do {
+            let response: GenerateMorningBriefingResponse = try await client.functions.invoke(
+                "generate-morning-briefing",
+                options: FunctionInvokeOptions(
+                    method: .post,
+                    body: GenerateMorningBriefingRequest(executiveId: executiveId.uuidString, date: today)
+                )
+            )
+            if let result = response.results[executiveId.uuidString], result.status == "error" {
+                loadError = result.detail ?? "Briefing generation failed."
+                return
+            }
+            await refreshBriefing()
+        } catch {
+            loadError = "Briefing generation failed: \(error.localizedDescription)"
+        }
+    }
+
     private func loadBriefing() async {
         guard let client = supabaseClient.rawClient else {
+            loadError = "Supabase is not configured, so Timed cannot load briefings yet."
             isLoading = false
             return
         }
 
         guard let executiveId = await MainActor.run(body: { AuthService.shared.executiveId }) else {
+            loadError = "Sign in to view or generate your briefing."
             isLoading = false
             return
         }

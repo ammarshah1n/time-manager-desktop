@@ -34,7 +34,7 @@
         ]
       },
       {
-        "matcher": "mcp__basic-memory__.*|Agent|Task|WebSearch|WebFetch|mcp__perplexity-comet__.*",
+        "matcher": "mcp__basic-memory__.*|Agent|Task|WebSearch|WebFetch|mcp__comet_bridge__.*|mcp__comet-bridge__.*",
         "hooks": [
           {
             "type": "command",

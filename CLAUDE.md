@@ -19,7 +19,7 @@
 
 ### Enforcement (active 2026-04-28+)
 - **SessionStart hook** (`.claude/hooks/session-start-context.sh`) emits the Memory-First Protocol block + live `timed-brain` snapshot at the top of every session's context. You see it before anything else.
-- **PreToolUse hook** (`.claude/hooks/memory-gate.sh`) nags via stderr the FIRST time you call `WebSearch` / `WebFetch` / `Agent` / `mcp__perplexity-comet__*` without a prior `mcp__basic-memory__*` call this session. Sentinel at `/tmp/claude-memcheck-${session_id}` — touched on first basic-memory call, then nag silences for the rest of the session.
+- **PreToolUse hook** (`.claude/hooks/memory-gate.sh`) nags via stderr the FIRST time you call `WebSearch` / `WebFetch` / `Agent` / `mcp__comet_bridge__*` without a prior `mcp__basic-memory__*` call this session. Sentinel at `/tmp/claude-memcheck-${session_id}` — touched on first basic-memory call, then nag silences for the rest of the session.
 - **The nag is non-blocking** (existing `permission-check.sh` Tier 1 auto-approves WebSearch/WebFetch). Heed the nag — cancel the call, run `mcp__basic-memory__search_notes` first, then retry.
 
 ### Required first calls (load schemas via ToolSearch if deferred)

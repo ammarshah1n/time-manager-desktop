@@ -160,6 +160,102 @@ struct TaskSection: Identifiable, Codable, Sendable, Equatable {
     var bucket: TaskBucket? {
         TaskBucket.from(dbValue: canonicalBucketType)
     }
+
+    static let defaultSystemSections: [TaskSection] = {
+        let emailId = UUID(uuidString: "11111111-1111-4111-8111-111111111111")!
+        return [
+            TaskSection(
+                id: emailId,
+                parentSectionId: nil,
+                title: "Email",
+                canonicalBucketType: "other",
+                sortOrder: 0,
+                colorKey: "blue",
+                isSystem: true,
+                isArchived: false
+            ),
+            TaskSection(
+                id: UUID(uuidString: "11111111-1111-4111-8111-111111111112")!,
+                parentSectionId: emailId,
+                title: "Reply",
+                canonicalBucketType: "reply_email",
+                sortOrder: 0,
+                colorKey: "blue",
+                isSystem: true,
+                isArchived: false
+            ),
+            TaskSection(
+                id: UUID(uuidString: "11111111-1111-4111-8111-111111111113")!,
+                parentSectionId: emailId,
+                title: "Read Today",
+                canonicalBucketType: "read_today",
+                sortOrder: 1,
+                colorKey: "orange",
+                isSystem: true,
+                isArchived: false
+            ),
+            TaskSection(
+                id: UUID(uuidString: "11111111-1111-4111-8111-111111111114")!,
+                parentSectionId: emailId,
+                title: "Read This Week",
+                canonicalBucketType: "read_this_week",
+                sortOrder: 2,
+                colorKey: "gray",
+                isSystem: true,
+                isArchived: false
+            ),
+            TaskSection(
+                id: UUID(uuidString: "11111111-1111-4111-8111-111111111115")!,
+                parentSectionId: emailId,
+                title: "CC / FYI",
+                canonicalBucketType: "cc_fyi",
+                sortOrder: 3,
+                colorKey: "gray",
+                isSystem: true,
+                isArchived: false
+            ),
+            TaskSection(
+                id: UUID(uuidString: "11111111-1111-4111-8111-111111111116")!,
+                parentSectionId: nil,
+                title: "Action",
+                canonicalBucketType: "action",
+                sortOrder: 1,
+                colorKey: "red",
+                isSystem: true,
+                isArchived: false
+            ),
+            TaskSection(
+                id: UUID(uuidString: "11111111-1111-4111-8111-111111111117")!,
+                parentSectionId: nil,
+                title: "Calls",
+                canonicalBucketType: "calls",
+                sortOrder: 2,
+                colorKey: "green",
+                isSystem: true,
+                isArchived: false
+            ),
+            TaskSection(
+                id: UUID(uuidString: "11111111-1111-4111-8111-111111111118")!,
+                parentSectionId: nil,
+                title: "Transit",
+                canonicalBucketType: "transit",
+                sortOrder: 3,
+                colorKey: "teal",
+                isSystem: true,
+                isArchived: false
+            ),
+            TaskSection(
+                id: UUID(uuidString: "11111111-1111-4111-8111-111111111119")!,
+                parentSectionId: nil,
+                title: "Waiting",
+                canonicalBucketType: "waiting",
+                sortOrder: 4,
+                colorKey: "purple",
+                isSystem: true,
+                isArchived: false
+            )
+        ]
+    }()
 }
 
 // MARK: - Timed Task

@@ -72,3 +72,20 @@ Paste this at the top of any PR that touches UI.
   reintroduce per-bucket colour in the sidebar.
 - **Offline / network-state indicators** are `labelSecondary` text, never a
   coloured pill.
+
+---
+
+## Design Guard Ratchet
+
+`Tests/TimedDesignGuardTests.swift` is a ratchet, not an exemption baseline.
+Files touched by a UI change must move toward these rules; do not add new
+allowlist entries to make violations pass.
+
+Current cleanup targets for Phase 2:
+
+- `Sources/TimedKit/Features/Tasks/TasksPane.swift`
+- `Sources/TimedKit/Features/TimedRootView.swift`
+
+When a target file is touched for UI work, replace raw fonts, colours, spacing,
+radii, and fixed dimensions with `TimedType.*`, `Color.Timed.*`, and
+`TimedLayout.*`, then remove that file from this list.

@@ -86,15 +86,15 @@ enum GoogleAuthError: Error, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .notConfigured:
-            return "Google sign-in is not configured. Set GOOGLE_CLIENT_ID env var or GIDClientID in Info.plist."
-        case .signInFailed(let detail):
-            return "Google sign-in failed: \(detail)"
+            return "Gmail connection is unavailable right now."
+        case .signInFailed:
+            return "Couldn't connect Gmail. Try again."
         case .noActiveUser:
-            return "No Google account currently signed in."
+            return "Gmail is not connected."
         case .noPresentingWindow:
-            return "Could not find a window to present the Google sign-in sheet."
+            return "Open a Timed window and try connecting Gmail again."
         case .unsupportedPlatform:
-            return "Google sign-in is unavailable on this platform."
+            return "Gmail connection is unavailable on this device."
         }
     }
 }

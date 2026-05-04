@@ -30,7 +30,7 @@ touch "$FLAG" 2>/dev/null
 jq -n '{
   "hookSpecificOutput": {
     "hookEventName": "UserPromptSubmit",
-    "additionalContext": "[memory-first protocol — auto-injected, once per session]\n\nYour basic-memory vault (project: timed-brain) holds 1198+ notes on this project: architecture, prior decisions, bug history, research, comet reports. Before spawning Agent/Task subagents or calling WebSearch/WebFetch/perplexity-comet on anything project-related, call mcp__basic-memory__search_notes first. If the vault has the answer, use it. If it does not, proceed with whatever tool you were going to use — burn the tokens, that is the point. After ONE basic-memory call this session (even one returning no useful hits), the PreToolUse gate stays out of your way. This is a router, not a roadblock. Pure-syntax / refactor / rename / format work bypasses the gate entirely."
+    "additionalContext": "[memory-first protocol — auto-injected, once per session]\n\nYour basic-memory vault (project: timed-brain) holds 1198+ notes on this project: architecture, prior decisions, bug history, research, comet reports. Before spawning Agent/Task subagents or calling WebSearch/WebFetch/comet-bridge on anything project-related, call mcp__basic-memory__search_notes first. If the vault has the answer, use it. If it does not, proceed with whatever tool you were going to use — burn the tokens, that is the point. After ONE basic-memory call this session (even one returning no useful hits), the PreToolUse gate stays out of your way. This is a router, not a roadblock. Pure-syntax / refactor / rename / format work bypasses the gate entirely."
   }
 }'
 

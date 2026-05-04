@@ -9,6 +9,20 @@ ICON_SOURCE="$ROOT_DIR/docs/timed-logo.svg"
 ICONSET_SOURCE="$ROOT_DIR/Assets.xcassets/AppIcon.appiconset"
 ICON_NAME="Timed"
 CODESIGN_IDENTITY="${TIMED_CODESIGN_IDENTITY:--}"
+TIMED_APPLE_TEAM_ID="${TIMED_APPLE_TEAM_ID:-}"
+TIMED_REQUIRE_NOTARIZATION="${TIMED_REQUIRE_NOTARIZATION:-0}"
+ENTITLEMENTS_PATH="$ROOT_DIR/Platforms/Mac/Timed.entitlements"
+
+if [[ "$TIMED_REQUIRE_NOTARIZATION" == "1" ]]; then
+  if [[ "$CODESIGN_IDENTITY" == "-" || -z "$CODESIGN_IDENTITY" ]]; then
+    echo "ERROR: TIMED_REQUIRE_NOTARIZATION=1 requires TIMED_CODESIGN_IDENTITY='Developer ID Application: ...'" >&2
+    exit 64
+  fi
+  if [[ -z "$TIMED_APPLE_TEAM_ID" ]]; then
+    echo "ERROR: TIMED_REQUIRE_NOTARIZATION=1 requires TIMED_APPLE_TEAM_ID." >&2
+    exit 64
+  fi
+fi
 
 codesign_bundle() {
   if [[ "$CODESIGN_IDENTITY" != "-" ]]; then
@@ -154,7 +168,11 @@ codesign_bundle --sign "$CODESIGN_IDENTITY" "$APP_DIR/Contents/Frameworks/LiveKi
 # keychain access group; pass TIMED_CODESIGN_IDENTITY with a Developer ID
 # Application identity for notarizable release artifacts.
 codesign_bundle \
-    --entitlements "$ROOT_DIR/Platforms/Mac/Timed.entitlements" \
+    --entitlements "$ENTITLEMENTS_PATH" \
     --sign "$CODESIGN_IDENTITY" "$APP_DIR"
+
+if [[ "$TIMED_REQUIRE_NOTARIZATION" == "1" ]]; then
+  codesign --verify --deep --strict --verbose=2 "$APP_DIR"
+fi
 
 echo "Packaged $APP_DIR"

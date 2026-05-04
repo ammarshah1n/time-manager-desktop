@@ -145,6 +145,10 @@ struct MorningInterviewPane: View {
         tasks.filter { confirmedIds.contains($0.id) }
     }
 
+    private var hasUnconfirmedTodayCandidates: Bool {
+        !todayCandidates.isEmpty && todayCandidates.contains { !confirmedIds.contains($0.id) }
+    }
+
     // Travel detection: calendar blocks today matching travel keywords or transit category
     private var travelEvents: [CalendarBlock] {
         let cal = Calendar.current
@@ -1149,7 +1153,7 @@ struct MorningInterviewPane: View {
                     }
 
                     if confirmedTasks.isEmpty {
-                        Text("No tasks confirmed. Your Today screen will be empty.")
+                        Text(hasUnconfirmedTodayCandidates ? "Confirm or remove today's visible tasks before starting your day." : "No tasks are confirmed for today yet.")
                             .font(.system(size: 13))
                             .foregroundStyle(.secondary)
                             .padding(.vertical, 20)
@@ -1201,6 +1205,7 @@ struct MorningInterviewPane: View {
                 .buttonStyle(.borderedProminent)
                 .tint(.primary)
                 .controlSize(.regular)
+                .disabled(hasUnconfirmedTodayCandidates)
             }
         }
         .padding(.horizontal, TimedLayout.Spacing.xxl)

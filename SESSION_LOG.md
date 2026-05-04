@@ -3299,3 +3299,438 @@ services/graphiti/requirements.txt
 **Discovered**: Claude via litellm OpenAI-compat returns ```json-fenced + shape-drifted JSON; tool-use API (AnthropicClient) is the only reliable path. cf quick-tunnel URLs rotate per restart; need a refresh script paralleling refresh_graphiti_tunnel.sh for the MCP-port tunnel.
 **Next**: When back on Fedora's network — swap VOYAGE_API_KEY in ~/timed-stack/compose.secrets, recreate litellm, trigger graphiti-backfill, confirm COMPLETED. Five-line runbook in NEXT.md.
 **State**: PARKED
+
+---
+## Session: 2026-04-30 19:51
+
+### Commits This Session
+e018c72 docs(timed): record guidance audit handoff
+af41b6e docs(timed): close historical graphiti checklist
+e3d35b0 docs(timed): refresh assistant guidance
+36863b4 docs(timed): mark graphiti backfill complete
+9ba27fb docs(timed): record deployed backend state
+
+### Modified Files
+.build/.lock
+.build/plugins/cache/SwiftProtobufPlugin.dia
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Resources/Relocations/aarch64/SwiftProtobufPlugin.yml
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Resources/DWARF/SwiftProtobufPlugin
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Info.plist
+.build/plugins/cache/SwiftProtobufPlugin-state.json
+.build/plugins/cache/SwiftProtobufPlugin
+.build/debug.yaml
+.build/plugin-tools.yaml
+.build/arm64-apple-macosx/debug/ElevenLabs.build/output-file-map.json
+.build/arm64-apple-macosx/debug/Crypto.build/output-file-map.json
+.build/arm64-apple-macosx/debug/USearch.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftOperators.build/output-file-map.json
+.build/arm64-apple-macosx/debug/Supabase.build/output-file-map.json
+.build/arm64-apple-macosx/debug/CasePathsCore.build/output-file-map.json
+
+---
+## Session: 2026-04-30 20:05
+
+### Commits This Session
+e018c72 docs(timed): record guidance audit handoff
+af41b6e docs(timed): close historical graphiti checklist
+e3d35b0 docs(timed): refresh assistant guidance
+36863b4 docs(timed): mark graphiti backfill complete
+9ba27fb docs(timed): record deployed backend state
+
+### Modified Files
+logs/watchdog.log
+
+---
+## Session: 2026-04-30 20:24
+
+### Commits This Session
+e018c72 docs(timed): record guidance audit handoff
+af41b6e docs(timed): close historical graphiti checklist
+e3d35b0 docs(timed): refresh assistant guidance
+36863b4 docs(timed): mark graphiti backfill complete
+9ba27fb docs(timed): record deployed backend state
+
+### Modified Files
+logs/watchdog.log
+
+---
+## Session: 2026-05-03 16:08
+
+### Commits This Session
+5ec7e1a chore(timed): record installed app refresh
+a6fdc4e fix(timed): package app on adhoc signing
+
+### Modified Files
+.build/.lock
+.build/plugins/cache/SwiftProtobufPlugin.dia
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Resources/Relocations/aarch64/SwiftProtobufPlugin.yml
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Resources/DWARF/SwiftProtobufPlugin
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Info.plist
+.build/plugins/cache/SwiftProtobufPlugin-state.json
+.build/plugins/cache/SwiftProtobufPlugin
+.build/debug.yaml
+.build/plugin-tools.yaml
+.build/release.yaml
+.build/arm64-apple-macosx/release/ElevenLabs.build/output-file-map.json
+.build/arm64-apple-macosx/release/Crypto.build/output-file-map.json
+.build/arm64-apple-macosx/release/USearch.build/output-file-map.json
+.build/arm64-apple-macosx/release/SwiftOperators.build/output-file-map.json
+.build/arm64-apple-macosx/release/Supabase.build/output-file-map.json
+
+---
+## Session: 2026-05-03 16:18
+
+### Commits This Session
+17dc9ca fix(timed): loosen morning interview spacing
+5ec7e1a chore(timed): record installed app refresh
+a6fdc4e fix(timed): package app on adhoc signing
+
+### Modified Files
+.build/.lock
+.build/plugins/cache/SwiftProtobufPlugin.dia
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Resources/Relocations/aarch64/SwiftProtobufPlugin.yml
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Resources/DWARF/SwiftProtobufPlugin
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Info.plist
+.build/plugins/cache/SwiftProtobufPlugin-state.json
+.build/plugins/cache/SwiftProtobufPlugin
+.build/debug.yaml
+.build/plugin-tools.yaml
+.build/release.yaml
+.build/arm64-apple-macosx/release/ElevenLabs.build/output-file-map.json
+.build/arm64-apple-macosx/release/Crypto.build/output-file-map.json
+.build/arm64-apple-macosx/release/USearch.build/output-file-map.json
+.build/arm64-apple-macosx/release/SwiftOperators.build/output-file-map.json
+.build/arm64-apple-macosx/release/Supabase.build/output-file-map.json
+
+---
+## Session: 2026-05-03 16:41
+
+### Commits This Session
+c38c425 fix(timed): remove internal briefing empty copy
+8fea8dc fix(timed): pin calendar header height
+17dc9ca fix(timed): loosen morning interview spacing
+5ec7e1a chore(timed): record installed app refresh
+a6fdc4e fix(timed): package app on adhoc signing
+
+### Modified Files
+.build/.lock
+.build/plugins/cache/SwiftProtobufPlugin.dia
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Resources/Relocations/aarch64/SwiftProtobufPlugin.yml
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Resources/DWARF/SwiftProtobufPlugin
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Info.plist
+.build/plugins/cache/SwiftProtobufPlugin-state.json
+.build/plugins/cache/SwiftProtobufPlugin
+.build/debug.yaml
+.build/plugin-tools.yaml
+.build/release.yaml
+.build/arm64-apple-macosx/release/ElevenLabs.build/output-file-map.json
+.build/arm64-apple-macosx/release/Crypto.build/output-file-map.json
+.build/arm64-apple-macosx/release/USearch.build/output-file-map.json
+.build/arm64-apple-macosx/release/SwiftOperators.build/output-file-map.json
+.build/arm64-apple-macosx/release/Supabase.build/output-file-map.json
+
+---
+## Session: 2026-05-03 16:54
+
+### Commits This Session
+c38c425 fix(timed): remove internal briefing empty copy
+8fea8dc fix(timed): pin calendar header height
+17dc9ca fix(timed): loosen morning interview spacing
+5ec7e1a chore(timed): record installed app refresh
+a6fdc4e fix(timed): package app on adhoc signing
+
+### Modified Files
+.build/.lock
+.build/plugins/cache/SwiftProtobufPlugin.dia
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Resources/Relocations/aarch64/SwiftProtobufPlugin.yml
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Resources/DWARF/SwiftProtobufPlugin
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Info.plist
+.build/plugins/cache/SwiftProtobufPlugin-state.json
+.build/plugins/cache/SwiftProtobufPlugin
+.build/debug.yaml
+.build/plugin-tools.yaml
+.build/release.yaml
+.build/arm64-apple-macosx/release/ElevenLabs.build/output-file-map.json
+.build/arm64-apple-macosx/release/Crypto.build/output-file-map.json
+.build/arm64-apple-macosx/release/USearch.build/output-file-map.json
+.build/arm64-apple-macosx/release/SwiftOperators.build/output-file-map.json
+.build/arm64-apple-macosx/release/Supabase.build/output-file-map.json
+
+---
+## Session: 2026-05-03 17:19
+
+### Commits This Session
+c38c425 fix(timed): remove internal briefing empty copy
+8fea8dc fix(timed): pin calendar header height
+17dc9ca fix(timed): loosen morning interview spacing
+5ec7e1a chore(timed): record installed app refresh
+a6fdc4e fix(timed): package app on adhoc signing
+
+### Modified Files
+.build/.lock
+.build/plugins/cache/SwiftProtobufPlugin.dia
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Resources/Relocations/aarch64/SwiftProtobufPlugin.yml
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Resources/DWARF/SwiftProtobufPlugin
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Info.plist
+.build/plugins/cache/SwiftProtobufPlugin-state.json
+.build/plugins/cache/SwiftProtobufPlugin
+.build/debug.yaml
+.build/plugin-tools.yaml
+.build/release.yaml
+.build/arm64-apple-macosx/release/ElevenLabs.build/output-file-map.json
+.build/arm64-apple-macosx/release/Crypto.build/output-file-map.json
+.build/arm64-apple-macosx/release/USearch.build/output-file-map.json
+.build/arm64-apple-macosx/release/SwiftOperators.build/output-file-map.json
+.build/arm64-apple-macosx/release/Supabase.build/output-file-map.json
+
+---
+## Session: 2026-05-03 17:30
+
+### Commits This Session
+c38c425 fix(timed): remove internal briefing empty copy
+8fea8dc fix(timed): pin calendar header height
+17dc9ca fix(timed): loosen morning interview spacing
+5ec7e1a chore(timed): record installed app refresh
+a6fdc4e fix(timed): package app on adhoc signing
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-05-03 17:41
+
+### Commits This Session
+c38c425 fix(timed): remove internal briefing empty copy
+8fea8dc fix(timed): pin calendar header height
+17dc9ca fix(timed): loosen morning interview spacing
+5ec7e1a chore(timed): record installed app refresh
+a6fdc4e fix(timed): package app on adhoc signing
+
+### Modified Files
+.build/.lock
+.build/plugins/cache/SwiftProtobufPlugin.dia
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Resources/Relocations/aarch64/SwiftProtobufPlugin.yml
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Resources/DWARF/SwiftProtobufPlugin
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Info.plist
+.build/plugins/cache/SwiftProtobufPlugin-state.json
+.build/plugins/cache/SwiftProtobufPlugin
+.build/debug.yaml
+.build/plugin-tools.yaml
+.build/arm64-apple-macosx/debug/ElevenLabs.build/output-file-map.json
+.build/arm64-apple-macosx/debug/Crypto.build/output-file-map.json
+.build/arm64-apple-macosx/debug/USearch.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftOperators.build/output-file-map.json
+.build/arm64-apple-macosx/debug/Supabase.build/output-file-map.json
+.build/arm64-apple-macosx/debug/CasePathsCore.build/output-file-map.json
+
+---
+## Session: 2026-05-03 17:56
+
+### Commits This Session
+c38c425 fix(timed): remove internal briefing empty copy
+8fea8dc fix(timed): pin calendar header height
+17dc9ca fix(timed): loosen morning interview spacing
+5ec7e1a chore(timed): record installed app refresh
+a6fdc4e fix(timed): package app on adhoc signing
+
+### Modified Files
+.build/.lock
+.build/plugins/cache/SwiftProtobufPlugin.dia
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Resources/Relocations/aarch64/SwiftProtobufPlugin.yml
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Resources/DWARF/SwiftProtobufPlugin
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Info.plist
+.build/plugins/cache/SwiftProtobufPlugin-state.json
+.build/plugins/cache/SwiftProtobufPlugin
+.build/plugin-tools.yaml
+.build/release.yaml
+.build/arm64-apple-macosx/release/ElevenLabs.build/output-file-map.json
+.build/arm64-apple-macosx/release/Crypto.build/output-file-map.json
+.build/arm64-apple-macosx/release/USearch.build/output-file-map.json
+.build/arm64-apple-macosx/release/SwiftOperators.build/output-file-map.json
+.build/arm64-apple-macosx/release/Supabase.build/output-file-map.json
+.build/arm64-apple-macosx/release/CasePathsCore.build/output-file-map.json
+
+---
+## Session: 2026-05-03 18:12
+
+### Commits This Session
+c38c425 fix(timed): remove internal briefing empty copy
+8fea8dc fix(timed): pin calendar header height
+17dc9ca fix(timed): loosen morning interview spacing
+5ec7e1a chore(timed): record installed app refresh
+a6fdc4e fix(timed): package app on adhoc signing
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-05-03 18:23
+
+### Commits This Session
+c38c425 fix(timed): remove internal briefing empty copy
+8fea8dc fix(timed): pin calendar header height
+17dc9ca fix(timed): loosen morning interview spacing
+5ec7e1a chore(timed): record installed app refresh
+a6fdc4e fix(timed): package app on adhoc signing
+
+### Modified Files
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-05-03 18:34
+
+### Commits This Session
+c38c425 fix(timed): remove internal briefing empty copy
+8fea8dc fix(timed): pin calendar header height
+17dc9ca fix(timed): loosen morning interview spacing
+5ec7e1a chore(timed): record installed app refresh
+a6fdc4e fix(timed): package app on adhoc signing
+
+### Modified Files
+.claude/settings.json
+.claude/hooks/session-start-context.sh
+.claude/hooks/memory-gate.sh
+.claude/hooks/memory-preempt.sh
+logs/watchdog-launchd.log
+logs/watchdog.log
+.timed-loop-closure-RUNNING.md
+CLAUDE.md
+.timed-loop-closure-plan-v4.md
+
+---
+## Session: 2026-05-03 18:45
+
+### Commits This Session
+c79559f feat(timed): close briefing-loop + deepen estimator (wave 1)
+c38c425 fix(timed): remove internal briefing empty copy
+8fea8dc fix(timed): pin calendar header height
+17dc9ca fix(timed): loosen morning interview spacing
+5ec7e1a chore(timed): record installed app refresh
+
+### Modified Files
+research/feedback-loops/track-0-prod-audit-2026-05-03.md
+.build/.lock
+.build/plugins/cache/SwiftProtobufPlugin.dia
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Resources/Relocations/aarch64/SwiftProtobufPlugin.yml
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Resources/DWARF/SwiftProtobufPlugin
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Info.plist
+.build/plugins/cache/SwiftProtobufPlugin-state.json
+.build/plugins/cache/SwiftProtobufPlugin
+.build/debug.yaml
+.build/plugin-tools.yaml
+.build/arm64-apple-macosx/debug/ElevenLabs.build/output-file-map.json
+.build/arm64-apple-macosx/debug/Crypto.build/output-file-map.json
+.build/arm64-apple-macosx/debug/USearch.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftOperators.build/output-file-map.json
+.build/arm64-apple-macosx/debug/Supabase.build/output-file-map.json
+
+### 2026-05-03 — true subagent swarm audit parked
+**Done**: Diagnosed the failed multi-agent audit launch. `jcode auth-test --provider openai --model gpt-5.5` passed, and manual `jcode --resume <session_id>` attach made a validation subagent ready.
+**In progress**: Fix or automate Jcode swarm attach so spawned sessions become real working subagents instead of queued `/login` terminals.
+**Discovered**: `swarm spawn` can create session metadata and `client-input-session_*` prompts without attaching a live client; auth can be healthy while agents remain `startup queued`.
+**Next**: Read `~/.claude/projects/-Users-integrale-time-manager-desktop/NEXT.md`, implement auto-attach, then rerun the 5-agent ship-readiness audit.
+**State**: PARKED
+
+---
+## Session: 2026-05-03 21:27
+
+### Commits This Session
+1bda9c3 docs(timed): capture launch ux findings
+dd8e575 fix(timed): shrink voice setup resume button
+a3ded3f chore(timed): record loop closure shipped state
+e42f07a fix(timed): harden briefing calibration generation
+56b2b12 fix(timed): preserve provenance on bucket moves
+
+### Modified Files
+.build/.lock
+.build/plugins/cache/SwiftProtobufPlugin.dia
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Resources/Relocations/aarch64/SwiftProtobufPlugin.yml
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Resources/DWARF/SwiftProtobufPlugin
+.build/plugins/cache/SwiftProtobufPlugin.dSYM/Contents/Info.plist
+.build/plugins/cache/SwiftProtobufPlugin-state.json
+.build/plugins/cache/SwiftProtobufPlugin
+.build/debug.yaml
+.build/plugin-tools.yaml
+.build/arm64-apple-macosx/debug/ElevenLabs.build/output-file-map.json
+.build/arm64-apple-macosx/debug/Crypto.build/output-file-map.json
+.build/arm64-apple-macosx/debug/USearch.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftOperators.build/output-file-map.json
+.build/arm64-apple-macosx/debug/Supabase.build/output-file-map.json
+.build/arm64-apple-macosx/debug/CasePathsCore.build/output-file-map.json
+
+---
+## Session: 2026-05-03 21:39
+
+### Commits This Session
+1bda9c3 docs(timed): capture launch ux findings
+dd8e575 fix(timed): shrink voice setup resume button
+a3ded3f chore(timed): record loop closure shipped state
+e42f07a fix(timed): harden briefing calibration generation
+56b2b12 fix(timed): preserve provenance on bucket moves
+
+### Modified Files
+.DS_Store
+logs/watchdog-launchd.log
+logs/watchdog.log
+
+---
+## Session: 2026-05-03 22:18
+
+### Commits This Session
+03feb9b fix(timed): guard requestedDate from user-auth callers (codex review 2)
+85602c6 fix(timed): briefing local-tz date + per-executive error logging (codex review)
+b755ea0 feat(timed): wire morning-briefing cron + observability (dod-2 close)
+1bda9c3 docs(timed): capture launch ux findings
+dd8e575 fix(timed): shrink voice setup resume button
+
+### Modified Files
+.build/.lock
+.build/debug.yaml
+.build/plugin-tools.yaml
+.build/arm64-apple-macosx/debug/ElevenLabs.build/output-file-map.json
+.build/arm64-apple-macosx/debug/Crypto.build/output-file-map.json
+.build/arm64-apple-macosx/debug/USearch.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftOperators.build/output-file-map.json
+.build/arm64-apple-macosx/debug/Supabase.build/output-file-map.json
+.build/arm64-apple-macosx/debug/CasePathsCore.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftParser-tool.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftCompilerPluginMessageHandling-tool.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftUINavigation.build/output-file-map.json
+.build/arm64-apple-macosx/debug/time-manager-desktop
+.build/arm64-apple-macosx/debug/Functions.build/output-file-map.json
+.build/arm64-apple-macosx/debug/HTTPTypes.build/output-file-map.json
+
+---
+### 2026-05-04 — Launch UX hardening verified, remote launch ops parked
+**Done**: Implemented the launch UX findings pass across offline sync/deletes, task and briefing flows, Settings/account health, backend briefing/webhook auth/queueing, packaging notarization guards, and static launch UX tests.
+**Verification**: `swift build`; full `swift test` (110 tests); `swift test --filter DataBridgeTests` (23); `swift test --filter LaunchUXGuardTests` (11); `swift test --filter TimedDesignGuardTests`; Deno check for `generate-morning-briefing` and `graph-webhook`; `git diff --check`; package/notarization script syntax and notarization-required failure guard; `graphify update .`.
+**In progress**: None in local implementation. Remote launch ops remain parked.
+**Discovered**: Full-suite Swift timeouts were caused by design guard subprocess pipe handling; fixed by routing subprocess output through temp files. DataBridge tests needed auto offline replay disabled for injected test queues to avoid background replay races. Jcode background `graphify update .` can fail with Python `Bad file descriptor`, while foreground graphify succeeds.
+**Next**: Deploy the new Supabase migration/functions, run live cron/user-auth/webhook smokes, ask Ammar before deleting remote smoke data, then complete Apple Developer enrollment and notarized DMG packaging.
+**State**: PARKED / verified working tree; no commit because main worktree had pre-existing dirty files and mixed-ownership hunks before this session.
+
+---
+## Session: 2026-05-04 10:51
+
+### Commits This Session
+cbc53cc merge: jcode voice-onboarding resumable fix into unified
+
+### Modified Files
+.build/.lock
+.build/debug.yaml
+.build/plugin-tools.yaml
+.build/arm64-apple-macosx/debug/ElevenLabs.build/output-file-map.json
+.build/arm64-apple-macosx/debug/Crypto.build/output-file-map.json
+.build/arm64-apple-macosx/debug/USearch.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftOperators.build/output-file-map.json
+.build/arm64-apple-macosx/debug/Supabase.build/output-file-map.json
+.build/arm64-apple-macosx/debug/CasePathsCore.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftParser-tool.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftCompilerPluginMessageHandling-tool.build/output-file-map.json
+.build/arm64-apple-macosx/debug/SwiftUINavigation.build/output-file-map.json
+.build/arm64-apple-macosx/debug/time-manager-desktop
+.build/arm64-apple-macosx/debug/Functions.build/output-file-map.json
+.build/arm64-apple-macosx/debug/HTTPTypes.build/output-file-map.json

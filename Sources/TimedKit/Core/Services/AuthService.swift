@@ -76,6 +76,9 @@ final class AuthService: ObservableObject {
             do {
                 googleAccessToken = try await GoogleAuth.freshAccessToken()
                 googleFileLog("AuthService.restoreSession: Google session restored for \(email)")
+                if let executiveId {
+                    await connectGmailIfPossible(executiveId: executiveId)
+                }
             } catch {
                 googleFileLog("AuthService.restoreSession: Google token refresh failed: \(error.localizedDescription)")
             }
@@ -347,11 +350,24 @@ final class AuthService: ObservableObject {
                 await connectGmailIfPossible(executiveId: executiveId)
             }
         } catch {
-            self.error = "Google sign-in failed: \(error.localizedDescription)"
+            self.error = friendlyGoogleMessage(for: error)
             googleFileLog("AuthService.signInWithGoogle: THREW: \(error.localizedDescription)")
             TimedLogger.graph.error("Google OAuth failed: \(error.localizedDescription, privacy: .private)")
         }
         isLoading = false
+    }
+
+    private func friendlyGoogleMessage(for error: Error) -> String {
+        let raw = error.localizedDescription.lowercased()
+        if raw.contains("cancel") {
+            return "Gmail connection was cancelled."
+        }
+        if let localized = error as? LocalizedError,
+           let description = localized.errorDescription,
+           !description.isEmpty {
+            return description
+        }
+        return "Couldn't connect Gmail. Try again."
     }
 
     /// Returns a Google token provider closure that auto-refreshes via
@@ -561,6 +577,9 @@ final class AuthService: ObservableObject {
             googleFileLog("connectGmailIfPossible: SKIP — no Google access token (user must sign in)")
             return
         }
+        if let email = googleEmail, !email.isEmpty {
+            await recordGoogleAccountLink(email: email, executiveId: executiveId)
+        }
         let provider = makeGoogleTokenProvider()
         await GmailSyncService.shared.start(
             tokenProvider: provider,
@@ -570,6 +589,24 @@ final class AuthService: ObservableObject {
         )
         await GmailCalendarSyncService.shared.start(tokenProvider: provider)
         googleFileLog("connectGmailIfPossible: SYNC STARTED ✅")
+    }
+
+    private func recordGoogleAccountLink(email: String, executiveId: UUID) async {
+        guard let client else { return }
+        struct GoogleAccountLinkUpdate: Encodable, Sendable {
+            let google_email: String
+        }
+        do {
+            try await client
+                .from("executives")
+                .update(GoogleAccountLinkUpdate(google_email: email))
+                .eq("id", value: executiveId.uuidString)
+                .execute()
+            googleFileLog("recordGoogleAccountLink: saved google_email for \(executiveId)")
+        } catch {
+            googleFileLog("recordGoogleAccountLink: failed \(error.localizedDescription)")
+            TimedLogger.graph.warning("Failed to save linked Gmail address: \(error.localizedDescription, privacy: .public)")
+        }
     }
 }
 

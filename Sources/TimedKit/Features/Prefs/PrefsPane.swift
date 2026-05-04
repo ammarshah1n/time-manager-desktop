@@ -60,8 +60,8 @@ struct PrefsPane: View {
                     .tag(PrefTab.learning)
             }
         }
-        .padding(20)
-        .frame(minWidth: 500, minHeight: 360)
+        .padding(TimedLayout.Spacing.lg)
+        .frame(minWidth: TimedLayout.Width.settingsPane, minHeight: TimedLayout.Height.settingsPane)
         .navigationTitle("Settings")
     }
 
@@ -72,112 +72,221 @@ struct PrefsPane: View {
 
 struct AccountsTab: View {
     @StateObject private var auth = AuthService.shared
+    @State private var isConnectingGoogle = false
+    @State private var isConnectingOutlook = false
+    @State private var googleConnectionMessage: String?
+    @State private var googleConnectionError: String?
+    @State private var outlookConnectionMessage: String?
+    @State private var outlookConnectionError: String?
+    @State private var activeGoogleAttempt: UUID?
+    @State private var activeOutlookAttempt: UUID?
 
-    /// The signed-in Microsoft account, derived from real auth state.
-    /// `connected` reflects whether MSAL successfully acquired a Graph token,
-    /// not just that the user signed in to Supabase.
-    private var primaryAccount: PrefAccount? {
+    private var signedInEmail: String? {
         guard let email = auth.userEmail, !email.isEmpty else { return nil }
-        return PrefAccount(
-            email: email,
-            provider: "Microsoft",
-            icon: "envelope.badge.fill",
-            color: .blue,
-            connected: auth.graphAccessToken != nil
-        )
+        return email
     }
 
-    /// The signed-in Google account, if any. Independent of Microsoft —
-    /// a user may have one or both providers linked.
-    private var googleAccount: PrefAccount? {
+    private var googleAccountEmail: String? {
         guard let email = auth.googleEmail, !email.isEmpty else { return nil }
-        return PrefAccount(
-            email: email,
-            provider: "Google",
-            icon: "envelope",
-            color: .red,
-            connected: auth.googleAccessToken != nil
-        )
+        return email
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: TimedLayout.Spacing.md) {
             Text("Email Accounts")
-                .font(.headline)
+                .font(TimedType.headline)
 
-            if let acct = primaryAccount {
-                accountRow(acct, connectedCopy: "Microsoft — Outlook + Calendar connected", pendingCopy: "Microsoft — sign-in completed, Outlook not yet linked")
-
-                if !acct.connected {
-                    Button {
-                        Task { await auth.signInWithGraph(loginHint: acct.email) }
-                    } label: {
-                        Label("Connect Outlook", systemImage: "link")
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                }
+            if let signedInEmail {
+                signedInIdentityRow(email: signedInEmail)
+                outlookLinkRow(loginHint: signedInEmail)
+                gmailLinkRow()
             } else {
                 Text("No account signed in.")
-                    .font(.system(size: 13))
-                    .foregroundStyle(.secondary)
+                    .font(TimedType.footnote)
+                    .foregroundStyle(Color.Timed.labelSecondary)
             }
 
-            // Google row — always show the "Add Gmail" affordance below the
-            // primary account so users can link a parallel Google account.
-            if let google = googleAccount {
-                accountRow(google, connectedCopy: "Google — Gmail + Calendar connected", pendingCopy: "Google — sign-in completed, Gmail not yet linked")
-            } else if primaryAccount != nil {
-                Button {
-                    Task { await auth.signInWithGoogle() }
-                } label: {
-                    Label("Add Gmail", systemImage: "plus.app")
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
+            if let googleConnectionMessage {
+                accountStatusRow(googleConnectionMessage, systemImage: "checkmark.circle.fill", color: Color.Timed.success)
             }
 
-            if primaryAccount != nil {
+            if let googleConnectionError {
+                accountStatusRow(googleConnectionError, systemImage: "exclamationmark.triangle.fill", color: Color.Timed.destructive)
+            }
+
+            if let outlookConnectionMessage {
+                accountStatusRow(outlookConnectionMessage, systemImage: "checkmark.circle.fill", color: Color.Timed.success)
+            }
+
+            if let outlookConnectionError {
+                accountStatusRow(outlookConnectionError, systemImage: "exclamationmark.triangle.fill", color: Color.Timed.destructive)
+            }
+
+            if signedInEmail != nil {
                 Button(role: .destructive) {
                     Task { await auth.signOut() }
                 } label: {
                     Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")
                 }
                 .buttonStyle(.bordered)
-                .controlSize(.small)
+                .controlSize(.regular)
             }
 
             Spacer()
         }
     }
 
+    private func signedInIdentityRow(email: String) -> some View {
+        accountRow(
+            PrefAccount(email: email, icon: "person.crop.circle.fill", connected: true),
+            connectedCopy: "Signed in to Timed",
+            pendingCopy: "Signed in to Timed"
+        )
+    }
+
+    @ViewBuilder
+    private func outlookLinkRow(loginHint: String) -> some View {
+        let connected = auth.graphAccessToken != nil
+        accountRow(
+            PrefAccount(email: "Outlook + Calendar", icon: "envelope.badge.fill", connected: connected),
+            connectedCopy: "Outlook and calendar connected",
+            pendingCopy: "Not connected yet"
+        )
+        if !connected {
+            Button {
+                Task { await connectOutlook(loginHint: loginHint) }
+            } label: {
+                Label(isConnectingOutlook ? "Connecting Outlook" : "Connect Outlook", systemImage: isConnectingOutlook ? "hourglass" : "link")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.regular)
+            .disabled(isConnectingOutlook)
+        }
+    }
+
+    @ViewBuilder
+    private func gmailLinkRow() -> some View {
+        if let email = googleAccountEmail {
+            accountRow(
+                PrefAccount(email: email, icon: "envelope", connected: auth.googleAccessToken != nil),
+                connectedCopy: "Gmail and calendar connected",
+                pendingCopy: "Gmail sign-in complete. Timed is finishing setup."
+            )
+        } else {
+            Button {
+                Task { await connectGoogle() }
+            } label: {
+                Label(isConnectingGoogle ? "Connecting Gmail" : "Add Gmail", systemImage: isConnectingGoogle ? "hourglass" : "plus.app")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.regular)
+            .disabled(isConnectingGoogle)
+        }
+    }
+
+    @MainActor
+    private func connectGoogle() async {
+        isConnectingGoogle = true
+        googleConnectionMessage = nil
+        googleConnectionError = nil
+        let attempt = UUID()
+        activeGoogleAttempt = attempt
+
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(45))
+            guard activeGoogleAttempt == attempt, isConnectingGoogle else { return }
+            auth.error = "Gmail did not open a sign-in window. Try again, or restart Timed if the browser is hidden."
+            googleConnectionError = auth.error
+            isConnectingGoogle = false
+        }
+
+        await auth.signInWithGoogle()
+
+        guard activeGoogleAttempt == attempt else { return }
+        activeGoogleAttempt = nil
+        isConnectingGoogle = false
+        if let error = auth.error, !error.isEmpty {
+            googleConnectionError = error
+        } else if auth.googleAccessToken != nil {
+            googleConnectionMessage = "Gmail connected. Timed is importing mail and calendar now."
+        } else {
+            googleConnectionError = "Gmail was not connected. Try again."
+        }
+    }
+
+    @MainActor
+    private func connectOutlook(loginHint: String) async {
+        isConnectingOutlook = true
+        outlookConnectionMessage = nil
+        outlookConnectionError = nil
+        let attempt = UUID()
+        activeOutlookAttempt = attempt
+
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(45))
+            guard activeOutlookAttempt == attempt, isConnectingOutlook else { return }
+            auth.error = "Outlook did not open a sign-in window. Try again, or restart Timed if the browser is hidden."
+            outlookConnectionError = auth.error
+            isConnectingOutlook = false
+        }
+
+        await auth.signInWithGraph(loginHint: loginHint)
+
+        guard activeOutlookAttempt == attempt else { return }
+        activeOutlookAttempt = nil
+        isConnectingOutlook = false
+        if let error = auth.error, !error.isEmpty {
+            outlookConnectionError = error
+        } else if auth.graphAccessToken != nil {
+            outlookConnectionMessage = "Outlook connected. Timed is importing mail and calendar now."
+        } else {
+            outlookConnectionError = "Outlook was not connected. Try again."
+        }
+    }
+
+    private func accountStatusRow(_ message: String, systemImage: String, color: Color) -> some View {
+        HStack(spacing: TimedLayout.Spacing.xs) {
+            Image(systemName: systemImage)
+                .font(TimedType.caption.weight(.semibold))
+            Text(message)
+                .font(TimedType.caption)
+        }
+        .foregroundStyle(color)
+        .padding(.horizontal, TimedLayout.Spacing.sm)
+    }
+
     @ViewBuilder
     private func accountRow(_ acct: PrefAccount, connectedCopy: String, pendingCopy: String) -> some View {
-        HStack(spacing: 12) {
-            RoundedRectangle(cornerRadius: 6)
-                .fill(acct.color.opacity(0.12))
-                .frame(width: 32, height: 32)
-                .overlay { Image(systemName: acct.icon).font(.system(size: 14)).foregroundStyle(acct.color) }
-            VStack(alignment: .leading, spacing: 2) {
-                Text(acct.email).font(.system(size: 13))
+        HStack(spacing: TimedLayout.Spacing.sm) {
+            RoundedRectangle(cornerRadius: TimedLayout.Radius.chip)
+                .fill(Color.Timed.backgroundSecondary)
+                .frame(width: TimedLayout.Height.accountIcon, height: TimedLayout.Height.accountIcon)
+                .overlay {
+                    Image(systemName: acct.icon)
+                        .font(TimedType.footnote)
+                        .foregroundStyle(Color.Timed.labelSecondary)
+                }
+            VStack(alignment: .leading, spacing: TimedLayout.Spacing.xxs) {
+                Text(acct.email)
+                    .font(TimedType.footnote)
                 Text(acct.connected ? connectedCopy : pendingCopy)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(TimedType.caption)
+                    .foregroundStyle(Color.Timed.labelSecondary)
             }
             Spacer()
             Circle()
-                .fill(acct.connected ? Color(.systemGreen) : Color(.systemOrange))
-                .frame(width: 7, height: 7)
+                .fill(acct.connected ? Color.Timed.success : Color.Timed.labelTertiary)
+                .frame(width: TimedLayout.Height.statusDot, height: TimedLayout.Height.statusDot)
         }
-        .padding(.vertical, 10).padding(.horizontal, 12)
-        .background(Color(.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
+        .padding(.vertical, TimedLayout.Spacing.xs)
+        .padding(.horizontal, TimedLayout.Spacing.sm)
+        .background(Color.Timed.backgroundSecondary, in: RoundedRectangle(cornerRadius: TimedLayout.Radius.input))
     }
 }
 
 struct PrefAccount: Identifiable {
     let id = UUID()
-    let email, provider, icon: String
-    let color: Color
+    let email, icon: String
     var connected: Bool
 }
 
@@ -187,6 +296,7 @@ struct SyncTab: View {
     @AppStorage("prefs.sync.frequency")        private var frequency = 1
     @AppStorage("prefs.sync.syncOnLaunch")     private var syncOnLaunch = true
     @AppStorage("prefs.sync.fetchAttachments") private var fetchAttachments = false
+    @StateObject private var syncHealth = SyncHealthCenter.shared
 
     private let options = ["Every 5 min", "Every 15 min", "Every 30 min", "Manual only"]
 
@@ -194,12 +304,51 @@ struct SyncTab: View {
         Form {
             Picker("Check for mail:", selection: $frequency) {
                 ForEach(options.indices, id: \.self) { Text(options[$0]).tag($0) }
-            }.frame(maxWidth: 280)
+            }
+            .frame(maxWidth: TimedLayout.Width.settingsPicker)
 
             Toggle("Sync on launch", isOn: $syncOnLaunch)
             Toggle("Download attachments automatically", isOn: $fetchAttachments)
+
+            Section("Sync health") {
+                if let issue = syncHealth.lastIssue {
+                    Label("Sync needs attention", systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(Color.Timed.destructive)
+                    Text("\(issue.operationType): \(issue.message)")
+                        .font(TimedType.caption)
+                        .foregroundStyle(Color.Timed.labelSecondary)
+                    Text("Last seen \(issue.occurredAt.formatted(date: .omitted, time: .shortened))")
+                        .font(TimedType.caption)
+                        .foregroundStyle(Color.Timed.labelTertiary)
+                } else if syncHealth.permanentFailureCount > 0 {
+                    Label("Some changes could not be synced", systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(Color.Timed.destructive)
+                } else if syncHealth.pendingCount > 0 {
+                    Label("\(syncHealth.pendingCount) change\(syncHealth.pendingCount == 1 ? "" : "s") waiting to sync", systemImage: "clock.arrow.circlepath")
+                        .foregroundStyle(Color.Timed.labelSecondary)
+                } else {
+                    Label("Authenticated writes look healthy", systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(Color.Timed.success)
+                }
+
+                Button("Retry sync now") {
+                    Task { await retrySync() }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
         }
         .formStyle(.grouped)
+        .task { await refreshDiagnostics() }
+    }
+
+    private func retrySync() async {
+        await DataBridge.shared.flushOfflineReplay()
+        await refreshDiagnostics()
+    }
+
+    private func refreshDiagnostics() async {
+        _ = await DataBridge.shared.offlineQueueDiagnostics()
     }
 }
 
@@ -212,22 +361,26 @@ struct BlocksTab: View {
 
     var body: some View {
         Form {
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: TimedLayout.Spacing.xs) {
                 HStack {
                     Text("Default duration")
                     Spacer()
-                    Text(formatDur(defaultMins)).foregroundStyle(.secondary).monospacedDigit()
+                    Text(formatDur(defaultMins))
+                        .foregroundStyle(Color.Timed.labelSecondary)
+                        .monospacedDigit()
                 }
                 Slider(value: $defaultMins, in: 15...180, step: 15)
             }
 
             Toggle("Auto-suggest time blocks for action emails", isOn: $autoBlock)
 
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: TimedLayout.Spacing.xs) {
                 HStack {
                     Text("Buffer between blocks")
                     Spacer()
-                    Text("\(Int(bufferMins)) min").foregroundStyle(.secondary).monospacedDigit()
+                    Text("\(Int(bufferMins)) min")
+                        .foregroundStyle(Color.Timed.labelSecondary)
+                        .monospacedDigit()
                 }
                 Slider(value: $bufferMins, in: 0...30, step: 5)
             }
@@ -269,8 +422,8 @@ struct NotificationsTab: View {
                 Stepper("End at \(quietEnd):00", value: $quietEnd, in: 5...22)
                     .disabled(!quietEnabled)
                 Text("During quiet hours, only Do First tasks appear in the plan.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(TimedType.caption)
+                    .foregroundStyle(Color.Timed.labelSecondary)
             }
         }
         .formStyle(.grouped)
@@ -284,7 +437,11 @@ struct AppearanceTab: View {
     @AppStorage("prefs.appearance.accent") private var accent = 0
 
     private let themes  = ["Automatic", "Light", "Dark"]
-    private let accents: [(String, Color)] = [("Blue", .blue), ("Crimson", Color(red: 0.827, green: 0.184, blue: 0.184)), ("Graphite", .gray)]
+    private let accents: [(String, Color)] = [
+        ("Blue", Color.Timed.accent),
+        ("Crimson", Color.Timed.destructive),
+        ("Graphite", Color.Timed.labelSecondary),
+    ]
 
     var body: some View {
         Form {
@@ -292,17 +449,21 @@ struct AppearanceTab: View {
                 ForEach(themes.indices, id: \.self) { Text(themes[$0]).tag($0) }
             }
             .pickerStyle(.radioGroup)
-            .frame(maxWidth: 260)
+            .frame(maxWidth: TimedLayout.Width.settingsCompact)
 
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: TimedLayout.Spacing.xs) {
                 Text("Accent colour:")
-                HStack(spacing: 12) {
+                HStack(spacing: TimedLayout.Spacing.sm) {
                     ForEach(accents.indices, id: \.self) { i in
                         Button { accent = i } label: {
                             ZStack {
-                                Circle().fill(accents[i].1).frame(width: 26, height: 26)
+                                Circle()
+                                    .fill(accents[i].1)
+                                    .frame(width: TimedLayout.Height.colorSwatch, height: TimedLayout.Height.colorSwatch)
                                 if accent == i {
-                                    Circle().stroke(.white, lineWidth: 2).frame(width: 20, height: 20)
+                                    Circle()
+                                        .stroke(Color.Timed.backgroundPrimary, lineWidth: TimedLayout.Stroke.hairline)
+                                        .frame(width: TimedLayout.Height.swatchRing, height: TimedLayout.Height.swatchRing)
                                 }
                             }
                         }
@@ -319,7 +480,6 @@ struct AppearanceTab: View {
 // MARK: - Voice
 
 struct VoiceTab: View {
-    @AppStorage("elevenlabs_voice_id") private var voiceId = "pFZP5JQG7iQjIQuC4Bku"
     @AppStorage("pendingVoiceOnboarding") private var pendingVoiceOnboarding = false
     @EnvironmentObject private var auth: AuthService
 
@@ -327,13 +487,16 @@ struct VoiceTab: View {
         Form {
             if pendingVoiceOnboarding {
                 Section("Setup") {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
+                    HStack(alignment: .top, spacing: TimedLayout.Spacing.sm) {
+                        Image(systemName: "exclamationmark.circle")
+                            .font(TimedType.subheadline)
+                            .foregroundStyle(Color.Timed.labelSecondary)
+                        VStack(alignment: .leading, spacing: TimedLayout.Spacing.xxs) {
                             Text("Voice setup is incomplete.")
-                                .font(.system(size: 13, weight: .medium))
+                                .font(TimedType.footnote.weight(.medium))
                             Text("Take 90 seconds to introduce yourself — Timed needs this to feel right.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .font(TimedType.caption)
+                                .foregroundStyle(Color.Timed.labelSecondary)
                         }
                         Spacer()
                         Button {
@@ -350,11 +513,18 @@ struct VoiceTab: View {
                 }
             }
             Section("Voice") {
-                TextField("Voice ID", text: $voiceId)
-                    .textFieldStyle(.roundedBorder)
-                Text("ElevenLabs voice used for one-shot confirmations (Capture, Dish Me Up). Default is Lily — paste a different ElevenLabs voice ID to change it. The conversational orb uses the voice baked into your agent.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                HStack(alignment: .top, spacing: TimedLayout.Spacing.sm) {
+                    Image(systemName: pendingVoiceOnboarding ? "info.circle" : "checkmark.circle")
+                        .font(TimedType.subheadline)
+                        .foregroundStyle(Color.Timed.labelSecondary)
+                    VStack(alignment: .leading, spacing: TimedLayout.Spacing.xxs) {
+                        Text(pendingVoiceOnboarding ? "Assistant voice is installed." : "Voice is ready.")
+                            .font(TimedType.subheadline)
+                        Text(pendingVoiceOnboarding ? "Resume setup to finish personalising spoken check-ins and confirmations." : "Timed uses its configured assistant voice for check-ins and confirmations.")
+                            .font(TimedType.caption)
+                            .foregroundStyle(Color.Timed.labelSecondary)
+                    }
+                }
             }
         }
         .formStyle(.grouped)
@@ -374,25 +544,29 @@ struct LearningTab: View {
         Form {
             Section("What I've Learned") {
                 if rules.isEmpty {
-                    Text("No behaviour rules yet.").foregroundStyle(.secondary)
+                    Text("No behaviour rules yet.")
+                        .foregroundStyle(Color.Timed.labelSecondary)
                 } else {
                     ForEach(rules) { rule in
-                        VStack(alignment: .leading, spacing: 6) {
+                        VStack(alignment: .leading, spacing: TimedLayout.Spacing.xs) {
                             HStack {
                                 Text(rule.evidence ?? humanReadableRule(rule.ruleKey)).lineLimit(2)
                                 Spacer()
                                 Text(humanReadableRuleType(rule.ruleType))
-                                    .font(.caption).bold()
-                                    .padding(.horizontal, 6).padding(.vertical, 2)
-                                    .background(.quaternary, in: Capsule())
+                                    .font(TimedType.caption.weight(.semibold))
+                                    .padding(.horizontal, TimedLayout.Spacing.xs)
+                                    .padding(.vertical, TimedLayout.Spacing.xxs)
+                                    .background(Color.Timed.labelQuaternary, in: Capsule())
                             }
-                            HStack(spacing: 12) {
+                            HStack(spacing: TimedLayout.Spacing.sm) {
                                 ProgressView(value: Double(rule.confidence))
-                                    .frame(maxWidth: 120)
+                                    .frame(maxWidth: TimedLayout.Width.learningProgress)
                                 Text("\(Int(rule.confidence * 100))% confidence")
-                                    .font(.caption).monospacedDigit()
+                                    .font(TimedType.caption)
+                                    .monospacedDigit()
                                 Text("\(rule.sampleSize) observations")
-                                    .font(.caption).foregroundStyle(.secondary)
+                                    .font(TimedType.caption)
+                                    .foregroundStyle(Color.Timed.labelSecondary)
                             }
                         }
                     }
@@ -401,7 +575,8 @@ struct LearningTab: View {
 
             Section("Accuracy") {
                 if accuracy.isEmpty {
-                    Text("Complete some tasks to see accuracy data.").foregroundStyle(.secondary)
+                    Text("Complete some tasks to see accuracy data.")
+                        .foregroundStyle(Color.Timed.labelSecondary)
                 } else {
                     ForEach(Array(accuracy.keys.sorted { $0.rawValue < $1.rawValue }), id: \.self) { bucket in
                         if let avg = accuracy[bucket] {
@@ -409,17 +584,21 @@ struct LearningTab: View {
                                 ? abs(avg.avgActual - avg.avgEstimated) / avg.avgEstimated
                                 : 0
                             let count = records.filter { $0.bucket == bucket && $0.actualMinutes != nil }.count
-                            VStack(alignment: .leading, spacing: 4) {
+                            VStack(alignment: .leading, spacing: TimedLayout.Spacing.xxs) {
                                 HStack {
                                     Image(systemName: bucket.icon)
-                                    Text(bucket.rawValue).font(.headline)
+                                        .foregroundStyle(Color.Timed.labelSecondary)
+                                    Text(bucket.rawValue)
+                                        .font(TimedType.headline)
                                 }
                                 Text("Avg estimate: \(Int(avg.avgEstimated))m | Avg actual: \(Int(avg.avgActual))m")
-                                    .font(.caption).monospacedDigit()
+                                    .font(TimedType.caption)
+                                    .monospacedDigit()
                                 ProgressView(value: min(deviation, 1.0))
-                                    .tint(deviation < 0.10 ? .green : deviation < 0.25 ? .yellow : .red)
+                                    .tint(Color.Timed.labelSecondary)
                                 Text("Based on \(count) tasks")
-                                    .font(.caption2).foregroundStyle(.secondary)
+                                    .font(TimedType.caption2)
+                                    .foregroundStyle(Color.Timed.labelSecondary)
                             }
                         }
                     }
@@ -428,17 +607,18 @@ struct LearningTab: View {
 
             Section("Suggestions") {
                 if suggestions.isEmpty {
-                    Text("No suggestions yet.").foregroundStyle(.secondary)
+                    Text("No suggestions yet.")
+                        .foregroundStyle(Color.Timed.labelSecondary)
                 } else {
                     ForEach(suggestions, id: \.bucket) { item in
-                        HStack {
+                        HStack(spacing: TimedLayout.Spacing.sm) {
                             Image(systemName: item.bucket.icon)
-                                .foregroundStyle(item.bucket.color)
+                                .foregroundStyle(Color.Timed.labelSecondary)
                             Text(item.message)
                         }
-                        .padding(8)
+                        .padding(TimedLayout.Spacing.xs)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
+                        .background(Color.Timed.labelQuaternary, in: RoundedRectangle(cornerRadius: TimedLayout.Radius.input))
                     }
                 }
             }
@@ -479,5 +659,29 @@ struct LearningTab: View {
         }
     }
 }
+
+#if DEBUG
+@MainActor
+private enum VoiceTabPreviewStorage {
+    static let pendingVoiceSetup: UserDefaults = {
+        let defaults = UserDefaults(suiteName: "Timed.VoiceTabPreview.Pending") ?? .standard
+        defaults.set(true, forKey: "pendingVoiceOnboarding")
+        return defaults
+    }()
+}
+
+#Preview("Voice Setup - Light") {
+    VoiceTab()
+        .environmentObject(AuthService.shared)
+        .defaultAppStorage(VoiceTabPreviewStorage.pendingVoiceSetup)
+}
+
+#Preview("Voice Setup - Dark") {
+    VoiceTab()
+        .environmentObject(AuthService.shared)
+        .defaultAppStorage(VoiceTabPreviewStorage.pendingVoiceSetup)
+        .preferredColorScheme(.dark)
+}
+#endif
 
 #endif

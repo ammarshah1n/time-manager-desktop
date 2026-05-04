@@ -876,7 +876,7 @@ struct TodayPane: View {
 
     private var emptyBody: String {
         isInitialSyncing
-            ? "Tasks will appear here as Timed processes your Outlook."
+            ? "Tasks will appear here as Timed processes your connected mail and calendar."
             : "Add a task or generate today's plan."
     }
 

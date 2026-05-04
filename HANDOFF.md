@@ -1,6 +1,54 @@
 # HANDOFF.md — Timed
 
-Last updated: 2026-05-01 (installed app login + capture voice wrap-up)
+Last updated: 2026-05-04 (launch UX hardening verified, remote ops parked)
+
+## ★ 2026-05-04 UTC ★ — Launch UX hardening verified, remote launch ops parked
+
+**State: PARKED / verified working tree on `unified`.** The `docs/LAUNCH-UX-FINDINGS.md` pass is implemented and locally verified, but it is **not committed** because the repo had substantial pre-existing dirty state before this session and several touched files contain mixed-ownership hunks.
+
+**Done:**
+- Added launch-UX static guards in `Tests/LaunchUXGuardTests.swift` and fixed the design guard subprocess helper so the full Swift suite no longer pipe-deadlocks.
+- Added `SyncHealthCenter`, offline replay diagnostics, queued task-delete tombstones, queued behaviour/reason replay, and Settings sync-health retry copy.
+- Hardened Tasks, Today, Triage, Waiting, Morning Interview, Morning Briefing, Settings, and Task Detail UX copy/flows from the findings list.
+- Hardened `generate-morning-briefing` for service-role cron plus user-scoped generation, added the daily cron migration, and changed `graph-webhook` to fail closed if enqueueing fails.
+- Hardened packaging/notarization scripts so release packaging can require Developer ID and notarization instead of silently shipping ad-hoc builds.
+
+**Verification completed:**
+- `swift build` ✅
+- `swift test` ✅ (110 tests)
+- `swift test --filter DataBridgeTests` ✅ (23 tests)
+- `swift test --filter LaunchUXGuardTests` ✅ (11 tests)
+- `swift test --filter TimedDesignGuardTests` ✅
+- `deno check supabase/functions/generate-morning-briefing/index.ts supabase/functions/graph-webhook/index.ts` ✅
+- `git diff --check` ✅
+- `bash -n scripts/package_app.sh scripts/notarize_app.sh` ✅
+- `TIMED_REQUIRE_NOTARIZATION=1 TIMED_CODESIGN_IDENTITY=- bash scripts/package_app.sh` ✅ correctly exits 64
+- `graphify update .` ✅ (foreground; background run hit a harness/Python bad-fd quirk)
+
+**Three unblock chains:**
+1. **DMG to Yasser / packaging:** local script guards are in place, but a production DMG still needs Apple Developer enrollment, Developer ID Application identity, Team ID, and notarization. Do not send an ad-hoc DMG as production.
+2. **Wave 2 nightly engine / backend:** cron migration and Edge Function changes are local and checked, but remote Supabase deploy plus live cron/user-auth/webhook smokes are still pending.
+3. **Apple Developer enrollment:** still blocked because Ammar does not yet have the Apple developer account. This blocks notarized macOS release and iOS/TestFlight.
+
+**Next:** deploy `supabase/migrations/20260503203000_schedule_morning_briefings.sql`, `generate-morning-briefing`, and `graph-webhook` to Supabase, run remote smokes, ask Ammar before deleting any remote smoke rows, then complete Apple Developer enrollment and notarized DMG packaging.
+
+**TickTick follow-ups created:**
+- `69f7e3328f08cbca66af444b` — Deploy and smoke launch UX Supabase briefing/webhook changes.
+- `69f7e33b8f08be467ea0652f` — Supersede Yasser DMG send task until Developer ID notarization passes.
+- `69f7e3418f086d028b1d06b0` — Ask Ammar before deleting launch UX remote smoke data.
+
+## ★ 2026-05-03 UTC ★ — True subagent swarm audit parked
+
+**State: PARKED.** The requested multi-agent ship-readiness audit did not complete because `swarm spawn` created queued `/login` / `startup queued` sessions that did not attach to live Jcode clients.
+
+- Verified auth is not the blocker: `jcode auth-test --provider openai --model gpt-5.5` passed provider and tool smoke.
+- Proved manual attach works: `jcode -C /Users/integrale/time-manager-desktop --provider openai --model gpt-5.5 --resume <session_id>` moved validation session `session_crab_1777806218103_6d0ea4615ba8637b` to ready.
+- Audit sessions that were spawned but not attached: `session_chicken_1777806547882_c55cabf4edbc5f5e`, `session_unicorn_1777806547870_cb9977a4db8b0baa`, `session_mouse_1777806547895_59fb572fd7141389`, `session_hippo_1777806547832_c4eaa1a7192768c7`, `session_flamingo_1777806547852_ecfacb94180e8fc9`.
+- Handoff: `~/.claude/projects/-Users-integrale-time-manager-desktop/NEXT.md`.
+- Basic Memory: `timed-brain/06-context/learnings/2026-05-03-jcode-swarm-spawn-requires-explicit-client-attach`.
+- TickTick: `Fix Jcode swarm auto-attach, then rerun Timed ship-readiness audit` (`69f72e928f08eac4e9c2a703`).
+
+**Next:** automate or repair Jcode swarm attach so every spawned session immediately runs a real `jcode --resume <session_id>` client, then rerun the 5-agent ship-readiness audit.
 
 ## ★ 2026-05-01 late afternoon ★ — Installed app login prompt + capture voice fixed
 

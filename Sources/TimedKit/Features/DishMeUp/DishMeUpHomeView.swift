@@ -226,7 +226,7 @@ struct DishMeUpHomeView: View {
                 HStack(spacing: TimedLayout.Spacing.sm) {
                     Button("New plan") { phase = .idle }
                         .keyboardShortcut(.cancelAction)
-                    Button("Redish") { start() }
+                    Button("Refresh") { start() }
                         .buttonStyle(.borderedProminent)
                         .keyboardShortcut("r", modifiers: [.command])
                 }

@@ -362,7 +362,7 @@ struct AddWaitingItemSheet: View {
     @State private var hasDeadline = false
     @State private var deadline    = Date().addingTimeInterval(7 * 86_400)
 
-    private let categories = ["Personal", "Business", "PFF"]
+    private let categories = ["Personal", "Business", "Family", "Finance"]
 
     private var canSubmit: Bool {
         !contact.trimmingCharacters(in: .whitespaces).isEmpty &&

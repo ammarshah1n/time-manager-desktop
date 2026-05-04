@@ -2,51 +2,33 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-DIST_DIR="$ROOT_DIR/dist.noindex"
-APP_PATH="$DIST_DIR/Timed.app"
-ZIP_PATH="$DIST_DIR/Timed-notarize.zip"
+APP_DIR="${TIMED_APP_PATH:-$ROOT_DIR/dist.noindex/Timed.app}"
+DMG_PATH="${TIMED_DMG_PATH:-$ROOT_DIR/dist.noindex/Timed.dmg}"
+NOTARY_PROFILE="${TIMED_NOTARY_PROFILE:-}"
+APPLE_ID="${TIMED_NOTARY_APPLE_ID:-}"
+APPLE_TEAM_ID="${TIMED_APPLE_TEAM_ID:-}"
+APPLE_PASSWORD="${TIMED_NOTARY_PASSWORD:-}"
 
-if [[ ! -d "$APP_PATH" ]]; then
-  echo "Missing $APP_PATH. Run bash scripts/package_app.sh first." >&2
-  exit 1
+if [[ ! -d "$APP_DIR" ]]; then
+  echo "ERROR: app not found at $APP_DIR. Run scripts/package_app.sh first." >&2
+  exit 66
 fi
 
-if [[ -z "${TIMED_NOTARY_PROFILE:-}" ]]; then
-  cat >&2 <<'EOF'
-Missing TIMED_NOTARY_PROFILE.
+codesign --verify --deep --strict --verbose=2 "$APP_DIR"
+spctl --assess --type execute --verbose=4 "$APP_DIR"
 
-Create a notarytool keychain profile first, for example:
-  xcrun notarytool store-credentials "timed-notary" \
-    --apple-id "<APPLE_ID>" \
-    --team-id "<TEAM_ID>" \
-    --password "<APP_SPECIFIC_PASSWORD>"
-
-Then run:
-  TIMED_NOTARY_PROFILE=timed-notary bash scripts/notarize_app.sh
-EOF
-  exit 1
+if [[ -n "$NOTARY_PROFILE" ]]; then
+  xcrun notarytool submit "$DMG_PATH" --keychain-profile "$NOTARY_PROFILE" --wait
+elif [[ -n "$APPLE_ID" && -n "$APPLE_TEAM_ID" && -n "$APPLE_PASSWORD" ]]; then
+  xcrun notarytool submit "$DMG_PATH" \
+    --apple-id "$APPLE_ID" \
+    --team-id "$APPLE_TEAM_ID" \
+    --password "$APPLE_PASSWORD" \
+    --wait
+else
+  echo "ERROR: set TIMED_NOTARY_PROFILE or TIMED_NOTARY_APPLE_ID/TIMED_APPLE_TEAM_ID/TIMED_NOTARY_PASSWORD." >&2
+  exit 64
 fi
 
-SIGNATURE_INFO="$(codesign -dv "$APP_PATH" 2>&1 || true)"
-if grep -q "Signature=adhoc" <<<"$SIGNATURE_INFO"; then
-  cat >&2 <<'EOF'
-Timed.app is ad-hoc signed and cannot be notarized.
-
-Re-run packaging with a Developer ID identity, for example:
-  TIMED_CODESIGN_IDENTITY="Developer ID Application: Example, Inc. (TEAMID)" bash scripts/package_app.sh
-EOF
-  exit 1
-fi
-
-codesign --verify --deep --strict "$APP_PATH"
-
-ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$ZIP_PATH"
-
-xcrun notarytool submit "$ZIP_PATH" \
-  --keychain-profile "$TIMED_NOTARY_PROFILE" \
-  --wait
-
-xcrun stapler staple "$APP_PATH"
-spctl --assess --type execute --verbose "$APP_PATH"
-
-echo "Notarized and stapled $APP_PATH"
+xcrun stapler staple "$DMG_PATH"
+spctl --assess --type open --verbose=4 "$DMG_PATH"

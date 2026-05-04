@@ -16,9 +16,11 @@ actor DataBridge {
 
     private let local = DataStore.shared
     private let offlineQueue: OfflineSyncQueue
+    private let automaticallyFlushOfflineReplay: Bool
 
-    init(offlineQueue: OfflineSyncQueue = .shared) {
+    init(offlineQueue: OfflineSyncQueue = .shared, automaticallyFlushOfflineReplay: Bool = true) {
         self.offlineQueue = offlineQueue
+        self.automaticallyFlushOfflineReplay = automaticallyFlushOfflineReplay
     }
 
     // MARK: - Tasks
@@ -58,7 +60,7 @@ actor DataBridge {
         let newlyCreatedTasks = tasks.filter { !previousTaskIds.contains($0.id) }
         try await enqueueTaskRows(rows)
 
-        guard await isOnline else { return }
+        guard automaticallyFlushOfflineReplay, await isOnline else { return }
         Task(priority: .utility) { [weak self] in
             await self?.flushOfflineReplay()
             for task in newlyCreatedTasks {
@@ -84,10 +86,16 @@ actor DataBridge {
         try await local.saveTaskSections(sections)
         guard await isAuthenticated else { return }
         guard let wsId = await authWorkspaceId, let profileId = await authProfileId else { return }
-        let rows = sections.map { makeTaskSectionRow($0, workspaceId: wsId, profileId: profileId) }
+        // System sections are owned/seeded by the service role. User sessions
+        // should only write user-created sections; trying to upsert system
+        // rows trips task_sections RLS and makes the UI look saved while sync
+        // is actually failing.
+        let rows = sections
+            .filter { !$0.isSystem }
+            .map { makeTaskSectionRow($0, workspaceId: wsId, profileId: profileId) }
         try await enqueueTaskSectionRows(rows)
 
-        guard await isOnline else { return }
+        guard automaticallyFlushOfflineReplay, await isOnline else { return }
         Task(priority: .utility) { [weak self] in
             await self?.flushOfflineReplay()
         }
@@ -142,8 +150,16 @@ actor DataBridge {
 
     func delete(id: UUID) async throws -> [TimedTask] {
         var tasks = try await loadTasks()
+        guard tasks.contains(where: { $0.id == id }) else { return tasks }
         tasks.removeAll { $0.id == id }
-        try await saveTasks(tasks)
+        try await local.saveTasks(tasks)
+        guard await isAuthenticated else { return tasks }
+        try await enqueueTaskStatusUpdate(taskId: id, status: "deleted", actualMinutes: nil)
+
+        guard automaticallyFlushOfflineReplay, await isOnline else { return tasks }
+        Task(priority: .utility) { [weak self] in
+            await self?.flushOfflineReplay()
+        }
         return tasks
     }
 
@@ -160,7 +176,16 @@ actor DataBridge {
     }
 
     func attachReasonToOverride(eventId: UUID, reason: String) async throws {
-        try await supabaseClient.attachReasonToBehaviourEvent(eventId, reason)
+        guard await isAuthenticated else { return }
+        guard await isOnline else {
+            try await enqueueBehaviourEventReason(eventId: eventId, reason: reason)
+            return
+        }
+        do {
+            try await supabaseClient.attachReasonToBehaviourEvent(eventId, reason)
+        } catch {
+            try await enqueueBehaviourEventReason(eventId: eventId, reason: reason)
+        }
     }
 
     func logTaskSectionChanged(task: TimedTask, oldSectionId: UUID?, newSectionId: UUID?) async throws {
@@ -277,6 +302,19 @@ actor DataBridge {
         await startOfflineReplay()
         await offlineQueue.flushRegistered()
         try? await offlineQueue.cleanup()
+        await refreshSyncHealthDiagnostics()
+    }
+
+    func offlineQueueDiagnostics() async -> OfflineSyncQueue.Diagnostics {
+        let diagnostics = (try? await offlineQueue.diagnostics())
+            ?? OfflineSyncQueue.Diagnostics(pendingCount: 0, activePendingCount: 0, permanentFailureCount: 0)
+        await SyncHealthCenter.shared.update(diagnostics: diagnostics)
+        return diagnostics
+    }
+
+    private func refreshSyncHealthDiagnostics() async {
+        guard let diagnostics = try? await offlineQueue.diagnostics() else { return }
+        await SyncHealthCenter.shared.update(diagnostics: diagnostics)
     }
 
     private func enqueueTaskRows(_ rows: [TaskDBRow]) async throws {
@@ -303,6 +341,44 @@ actor DataBridge {
         }
     }
 
+    private func enqueueTaskStatusUpdate(taskId: UUID, status: String, actualMinutes: Int?) async throws {
+        let payload = try Self.queueEncoder().encode(TaskStatusQueuePayload(
+            taskId: taskId,
+            status: status,
+            actualMinutes: actualMinutes
+        ))
+        try await offlineQueue.enqueue(
+            operationType: "tasks.status",
+            payload: payload,
+            idempotencyKey: taskId.uuidString.lowercased()
+        )
+    }
+
+    private func enqueueBehaviourEvent(_ event: BehaviourEventInsert) async throws {
+        let payload = try Self.queueEncoder().encode(event)
+        let idempotency = [
+            event.eventType,
+            event.taskId?.uuidString ?? "no-task",
+            event.oldValue ?? "nil",
+            event.newValue ?? "nil",
+            event.eventMetadata?["field"] ?? "nil"
+        ].joined(separator: ":").lowercased()
+        try await offlineQueue.enqueue(
+            operationType: "behaviour_events.insert",
+            payload: payload,
+            idempotencyKey: idempotency
+        )
+    }
+
+    private func enqueueBehaviourEventReason(eventId: UUID, reason: String) async throws {
+        let payload = try Self.queueEncoder().encode(BehaviourEventReasonQueuePayload(eventId: eventId, reason: reason))
+        try await offlineQueue.enqueue(
+            operationType: "behaviour_events.attach_reason",
+            payload: payload,
+            idempotencyKey: eventId.uuidString.lowercased()
+        )
+    }
+
     private func replayQueuedOperation(operationType: String, payload: Data) async throws {
         guard await isAuthenticated else {
             throw OfflineSyncQueue.QueueError.replayDeferred("No signed-in executive for offline replay")
@@ -319,6 +395,15 @@ actor DataBridge {
         case "tasks.upsert":
             let row = try decoder.decode(TaskDBRow.self, from: payload)
             try await supabaseClient.upsertTask(row)
+        case "tasks.status":
+            let update = try decoder.decode(TaskStatusQueuePayload.self, from: payload)
+            try await supabaseClient.updateTaskStatus(update.taskId, update.status, update.actualMinutes)
+        case "behaviour_events.insert":
+            let event = try decoder.decode(BehaviourEventInsert.self, from: payload)
+            _ = try await supabaseClient.insertBehaviourEvent(event)
+        case "behaviour_events.attach_reason":
+            let update = try decoder.decode(BehaviourEventReasonQueuePayload.self, from: payload)
+            try await supabaseClient.attachReasonToBehaviourEvent(update.eventId, update.reason)
         case "email_observations.insert":
             let row = try decoder.decode(EmailObservationRow.self, from: payload)
             try await supabaseClient.insertEmailObservation(row)
@@ -378,7 +463,7 @@ actor DataBridge {
         )
     }
 
-    private func logManualImportanceChanged(
+    func logManualImportanceChanged(
         task: TimedTask,
         oldImportance: TaskManualImportance,
         newImportance: TaskManualImportance
@@ -418,7 +503,27 @@ actor DataBridge {
             newValue: newValue,
             eventMetadata: metadata
         )
-        return try await supabaseClient.insertBehaviourEvent(event)
+        guard await isOnline else {
+            try await enqueueBehaviourEvent(event)
+            return nil
+        }
+        do {
+            return try await supabaseClient.insertBehaviourEvent(event)
+        } catch {
+            try await enqueueBehaviourEvent(event)
+            return nil
+        }
+    }
+
+    private struct TaskStatusQueuePayload: Codable, Sendable {
+        let taskId: UUID
+        let status: String
+        let actualMinutes: Int?
+    }
+
+    private struct BehaviourEventReasonQueuePayload: Codable, Sendable {
+        let eventId: UUID
+        let reason: String
     }
 
     private static func queueEncoder() -> JSONEncoder {

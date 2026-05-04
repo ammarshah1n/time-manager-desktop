@@ -62,8 +62,32 @@ enum TimedLayout {
         static let input:         CGFloat = 44
         /// 44pt — icon-button tap target minimum.
         static let iconButton:    CGFloat = 44
+        /// 360pt — minimum Settings pane window height.
+        static let settingsPane:  CGFloat = 360
+        /// 32pt — Settings account provider icon tile.
+        static let accountIcon:   CGFloat = 32
+        /// 7pt — compact account connection status dot.
+        static let statusDot:     CGFloat = 7
+        /// 26pt — Settings appearance swatch.
+        static let colorSwatch:   CGFloat = 26
+        /// 20pt — Settings appearance selected-swatch ring.
+        static let swatchRing:    CGFloat = 20
         /// 180pt — splash logo area (arc + wordmark composition).
         static let splashLogo:    CGFloat = 180
+    }
+
+    // MARK: - Component widths
+
+    enum Width {
+        /// 760pt — minimum Settings pane window width. Keeps Settings tabs out
+        /// of the macOS toolbar overflow menu at launch size.
+        static let settingsPane:       CGFloat = 760
+        /// 280pt — standard Settings picker width.
+        static let settingsPicker:     CGFloat = 280
+        /// 260pt — compact Settings radio group width.
+        static let settingsCompact:    CGFloat = 260
+        /// 120pt — Learning confidence progress width.
+        static let learningProgress:   CGFloat = 120
     }
 
     // MARK: - Stroke weights

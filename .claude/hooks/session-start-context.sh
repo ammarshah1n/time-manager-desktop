@@ -23,7 +23,7 @@ build_context() {
   # ──────── MEMORY-FIRST PROTOCOL — enforced, visible, with live snapshot ────────
   printf '## ⚠️  MEMORY-FIRST PROTOCOL (enforced — read before acting)\n\n'
   printf 'Before ANY of the following actions in this session you MUST first call basic-memory:\n\n'
-  printf '  • Web research — `WebSearch`, `WebFetch`, `/comet`, `mcp__perplexity-comet__*`\n'
+  printf '  • Web research — `WebSearch`, `WebFetch`, `/comet`, `mcp__comet_bridge__*`\n'
   printf '  • Architecture / code / decision questions about Timed (current or historical)\n'
   printf '  • Spawning research subagents (`Agent` with general-purpose / Explore for research)\n'
   printf '  • Saying "I do not have prior context on X" or "let me look that up"\n\n'

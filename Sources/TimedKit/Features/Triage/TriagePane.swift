@@ -9,6 +9,7 @@ import Dependencies
 struct TriagePane: View {
     @Binding var items: [TriageItem]
     @Binding var tasks: [TimedTask]
+    var onOpenAccountsSettings: () -> Void = {}
 
     @State private var currentIndex = 0
     @State private var animatingOut = false
@@ -281,10 +282,15 @@ struct TriagePane: View {
                 .foregroundStyle(.secondary)
             Text("Triage is empty")
                 .font(.system(size: 17, weight: .medium))
-            Text("Emails will appear here when they arrive from Outlook.")
+            Text("Emails will appear here when Timed syncs your connected mail accounts. Connect or retry mail sync in Settings if this stays empty.")
                 .font(.system(size: 13))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
+            Button("Open account settings") {
+                onOpenAccountsSettings()
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

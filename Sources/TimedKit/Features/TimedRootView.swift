@@ -13,6 +13,7 @@ struct TimedRootView: View {
     @State private var selection: NavSection? = .dishMeUp
     @State private var triageItems: [TriageItem] = []
     @State private var tasks: [TimedTask] = []
+    @State private var taskSections: [TaskSection] = []
     @State private var blocks: [CalendarBlock] = []
     @State private var wooItems: [WOOItem] = []
     @State private var captureItems: [CaptureItem] = []
@@ -38,10 +39,24 @@ struct TimedRootView: View {
     }
 
     private func saveTasks(_ v: [TimedTask])      { Task { try? await DataBridge.shared.saveTasks(v) } }
+    private func saveTaskSections(_ v: [TaskSection]) { Task { try? await DataBridge.shared.saveTaskSections(v) } }
     private func saveTriage(_ v: [TriageItem])    { Task { try? await DataBridge.shared.saveTriageItems(v) } }
     private func saveWOO(_ v: [WOOItem])          { Task { try? await DataBridge.shared.saveWOOItems(v) } }
     private func saveBlocks(_ v: [CalendarBlock])   { Task { try? await DataBridge.shared.saveBlocks(v) } }
     private func saveCaptures(_ v: [CaptureItem])   { Task { try? await DataBridge.shared.saveCaptureItems(v) } }
+    private func deleteTasks(_ ids: [UUID]) {
+        guard !ids.isEmpty else { return }
+        Task {
+            var latest = tasks
+            for id in ids {
+                if let updated = try? await DataBridge.shared.delete(id: id) {
+                    latest = updated
+                }
+            }
+            tasks = latest
+            syncMenuBar()
+        }
+    }
 
     private var rootSplitView: some View {
         NavigationSplitView(columnVisibility: .constant(.all)) {
@@ -78,6 +93,11 @@ struct TimedRootView: View {
             if newToken != nil {
                 startEmailSyncIfReady()
                 startCalendarSyncIfReady()
+            }
+        }
+        .onChange(of: auth.googleAccessToken) { _, newToken in
+            if newToken != nil {
+                startGmailSyncIfReady()
             }
         }
         .onChange(of: auth.isSignedIn) { _, signedIn in
@@ -126,6 +146,7 @@ struct TimedRootView: View {
     @ViewBuilder private var persistenceObserver: some View {
         Color.clear
             .onChange(of: tasks)       { (_: [TimedTask],     v: [TimedTask])     in saveTasks(v); syncMenuBar() }
+            .onChange(of: taskSections) { (_: [TaskSection],   v: [TaskSection])   in saveTaskSections(v) }
             .onChange(of: triageItems) { (_: [TriageItem],    v: [TriageItem])    in saveTriage(v) }
             .onChange(of: wooItems)    { (_: [WOOItem],       v: [WOOItem])       in saveWOO(v) }
             .onChange(of: blocks)        { (_: [CalendarBlock], v: [CalendarBlock]) in saveBlocks(v); syncMenuBar() }
@@ -176,6 +197,7 @@ struct TimedRootView: View {
 
             // Load from local DataStore first (offline-first)
             if let v = try? await store.loadTasks(),        !v.isEmpty { tasks       = v }
+            if let v = try? await store.loadTaskSections(), !v.isEmpty { taskSections = v }
             if let v = try? await store.loadTriageItems(),  !v.isEmpty { triageItems = v }
             if let v = try? await store.loadWOOItems(),     !v.isEmpty { wooItems    = v }
             if let v = try? await store.loadBlocks(),       !v.isEmpty { blocks      = v }
@@ -186,6 +208,9 @@ struct TimedRootView: View {
 
             // Start calendar sync if Graph token is available
             startCalendarSyncIfReady()
+
+            // Start Gmail + Google Calendar sync if a Google session was restored.
+            startGmailSyncIfReady()
 
             // Fetch from Supabase if signed in (overlay on local data)
             await fetchFromSupabaseIfConnected()
@@ -200,6 +225,9 @@ struct TimedRootView: View {
         do {
             let dbTasks = try await supa.fetchTasks(wsId, profileId, ["pending", "in_progress"])
             if !dbTasks.isEmpty { tasks = dbTasks.map(TimedTask.init(from:)) }
+            if let sections = try? await DataBridge.shared.loadTaskSections(), !sections.isEmpty {
+                taskSections = sections
+            }
 
             let dbEmails = try await supa.fetchEmailMessages(wsId, "inbox", 100)
             if !dbEmails.isEmpty { triageItems = dbEmails.map(TriageItem.init(from:)) }
@@ -235,6 +263,14 @@ struct TimedRootView: View {
         }
     }
 
+    private func startGmailSyncIfReady() {
+        guard auth.googleAccessToken != nil,
+              let executiveId = auth.executiveId else { return }
+        Task {
+            await auth.connectGmailIfPossible(executiveId: executiveId)
+        }
+    }
+
     private func checkMorningInterview() {
         let today = Self.ymd.string(from: Date())
         guard hasCompletedOnboarding && lastMorningInterviewDate != today else { return }
@@ -252,6 +288,40 @@ struct TimedRootView: View {
 
     /// Default false — all screens visible. Toggle via Preferences (or debug).
     @AppStorage("v1BetaMode") private var v1BetaMode: Bool = false
+    @State private var showAddSection = false
+    @State private var newSectionTitle = ""
+    @State private var newSectionBucket: TaskBucket = .action
+    @State private var newSectionMode: WorkItemCreationMode = .planningBucket
+    @State private var newSectionParentId: UUID?
+    @State private var collapsedTaskSectionIds: Set<UUID> = []
+
+    private var visibleTaskSections: [TaskSection] {
+        let sections = taskSections.isEmpty ? TaskSection.defaultSystemSections : taskSections
+        return sections.filter { section in
+            !section.isArchived
+                && !(section.isSystem && section.parentSectionId == nil && section.canonicalBucketType == TaskBucket.waiting.dbValue)
+        }.sorted { lhs, rhs in
+            if lhs.sortOrder != rhs.sortOrder { return lhs.sortOrder < rhs.sortOrder }
+            return lhs.title < rhs.title
+        }
+    }
+
+    private var topLevelTaskSections: [TaskSection] {
+        visibleTaskSections.filter { $0.parentSectionId == nil }
+    }
+
+    private func childSections(for parent: TaskSection) -> [TaskSection] {
+        visibleTaskSections.filter { $0.parentSectionId == parent.id }
+    }
+
+    private func tasksForSection(_ section: TaskSection) -> [TimedTask] {
+        let childIds = Set(childSections(for: section).map(\.id))
+        return tasks.filter { task in
+            if task.sectionId == section.id { return true }
+            if let sectionId = task.sectionId, childIds.contains(sectionId) { return true }
+            return section.isSystem && task.sectionId == nil && task.bucket.dbValue == section.canonicalBucketType
+        }
+    }
 
     @ViewBuilder
     private var sidebar: some View {
@@ -277,20 +347,19 @@ struct TimedRootView: View {
             }
 
             Section {
-                let workBuckets: [TaskBucket] = [.action, .calls, .reply, .readToday, .readThisWeek, .transit]
-                ForEach(workBuckets, id: \.self) { bucket in
-                    let bucketTasks = tasks.filter { $0.bucket == bucket && !$0.isDone }
-                    let totalMins   = bucketTasks.reduce(0) { $0 + $1.estimatedMinutes }
-
-                    SidebarRow(
-                        label: bucket.rawValue,
-                        icon: bucket.icon,
-                        dotColor: bucket.dotColor,
-                        badge: bucketTasks.count,
-                        timeHint: totalMins > 0 ? timeHint(totalMins) : nil,
-                        isSelected: selection == .tasks(bucket)
+                ForEach(topLevelTaskSections) { section in
+                    let children = childSections(for: section)
+                    sectionSidebarRow(
+                        section,
+                        indent: 0,
+                        isCollapsible: !children.isEmpty,
+                        isExpanded: isSectionExpanded(section)
                     )
-                    .tag(NavSection.tasks(bucket))
+                    if isSectionExpanded(section) {
+                        ForEach(children) { child in
+                            sectionSidebarRow(child, indent: 18)
+                        }
+                    }
                 }
 
                 if !v1BetaMode {
@@ -299,6 +368,17 @@ struct TimedRootView: View {
                                isSelected: selection == .waiting)
                         .tag(NavSection.waiting)
                 }
+
+                Button {
+                    newSectionTitle = ""
+                    newSectionBucket = .action
+                    newSectionMode = .planningBucket
+                    newSectionParentId = topLevelTaskSections.first?.id
+                    showAddSection = true
+                } label: {
+                    SidebarRow(label: "Add Section", icon: "plus")
+                }
+                .buttonStyle(.plain)
             } header: {
                 sidebarHeader("WORK")
             }
@@ -322,6 +402,20 @@ struct TimedRootView: View {
             }
         }
         .listStyle(.sidebar)
+        .sheet(isPresented: $showAddSection) {
+            AddWorkItemSheet(
+                title: $newSectionTitle,
+                bucket: $newSectionBucket,
+                mode: $newSectionMode,
+                parentSectionId: $newSectionParentId,
+                parentSections: topLevelTaskSections
+            ) {
+                addWorkItem()
+                showAddSection = false
+            } onCancel: {
+                showAddSection = false
+            }
+        }
     }
 
     // MARK: - Detail
@@ -342,9 +436,21 @@ struct TimedRootView: View {
                 onDishMeUp: { showDishMeUp = true }
             )
         case .triage:
-            TriagePane(items: $triageItems, tasks: $tasks)
+            TriagePane(items: $triageItems, tasks: $tasks) {
+                selection = .prefs
+            }
         case .tasks(let bucket):
-            TasksPane(bucket: bucket, tasks: $tasks, blocks: $blocks)
+            TasksPane(bucket: bucket, section: nil, taskSections: $taskSections, tasks: $tasks, blocks: $blocks, onDeleteTasks: deleteTasks)
+        case .taskSection(let sectionId):
+            let section = visibleTaskSections.first { $0.id == sectionId }
+            TasksPane(
+                bucket: section?.bucket ?? .action,
+                section: section,
+                taskSections: $taskSections,
+                tasks: $tasks,
+                blocks: $blocks,
+                onDeleteTasks: deleteTasks
+            )
         case .waiting:
             WaitingPane(items: $wooItems, tasks: $tasks)
         case .capture:
@@ -369,6 +475,77 @@ struct TimedRootView: View {
 
     private func timeHint(_ minutes: Int) -> String {
         minutes < 60 ? "\(minutes)m" : (minutes % 60 == 0 ? "\(minutes/60)h" : "\(minutes/60)h\(minutes%60)m")
+    }
+
+    @ViewBuilder
+    private func sectionSidebarRow(
+        _ section: TaskSection,
+        indent: CGFloat,
+        isCollapsible: Bool = false,
+        isExpanded: Bool = true
+    ) -> some View {
+        let sectionTasks = tasksForSection(section).filter { !$0.isDone }
+        let totalMins = sectionTasks.reduce(0) { $0 + $1.estimatedMinutes }
+        let bucket = section.bucket
+
+        SidebarRow(
+            label: section.title,
+            icon: bucket?.icon ?? "folder",
+            disclosureState: isCollapsible ? isExpanded : nil,
+            dotColor: bucket?.dotColor,
+            badge: sectionTasks.count,
+            timeHint: totalMins > 0 ? timeHint(totalMins) : nil,
+            isSelected: selection == .taskSection(section.id),
+            indent: indent,
+            onToggleDisclosure: isCollapsible ? { toggleSectionExpansion(section) } : nil
+        )
+        .tag(NavSection.taskSection(section.id))
+    }
+
+    private func isSectionExpanded(_ section: TaskSection) -> Bool {
+        !collapsedTaskSectionIds.contains(section.id)
+    }
+
+    private func toggleSectionExpansion(_ section: TaskSection) {
+        if collapsedTaskSectionIds.contains(section.id) {
+            collapsedTaskSectionIds.remove(section.id)
+        } else {
+            collapsedTaskSectionIds.insert(section.id)
+        }
+    }
+
+    private func addWorkItem() {
+        let trimmedTitle = newSectionTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedTitle.isEmpty else { return }
+        var sections = taskSections.isEmpty ? TaskSection.defaultSystemSections : taskSections
+        let parentId: UUID?
+        let canonicalBucketType: String
+        let sortOrder: Int
+
+        switch newSectionMode {
+        case .planningBucket:
+            parentId = nil
+            canonicalBucketType = newSectionBucket.dbValue
+            sortOrder = (sections.filter { $0.parentSectionId == nil }.map(\.sortOrder).max() ?? 0) + 1
+        case .section:
+            guard let selectedParentId = newSectionParentId ?? topLevelTaskSections.first?.id,
+                  let parent = sections.first(where: { $0.id == selectedParentId }) else { return }
+            parentId = parent.id
+            canonicalBucketType = parent.canonicalBucketType
+            sortOrder = (sections.filter { $0.parentSectionId == parent.id }.map(\.sortOrder).max() ?? 0) + 1
+        }
+
+        sections.append(TaskSection(
+            id: UUID(),
+            parentSectionId: parentId,
+            title: trimmedTitle,
+            canonicalBucketType: canonicalBucketType,
+            sortOrder: sortOrder,
+            colorKey: canonicalBucketType,
+            isSystem: false,
+            isArchived: false
+        ))
+        taskSections = sections
     }
 
     @ViewBuilder
@@ -462,6 +639,7 @@ enum NavSection: Hashable {
     case today
     case triage
     case tasks(TaskBucket)
+    case taskSection(UUID)
     case waiting
     case capture
     case calendar
@@ -471,16 +649,135 @@ enum NavSection: Hashable {
 
 // MARK: - Sidebar row
 
+private enum WorkItemCreationMode: String, CaseIterable, Identifiable {
+    case planningBucket = "Planning Bucket"
+    case section = "Section"
+
+    var id: Self { self }
+}
+
+private struct AddWorkItemSheet: View {
+    @Binding var title: String
+    @Binding var bucket: TaskBucket
+    @Binding var mode: WorkItemCreationMode
+    @Binding var parentSectionId: UUID?
+    let parentSections: [TaskSection]
+    let onSave: () -> Void
+    let onCancel: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Picker("Type", selection: $mode) {
+                    ForEach(WorkItemCreationMode.allCases) { mode in
+                        Text(mode.rawValue).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+
+                TextField("Name", text: $title)
+
+                if mode == .planningBucket {
+                    Picker("Default behaviour", selection: $bucket) {
+                        ForEach(TaskBucket.allCases.filter { $0 != .ccFyi }, id: \.self) { bucket in
+                            Label(bucket.rawValue, systemImage: bucket.icon).tag(bucket)
+                        }
+                    }
+                } else {
+                    Picker("Planning bucket", selection: parentBinding) {
+                        ForEach(parentSections) { section in
+                            Label(section.title, systemImage: section.bucket?.icon ?? "folder")
+                                .tag(Optional(section.id))
+                        }
+                    }
+                }
+            }
+            .formStyle(.grouped)
+            .navigationTitle(mode == .planningBucket ? "New Planning Bucket" : "New Section")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel", action: onCancel)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Add", action: onSave)
+                        .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+            .onAppear {
+                if parentSectionId == nil {
+                    parentSectionId = parentSections.first?.id
+                }
+            }
+        }
+        .frame(minWidth: 380, minHeight: 260)
+    }
+
+    private var parentBinding: Binding<UUID?> {
+        Binding(
+            get: { parentSectionId ?? parentSections.first?.id },
+            set: { parentSectionId = $0 }
+        )
+    }
+}
+
+struct AddSectionSheet: View {
+    @Binding var title: String
+    @Binding var bucket: TaskBucket
+    let heading: String
+    let onSave: () -> Void
+    let onCancel: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                TextField("Name", text: $title)
+                Picker("Planning bucket", selection: $bucket) {
+                    ForEach(TaskBucket.allCases.filter { $0 != .ccFyi }, id: \.self) { bucket in
+                        Label(bucket.rawValue, systemImage: bucket.icon).tag(bucket)
+                    }
+                }
+            }
+            .formStyle(.grouped)
+            .navigationTitle(heading)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel", action: onCancel)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Add", action: onSave)
+                        .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+        }
+        .frame(minWidth: 360, minHeight: 220)
+    }
+}
+
 struct SidebarRow: View {
     let label: String
     let icon: String
+    var disclosureState: Bool? = nil
     var dotColor: Color? = nil
     var badge: Int = 0
     var timeHint: String? = nil
     var isSelected: Bool = false
+    var indent: CGFloat = 0
+    var onToggleDisclosure: (() -> Void)? = nil
 
     var body: some View {
         HStack(spacing: TimedLayout.Spacing.xs) {
+            if let disclosureState {
+                Button {
+                    onToggleDisclosure?()
+                } label: {
+                    Image(systemName: disclosureState ? "chevron.down" : "chevron.right")
+                        .font(TimedType.caption2)
+                        .foregroundStyle(Color.Timed.labelTertiary)
+                        .frame(width: TimedLayout.Spacing.sm)
+                }
+                .buttonStyle(.plain)
+            }
+
             Image(systemName: icon)
                 .font(TimedType.subheadline)
                 .foregroundStyle(isSelected ? Color.Timed.labelPrimary : Color.Timed.labelSecondary)
@@ -510,6 +807,7 @@ struct SidebarRow: View {
                     .foregroundStyle(Color.Timed.labelTertiary)
             }
         }
+        .padding(.leading, indent)
         .animation(TimedMotion.smooth, value: isSelected)
     }
 }

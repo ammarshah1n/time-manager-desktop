@@ -6,21 +6,56 @@ import SwiftUI
 
 struct TasksPane: View {
     let bucket: TaskBucket
+    var section: TaskSection? = nil
+    @Binding var taskSections: [TaskSection]
     @Binding var tasks: [TimedTask]
     @Binding var blocks: [CalendarBlock]
+    var onDeleteTasks: ([UUID]) -> Void = { _ in }
     @State private var selected: TimedTask.ID?
     @State private var showBlockSheet = false
     @State private var blockTarget: TimedTask?
     @State private var detailTask: TimedTask?
     @State private var isSelecting: Bool = false
     @State private var selectedIds: Set<UUID> = []
+    @State private var showAddTask = false
+    @State private var showAddSubsection = false
+    @State private var subtaskParent: TimedTask?
+    @State private var newTaskTitle = ""
+    @State private var newTaskMinutes = 15
+    @State private var newTaskImportance: TaskManualImportance = .blue
+    @State private var newSubsectionTitle = ""
+    @State private var newSubsectionBucket: TaskBucket = .action
+    @State private var showDoneTasks = false
 
     var bucketTasks: [TimedTask] {
-        tasks.filter { $0.bucket == bucket }
+        guard let section else {
+            return tasks.filter { $0.bucket == bucket }
+        }
+        let sectionIds = Set(([section] + childSections(for: section)).map(\.id))
+        return tasks.filter { task in
+            if let sectionId = task.sectionId, sectionIds.contains(sectionId) { return true }
+            return section.isSystem && task.sectionId == nil && task.bucket.dbValue == section.canonicalBucketType
+        }
     }
 
     var totalMins: Int {
-        bucketTasks.reduce(0) { $0 + $1.estimatedMinutes }
+        activeRootTasks.reduce(0) { $0 + $1.estimatedMinutes }
+    }
+
+    private var activeBucket: TaskBucket { section?.bucket ?? bucket }
+    private var title: String { section?.title ?? bucket.rawValue }
+    private var activeRootTasks: [TimedTask] {
+        bucketTasks
+            .filter { !$0.isDone && $0.parentTaskId == nil }
+            .sorted(by: taskSort)
+    }
+    private var doneTasks: [TimedTask] {
+        bucketTasks
+            .filter(\.isDone)
+            .sorted(by: taskSort)
+    }
+    private var selectableTasks: [TimedTask] {
+        activeRootTasks
     }
 
     var body: some View {
@@ -32,47 +67,29 @@ struct TasksPane: View {
                 emptyState
             } else {
                 List(selection: $selected) {
-                    ForEach(bucketTasks) { task in
-                        HStack(spacing: 8) {
-                            if isSelecting {
-                                Button {
-                                    toggleSelection(task.id)
-                                } label: {
-                                    Image(systemName: selectedIds.contains(task.id)
-                                          ? "checkmark.circle.fill"
-                                          : "circle")
-                                        .font(.system(size: 18))
-                                        .foregroundStyle(selectedIds.contains(task.id)
-                                                         ? bucket.color
-                                                         : .secondary)
-                                }
-                                .buttonStyle(.plain)
-                            }
-
-                            TaskRow(
-                                task: task,
-                                onUpdateTime: { newMins in
-                                    await updateEstimate(task.id, newMins)
-                                }
-                            ) {
-                                blockTarget = task
-                                showBlockSheet = true
-                            }
+                    ForEach(activeRootTasks) { task in
+                        taskRow(task)
+                        ForEach(subtasks(for: task).filter { !$0.isDone }) { subtask in
+                            taskRow(subtask)
+                                .padding(.leading, TimedLayout.Spacing.xl)
                         }
-                        .tag(task.id)
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            if isSelecting {
-                                toggleSelection(task.id)
-                            } else {
-                                detailTask = task
-                            }
-                        }
-                        .contextMenu { taskContextMenu(task) }
                     }
                     .onDelete { indexSet in
-                        let ids = indexSet.map { bucketTasks[$0].id }
-                        tasks.removeAll { ids.contains($0.id) }
+                        let ids = indexSet.map { activeRootTasks[$0].id }
+                        onDeleteTasks(ids)
+                    }
+
+                    if !doneTasks.isEmpty {
+                        DisclosureGroup(isExpanded: $showDoneTasks) {
+                            ForEach(doneTasks) { task in
+                                taskRow(task)
+                                    .opacity(0.55)
+                            }
+                        } label: {
+                            Text("Done")
+                                .font(TimedType.caption.weight(.semibold))
+                                .foregroundStyle(Color.Timed.labelSecondary)
+                        }
                     }
                 }
                 .listStyle(.plain)
@@ -83,20 +100,33 @@ struct TasksPane: View {
                 bulkActionBar
             }
         }
-        .navigationTitle(bucket.rawValue)
+        .navigationTitle(title)
         .toolbar {
             ToolbarItemGroup(placement: .automatic) {
-                if isSelecting {
+                Button("Add Task", systemImage: "plus") {
+                    prepareNewTask()
+                    showAddTask = true
+                }
+                if section != nil {
+                    Button("Add Subsection", systemImage: "folder.badge.plus") {
+                        newSubsectionTitle = ""
+                        newSubsectionBucket = activeBucket
+                        showAddSubsection = true
+                    }
+                }
+                if isSelecting && !selectableTasks.isEmpty {
                     Button("Select All") {
-                        selectedIds = Set(bucketTasks.map(\.id))
+                        selectedIds = Set(selectableTasks.map(\.id))
                     }
                     Button("Deselect All") {
                         selectedIds.removeAll()
                     }
                 }
-                Button(isSelecting ? "Done" : "Select") {
-                    isSelecting.toggle()
-                    if !isSelecting { selectedIds.removeAll() }
+                if !selectableTasks.isEmpty {
+                    Button(isSelecting ? "Done" : "Select") {
+                        isSelecting.toggle()
+                        if !isSelecting { selectedIds.removeAll() }
+                    }
                 }
             }
         }
@@ -112,13 +142,51 @@ struct TasksPane: View {
                 TaskDetailSheet(
                     task: $tasks[idx],
                     onDelete: {
-                        tasks.remove(at: idx)
+                        onDeleteTasks([tasks[idx].id])
                         detailTask = nil
                     },
                     onDismiss: {
                         detailTask = nil
                     }
                 )
+            }
+        }
+        .sheet(isPresented: $showAddTask) {
+            AddTaskSheet(
+                title: $newTaskTitle,
+                minutes: $newTaskMinutes,
+                importance: $newTaskImportance,
+                heading: "New Task"
+            ) {
+                addTask(parent: nil)
+                showAddTask = false
+            } onCancel: {
+                showAddTask = false
+            }
+        }
+        .sheet(isPresented: $showAddSubsection) {
+            AddSectionSheet(
+                title: $newSubsectionTitle,
+                bucket: $newSubsectionBucket,
+                heading: "New Subsection"
+            ) {
+                addSubsection()
+                showAddSubsection = false
+            } onCancel: {
+                showAddSubsection = false
+            }
+        }
+        .sheet(item: $subtaskParent) { parent in
+            AddTaskSheet(
+                title: $newTaskTitle,
+                minutes: $newTaskMinutes,
+                importance: $newTaskImportance,
+                heading: "New Subtask"
+            ) {
+                addTask(parent: parent)
+                subtaskParent = nil
+            } onCancel: {
+                subtaskParent = nil
             }
         }
     }
@@ -129,6 +197,49 @@ struct TasksPane: View {
         } else {
             selectedIds.insert(id)
         }
+    }
+
+    @ViewBuilder
+    private func taskRow(_ task: TimedTask) -> some View {
+        HStack(spacing: TimedLayout.Spacing.xs) {
+            if isSelecting {
+                Button {
+                    toggleSelection(task.id)
+                } label: {
+                    Image(systemName: selectedIds.contains(task.id)
+                          ? "checkmark.circle.fill"
+                          : "circle")
+                        .font(TimedType.body)
+                        .foregroundStyle(selectedIds.contains(task.id)
+                                         ? Color.Timed.labelPrimary
+                                         : Color.Timed.labelSecondary)
+                }
+                .buttonStyle(.plain)
+            }
+
+            TaskRow(
+                task: task,
+                onUpdateTime: { newMins in
+                    await updateEstimate(task.id, newMins)
+                },
+                onUpdateImportance: { importance in
+                    updateImportance(task.id, importance)
+                }
+            ) {
+                blockTarget = task
+                showBlockSheet = true
+            }
+        }
+        .tag(task.id)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if isSelecting {
+                toggleSelection(task.id)
+            } else {
+                detailTask = task
+            }
+        }
+        .contextMenu { taskContextMenu(task) }
     }
 
     private func updateEstimate(_ id: UUID, _ minutes: Int) async -> UUID? {
@@ -146,16 +257,126 @@ struct TasksPane: View {
         )
     }
 
+    private func updateImportance(_ id: UUID, _ importance: TaskManualImportance) {
+        guard let index = tasks.firstIndex(where: { $0.id == id }) else { return }
+        let oldImportance = tasks[index].effectiveManualImportance
+        guard oldImportance != importance else { return }
+        tasks[index].manualImportance = importance
+        let updatedTask = tasks[index]
+        Task {
+            try? await DataBridge.shared.logManualImportanceChanged(
+                task: updatedTask,
+                oldImportance: oldImportance,
+                newImportance: importance
+            )
+        }
+    }
+
+    private func changeTaskBucket(_ id: UUID, to newBucket: TaskBucket) {
+        guard let index = tasks.firstIndex(where: { $0.id == id }) else { return }
+        let oldBucket = tasks[index].bucket
+        guard oldBucket != newBucket else { return }
+        tasks[index] = tasks[index].withBucket(newBucket, sectionId: nil)
+        let updatedTask = tasks[index]
+        Task {
+            try? await DataBridge.shared.logTaskBucketChanged(task: updatedTask, oldBucket: oldBucket)
+        }
+    }
+
+    private func childSections(for parent: TaskSection) -> [TaskSection] {
+        let sections = taskSections.isEmpty ? TaskSection.defaultSystemSections : taskSections
+        return sections
+            .filter { !$0.isArchived && $0.parentSectionId == parent.id }
+            .sorted { lhs, rhs in
+                if lhs.sortOrder != rhs.sortOrder { return lhs.sortOrder < rhs.sortOrder }
+                return lhs.title < rhs.title
+            }
+    }
+
+    private func subtasks(for task: TimedTask) -> [TimedTask] {
+        tasks.filter { $0.parentTaskId == task.id }.sorted(by: taskSort)
+    }
+
+    private func taskSort(_ lhs: TimedTask, _ rhs: TimedTask) -> Bool {
+        if lhs.effectiveManualImportance != rhs.effectiveManualImportance {
+            return lhs.effectiveManualImportance.rank > rhs.effectiveManualImportance.rank
+        }
+        if (lhs.sortOrder ?? Int.max) != (rhs.sortOrder ?? Int.max) {
+            return (lhs.sortOrder ?? Int.max) < (rhs.sortOrder ?? Int.max)
+        }
+        return lhs.receivedAt > rhs.receivedAt
+    }
+
+    private func prepareNewTask() {
+        newTaskTitle = ""
+        newTaskMinutes = 15
+        newTaskImportance = .blue
+    }
+
+    private func addTask(parent: TimedTask?) {
+        let trimmedTitle = newTaskTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedTitle.isEmpty else { return }
+        let parentSectionId = parent?.sectionId
+        let targetSectionId = parentSectionId ?? section?.id
+        let targetBucket = parent?.bucket ?? activeBucket
+        let task = TimedTask(
+            id: UUID(),
+            title: trimmedTitle,
+            sender: "Manual",
+            estimatedMinutes: newTaskMinutes,
+            bucket: targetBucket,
+            emailCount: 0,
+            receivedAt: Date(),
+            sectionId: targetSectionId,
+            parentTaskId: parent?.id,
+            sortOrder: nextSortOrder(parent: parent),
+            manualImportance: newTaskImportance
+        )
+        tasks.append(task)
+        if let parent {
+            Task { try? await DataBridge.shared.logSubtaskCreated(parent: parent, child: task) }
+        }
+    }
+
+    private func addSubsection() {
+        guard let section else { return }
+        let trimmedTitle = newSubsectionTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedTitle.isEmpty else { return }
+        var sections = taskSections.isEmpty ? TaskSection.defaultSystemSections : taskSections
+        let parentId = section.parentSectionId == nil ? section.id : section.parentSectionId
+        let siblings = sections.filter { $0.parentSectionId == parentId }
+        let sortOrder = (siblings.map(\.sortOrder).max() ?? 0) + 1
+        sections.append(TaskSection(
+            id: UUID(),
+            parentSectionId: parentId,
+            title: trimmedTitle,
+            canonicalBucketType: newSubsectionBucket.dbValue,
+            sortOrder: sortOrder,
+            colorKey: newSubsectionBucket.dbValue,
+            isSystem: false,
+            isArchived: false
+        ))
+        taskSections = sections
+    }
+
+    private func nextSortOrder(parent: TimedTask?) -> Int {
+        let siblings = tasks.filter { task in
+            if let parent { return task.parentTaskId == parent.id }
+            return task.parentTaskId == nil && task.sectionId == section?.id && task.bucket == activeBucket
+        }
+        return (siblings.compactMap(\.sortOrder).max() ?? siblings.count) + 1
+    }
+
     // MARK: - Header
 
     private var bucketHeader: some View {
         HStack(spacing: 16) {
             // Bucket icon + label
             HStack(spacing: 8) {
-                Image(systemName: bucket.icon)
+                Image(systemName: activeBucket.icon)
                     .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(bucket.color)
-                Text(bucket.rawValue)
+                    .foregroundStyle(activeBucket.color)
+                Text(title)
                     .font(.system(size: 14, weight: .semibold))
             }
 
@@ -167,7 +388,7 @@ struct TasksPane: View {
                 if totalMins > 0 {
                     stat(formatMins(totalMins), "total")
                 }
-                stat(bucket.reviewCadence, "review")
+                stat(activeBucket.reviewCadence, "review")
             }
         }
         .padding(.horizontal, 20).padding(.vertical, 12)
@@ -190,12 +411,27 @@ struct TasksPane: View {
 
     private var emptyState: some View {
         VStack(spacing: 12) {
-            Image(systemName: bucket.icon)
+            Image(systemName: activeBucket.icon)
                 .font(.system(size: 32, weight: .light))
-                .foregroundStyle(bucket.color.opacity(0.5))
-            Text("No \(bucket.rawValue.lowercased()) tasks")
+                .foregroundStyle(activeBucket.color.opacity(0.5))
+            Text("No \(title.lowercased()) tasks")
                 .font(.system(size: 15, weight: .medium))
-            Text("Triage emails to fill this bucket")
+            Button("Add Task", systemImage: "plus") {
+                prepareNewTask()
+                showAddTask = true
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.regular)
+            if section != nil {
+                Button("Add Subsection", systemImage: "folder.badge.plus") {
+                    newSubsectionTitle = ""
+                    newSubsectionBucket = activeBucket
+                    showAddSubsection = true
+                }
+                .buttonStyle(.plain)
+                .controlSize(.regular)
+            }
+            Text("Add tasks here or triage emails into this section.")
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
         }
@@ -215,29 +451,21 @@ struct TasksPane: View {
 
         Divider()
 
+        if task.parentTaskId == nil {
+            Button {
+                prepareNewTask()
+                subtaskParent = task
+            } label: {
+                Label("Add Subtask", systemImage: "plus")
+            }
+        }
+
+        Divider()
+
         Section("Move to") {
-            ForEach(TaskBucket.allCases.filter { $0 != bucket && $0 != .ccFyi }, id: \.self) { b in
+            ForEach(TaskBucket.allCases.filter { $0 != task.bucket && $0 != .ccFyi }, id: \.self) { b in
                 Button {
-                    if let idx = tasks.firstIndex(where: { $0.id == task.id }) {
-                        let updated = tasks[idx]
-                        tasks[idx] = TimedTask(
-                            id: updated.id,
-                            title: updated.title,
-                            sender: updated.sender,
-                            estimatedMinutes: updated.estimatedMinutes,
-                            bucket: b,
-                            emailCount: updated.emailCount,
-                            receivedAt: updated.receivedAt,
-                            replyMedium: updated.replyMedium,
-                            dueToday: updated.dueToday,
-                            isDoFirst: updated.isDoFirst,
-                            isTransitSafe: updated.isTransitSafe,
-                            waitingOn: updated.waitingOn,
-                            askedDate: updated.askedDate,
-                            expectedByDate: updated.expectedByDate,
-                            isDone: updated.isDone
-                        )
-                    }
+                    changeTaskBucket(task.id, to: b)
                 } label: {
                     Label(b.rawValue, systemImage: b.icon)
                 }
@@ -293,9 +521,7 @@ struct TasksPane: View {
 
     private func moveToBucket(_ targetBucket: TaskBucket) {
         for id in selectedIds {
-            if let idx = tasks.firstIndex(where: { $0.id == id }) {
-                tasks[idx] = tasks[idx].withBucket(targetBucket)
-            }
+            changeTaskBucket(id, to: targetBucket)
         }
         selectedIds.removeAll()
     }
@@ -310,7 +536,7 @@ struct TasksPane: View {
     }
 
     private func deleteSelected() {
-        tasks.removeAll { selectedIds.contains($0.id) }
+        onDeleteTasks(Array(selectedIds))
         selectedIds.removeAll()
     }
 
@@ -322,12 +548,12 @@ struct TasksPane: View {
 // MARK: - TimedTask bucket helper
 
 fileprivate extension TimedTask {
-    func withBucket(_ newBucket: TaskBucket) -> TimedTask {
+    func withBucket(_ newBucket: TaskBucket, sectionId newSectionId: UUID?) -> TimedTask {
         TimedTask(
             id: id, title: title, sender: sender,
             estimatedMinutes: estimatedMinutes, bucket: newBucket,
             emailCount: emailCount, receivedAt: receivedAt,
-            sectionId: sectionId, parentTaskId: parentTaskId,
+            sectionId: newSectionId, parentTaskId: parentTaskId,
             sortOrder: sortOrder, manualImportance: manualImportance,
             notes: notes, isPlanningUnit: isPlanningUnit,
             replyMedium: replyMedium, dueToday: dueToday,
@@ -345,6 +571,7 @@ fileprivate extension TimedTask {
 struct TaskRow: View {
     let task: TimedTask
     let onUpdateTime: (Int) async -> UUID?
+    let onUpdateImportance: (TaskManualImportance) -> Void
     let onBlock: () -> Void
 
     @State private var showTimePicker = false
@@ -385,6 +612,7 @@ struct TaskRow: View {
     var body: some View {
         HStack(spacing: 12) {
             BucketDot(color: task.bucket.dotColor)
+            importanceMenu
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(task.title)
@@ -531,6 +759,92 @@ struct TaskRow: View {
             }
         }
         .padding(.vertical, 5)
+    }
+
+    private var importanceMenu: some View {
+        Menu {
+            ForEach(TaskManualImportance.allCases, id: \.self) { importance in
+                Button {
+                    onUpdateImportance(importance)
+                } label: {
+                    Label(importance.label, systemImage: "circle.fill")
+                }
+            }
+        } label: {
+            Circle()
+                .fill(task.effectiveManualImportance.color)
+                .frame(width: TimedLayout.Spacing.xs, height: TimedLayout.Spacing.xs)
+                .contentShape(Rectangle())
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .help("Importance")
+    }
+}
+
+struct AddTaskSheet: View {
+    @Binding var title: String
+    @Binding var minutes: Int
+    @Binding var importance: TaskManualImportance
+    let heading: String
+    let onSave: () -> Void
+    let onCancel: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                TextField("Task", text: $title)
+                Stepper("Estimated time: \(formatMins(minutes))", value: $minutes, in: 5...480, step: 5)
+                Picker("Importance", selection: $importance) {
+                    ForEach(TaskManualImportance.allCases, id: \.self) { importance in
+                        Text(importance.label).tag(importance)
+                    }
+                }
+                .pickerStyle(.segmented)
+            }
+            .formStyle(.grouped)
+            .navigationTitle(heading)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel", action: onCancel)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Add", action: onSave)
+                        .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+        }
+        .frame(minWidth: 380, minHeight: 260)
+    }
+
+    private func formatMins(_ m: Int) -> String {
+        m < 60 ? "\(m)m" : (m % 60 == 0 ? "\(m/60)h" : "\(m/60)h \(m%60)m")
+    }
+}
+
+fileprivate extension TaskManualImportance {
+    var color: Color {
+        switch self {
+        case .blue: Color(.systemBlue)
+        case .orange: Color(.systemOrange)
+        case .red: Color(.systemRed)
+        }
+    }
+
+    var label: String {
+        switch self {
+        case .blue: "Low"
+        case .orange: "High"
+        case .red: "Urgent"
+        }
+    }
+
+    var rank: Int {
+        switch self {
+        case .blue: 0
+        case .orange: 1
+        case .red: 2
+        }
     }
 }
 

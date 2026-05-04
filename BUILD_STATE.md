@@ -1,4 +1,10 @@
-# BUILD_STATE.md — Last updated: 2026-05-03 (timed loop closure shipped)
+# BUILD_STATE.md — Last updated: 2026-05-04 (launch UX hardening verified)
+
+> **Launch UX hardening verified 2026-05-04** — Implemented the `docs/LAUNCH-UX-FINDINGS.md` pass: offline task-delete/behaviour replay, sync health diagnostics, account-linking recovery copy, Morning Interview unconfirmed-task gating, Morning Briefing manual generation/cron support, graph webhook fail-closed enqueueing, release packaging notarization guards, and static launch UX/design guard coverage.
+
+> **Verified 2026-05-04 launch UX hardening** — `swift build` ✅; `swift test` ✅ (110 tests); `swift test --filter DataBridgeTests` ✅ (23 tests); `swift test --filter LaunchUXGuardTests` ✅ (11 tests); `swift test --filter TimedDesignGuardTests` ✅; `deno check supabase/functions/generate-morning-briefing/index.ts supabase/functions/graph-webhook/index.ts` ✅; `git diff --check` ✅; `bash -n scripts/package_app.sh scripts/notarize_app.sh` ✅; `TIMED_REQUIRE_NOTARIZATION=1 TIMED_CODESIGN_IDENTITY=- bash scripts/package_app.sh` ✅ correctly exits 64; `graphify update .` ✅.
+
+> **Known after launch UX hardening** — Not committed because this main worktree had pre-existing dirty files and mixed ownership before the session. Production notarization remains blocked on Apple Developer ID/Team ID. Remote Supabase deployment/smokes are pending. Remote smoke/test row deletion remains approval-gated.
 
 > **Timed loop closure shipped 2026-05-03** — Closed the JCODE wave DoD after the remote-gate repair. Bucket migration drift is repaired remotely, AI task estimation writes and preserves AI provenance, bucket moves preserve estimate source/basis, reason-chip writes target the exact inserted `behaviour_events.id`, and morning briefings now deterministically surface recent estimate override reasons inside stored briefing sections even when the LLM would otherwise omit or fence the calibration JSON.
 
@@ -11,6 +17,22 @@
 > **Verified 2026-05-03 AI estimation remote gate** — `swift build` ✅; `swift test` ✅ (95 tests); `deno check supabase/functions/estimate-time/index.ts supabase/functions/generate-morning-briefing/index.ts` ✅; `supabase db push --include-all --linked --yes` ✅ through `20260503202000_grant_public_rls_helper_execution.sql`; `estimate-time` and `generate-morning-briefing` redeployed ✅; authenticated remote smoke ✅: schema columns visible, bootstrap succeeds, task insert succeeds, `estimate-time` writes `estimated_minutes_ai`, clears `estimated_minutes_manual`, sets `estimate_source`/`estimate_uncertainty`, and authenticated `behaviour_events` insert/update stores the reason metadata. Test rows were deleted after smoke. `graphify update .` ✅.
 
 > **Known after AI estimation remote gate** — `supabase db lint --linked` still reports pre-existing broken legacy SQL functions (`match_tier0_observations`, `compute_baselines`, `compute_degree_centrality`, `compute_relationship_health`, `check_validation_gates`, `compute_weekly_ccr`) against missing/renamed tables or vector operator casts. This is separate from the estimation/task remote gate, which passed.
+
+> **Voice row design ratchet 2026-05-03** — Reworked Settings → Voice setup re-entry as a native Form row with `TimedType`, `TimedLayout`, and `Color.Timed` tokens; cleaned `PrefsPane.swift` token violations across Accounts, Blocks, Notifications, Appearance, Voice, and Learning; added light/dark Voice previews; added `TimedDesignGuardTests` to enforce UI-rule regressions against the `c38c42595a6a2697294ed720716e0bb05ce8f93c` ratchet; documented the ratchet and Phase 2 cleanup targets in `docs/UI-RULES.md`.
+
+> **Verified 2026-05-03 voice row design ratchet** — `swift test --filter TimedDesignGuardTests` ✅; `swift test` ✅ (95 tests); `swift build` ✅; `graphify update .` ✅; `bash scripts/package_app.sh` ✅; `bash scripts/install_app.sh` ✅; `/Applications/Timed.app` `codesign --verify --deep --strict --verbose=2` ✅; installed binary matches `dist.noindex/Timed.app` at SHA-256 `96a3b6dadcf5cfca8061c358d260d6c138346eadfecebc9a617b534c15720713`; relaunched from `/Applications/Timed.app` as PID `47227`. `/usr/libexec/timed` is Apple's system time daemon, not a duplicate Timed app.
+
+> **Gmail connection confirmation 2026-05-03** — Settings → Accounts now gives a clear customer-facing status after Add Gmail succeeds, uses non-internal Gmail failure copy, records the linked Gmail address to `executives.google_email`, and restarts Gmail + Google Calendar import when a saved Google session is restored on launch.
+
+> **Verified 2026-05-03 Gmail connection pass** — Gmail path/code-copy scan ✅; Settings → Accounts checked in the installed app with Computer Use ✅; did not click through the Google OAuth account authorization flow; `swift build` ✅; `swift test` ✅ (94 tests); `bash scripts/package_app.sh` ✅; `ditto dist.noindex/Timed.app /Applications/Timed.app` ✅; `/Applications/Timed.app` `codesign --verify --deep --strict` ✅; installed binary matches `dist.noindex/Timed.app` at SHA-256 `d0a71bdf8d7705e8ca06129c3c7c1749c89c472cc60bf6e3ed7ecbd2fe3af64e`; `spctl --assess` remains rejected because this is still the local ad-hoc build; `graphify update .` ✅.
+
+> **Voice settings privacy 2026-05-03** — Removed the customer-visible Voice ID field and provider/dashboard wording from Settings → Voice. The panel now shows only customer-facing voice status/resume setup copy, and the missing voice setup failure path no longer exposes provider or internal configuration details.
+
+> **Verified 2026-05-03 voice settings privacy** — Customer-visible provider/ID/dashboard string scan ✅; Settings → Voice checked in the running app with Computer Use ✅; `swift build` ✅; `swift test` ✅ (94 tests); `bash scripts/package_app.sh` ✅; `bash scripts/install_app.sh` ✅; `/Applications/Timed.app` `codesign --verify --deep --strict --verbose=2` ✅; installed binary matches `dist.noindex/Timed.app` at SHA-256 `c14d6cfaaacde9624bfc0d8ed7c224b025fbe4f4de0f77db2e8ebc342fe368e2`; `graphify update .` ✅.
+
+> **Planning buckets 2026-05-03** — Extended the WORK Add Section flow so it can create either a new top-level planning bucket or a section inside an existing planning bucket. Top-level planning buckets with child sections now show a disclosure chevron and can be collapsed in the sidebar. UI consistency pass removed the duplicate system Waiting planning row so the sidebar keeps the original single Waiting feature entry.
+
+> **Verified 2026-05-03 planning buckets** — UI checked in the running app with Computer Use; `swift build` ✅; `swift test` ✅ (94 tests); `bash scripts/package_app.sh` ✅; `bash scripts/install_app.sh` ✅; `/Applications/Timed.app` `codesign --verify --deep --strict --verbose=2` ✅; installed binary matches `dist.noindex/Timed.app` at SHA-256 `054667e630339633dfa9b1397f5218af6f40e847b3ca094cce14e106b782c499`; `graphify update .` ✅.
 
 > **Briefing empty-state copy 2026-05-03** — Removed the consumer-visible Trigger.dev dashboard instruction from the Morning Briefing empty state. The post-onboarding fallback now explains that Timed needs enough recent activity before it can create a useful briefing.
 
@@ -256,7 +278,7 @@
 - **3 architecture syntheses:** `research/ARCHITECTURE-MEMORY.md`, `ARCHITECTURE-SIGNALS.md`, `ARCHITECTURE-DELIVERY.md`
 
 Any future build session should read `CLAUDE.md` → `BUILD_STATE.md` → relevant `ARCHITECTURE-*.md` → build.
-Last Session: 2026-05-03 16:18
+Last Session: 2026-05-04 10:51
 
 ### Intro + Brand System (new)
 - [x] IntroFeature.swift — TCA 1.15+ @Reducer, phase machine (reveal → tagline → holding → exiting → finished)

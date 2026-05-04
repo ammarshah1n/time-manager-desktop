@@ -151,7 +151,7 @@ struct DataBridgeTests {
                 $0.supabaseClient = dependency
             } operation: {
                 let queue = OfflineSyncQueue()
-                let bridge = DataBridge(offlineQueue: queue)
+                let bridge = DataBridge(offlineQueue: queue, automaticallyFlushOfflineReplay: false)
 
                 try await bridge.saveTasks([makeTask(title: "Queued failure")])
                 try await Task.sleep(for: .milliseconds(100))
@@ -174,7 +174,7 @@ struct DataBridgeTests {
                 $0.supabaseClient = dependency
             } operation: {
                 let queue = OfflineSyncQueue()
-                let bridge = DataBridge(offlineQueue: queue)
+                let bridge = DataBridge(offlineQueue: queue, automaticallyFlushOfflineReplay: false)
                 let task = makeTask(title: "Replay me")
 
                 try await bridge.saveTasks([task])
@@ -202,7 +202,7 @@ struct DataBridgeTests {
                 $0.supabaseClient = dependency
             } operation: {
                 let queue = OfflineSyncQueue()
-                let bridge = DataBridge(offlineQueue: queue)
+                let bridge = DataBridge(offlineQueue: queue, automaticallyFlushOfflineReplay: false)
                 let task = makeTask(title: "Canonical bucket", bucket: .readToday)
 
                 try await bridge.saveTasks([task])
@@ -227,7 +227,7 @@ struct DataBridgeTests {
                 $0.supabaseClient = dependency
             } operation: {
                 let queue = OfflineSyncQueue()
-                let bridge = DataBridge(offlineQueue: queue)
+                let bridge = DataBridge(offlineQueue: queue, automaticallyFlushOfflineReplay: false)
                 let sectionId = UUID()
                 let parent = makeTask(
                     title: "Parent task",
@@ -275,7 +275,7 @@ struct DataBridgeTests {
                 $0.supabaseClient = dependency
             } operation: {
                 let queue = OfflineSyncQueue()
-                let bridge = DataBridge(offlineQueue: queue)
+                let bridge = DataBridge(offlineQueue: queue, automaticallyFlushOfflineReplay: false)
                 let section = TaskSection(
                     id: UUID(),
                     parentSectionId: nil,
@@ -299,6 +299,49 @@ struct DataBridgeTests {
                 #expect(row.sortOrder == 4)
                 #expect(row.colorKey == "orange")
                 #expect(row.isSystem == false)
+            }
+        }
+    }
+
+    @Test("saveTaskSections skips service-owned system rows")
+    func testSaveTaskSectionsSkipsSystemRows() async throws {
+        let recorder = TaskSectionUpsertRecorder()
+
+        try await withAuthenticatedTimedStore { _ in
+            try await withDependencies {
+                var dependency = SupabaseClientDependency()
+                dependency.upsertTaskSection = { row in await recorder.record(row) }
+                $0.supabaseClient = dependency
+            } operation: {
+                let queue = OfflineSyncQueue()
+                let bridge = DataBridge(offlineQueue: queue, automaticallyFlushOfflineReplay: false)
+                let systemSection = TaskSection(
+                    id: UUID(),
+                    parentSectionId: nil,
+                    title: "Email",
+                    canonicalBucketType: "other",
+                    sortOrder: 0,
+                    colorKey: nil,
+                    isSystem: true,
+                    isArchived: false
+                )
+                let userSection = TaskSection(
+                    id: UUID(),
+                    parentSectionId: nil,
+                    title: "Board prep",
+                    canonicalBucketType: "action",
+                    sortOrder: 1,
+                    colorKey: "blue",
+                    isSystem: false,
+                    isArchived: false
+                )
+
+                try await bridge.saveTaskSections([systemSection, userSection])
+                await bridge.flushOfflineReplay()
+
+                let rows = await recorder.rows()
+                #expect(!rows.contains { $0.id == systemSection.id })
+                #expect(rows.contains { $0.id == userSection.id })
             }
         }
     }
@@ -367,6 +410,86 @@ struct DataBridgeTests {
             }
         }
     }
+    @Test("delete queues remote tombstone instead of only saving local remainder")
+    func testDeleteQueuesRemoteTombstone() async throws {
+        let recorder = TaskStatusRecorder()
+
+        try await withAuthenticatedTimedStore { _ in
+            try await withDependencies {
+                var dependency = SupabaseClientDependency()
+                dependency.updateTaskStatus = { taskId, status, actualMinutes in
+                    await recorder.record(taskId: taskId, status: status, actualMinutes: actualMinutes)
+                }
+                $0.supabaseClient = dependency
+            } operation: {
+                let queue = OfflineSyncQueue()
+                let bridge = DataBridge(offlineQueue: queue, automaticallyFlushOfflineReplay: false)
+                let task = makeTask(title: "Delete remotely")
+
+                try await bridge.saveTasks([task])
+                _ = try await bridge.delete(id: task.id)
+                await bridge.flushOfflineReplay()
+
+                let updates = await recorder.updates()
+                #expect(updates.contains(TaskStatusUpdateRecord(taskId: task.id, status: "deleted", actualMinutes: nil)))
+            }
+        }
+    }
+
+    @Test("behaviour event insert failure leaves durable replay item")
+    func testBehaviourEventInsertFailureQueuesReplay() async throws {
+        try await withAuthenticatedTimedStore { _ in
+            try await withDependencies {
+                var dependency = SupabaseClientDependency()
+                dependency.insertBehaviourEvent = { _ in throw DataBridgeReplayTestError.expectedFailure }
+                $0.supabaseClient = dependency
+            } operation: {
+                let queue = OfflineSyncQueue()
+                let bridge = DataBridge(offlineQueue: queue, automaticallyFlushOfflineReplay: false)
+                let task = makeTask(title: "Offline estimate reason")
+
+                let eventId = try await bridge.logEstimateOverride(task: task, oldMinutes: 15, newMinutes: 25)
+
+                #expect(eventId == nil)
+                let diagnostics = try await queue.diagnostics()
+                #expect(diagnostics.pendingCount == 1)
+                #expect(diagnostics.activePendingCount == 1)
+            }
+        }
+    }
+
+    @Test("flushOfflineReplay replays queued behaviour events")
+    func testFlushOfflineReplayReplaysBehaviourEvents() async throws {
+        let recorder = BehaviourEventRecorder()
+
+        try await withAuthenticatedTimedStore { _ in
+            let queue = OfflineSyncQueue()
+            let bridge = DataBridge(offlineQueue: queue, automaticallyFlushOfflineReplay: false)
+            let task = makeTask(title: "Replay behaviour event")
+
+            try await withDependencies {
+                var dependency = SupabaseClientDependency()
+                dependency.insertBehaviourEvent = { _ in throw DataBridgeReplayTestError.expectedFailure }
+                $0.supabaseClient = dependency
+            } operation: {
+                _ = try await bridge.logEstimateOverride(task: task, oldMinutes: 15, newMinutes: 25)
+            }
+
+            try await withDependencies {
+                var dependency = SupabaseClientDependency()
+                dependency.insertBehaviourEvent = { event in await recorder.record(event) }
+                $0.supabaseClient = dependency
+            } operation: {
+                await bridge.flushOfflineReplay()
+            }
+
+            let event = try #require(await recorder.events().first)
+            #expect(event.eventType == "estimate_override")
+            #expect(event.taskId == task.id)
+            #expect(event.oldValue == "15")
+            #expect(event.newValue == "25")
+        }
+    }
 }
 
 private struct QueueReplayEntry: Equatable, Sendable {
@@ -425,6 +548,24 @@ private actor BehaviourEventRecorder {
 
     func events() -> [BehaviourEventInsert] {
         storedEvents
+    }
+}
+
+private struct TaskStatusUpdateRecord: Equatable, Sendable {
+    let taskId: UUID
+    let status: String
+    let actualMinutes: Int?
+}
+
+private actor TaskStatusRecorder {
+    private var storedUpdates: [TaskStatusUpdateRecord] = []
+
+    func record(taskId: UUID, status: String, actualMinutes: Int?) {
+        storedUpdates.append(TaskStatusUpdateRecord(taskId: taskId, status: status, actualMinutes: actualMinutes))
+    }
+
+    func updates() -> [TaskStatusUpdateRecord] {
+        storedUpdates
     }
 }
 

@@ -183,6 +183,7 @@ actor OfflineSyncQueue {
                             arguments: [id]
                         )
                     }
+                    await SyncHealthCenter.shared.recordSuccess(operationType: opType)
                     currentBackoff = 1.0 // Reset on success
                 } catch {
                     if let queueError = error as? QueueError, case .replayDeferred = queueError {
@@ -196,6 +197,10 @@ actor OfflineSyncQueue {
                     let permanentlyFailed = newFailedCount >= Self.maxFailures
                     TimedLogger.dataStore.warning(
                         "Flush failed for op \(id) (attempt \(newFailedCount)/\(Self.maxFailures))\(permanentlyFailed ? " — marking permanently_failed" : ""): \(error.localizedDescription, privacy: .public)"
+                    )
+                    await SyncHealthCenter.shared.recordFailure(
+                        operationType: opType,
+                        message: error.localizedDescription
                     )
                     // Increment failure counter; mark permanently_failed if at cap so
                     // subsequent flushes skip this row instead of retrying forever.
@@ -212,8 +217,12 @@ actor OfflineSyncQueue {
                     continue
                 }
             }
+            if let diagnostics = try? diagnostics() {
+                await SyncHealthCenter.shared.update(diagnostics: diagnostics)
+            }
         } catch {
             TimedLogger.dataStore.error("Flush read failed: \(error.localizedDescription, privacy: .public)")
+            await SyncHealthCenter.shared.recordFailure(operationType: "offline_queue.read", message: error.localizedDescription)
         }
     }
 

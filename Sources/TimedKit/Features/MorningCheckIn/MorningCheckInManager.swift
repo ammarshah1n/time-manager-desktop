@@ -71,7 +71,7 @@ final class MorningCheckInManager: ObservableObject {
 
     func start() async {
         guard !agentId.isEmpty else {
-            phase = .failed("ElevenLabs Agent ID not set. Open Settings → Voice and paste the Agent ID from your ElevenLabs dashboard (the agent whose Custom-LLM URL points at /functions/v1/voice-llm-proxy).")
+            phase = .failed("Voice setup is unavailable. Restart Timed, then contact support if this keeps happening.")
             return
         }
         phase = .connecting
