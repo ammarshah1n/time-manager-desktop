@@ -190,7 +190,7 @@ struct SharingPane: View {
 
     private var leaveWorkspaceSection: some View {
         Group {
-            if currentRoleIsPA, let activeId = auth.activeWorkspaceId, let myId = auth.executiveId {
+            if currentRoleIsPA, let activeId = auth.activeWorkspaceId, let myId = auth.authUserId {
                 VStack(alignment: .leading, spacing: 10) {
                     Divider().padding(.vertical, 6)
                     Text("Leave this workspace")

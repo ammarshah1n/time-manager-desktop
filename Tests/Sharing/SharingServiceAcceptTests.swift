@@ -82,6 +82,15 @@ struct SharingPaneRoleGuardTests {
                 "Current-workspace invite reload failures must clear stale invite rows")
     }
 
+    @Test("PA leave uses auth user id")
+    func paLeaveUsesAuthUserId() throws {
+        let content = try source("Sources/TimedKit/Features/Sharing/SharingPane.swift")
+        #expect(content.contains("let myId = auth.authUserId"),
+                "PA leave must delete the workspace_members row keyed by auth.uid(), not executiveId")
+        #expect(!content.contains("let myId = auth.executiveId"),
+                "PA leave must not use the executive id as workspace_members.profile_id")
+    }
+
     private func source(_ path: String) throws -> String {
         try String(contentsOf: URL(fileURLWithPath: path))
     }

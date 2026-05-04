@@ -20,6 +20,7 @@ final class AuthService: ObservableObject {
 
     @Published var isSignedIn = false
     @Published var isLoading = false
+    @Published var authUserId: UUID?
     @Published var executiveId: UUID?
     @Published var userEmail: String?
     @Published var graphAccessToken: String?
@@ -66,6 +67,7 @@ final class AuthService: ObservableObject {
         }
         do {
             let session = try await client.auth.session
+            authUserId = session.user.id
             userEmail = session.user.email
             isSignedIn = true
             await bootstrapExecutive()
@@ -257,6 +259,7 @@ final class AuthService: ObservableObject {
         isLoading = true
         do {
             let session = try await client.auth.session(from: url)
+            authUserId = session.user.id
             userEmail = session.user.email
             isSignedIn = true
             flashWelcome("Welcome back.")
@@ -302,6 +305,7 @@ final class AuthService: ObservableObject {
         error = nil
         do {
             let session = try await client.auth.signIn(email: trimmed, password: password)
+            authUserId = session.user.id
             userEmail = session.user.email
             isSignedIn = true
             flashWelcome("Welcome back.")
@@ -330,6 +334,7 @@ final class AuthService: ObservableObject {
         do {
             let response = try await client.auth.signUp(email: trimmed, password: password)
             if response.session != nil {
+                authUserId = response.user.id
                 userEmail = response.user.email
                 isSignedIn = true
                 flashWelcome("Welcome to Timed.")
@@ -531,6 +536,7 @@ final class AuthService: ObservableObject {
             TimedLogger.supabase.error("Sign-out error: \(error.localizedDescription, privacy: .private)")
         }
         isSignedIn = false
+        authUserId = nil
         executiveId = nil
         userEmail = nil
         graphAccessToken = nil
