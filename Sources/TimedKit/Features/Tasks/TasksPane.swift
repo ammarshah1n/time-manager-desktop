@@ -410,11 +410,17 @@ struct TasksPane: View {
     // MARK: - Empty state
 
     private var emptyState: some View {
+        // Option A — minimal empty state. Glyph + title + primary action only.
+        // Add Subsection lives in the pane toolbar (above), no need to duplicate
+        // it here. The "Add tasks here or triage emails…" caption is bloat:
+        // the button next to it already says "Add Task". See docs/UI-RULES.md
+        // rules 14–15 (no empty rows / no bloat) and CLAUDE.md design
+        // principle 7 (cognitive load is the budget).
         VStack(spacing: 12) {
             Image(systemName: activeBucket.icon)
                 .font(.system(size: 32, weight: .light))
                 .foregroundStyle(activeBucket.color.opacity(0.5))
-            Text("No \(title.lowercased()) tasks")
+            Text("No \(title.lowercased())")
                 .font(.system(size: 15, weight: .medium))
             Button("Add Task", systemImage: "plus") {
                 prepareNewTask()
@@ -422,18 +428,6 @@ struct TasksPane: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.regular)
-            if section != nil {
-                Button("Add Subsection", systemImage: "folder.badge.plus") {
-                    newSubsectionTitle = ""
-                    newSubsectionBucket = activeBucket
-                    showAddSubsection = true
-                }
-                .buttonStyle(.plain)
-                .controlSize(.regular)
-            }
-            Text("Add tasks here or triage emails into this section.")
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

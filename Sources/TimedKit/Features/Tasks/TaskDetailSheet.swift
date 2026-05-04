@@ -53,18 +53,22 @@ struct TaskDetailSheet: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
 
-            // Sender (read-only style)
-            LabeledContent("Sender") {
-                HStack(spacing: 6) {
-                    if !task.sender.isEmpty {
+            // Sender — hidden entirely when the task has no sender (manually
+            // added, voice-captured, etc.). A row showing "—" is cognitive
+            // bloat for an executive scanning a task; the source pill on the
+            // TaskRow already conveys provenance for AI/Manual/Voice/Email.
+            // See docs/UI-RULES.md § "No empty rows".
+            if !task.sender.isEmpty {
+                LabeledContent("Sender") {
+                    HStack(spacing: 6) {
                         Image(systemName: "person.fill")
                             .font(.system(size: 11))
                             .foregroundStyle(.secondary)
+                        Text(task.sender)
+                            .foregroundStyle(.secondary)
                     }
-                    Text(task.sender.isEmpty ? "—" : task.sender)
-                        .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             // Bucket picker

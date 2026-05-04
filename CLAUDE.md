@@ -44,6 +44,7 @@ It builds a deep, compounding model of how its executive users think and operate
 4. Morning session delivers intelligence, not a task list. Cognitive briefing, not features.
 5. Cognitive layer only. Timed observes, reflects, recommends. NEVER acts on the world unilaterally.
 6. User is a C-suite executive. Impressed only by a system that understands them, not features.
+7. Cognitive load is the budget. The exec already runs a company; we don't add another tab in their head. No empty rows, no decorative chrome, no "—" placeholders, no "(none)" fallbacks. If a field has no value, HIDE the row entirely. If a section is informational-only and rare, fold it into another. When in doubt, cut. Enforcement details: `docs/UI-RULES.md` rules 14–15 + `Tests/TimedDesignGuardTests.swift`.
 </important>
 
 ## AI Stack

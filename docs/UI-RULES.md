@@ -37,6 +37,19 @@ Strict, short, include in every Claude / Cursor session that touches UI.
 13. **Voice first.** Any new user-facing capture / onboarding / setup flow
     STARTS as a voice-led experience. Form fields only for OAuth, file upload,
     or input voice cannot capture.
+14. **No empty rows.** Cognitive load is the cost. If a labelled field has no
+    meaningful value (no sender, no waiting-on, no due date, no notes), HIDE
+    the row entirely — don't render `—`, `(none)`, or a placeholder. The
+    executive opens the sheet to read signal, not to scroll past holes. The
+    only exception is when the row is itself the affordance to ADD that
+    value (e.g., a Notes editor that's empty but tappable). Provenance the
+    user might need (AI/Manual/Voice/Email) lives on the TaskRow pill, not
+    duplicated as a row.
+15. **No bloat, period.** Every section, row, label, and chip costs the
+    executive a glance. When in doubt, cut. This is the hardest rule because
+    it requires saying no to features that look helpful. Anchor: an executive
+    in a 5-second context-switch should grasp the entire pane. If they
+    can't, something has to go.
 
 ---
 
