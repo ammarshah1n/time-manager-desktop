@@ -1,6 +1,31 @@
 # HANDOFF.md — Timed
 
-Last updated: 2026-05-04 (launch UX hardening verified, remote ops parked)
+Last updated: 2026-05-04 (PA co-edit invite shipped)
+
+## ★ 2026-05-04 ★ — PA co-edit invite shipped
+
+**State: SHIPPED.** Yasser can invite Karen to co-edit his Timed task list end-to-end.
+
+**Done:**
+- Migrations 20260504100000–100006: `workspace_invites`, `pa_workspace_ids()`, `tasks.created_by`, RESTRICTIVE PA deny-list, atomic `accept_workspace_invite(p_code uuid)`, PA self-delete, same-user already-member resume, RPC ambiguity fix, and non-recursive invite revoke RLS.
+- Edge Function `accept-invite`: thin JWT-passing wrapper around the RPC with errcode-specific UX copy.
+- Deployed `bootstrap-executive` so new Auth users receive both executive-id and auth-user-id workspace memberships before accepting PA invites.
+- Swift: `TimedDeepLink`, `AcceptInviteSheet`, `WorkspaceSwitcher`, `SharingPane` Apple share sheet + active invite revoke + PA leave, `AuthService.switchWorkspace`, and cache clearing via `DataBridge`/`DataStore`.
+- Web: `facilitated.com.au/timed/invite/<code>` landing page with `timed://invite/<code>` deep link and DMG fallback; `scripts/publish_dmg.sh` publishes the DMG into the facilitated repo.
+
+**Verification:**
+- `swift build` ✅; `swift test` ✅ (125 tests); `swift test --filter PARoleRLSGuardTests` ✅.
+- `deno check supabase/functions/accept-invite/index.ts` ✅; `npx supabase migration up --linked` ✅; `accept-invite` OPTIONS ✅ after propagation; `accept-invite` + `bootstrap-executive` deployed ✅.
+- Remote two-profile smoke ✅ (`runId=1777873949218-26e0e1e6`): Karen accepted Yasser invite as `pa`, second accept returned `already_member=true`, PA tasks count `2`, PA email/behaviour counts `0`, revoke persisted, leave-workspace deleted one PA membership.
+- Negative smokes ✅: invalid JWT `401`, own invite `22023`, second PA on used invite `P0002` / "This invite has already been used.".
+- DMG packaged and copied to facilitated repo: `public/downloads/Timed.dmg`, SHA-256 `c9ceb4efa4702987cc1f088f21ff0648b0ba80903c328fb14efb271228608a89`; facilitated build ✅.
+
+**Known gaps:**
+- iOS PA invite UI is not built yet; Apple Developer enrollment still blocks notarized Mac release and TestFlight/App Store URLs.
+- DMG is still ad-hoc signed, so first launch may require right-click → Open or `xattr -cr /Applications/Timed.app`.
+- Remote smoke Auth/workspace rows were intentionally left as non-production smoke evidence; no destructive cleanup was run.
+
+**Next:** Apple Developer enrollment → notarized DMG/TestFlight links, then swap landing-page fallback copy to production distribution.
 
 ## ★ 2026-05-04 UTC ★ — Launch UX hardening verified, remote launch ops parked
 
