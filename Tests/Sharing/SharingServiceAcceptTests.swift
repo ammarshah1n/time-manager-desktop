@@ -65,6 +65,23 @@ struct SharingPaneRoleGuardTests {
                 "Invite state must only receive the guarded fetch result")
     }
 
+    @Test("sharing pane clears workspace-scoped state")
+    func clearsWorkspaceScopedState() throws {
+        let content = try source("Sources/TimedKit/Features/Sharing/SharingPane.swift")
+        #expect(content.contains("resetWorkspaceScopedSharingState()"),
+                "Workspace switches must clear stale member, invite, and generated-link state before reload")
+        #expect(content.contains("members = []"),
+                "SharingPane must be able to clear stale member rows")
+        #expect(occurrences(of: "activeInvites = []", in: content) >= 2,
+                "SharingPane must clear stale invite rows on switch and failed/current non-owner reloads")
+        #expect(content.contains("inviteURL = \"\""),
+                "Generated invite links must not carry across workspace switches")
+        #expect(content.contains("guard auth.activeOrPrimaryWorkspaceId == workspaceId else { return }\n            members = []"),
+                "Current-workspace member reload failures must clear stale member rows")
+        #expect(content.contains("guard auth.activeOrPrimaryWorkspaceId == workspaceId else { return }\n            activeInvites = []"),
+                "Current-workspace invite reload failures must clear stale invite rows")
+    }
+
     private func source(_ path: String) throws -> String {
         try String(contentsOf: URL(fileURLWithPath: path))
     }

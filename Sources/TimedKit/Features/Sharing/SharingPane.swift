@@ -54,6 +54,7 @@ struct SharingPane: View {
             await loadInvites()
         }
         .onChange(of: auth.activeWorkspaceId) { _, _ in
+            resetWorkspaceScopedSharingState()
             Task {
                 await loadMembers()
                 await loadInvites()
@@ -312,6 +313,16 @@ struct SharingPane: View {
 
     // MARK: - Actions
 
+    private func resetWorkspaceScopedSharingState() {
+        members = []
+        activeInvites = []
+        inviteURL = ""
+        memberToRemove = nil
+        showRemoveConfirmation = false
+        copied = false
+        errorMessage = nil
+    }
+
     private func loadMembers() async {
         guard isConnected, let workspaceId = auth.activeOrPrimaryWorkspaceId else { return }
         isLoading = true
@@ -326,6 +337,8 @@ struct SharingPane: View {
             guard auth.activeOrPrimaryWorkspaceId == workspaceId else { return }
             members = fetchedMembers
         } catch {
+            guard auth.activeOrPrimaryWorkspaceId == workspaceId else { return }
+            members = []
             errorMessage = error.localizedDescription
         }
     }
@@ -334,6 +347,7 @@ struct SharingPane: View {
         guard isConnected, let workspaceId = auth.activeOrPrimaryWorkspaceId else { return }
         guard isActiveWorkspaceOwner else {
             activeInvites = []
+            inviteURL = ""
             return
         }
         do {
@@ -341,6 +355,8 @@ struct SharingPane: View {
             guard auth.activeOrPrimaryWorkspaceId == workspaceId else { return }
             activeInvites = fetchedInvites
         } catch {
+            guard auth.activeOrPrimaryWorkspaceId == workspaceId else { return }
+            activeInvites = []
             // Invite history is secondary; don't block the pane for a transient fetch failure.
         }
     }
