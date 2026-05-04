@@ -80,11 +80,15 @@ struct LaunchUXGuardTests {
     @Test func briefingHasScheduleAndManualRecovery() throws {
         let pane = try read("Sources/TimedKit/Features/Briefing/MorningBriefingPane.swift", repoRoot: repoRoot())
         let fn = try read("supabase/functions/generate-morning-briefing/index.ts", repoRoot: repoRoot())
-        let migration = try read("supabase/migrations/20260503203000_schedule_morning_briefings.sql", repoRoot: repoRoot())
+        // The morning briefing schedule lives in the Trigger.dev task file
+        // (we picked Trigger.dev over the pg_cron migration JCODE drafted —
+        // see commits 8489db5 / b755ea0 — for retries, run history, max-
+        // duration enforcement, and cloud dashboard observability).
+        let triggerTask = try read("trigger/src/tasks/morning-briefing.ts", repoRoot: repoRoot())
         #expect(pane.contains("Refresh"), "Briefing empty state must not be a dead end.")
         #expect(pane.contains("Generate briefing now"), "Briefing empty state needs a manual generation path.")
         #expect(fn.contains("verifyAuth") && fn.contains("resolveExecutiveId"), "Manual generation must be user-scoped, not service-role-only.")
-        #expect(migration.contains("generate-morning-briefing-daily") && migration.contains("cron.schedule"), "Morning briefing needs a checked-in cron schedule.")
+        #expect(triggerTask.contains("schedules.task") && triggerTask.contains("\"30 5 * * *\"") && triggerTask.contains("Australia/Adelaide"), "Morning briefing needs a checked-in Trigger.dev schedule firing at 05:30 Australia/Adelaide.")
     }
 
     @Test func settingsVoiceAndTaskDetailPolishStayFixed() throws {
