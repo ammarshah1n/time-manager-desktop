@@ -67,16 +67,31 @@ actor SharingService {
     }
 
     /// Accept an invite and join a workspace.
-    func acceptInvite(code: String, profileId: UUID) async throws {
+    @discardableResult
+    func acceptInvite(code: String) async throws -> AcceptInviteResponse {
         guard isConnected else {
             logger.warning("Supabase not connected — cannot accept invite")
             throw SharingError.notConnected
         }
 
-        logger.info("Accepting invite code \(code, privacy: .private) for profile \(profileId.uuidString, privacy: .public)")
+        logger.info("Accepting invite code \(code, privacy: .private)")
 
-        // TODO: Validate invite code against workspace_invites table,
-        // then insert workspace_members row via SupabaseClientDependency.
+        return try await supabase.acceptInvite(code)
+    }
+
+    func fetchInvites(workspaceId: UUID) async throws -> [WorkspaceInviteSummary] {
+        guard isConnected else { return [] }
+        return try await supabase.fetchWorkspaceInvites(workspaceId)
+    }
+
+    func revokeInvite(id: UUID) async throws {
+        guard isConnected else { throw SharingError.notConnected }
+        try await supabase.revokeWorkspaceInvite(id)
+    }
+
+    func leaveWorkspace(workspaceId: UUID, profileId: UUID) async throws {
+        guard isConnected else { throw SharingError.notConnected }
+        try await supabase.leaveWorkspace(workspaceId, profileId)
     }
 
     /// Fetch active PA members for a workspace.
