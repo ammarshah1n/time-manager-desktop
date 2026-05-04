@@ -184,6 +184,12 @@ struct PARoleRLSGuardTests {
                 "Direct task section updates must not reassign profile ownership")
         #expect(sql.contains("before insert or update of workspace_id, profile_id, is_system on public.task_sections"),
                 "Task section ownership guard must fire before inserts and ownership flag changes")
+        #expect(sql.contains("drop policy if exists \"task_sections_update_member\" on public.task_sections"),
+                "Task section update policy must be replaced after the ownership trigger is installed")
+        #expect(sql.contains("create policy \"task_sections_update_member\"\non public.task_sections\nfor update"),
+                "Task section updates must keep a member update policy")
+        #expect(sql.contains("with check (\n  is_system = false\n  and workspace_id = any(private.user_workspace_ids())\n);"),
+                "Task section update WITH CHECK must allow preserved owner profile ids")
     }
 
     private func source(_ path: String) throws -> String {

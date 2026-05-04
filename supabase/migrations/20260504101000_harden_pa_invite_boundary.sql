@@ -265,6 +265,20 @@ create trigger task_sections_prevent_ownership_transfer
   for each row
   execute function public.prevent_task_section_ownership_transfer();
 
+drop policy if exists "task_sections_update_member" on public.task_sections;
+create policy "task_sections_update_member"
+on public.task_sections
+for update
+to authenticated
+using (
+  is_system = false
+  and workspace_id = any(private.user_workspace_ids())
+)
+with check (
+  is_system = false
+  and workspace_id = any(private.user_workspace_ids())
+);
+
 create or replace function public.get_top_observations(
     p_exec_id uuid,
     p_hours integer default 24,
