@@ -52,6 +52,10 @@ struct DataBridgeWorkspaceSwitchTests {
                 "TimedRootView must reload task state when the active workspace changes")
         #expect(content.contains("resetWorkspaceScopedState()"),
                 "Workspace switch must clear in-memory task state before refetch")
+        #expect(content.contains("let workspaceId = auth.activeOrPrimaryWorkspaceId"),
+                "Workspace switch must capture the intended workspace before launching the fetch")
+        #expect(content.contains("fetchFromSupabaseIfConnected(expectedWorkspaceId: workspaceId)"),
+                "Workspace switch must pass the captured workspace into the fetch")
     }
 
     @Test("TimedRootView assigns empty Supabase task results")
@@ -59,6 +63,15 @@ struct DataBridgeWorkspaceSwitchTests {
         let content = try source("Sources/TimedKit/Features/TimedRootView.swift")
         #expect(!content.contains("if !dbTasks.isEmpty { tasks = dbTasks.map"),
                 "Empty remote task results must replace stale in-memory tasks")
+    }
+
+    @Test("TimedRootView guards stale workspace fetch completions")
+    func rootGuardsStaleWorkspaceFetches() throws {
+        let content = try source("Sources/TimedKit/Features/TimedRootView.swift")
+        #expect(content.contains("expectedWorkspaceId"),
+                "Supabase fetches must accept an expected workspace id")
+        #expect(content.contains("auth.activeOrPrimaryWorkspaceId == taskWorkspaceId"),
+                "Supabase fetches must guard the active workspace before assigning task state")
     }
 
     private func source(_ path: String) throws -> String {

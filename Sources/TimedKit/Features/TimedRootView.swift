@@ -106,8 +106,9 @@ struct TimedRootView: View {
             }
         }
         .onChange(of: auth.activeWorkspaceId) { _, _ in
+            let workspaceId = auth.activeOrPrimaryWorkspaceId
             resetWorkspaceScopedState()
-            Task { await fetchFromSupabaseIfConnected() }
+            Task { await fetchFromSupabaseIfConnected(expectedWorkspaceId: workspaceId) }
         }
         .sheet(isPresented: onboardingBinding) { onboardingSheet }
         .sheet(isPresented: $showMorningInterview) { morningInterviewSheet }
@@ -228,16 +229,20 @@ struct TimedRootView: View {
         syncMenuBar()
     }
 
-    private func fetchFromSupabaseIfConnected() async {
+    private func fetchFromSupabaseIfConnected(expectedWorkspaceId: UUID? = nil) async {
         guard auth.isSignedIn,
               let profileId = auth.profileId else { return }
+        let taskWorkspaceId = expectedWorkspaceId ?? auth.activeOrPrimaryWorkspaceId
         @Dependency(\.supabaseClient) var supa
         do {
-            if let taskWorkspaceId = auth.activeOrPrimaryWorkspaceId {
+            if let taskWorkspaceId {
                 let dbTasks = try await supa.fetchTasks(taskWorkspaceId, profileId, ["pending", "in_progress"])
+                guard auth.activeOrPrimaryWorkspaceId == taskWorkspaceId else { return }
                 tasks = dbTasks.map(TimedTask.init(from:))
             }
-            taskSections = (try? await DataBridge.shared.loadTaskSections()) ?? []
+            let loadedTaskSections = (try? await DataBridge.shared.loadTaskSections()) ?? []
+            guard auth.activeOrPrimaryWorkspaceId == taskWorkspaceId else { return }
+            taskSections = loadedTaskSections
 
             if let primaryWorkspaceId = auth.workspaceId {
                 let dbEmails = try await supa.fetchEmailMessages(primaryWorkspaceId, "inbox", 100)
