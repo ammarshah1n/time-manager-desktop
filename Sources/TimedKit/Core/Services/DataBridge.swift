@@ -547,7 +547,7 @@ actor DataBridge {
         switch operationType {
         case "task_sections.upsert":
             let row = try decoder.decode(TaskSectionDBRow.self, from: payload)
-            try await supabaseClient.upsertTaskSection(row)
+            try await replayTaskSection(row)
         case "tasks.upsert":
             let row = try decoder.decode(TaskDBRow.self, from: payload)
             try await supabaseClient.upsertTask(row)
@@ -578,6 +578,16 @@ actor DataBridge {
         default:
             throw OfflineReplayError.unsupportedOperation(operationType)
         }
+    }
+
+    private func replayTaskSection(_ row: TaskSectionDBRow) async throws {
+        let currentProfileId = await authProfileId
+        if let rowProfileId = row.profileId, rowProfileId != currentProfileId {
+            try await supabaseClient.updateTaskSection(row)
+            return
+        }
+
+        try await supabaseClient.upsertTaskSection(row)
     }
 
     // MARK: - Network & Auth status

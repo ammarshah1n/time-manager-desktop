@@ -630,6 +630,7 @@ struct SupabaseClientDependency: Sendable {
 
     var fetchTaskSections: @Sendable (UUID) async throws -> [TaskSectionDBRow] = { _ in [] }
     var upsertTaskSection: @Sendable (TaskSectionDBRow) async throws -> Void = { _ in }
+    var updateTaskSection: @Sendable (TaskSectionDBRow) async throws -> Void = { _ in }
     var fetchTasks: @Sendable (UUID, UUID, [String]) async throws -> [TaskDBRow] = { _, _, _ in [] }
     var upsertTask: @Sendable (TaskDBRow) async throws -> Void = { _ in }
     var updateTaskStatus: @Sendable (UUID, String, Int?) async throws -> Void = { _, _, _ in }
@@ -766,6 +767,14 @@ extension SupabaseClientDependency {
                 try await client
                     .from("task_sections")
                     .upsert(section, onConflict: "id")
+                    .execute()
+            },
+            updateTaskSection: { section in
+                try await client
+                    .from("task_sections")
+                    .update(section)
+                    .eq("id", value: section.id)
+                    .eq("workspace_id", value: section.workspaceId)
                     .execute()
             },
             fetchTasks: { workspaceId, _, status in

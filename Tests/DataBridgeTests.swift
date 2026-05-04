@@ -381,13 +381,15 @@ struct DataBridgeTests {
 
     @Test("saveTaskSections preserves loaded section profile id")
     func testSaveTaskSectionsPreservesLoadedSectionProfileId() async throws {
-        let recorder = TaskSectionUpsertRecorder()
+        let updateRecorder = TaskSectionUpdateRecorder()
+        let upsertRecorder = TaskSectionUpsertRecorder()
 
         try await withAuthenticatedTimedStore { executiveID in
             let ownerProfileId = UUID()
             try await withDependencies {
                 var dependency = SupabaseClientDependency()
-                dependency.upsertTaskSection = { row in await recorder.record(row) }
+                dependency.upsertTaskSection = { row in await upsertRecorder.record(row) }
+                dependency.updateTaskSection = { row in await updateRecorder.record(row) }
                 $0.supabaseClient = dependency
             } operation: {
                 let queue = OfflineSyncQueue()
@@ -407,7 +409,10 @@ struct DataBridgeTests {
                 try await bridge.saveTaskSections([section], workspaceId: executiveID)
                 await bridge.flushOfflineReplay()
 
-                let row = try #require(await recorder.rows().first { $0.id == section.id })
+                let upsertRows = await upsertRecorder.rows()
+                let updateRows = await updateRecorder.rows()
+                #expect(upsertRows.isEmpty)
+                let row = try #require(updateRows.first { $0.id == section.id })
                 #expect(row.workspaceId == executiveID)
                 #expect(row.profileId == ownerProfileId)
             }
@@ -678,6 +683,18 @@ private actor TaskUpsertRecorder {
 }
 
 private actor TaskSectionUpsertRecorder {
+    private var storedRows: [TaskSectionDBRow] = []
+
+    func record(_ row: TaskSectionDBRow) {
+        storedRows.append(row)
+    }
+
+    func rows() -> [TaskSectionDBRow] {
+        storedRows
+    }
+}
+
+private actor TaskSectionUpdateRecorder {
     private var storedRows: [TaskSectionDBRow] = []
 
     func record(_ row: TaskSectionDBRow) {
