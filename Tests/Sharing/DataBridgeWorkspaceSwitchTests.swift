@@ -68,6 +68,7 @@ struct DataBridgeWorkspaceSwitchTests {
     @Test("TimedRootView guards stale workspace fetch completions")
     func rootGuardsStaleWorkspaceFetches() throws {
         let content = try source("Sources/TimedKit/Features/TimedRootView.swift")
+        let bridge = try source("Sources/TimedKit/Core/Services/DataBridge.swift")
         #expect(content.contains("expectedWorkspaceId"),
                 "Supabase fetches must accept an expected workspace id")
         #expect(content.contains("auth.activeOrPrimaryWorkspaceId == taskWorkspaceId"),
@@ -86,6 +87,16 @@ struct DataBridgeWorkspaceSwitchTests {
                 "Initial load must not fetch tasks through global active workspace state")
         #expect(!content.contains("await store.loadTaskSections()"),
                 "Initial load must not fetch sections through global active workspace state")
+        #expect(content.contains("let workspaceId = auth.activeOrPrimaryWorkspaceId"),
+                "Persistence observers must capture the active workspace before launching unstructured saves")
+        #expect(content.contains("DataBridge.shared.saveTasks(v, workspaceId: workspaceId)"),
+                "Task saves must bind to the captured workspace id")
+        #expect(content.contains("DataBridge.shared.saveTaskSections(v, workspaceId: workspaceId)"),
+                "Section saves must bind to the captured workspace id")
+        #expect(bridge.contains("func saveTasks(_ tasks: [TimedTask], workspaceId: UUID? = nil)"),
+                "DataBridge task saves must accept an explicit workspace id")
+        #expect(bridge.contains("func saveTaskSections(_ sections: [TaskSection], workspaceId: UUID? = nil)"),
+                "DataBridge section saves must accept an explicit workspace id")
     }
 
     private func source(_ path: String) throws -> String {

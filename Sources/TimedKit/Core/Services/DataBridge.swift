@@ -45,12 +45,13 @@ actor DataBridge {
         return cached
     }
 
-    func saveTasks(_ tasks: [TimedTask]) async throws {
+    func saveTasks(_ tasks: [TimedTask], workspaceId: UUID? = nil) async throws {
         let previousTaskIds = Set(((try? await local.loadTasks()) ?? []).map(\.id))
         try await local.saveTasks(tasks)
         // Dual-write to Supabase when authenticated
         guard await isAuthenticated else { return }
-        guard let wsId = await authWorkspaceId, let profileId = await authProfileId else { return }
+        let wsId = if let workspaceId { workspaceId } else { await authWorkspaceId }
+        guard let wsId, let profileId = await authProfileId else { return }
         let parentIdsWithActiveChildren = Set(tasks.compactMap { task in
             task.isDone ? nil : task.parentTaskId
         })
@@ -87,10 +88,11 @@ actor DataBridge {
         return cached
     }
 
-    func saveTaskSections(_ sections: [TaskSection]) async throws {
+    func saveTaskSections(_ sections: [TaskSection], workspaceId: UUID? = nil) async throws {
         try await local.saveTaskSections(sections)
         guard await isAuthenticated else { return }
-        guard let wsId = await authWorkspaceId, let profileId = await authProfileId else { return }
+        let wsId = if let workspaceId { workspaceId } else { await authWorkspaceId }
+        guard let wsId, let profileId = await authProfileId else { return }
         // System sections are owned/seeded by the service role. User sessions
         // should only write user-created sections; trying to upsert system
         // rows trips task_sections RLS and makes the UI look saved while sync

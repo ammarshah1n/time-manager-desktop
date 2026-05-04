@@ -38,8 +38,14 @@ struct TimedRootView: View {
         rootSplitView
     }
 
-    private func saveTasks(_ v: [TimedTask])      { Task { try? await DataBridge.shared.saveTasks(v) } }
-    private func saveTaskSections(_ v: [TaskSection]) { Task { try? await DataBridge.shared.saveTaskSections(v) } }
+    private func saveTasks(_ v: [TimedTask]) {
+        let workspaceId = auth.activeOrPrimaryWorkspaceId
+        Task { try? await DataBridge.shared.saveTasks(v, workspaceId: workspaceId) }
+    }
+    private func saveTaskSections(_ v: [TaskSection]) {
+        let workspaceId = auth.activeOrPrimaryWorkspaceId
+        Task { try? await DataBridge.shared.saveTaskSections(v, workspaceId: workspaceId) }
+    }
     private func saveTriage(_ v: [TriageItem])    { Task { try? await DataBridge.shared.saveTriageItems(v) } }
     private func saveWOO(_ v: [WOOItem])          { Task { try? await DataBridge.shared.saveWOOItems(v) } }
     private func saveBlocks(_ v: [CalendarBlock])   { Task { try? await DataBridge.shared.saveBlocks(v) } }
