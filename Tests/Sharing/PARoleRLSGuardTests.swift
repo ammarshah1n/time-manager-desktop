@@ -75,6 +75,19 @@ struct PARoleRLSGuardTests {
                 "Revocation must go through a narrow RPC")
     }
 
+    @Test("PA task completion cannot write estimation side effects")
+    func paTaskCompletionCannotWriteEstimationSideEffects() throws {
+        let sql = try source(Self.hardeningMigration).lowercased()
+        #expect(sql.contains("create or replace function public.trg_insert_estimation_history()"),
+                "PA hardening must override the SECURITY DEFINER task completion trigger")
+        #expect(sql.contains("new.workspace_id = any(public.pa_workspace_ids())"),
+                "Task completion trigger must detect PA callers before writing cognitive history")
+        #expect(sql.contains("return new;\n  end if;\n\n  if new.actual_minutes is not null"),
+                "Task completion trigger must exit before the estimation_history insert for PA callers")
+        #expect(sql.contains("insert into public.estimation_history"),
+                "Owner/service task completion history must continue to work outside the PA guard")
+    }
+
     private func source(_ path: String) throws -> String {
         try String(contentsOf: URL(fileURLWithPath: path))
     }
