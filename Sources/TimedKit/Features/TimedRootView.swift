@@ -214,10 +214,17 @@ struct TimedRootView: View {
         Task {
             let localStore = DataStore.shared
             let bridge = DataBridge.shared
+            let workspaceId = auth.activeOrPrimaryWorkspaceId
 
             // Load from local DataStore first (offline-first)
-            if let v = try? await localStore.loadTasks(),        !v.isEmpty { tasks       = v }
-            if let v = try? await localStore.loadTaskSections(), !v.isEmpty { taskSections = v }
+            if let v = try? await localStore.loadTasks(), !v.isEmpty {
+                guard auth.activeOrPrimaryWorkspaceId == workspaceId else { return }
+                tasks = v
+            }
+            if let v = try? await localStore.loadTaskSections(), !v.isEmpty {
+                guard auth.activeOrPrimaryWorkspaceId == workspaceId else { return }
+                taskSections = v
+            }
             if let v = try? await bridge.loadTriageItems(),      !v.isEmpty { triageItems = v }
             if let v = try? await bridge.loadWOOItems(),         !v.isEmpty { wooItems    = v }
             if let v = try? await bridge.loadBlocks(),           !v.isEmpty { blocks      = v }
@@ -233,7 +240,8 @@ struct TimedRootView: View {
             startGmailSyncIfReady()
 
             // Fetch from Supabase if signed in (overlay on local data)
-            await fetchFromSupabaseIfConnected()
+            guard auth.activeOrPrimaryWorkspaceId == workspaceId else { return }
+            await fetchFromSupabaseIfConnected(expectedWorkspaceId: workspaceId)
         }
     }
 

@@ -83,6 +83,12 @@ struct DataBridgeWorkspaceSwitchTests {
                 "Root Supabase fetch must not reload sections through global active workspace state")
         #expect(content.contains("let localStore = DataStore.shared"),
                 "Initial task hydration must use local DataStore, not DataBridge remote workspace loads")
+        #expect(content.contains("guard auth.activeOrPrimaryWorkspaceId == workspaceId else { return }\n                tasks = v"),
+                "Initial task hydration must ignore stale completions after workspace switches")
+        #expect(content.contains("guard auth.activeOrPrimaryWorkspaceId == workspaceId else { return }\n                taskSections = v"),
+                "Initial section hydration must ignore stale completions after workspace switches")
+        #expect(content.contains("await fetchFromSupabaseIfConnected(expectedWorkspaceId: workspaceId)"),
+                "Initial remote fetch must use the captured workspace id")
         #expect(!content.contains("await store.loadTasks()"),
                 "Initial load must not fetch tasks through global active workspace state")
         #expect(!content.contains("await store.loadTaskSections()"),
@@ -113,6 +119,10 @@ struct DataBridgeWorkspaceSwitchTests {
                 "DataBridge task mutators must carry workspace id from read to write")
         #expect(occurrences(of: "guard await isCurrentWorkspace(workspaceId, generation: generation) else { return [] }", in: bridge) >= 2,
                 "Remote task and section load completions must revalidate workspace generation before caching")
+        #expect(bridge.contains("let cached = (try? await local.loadTasks()) ?? []\n        guard await isCurrentWorkspace(workspaceId, generation: generation) else { return [] }\n        guard await isAuthenticated, await isOnline else { return cached }"),
+                "Task cache fallback returns must revalidate the captured workspace")
+        #expect(bridge.contains("let cached = (try? await local.loadTaskSections()) ?? []\n        guard await isCurrentWorkspace(workspaceId, generation: generation) else { return [] }\n        guard await isAuthenticated, await isOnline else { return cached }"),
+                "Section cache fallback returns must revalidate the captured workspace")
         #expect(bridge.contains("struct TaskBehaviourEventContext"),
                 "Behaviour event logging must support captured workspace context")
         #expect(bridge.contains("context: TaskBehaviourEventContext?"),
