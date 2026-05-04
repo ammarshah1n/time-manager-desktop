@@ -50,8 +50,27 @@ struct SharingPaneRoleGuardTests {
                 "SharingPane must reload members and invites after workspace switch")
     }
 
+    @Test("sharing pane ignores stale reload completions")
+    func ignoresStaleReloadCompletions() throws {
+        let content = try source("Sources/TimedKit/Features/Sharing/SharingPane.swift")
+        #expect(content.contains("let fetchedMembers = try await SharingService.shared.fetchPAMembers(workspaceId: workspaceId)"),
+                "Member reloads must fetch into a local value before assigning state")
+        #expect(content.contains("let fetchedInvites = try await SharingService.shared.fetchInvites(workspaceId: workspaceId)"),
+                "Invite reloads must fetch into a local value before assigning state")
+        #expect(occurrences(of: "guard auth.activeOrPrimaryWorkspaceId == workspaceId else { return }", in: content) >= 2,
+                "Member and invite reloads must ignore stale completions after workspace switches")
+        #expect(content.contains("members = fetchedMembers"),
+                "Member state must only receive the guarded fetch result")
+        #expect(content.contains("activeInvites = fetchedInvites"),
+                "Invite state must only receive the guarded fetch result")
+    }
+
     private func source(_ path: String) throws -> String {
         try String(contentsOf: URL(fileURLWithPath: path))
+    }
+
+    private func occurrences(of needle: String, in haystack: String) -> Int {
+        haystack.components(separatedBy: needle).count - 1
     }
 }
 

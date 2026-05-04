@@ -315,10 +315,16 @@ struct SharingPane: View {
     private func loadMembers() async {
         guard isConnected, let workspaceId = auth.activeOrPrimaryWorkspaceId else { return }
         isLoading = true
-        defer { isLoading = false }
+        defer {
+            if auth.activeOrPrimaryWorkspaceId == workspaceId {
+                isLoading = false
+            }
+        }
 
         do {
-            members = try await SharingService.shared.fetchPAMembers(workspaceId: workspaceId)
+            let fetchedMembers = try await SharingService.shared.fetchPAMembers(workspaceId: workspaceId)
+            guard auth.activeOrPrimaryWorkspaceId == workspaceId else { return }
+            members = fetchedMembers
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -331,7 +337,9 @@ struct SharingPane: View {
             return
         }
         do {
-            activeInvites = try await SharingService.shared.fetchInvites(workspaceId: workspaceId)
+            let fetchedInvites = try await SharingService.shared.fetchInvites(workspaceId: workspaceId)
+            guard auth.activeOrPrimaryWorkspaceId == workspaceId else { return }
+            activeInvites = fetchedInvites
         } catch {
             // Invite history is secondary; don't block the pane for a transient fetch failure.
         }
