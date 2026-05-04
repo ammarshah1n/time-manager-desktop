@@ -74,6 +74,10 @@ struct DataBridgeWorkspaceSwitchTests {
                 "Supabase fetches must guard the active workspace before assigning task state")
         #expect(content.contains("supa.fetchTaskSections(taskWorkspaceId)"),
                 "Task sections must be fetched with the same captured workspace id as tasks")
+        #expect(content.contains("let sectionRows = try await supa.fetchTaskSections(taskWorkspaceId)"),
+                "Task section fetch failures must not be treated as successful empty results")
+        #expect(!content.contains("(try? await supa.fetchTaskSections(taskWorkspaceId)) ?? []"),
+                "Task section fetch errors must not clear existing section state")
         #expect(!content.contains("DataBridge.shared.loadTaskSections()) ?? []"),
                 "Root Supabase fetch must not reload sections through global active workspace state")
         #expect(content.contains("let localStore = DataStore.shared"),

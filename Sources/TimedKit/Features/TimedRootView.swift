@@ -242,9 +242,14 @@ struct TimedRootView: View {
                 tasks = dbTasks.map(TimedTask.init(from:))
             }
             if let taskWorkspaceId {
-                let sectionRows = (try? await supa.fetchTaskSections(taskWorkspaceId)) ?? []
-                guard auth.activeOrPrimaryWorkspaceId == taskWorkspaceId else { return }
-                taskSections = sectionRows.map(TaskSection.init(from:))
+                do {
+                    let sectionRows = try await supa.fetchTaskSections(taskWorkspaceId)
+                    guard auth.activeOrPrimaryWorkspaceId == taskWorkspaceId else { return }
+                    taskSections = sectionRows.map(TaskSection.init(from:))
+                } catch {
+                    guard auth.activeOrPrimaryWorkspaceId == taskWorkspaceId else { return }
+                    TimedLogger.supabase.error("Supabase section fetch failed: \(error.localizedDescription, privacy: .public)")
+                }
             }
 
             if let primaryWorkspaceId = auth.workspaceId {
