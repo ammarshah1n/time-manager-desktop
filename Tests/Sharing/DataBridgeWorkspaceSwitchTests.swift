@@ -139,6 +139,21 @@ struct DataBridgeWorkspaceSwitchTests {
                 "Task deletes must ignore stale completions after workspace switches")
     }
 
+    @Test("Auth publishes signed in after workspace hydration")
+    func authPublishesSignedInAfterWorkspaceHydration() throws {
+        let content = try source("Sources/TimedKit/Core/Services/AuthService.swift")
+        #expect(!content.contains("isSignedIn = true\n            await bootstrapExecutive()"),
+                "Session restore must not mount TimedRootView before workspace hydration")
+        #expect(!content.contains("isSignedIn = true\n            flashWelcome(\"Welcome back.\")"),
+                "Sign-in must not mount TimedRootView before workspace hydration")
+        #expect(!content.contains("isSignedIn = true\n                flashWelcome(\"Welcome to Timed.\")"),
+                "Session-backed sign-up must not mount TimedRootView before workspace hydration")
+        #expect(occurrences(of: "await finishBootstrapSideEffects()\n            isSignedIn = true", in: content) >= 3,
+                "Restore, callback, and email sign-in must publish after workspace hydration")
+        #expect(content.contains("await finishBootstrapSideEffects()\n                isSignedIn = true"),
+                "Session-backed sign-up must publish after workspace hydration")
+    }
+
     private func source(_ path: String) throws -> String {
         try String(contentsOf: URL(fileURLWithPath: path))
     }

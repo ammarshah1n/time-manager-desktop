@@ -69,9 +69,9 @@ final class AuthService: ObservableObject {
             let session = try await client.auth.session
             authUserId = session.user.id
             userEmail = session.user.email
-            isSignedIn = true
             await bootstrapExecutive()
             await finishBootstrapSideEffects()
+            isSignedIn = true
             TimedLogger.supabase.info("Session restored for \(session.user.email ?? "unknown", privacy: .private)")
         } catch {
             TimedLogger.supabase.debug("No stored session — user needs to sign in")
@@ -261,10 +261,10 @@ final class AuthService: ObservableObject {
             let session = try await client.auth.session(from: url)
             authUserId = session.user.id
             userEmail = session.user.email
-            isSignedIn = true
             flashWelcome("Welcome back.")
             await bootstrapExecutive()
             await finishBootstrapSideEffects()
+            isSignedIn = true
             TimedLogger.supabase.info("Signed in as \(session.user.email ?? "unknown", privacy: .private)")
         } catch {
             // Reset to a clean signed-out state so LoginView re-renders cleanly
@@ -307,10 +307,10 @@ final class AuthService: ObservableObject {
             let session = try await client.auth.signIn(email: trimmed, password: password)
             authUserId = session.user.id
             userEmail = session.user.email
-            isSignedIn = true
             flashWelcome("Welcome back.")
             await bootstrapExecutive()
             await finishBootstrapSideEffects()
+            isSignedIn = true
             TimedLogger.supabase.info("Signed in (email) as \(session.user.email ?? "unknown", privacy: .private)")
         } catch {
             self.error = friendlyMessage(for: error, fallback: "Sign-in failed. Check your email and password.")
@@ -336,10 +336,10 @@ final class AuthService: ObservableObject {
             if response.session != nil {
                 authUserId = response.user.id
                 userEmail = response.user.email
-                isSignedIn = true
                 flashWelcome("Welcome to Timed.")
                 await bootstrapExecutive()
                 await finishBootstrapSideEffects()
+                isSignedIn = true
                 TimedLogger.supabase.info("Account created + signed in (email) as \(response.user.email ?? "unknown", privacy: .private)")
             } else {
                 self.error = "Account created. Check your inbox to confirm your email, then sign in."
