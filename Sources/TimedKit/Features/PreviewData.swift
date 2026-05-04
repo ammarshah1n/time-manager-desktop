@@ -279,6 +279,7 @@ struct TaskSection: Identifiable, Codable, Sendable, Equatable {
 
 struct TimedTask: Identifiable, Codable, Sendable, Equatable {
     let id: UUID
+    var profileId: UUID? = nil
     let title: String
     let sender: String
     var estimatedMinutes: Int
@@ -357,6 +358,7 @@ struct TimedTask: Identifiable, Codable, Sendable, Equatable {
 extension TimedTask {
     enum CodingKeys: String, CodingKey {
         case id
+        case profileId
         case title
         case sender
         case estimatedMinutes
@@ -395,6 +397,7 @@ extension TimedTask {
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(UUID.self, forKey: .id)
+        profileId = try c.decodeIfPresent(UUID.self, forKey: .profileId)
         title = try c.decode(String.self, forKey: .title)
         sender = try c.decode(String.self, forKey: .sender)
         estimatedMinutes = try c.decode(Int.self, forKey: .estimatedMinutes)
@@ -862,6 +865,7 @@ extension TimedTask {
         }
         self.init(
             id: row.id,
+            profileId: row.profileId,
             title: row.title,
             sender: "",
             estimatedMinutes: estimatedMinutes,

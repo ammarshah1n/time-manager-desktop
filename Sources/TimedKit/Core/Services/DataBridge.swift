@@ -758,7 +758,7 @@ actor DataBridge {
         TaskDBRow(
             id: task.id,
             workspaceId: workspaceId,
-            profileId: profileId,
+            profileId: task.profileId ?? profileId,
             sourceType: task.source.rawValue,
             bucketType: task.bucket.dbValue,
             sectionId: task.sectionId,

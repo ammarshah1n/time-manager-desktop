@@ -85,6 +85,12 @@ struct DataBridgeTests {
         #expect(TimedTask(from: makeTaskRow(bucketType: "cc_fyi")).bucket == .ccFyi)
     }
 
+    @Test("TimedTask preserves DB profile id")
+    func testTimedTaskPreservesProfileId() {
+        let profileId = UUID()
+        #expect(TimedTask(from: makeTaskRow(bucketType: "action", profileId: profileId)).profileId == profileId)
+    }
+
     @Test("TimedTask decodes hierarchy values")
     func testTimedTaskDecodesHierarchyValues() {
         let sectionId = UUID()
@@ -187,6 +193,31 @@ struct DataBridgeTests {
 
                 let diagnostics = try await queue.diagnostics()
                 #expect(diagnostics.pendingCount == 0)
+            }
+        }
+    }
+
+    @Test("saveTasks preserves loaded task profile id")
+    func testSaveTasksPreservesLoadedTaskProfileId() async throws {
+        let recorder = TaskUpsertRecorder()
+
+        try await withAuthenticatedTimedStore { executiveID in
+            let ownerProfileId = UUID()
+            try await withDependencies {
+                var dependency = SupabaseClientDependency()
+                dependency.upsertTask = { row in await recorder.record(row) }
+                $0.supabaseClient = dependency
+            } operation: {
+                let queue = OfflineSyncQueue()
+                let bridge = DataBridge(offlineQueue: queue, automaticallyFlushOfflineReplay: false)
+                let task = TimedTask(from: makeTaskRow(bucketType: "action", profileId: ownerProfileId))
+
+                try await bridge.saveTasks([task], workspaceId: executiveID)
+                await bridge.flushOfflineReplay()
+
+                let row = try #require(await recorder.rows().first { $0.id == task.id })
+                #expect(row.workspaceId == executiveID)
+                #expect(row.profileId == ownerProfileId)
             }
         }
     }
@@ -681,6 +712,7 @@ private func makeTaskRow(
 
 private func makeTaskRow(
     bucketType: String,
+    profileId: UUID = UUID(),
     sectionId: UUID? = nil,
     parentTaskId: UUID? = nil,
     sortOrder: Int? = nil,
@@ -691,7 +723,7 @@ private func makeTaskRow(
     TaskDBRow(
         id: UUID(),
         workspaceId: UUID(),
-        profileId: UUID(),
+        profileId: profileId,
         sourceType: "manual",
         bucketType: bucketType,
         sectionId: sectionId,
