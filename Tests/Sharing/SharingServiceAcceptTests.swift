@@ -66,3 +66,27 @@ private actor AcceptInviteRecorder {
         recordedCodes
     }
 }
+
+@Suite("WorkspaceMemberRow decoding")
+struct WorkspaceMemberRowDecodingTests {
+    @Test("decodes nested profiles join")
+    func decodesNestedProfilesJoin() throws {
+        let json = """
+        [{
+          "id": "11111111-1111-4111-8111-111111111111",
+          "workspace_id": "22222222-2222-4222-8222-222222222222",
+          "profile_id": "33333333-3333-4333-8333-333333333333",
+          "role": "pa",
+          "profiles": {
+            "email": "pa@example.com",
+            "full_name": "Karen PA"
+          }
+        }]
+        """.data(using: .utf8)!
+
+        let rows = try JSONDecoder().decode([WorkspaceMemberRow].self, from: json)
+
+        #expect(rows.first?.email == "pa@example.com")
+        #expect(rows.first?.fullName == "Karen PA")
+    }
+}

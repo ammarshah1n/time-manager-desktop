@@ -560,16 +560,27 @@ struct WorkspaceMemberRow: Codable, Identifiable, Sendable {
     let workspaceId: UUID
     let profileId: UUID
     let role: String
-    let email: String?
-    let fullName: String?
+    let profiles: ProfileJoin?
+
+    var email: String? { profiles?.email }
+    var fullName: String? { profiles?.fullName }
+
+    struct ProfileJoin: Codable, Sendable {
+        let email: String?
+        let fullName: String?
+
+        enum CodingKeys: String, CodingKey {
+            case email
+            case fullName = "full_name"
+        }
+    }
 
     enum CodingKeys: String, CodingKey {
         case id
         case workspaceId = "workspace_id"
         case profileId = "profile_id"
         case role
-        case email
-        case fullName = "full_name"
+        case profiles
     }
 }
 
