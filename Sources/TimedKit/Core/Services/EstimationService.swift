@@ -13,7 +13,7 @@ actor EstimationService {
     /// - Caller does NOT need to await this. Errors are logged, never thrown.
     func estimate(task: TimedTask) async {
         let authContext = await MainActor.run {
-            (workspaceId: AuthService.shared.workspaceId, profileId: AuthService.shared.profileId)
+            (workspaceId: AuthService.shared.activeOrPrimaryWorkspaceId, profileId: AuthService.shared.profileId)
         }
         guard let wsId = authContext.workspaceId,
               let profileId = authContext.profileId

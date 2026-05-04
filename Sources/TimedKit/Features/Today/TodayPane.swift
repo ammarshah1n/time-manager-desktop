@@ -793,7 +793,7 @@ struct TodayPane: View {
                             completedIds.remove(task.id)
 
                             // Log task_deferred behaviour event
-                            if let wsId = AuthService.shared.workspaceId,
+                            if let wsId = AuthService.shared.activeOrPrimaryWorkspaceId,
                                let profileId = AuthService.shared.profileId {
                                 Task {
                                     @Dependency(\.supabaseClient) var supa
@@ -1035,7 +1035,7 @@ struct TodayTaskRow: View {
                             completedIds.remove(task.id)
 
                             // Log task_deferred behaviour event (un-completing = deferring)
-                            if let wsId = AuthService.shared.workspaceId,
+                            if let wsId = AuthService.shared.activeOrPrimaryWorkspaceId,
                                let profileId = AuthService.shared.profileId {
                                 Task {
                                     @Dependency(\.supabaseClient) var supa
@@ -1107,7 +1107,7 @@ struct TodayTaskRow: View {
                             try? await store.saveBucketEstimates(estimates)
 
                             // Log behaviour event + sync EMA to Supabase
-                            if let wsId = AuthService.shared.workspaceId,
+                            if let wsId = AuthService.shared.activeOrPrimaryWorkspaceId,
                                let profileId = AuthService.shared.profileId {
                                 @Dependency(\.supabaseClient) var supa
                                 let event = BehaviourEventInsert(

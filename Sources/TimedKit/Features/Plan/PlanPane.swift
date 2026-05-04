@@ -59,7 +59,7 @@ struct PlanPane: View {
                                  ruleValueJson: $0.ruleValueJson, confidence: $0.confidence)
                 }
             }
-            if let wsId = AuthService.shared.workspaceId {
+            if let wsId = AuthService.shared.activeOrPrimaryWorkspaceId {
                 if let stats = try? await supa.fetchBucketStats(wsId, profileId) {
                     bucketStats = stats
                 }
@@ -386,7 +386,7 @@ struct PlanPane: View {
             }
         }
         let request = PlanRequest(
-            workspaceId: AuthService.shared.workspaceId ?? UUID(),
+            workspaceId: AuthService.shared.activeOrPrimaryWorkspaceId ?? UUID(),
             profileId: AuthService.shared.profileId ?? UUID(),
             availableMinutes: totalAvailable,
             moodContext: toMoodContext(mood),

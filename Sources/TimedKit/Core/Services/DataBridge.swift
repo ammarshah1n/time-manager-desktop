@@ -440,7 +440,7 @@ actor DataBridge {
     }
 
     private var authWorkspaceId: UUID? {
-        get async { await MainActor.run { AuthService.shared.workspaceId } }
+        get async { await MainActor.run { AuthService.shared.activeOrPrimaryWorkspaceId } }
     }
 
     private var authProfileId: UUID? {

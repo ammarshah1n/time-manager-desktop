@@ -116,7 +116,7 @@ struct DishMeUpSheet: View {
                 }
             }
             // Fetch bucket completion stats for Thompson sampling
-            if let wsId = AuthService.shared.workspaceId {
+            if let wsId = AuthService.shared.activeOrPrimaryWorkspaceId {
                 if let stats = try? await supa.fetchBucketStats(wsId, profileId) {
                     bucketStats = stats
                 }
@@ -453,7 +453,7 @@ struct DishMeUpSheet: View {
             }
         }
         let request = PlanRequest(
-            workspaceId: AuthService.shared.workspaceId ?? UUID(),
+            workspaceId: AuthService.shared.activeOrPrimaryWorkspaceId ?? UUID(),
             profileId: AuthService.shared.profileId ?? UUID(),
             availableMinutes: minutes,
             moodContext: toMoodContext(mood),

@@ -61,15 +61,16 @@ public struct TimedAppShell: View {
         }
         #endif
 
-        guard url.scheme == "timed" else { return }
-        switch (url.host, url.path) {
-        case ("auth", "/callback"):
-            Task { await auth.handleAuthCallback(url: url) }
-        case ("capture", _), (.some(""), "/capture"):
+        switch TimedDeepLink.parse(url) {
+        case .authCallback(let cbURL):
+            Task { await auth.handleAuthCallback(url: cbURL) }
+        case .capture:
             // Set the App-Group flag the iOS root view consumes-and-clears.
             UserDefaults(suiteName: "group.com.timed.shared")?
                 .set(true, forKey: "intent.openCapture")
-        default:
+        case .invite(let code):
+            auth.setPendingInviteCode(code)
+        case .unknown:
             return
         }
     }
@@ -90,6 +91,19 @@ public struct TimedAppShell: View {
         TimedRootView()
             .environmentObject(auth)
             .environmentObject(menuBarManager)
+            .sheet(item: Binding<PendingInvite?>(
+                get: { auth.pendingInviteCode.map { PendingInvite(code: $0) } },
+                set: { _ in auth.clearPendingInviteCode() }
+            )) { pending in
+                AcceptInviteSheet(
+                    code: pending.code,
+                    onAccepted: { response in
+                        auth.clearPendingInviteCode()
+                        Task { await auth.switchWorkspace(to: response.workspaceId) }
+                    },
+                    onDismiss: { auth.clearPendingInviteCode() }
+                )
+            }
             .onAppear {
                 menuBarManager.setup()
                 hotkeyManager.register { [menuBarManager] in
@@ -104,4 +118,9 @@ public struct TimedAppShell: View {
             .environmentObject(auth)
         #endif
     }
+}
+
+private struct PendingInvite: Identifiable {
+    let code: String
+    var id: String { code }
 }

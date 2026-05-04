@@ -219,18 +219,21 @@ struct TimedRootView: View {
 
     private func fetchFromSupabaseIfConnected() async {
         guard auth.isSignedIn,
-              let wsId = auth.workspaceId,
               let profileId = auth.profileId else { return }
         @Dependency(\.supabaseClient) var supa
         do {
-            let dbTasks = try await supa.fetchTasks(wsId, profileId, ["pending", "in_progress"])
-            if !dbTasks.isEmpty { tasks = dbTasks.map(TimedTask.init(from:)) }
+            if let taskWorkspaceId = auth.activeOrPrimaryWorkspaceId {
+                let dbTasks = try await supa.fetchTasks(taskWorkspaceId, profileId, ["pending", "in_progress"])
+                if !dbTasks.isEmpty { tasks = dbTasks.map(TimedTask.init(from:)) }
+            }
             if let sections = try? await DataBridge.shared.loadTaskSections(), !sections.isEmpty {
                 taskSections = sections
             }
 
-            let dbEmails = try await supa.fetchEmailMessages(wsId, "inbox", 100)
-            if !dbEmails.isEmpty { triageItems = dbEmails.map(TriageItem.init(from:)) }
+            if let primaryWorkspaceId = auth.workspaceId {
+                let dbEmails = try await supa.fetchEmailMessages(primaryWorkspaceId, "inbox", 100)
+                if !dbEmails.isEmpty { triageItems = dbEmails.map(TriageItem.init(from:)) }
+            }
         } catch {
             TimedLogger.supabase.error("Supabase fetch failed: \(error.localizedDescription, privacy: .public)")
         }
@@ -326,6 +329,7 @@ struct TimedRootView: View {
     @ViewBuilder
     private var sidebar: some View {
         List(selection: $selection) {
+            Section { WorkspaceSwitcher() }
 
             SidebarRow(label: "Dish Me Up", icon: "play.circle",
                        isSelected: selection == .dishMeUp)

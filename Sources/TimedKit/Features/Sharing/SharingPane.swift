@@ -3,10 +3,14 @@
 // Settings tab for workspace sharing: invite links, active PA members, status.
 
 import SwiftUI
+#if canImport(AppKit)
+import AppKit
+#endif
 
 struct SharingPane: View {
     @EnvironmentObject private var auth: AuthService
     @State private var members: [PAMember] = []
+    @State private var activeInvites: [WorkspaceInviteSummary] = []
     @State private var inviteURL: String = ""
     @State private var isGenerating = false
     @State private var isLoading = false
@@ -28,11 +32,15 @@ struct SharingPane: View {
             } else {
                 statusIndicator
                 inviteSection
+                activeInvitesSection
                 membersSection
             }
             Spacer()
         }
-        .task { await loadMembers() }
+        .task {
+            await loadMembers()
+            await loadInvites()
+        }
         .alert("Remove Member", isPresented: $showRemoveConfirmation, presenting: memberToRemove) { member in
             Button("Remove", role: .destructive) { Task { await removeMember(member) } }
             Button("Cancel", role: .cancel) { }
@@ -50,7 +58,7 @@ struct SharingPane: View {
                 .foregroundStyle(.secondary)
             Text("Sign in to enable sharing")
                 .font(.headline)
-            Text("Connect your Outlook account to share your plan and tasks with your PA or assistant.")
+            Text("Sign in to Timed to invite your PA to co-edit your task list.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -76,53 +84,83 @@ struct SharingPane: View {
 
     private var inviteSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Share with PA")
+            Text("Invite your PA to co-edit")
                 .font(.headline)
 
-            Text("Share this link with your PA. They'll be able to see your full task list and mark items as complete.")
+            Text("Send a link. Your PA installs Timed, signs up, and can manage your tasks alongside you. They will not see your emails or any private intelligence.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
             HStack(spacing: 8) {
-                TextField("Invite link", text: .constant(inviteURL))
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(size: 12, design: .monospaced))
-                    .disabled(true)
-
                 Button {
-                    guard !inviteURL.isEmpty else { return }
-                    PlatformPasteboard.copy(inviteURL)
-                    copied = true
-                    Task {
-                        try? await Task.sleep(for: .seconds(2))
-                        copied = false
-                    }
-                } label: {
-                    Image(systemName: copied ? "checkmark" : "doc.on.doc")
-                }
-                .disabled(inviteURL.isEmpty)
-                .help("Copy to clipboard")
-
-                Button {
-                    Task { await generateLink() }
+                    Task { await generateAndShare() }
                 } label: {
                     if isGenerating {
-                        ProgressView()
-                            .controlSize(.small)
+                        ProgressView().controlSize(.small)
                     } else {
-                        Text(inviteURL.isEmpty ? "Generate Link" : "New Link")
+                        Label("Invite your PA", systemImage: "person.crop.circle.badge.plus")
                     }
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
+                .buttonStyle(.borderedProminent)
                 .disabled(isGenerating)
+
+                if !inviteURL.isEmpty {
+                    Button {
+                        PlatformPasteboard.copy(inviteURL)
+                        copied = true
+                        Task {
+                            try? await Task.sleep(for: .seconds(2))
+                            copied = false
+                        }
+                    } label: {
+                        Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                    }
+                    .help("Copy link")
+                }
+            }
+
+            if !inviteURL.isEmpty {
+                Text(inviteURL)
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
             }
 
             if let errorMessage {
                 Text(errorMessage)
                     .font(.caption)
                     .foregroundStyle(.red)
+            }
+        }
+    }
+
+    private var activeInvitesSection: some View {
+        let unconsumed = activeInvites.filter { $0.consumedAt == nil && !$0.isRevoked && $0.expiresAt > Date() }
+        return Group {
+            if !unconsumed.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Active Invites")
+                        .font(.headline)
+                    ForEach(unconsumed) { invite in
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(String(invite.code.uuidString.prefix(8)) + "…")
+                                    .font(.system(size: 11, design: .monospaced))
+                                Text("Expires \(invite.expiresAt.formatted(.relative(presentation: .named)))")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Button("Revoke") {
+                                Task { await revoke(invite) }
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.mini)
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
             }
         }
     }
@@ -139,7 +177,7 @@ struct SharingPane: View {
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding()
             } else if members.isEmpty {
-                Text("No members yet. Generate an invite link to share your workspace.")
+                Text("No members yet. Invite your PA when you're ready to co-edit.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .padding(.vertical, 8)
@@ -218,7 +256,7 @@ struct SharingPane: View {
     // MARK: - Actions
 
     private func loadMembers() async {
-        guard isConnected, let workspaceId = auth.workspaceId else { return }
+        guard isConnected, let workspaceId = auth.activeOrPrimaryWorkspaceId else { return }
         isLoading = true
         defer { isLoading = false }
 
@@ -229,8 +267,17 @@ struct SharingPane: View {
         }
     }
 
-    private func generateLink() async {
-        guard let workspaceId = auth.workspaceId else {
+    private func loadInvites() async {
+        guard isConnected, let workspaceId = auth.activeOrPrimaryWorkspaceId else { return }
+        do {
+            activeInvites = try await SharingService.shared.fetchInvites(workspaceId: workspaceId)
+        } catch {
+            // Invite history is secondary; don't block the pane for a transient fetch failure.
+        }
+    }
+
+    private func generateAndShare() async {
+        guard let workspaceId = auth.activeOrPrimaryWorkspaceId else {
             errorMessage = "Not signed in — no workspace available."
             return
         }
@@ -239,16 +286,40 @@ struct SharingPane: View {
         defer { isGenerating = false }
 
         do {
-            let url = try await SharingService.shared.generateInviteLink(workspaceId: workspaceId)
-            inviteURL = url.absoluteString
+            let appURL = try await SharingService.shared.generateInviteLink(workspaceId: workspaceId)
+            let code = appURL.lastPathComponent
+            let webURL = "https://facilitated.com.au/timed/invite/\(code)"
+            inviteURL = webURL
             copied = false
+            presentSystemShareSheet(for: webURL)
+            await loadInvites()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    #if os(macOS)
+    private func presentSystemShareSheet(for url: String) {
+        guard let nsURL = URL(string: url) else { return }
+        let picker = NSSharingServicePicker(items: [nsURL])
+        if let window = NSApp.keyWindow,
+           let contentView = window.contentView {
+            picker.show(relativeTo: .zero, of: contentView, preferredEdge: .minY)
+        }
+    }
+    #endif
+
+    private func revoke(_ invite: WorkspaceInviteSummary) async {
+        do {
+            try await SharingService.shared.revokeInvite(id: invite.id)
+            await loadInvites()
         } catch {
             errorMessage = error.localizedDescription
         }
     }
 
     private func removeMember(_ member: PAMember) async {
-        guard let workspaceId = auth.workspaceId else { return }
+        guard let workspaceId = auth.activeOrPrimaryWorkspaceId else { return }
         do {
             try await SharingService.shared.removeMember(memberId: member.id, workspaceId: workspaceId)
             members.removeAll { $0.id == member.id }

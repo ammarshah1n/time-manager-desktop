@@ -34,15 +34,21 @@ final class AuthService: ObservableObject {
     @Published var error: String?
     /// Transient confirmation banner — set on successful sign-in / sign-up, auto-clears after a beat.
     @Published var welcomeMessage: String?
+    @Published var pendingInviteCode: String?
+    @Published var availableWorkspaces: [UserWorkspaceRow] = []
+    @Published var activeWorkspaceId: UUID?
 
     // Backward compatibility — UI panes still reference these until DataBridge (0.04) refactor
     var profileId: UUID? { executiveId }
     var workspaceId: UUID? { executiveId }
+    var activeOrPrimaryWorkspaceId: UUID? { activeWorkspaceId ?? workspaceId }
     var emailAccountId: UUID? { executiveId }
 
     @Dependency(\.supabaseClient) private var supabaseClient
 
     private var client: SupabaseClient? { supabaseClient.rawClient }
+    private let pendingInviteKey = "pendingInviteCode"
+    private let activeWorkspaceKey = "activeWorkspaceId"
 
     /// Last URL successfully passed through `handleAuthCallback`. Prevents the
     /// double-exchange race where ASWebAuthenticationSession's completion AND
@@ -63,6 +69,7 @@ final class AuthService: ObservableObject {
             userEmail = session.user.email
             isSignedIn = true
             await bootstrapExecutive()
+            await finishBootstrapSideEffects()
             TimedLogger.supabase.info("Session restored for \(session.user.email ?? "unknown", privacy: .private)")
         } catch {
             TimedLogger.supabase.debug("No stored session — user needs to sign in")
@@ -83,6 +90,56 @@ final class AuthService: ObservableObject {
                 googleFileLog("AuthService.restoreSession: Google token refresh failed: \(error.localizedDescription)")
             }
         }
+    }
+
+    func setPendingInviteCode(_ code: String) {
+        let normalised = code.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !normalised.isEmpty else { return }
+        pendingInviteCode = normalised
+        UserDefaults.standard.set(normalised, forKey: pendingInviteKey)
+    }
+
+    func clearPendingInviteCode() {
+        pendingInviteCode = nil
+        UserDefaults.standard.removeObject(forKey: pendingInviteKey)
+    }
+
+    func loadPendingInviteCodeFromDefaults() {
+        if let code = UserDefaults.standard.string(forKey: pendingInviteKey), !code.isEmpty {
+            pendingInviteCode = code
+        }
+    }
+
+    func reloadAvailableWorkspaces() async {
+        do {
+            let rows = try await supabaseClient.fetchUserWorkspaces()
+            availableWorkspaces = rows
+            if activeWorkspaceId == nil || !rows.contains(where: { $0.id == activeWorkspaceId }) {
+                if let saved = UserDefaults.standard.string(forKey: activeWorkspaceKey),
+                   let id = UUID(uuidString: saved),
+                   rows.contains(where: { $0.id == id }) {
+                    activeWorkspaceId = id
+                } else {
+                    activeWorkspaceId = rows.first(where: { $0.role == "owner" })?.id ?? rows.first?.id ?? executiveId
+                }
+            }
+        } catch {
+            TimedLogger.supabase.error("reloadAvailableWorkspaces failed: \(error.localizedDescription, privacy: .private)")
+            if activeWorkspaceId == nil { activeWorkspaceId = executiveId }
+        }
+    }
+
+    func switchWorkspace(to id: UUID) async {
+        guard activeWorkspaceId != id else { return }
+        // Order matters: clear caches first, then flip the active workspace id.
+        await DataBridge.shared.handleWorkspaceSwitch()
+        activeWorkspaceId = id
+        UserDefaults.standard.set(id.uuidString, forKey: activeWorkspaceKey)
+    }
+
+    private func finishBootstrapSideEffects() async {
+        await reloadAvailableWorkspaces()
+        loadPendingInviteCodeFromDefaults()
     }
 
     // MARK: - Sign in with Microsoft (Azure provider via Supabase OAuth)
@@ -204,6 +261,7 @@ final class AuthService: ObservableObject {
             isSignedIn = true
             flashWelcome("Welcome back.")
             await bootstrapExecutive()
+            await finishBootstrapSideEffects()
             TimedLogger.supabase.info("Signed in as \(session.user.email ?? "unknown", privacy: .private)")
         } catch {
             // Reset to a clean signed-out state so LoginView re-renders cleanly
@@ -248,6 +306,7 @@ final class AuthService: ObservableObject {
             isSignedIn = true
             flashWelcome("Welcome back.")
             await bootstrapExecutive()
+            await finishBootstrapSideEffects()
             TimedLogger.supabase.info("Signed in (email) as \(session.user.email ?? "unknown", privacy: .private)")
         } catch {
             self.error = friendlyMessage(for: error, fallback: "Sign-in failed. Check your email and password.")
@@ -275,6 +334,7 @@ final class AuthService: ObservableObject {
                 isSignedIn = true
                 flashWelcome("Welcome to Timed.")
                 await bootstrapExecutive()
+                await finishBootstrapSideEffects()
                 TimedLogger.supabase.info("Account created + signed in (email) as \(response.user.email ?? "unknown", privacy: .private)")
             } else {
                 self.error = "Account created. Check your inbox to confirm your email, then sign in."
@@ -476,8 +536,11 @@ final class AuthService: ObservableObject {
         graphAccessToken = nil
         googleAccessToken = nil
         googleEmail = nil
+        activeWorkspaceId = nil
+        availableWorkspaces = []
         lastHandledCallbackURL = nil
         UserDefaults.standard.removeObject(forKey: PlatformPaths.activeExecutiveDefaultsKey)
+        UserDefaults.standard.removeObject(forKey: activeWorkspaceKey)
     }
 
     // MARK: - Bootstrap executive on first sign-in
@@ -528,6 +591,7 @@ final class AuthService: ObservableObject {
         isLoading = true
         error = nil
         await bootstrapExecutive()
+        await finishBootstrapSideEffects()
         isLoading = false
     }
 
