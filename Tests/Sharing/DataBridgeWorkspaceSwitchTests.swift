@@ -152,6 +152,23 @@ struct DataBridgeWorkspaceSwitchTests {
                 "Session-backed sign-up must publish after workspace hydration")
     }
 
+    @Test("Auth workspace hydration clears caches before active assignment")
+    func authWorkspaceHydrationClearsCachesBeforeActiveAssignment() throws {
+        let content = try source("Sources/TimedKit/Core/Services/AuthService.swift")
+        #expect(content.contains("private func setActiveWorkspace(_ id: UUID?) async"),
+                "AuthService must centralize active workspace assignments")
+        #expect(content.contains("await DataBridge.shared.handleWorkspaceSwitch()\n        activeWorkspaceId = id"),
+                "Active workspace changes must clear task and section caches before publishing the new id")
+        #expect(content.contains("await setActiveWorkspace(id)"),
+                "Saved workspace restore must use the cache-clearing workspace setter")
+        #expect(content.contains("await setActiveWorkspace(rows.first(where: { $0.role == \"owner\" })?.id ?? rows.first?.id ?? executiveId)"),
+                "Fallback workspace hydration must use the cache-clearing workspace setter")
+        #expect(content.contains("if activeWorkspaceId == nil { await setActiveWorkspace(executiveId) }"),
+                "Workspace reload errors must not assign fallback workspace ids directly")
+        #expect(!content.contains("activeWorkspaceId = rows.first(where: { $0.role == \"owner\" })?.id"),
+                "Fallback workspace hydration must not bypass cache invalidation")
+    }
+
     private func source(_ path: String) throws -> String {
         try String(contentsOf: URL(fileURLWithPath: path))
     }

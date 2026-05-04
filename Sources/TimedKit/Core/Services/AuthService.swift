@@ -120,23 +120,28 @@ final class AuthService: ObservableObject {
                 if let saved = UserDefaults.standard.string(forKey: activeWorkspaceKey),
                    let id = UUID(uuidString: saved),
                    rows.contains(where: { $0.id == id }) {
-                    activeWorkspaceId = id
+                    await setActiveWorkspace(id)
                 } else {
-                    activeWorkspaceId = rows.first(where: { $0.role == "owner" })?.id ?? rows.first?.id ?? executiveId
+                    await setActiveWorkspace(rows.first(where: { $0.role == "owner" })?.id ?? rows.first?.id ?? executiveId)
                 }
             }
         } catch {
             TimedLogger.supabase.error("reloadAvailableWorkspaces failed: \(error.localizedDescription, privacy: .private)")
-            if activeWorkspaceId == nil { activeWorkspaceId = executiveId }
+            if activeWorkspaceId == nil { await setActiveWorkspace(executiveId) }
         }
     }
 
     func switchWorkspace(to id: UUID) async {
         guard activeWorkspaceId != id else { return }
+        await setActiveWorkspace(id)
+        UserDefaults.standard.set(id.uuidString, forKey: activeWorkspaceKey)
+    }
+
+    private func setActiveWorkspace(_ id: UUID?) async {
+        guard activeWorkspaceId != id else { return }
         // Order matters: clear caches first, then flip the active workspace id.
         await DataBridge.shared.handleWorkspaceSwitch()
         activeWorkspaceId = id
-        UserDefaults.standard.set(id.uuidString, forKey: activeWorkspaceKey)
     }
 
     private func finishBootstrapSideEffects() async {
