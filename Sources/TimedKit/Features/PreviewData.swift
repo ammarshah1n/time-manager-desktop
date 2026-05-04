@@ -166,6 +166,7 @@ enum EstimateSource: String, Codable, Sendable {
 
 struct TaskSection: Identifiable, Codable, Sendable, Equatable {
     let id: UUID
+    var profileId: UUID? = nil
     let parentSectionId: UUID?
     var title: String
     var canonicalBucketType: String
@@ -893,6 +894,7 @@ extension TaskSection {
     init(from row: TaskSectionDBRow) {
         self.init(
             id: row.id,
+            profileId: row.profileId,
             parentSectionId: row.parentSectionId,
             title: row.title,
             canonicalBucketType: row.canonicalBucketType,

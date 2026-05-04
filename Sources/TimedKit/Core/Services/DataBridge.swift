@@ -795,7 +795,7 @@ actor DataBridge {
         TaskSectionDBRow(
             id: section.id,
             workspaceId: workspaceId,
-            profileId: section.isSystem ? nil : profileId,
+            profileId: section.isSystem ? nil : (section.profileId ?? profileId),
             parentSectionId: section.parentSectionId,
             title: section.title,
             canonicalBucketType: section.canonicalBucketType,

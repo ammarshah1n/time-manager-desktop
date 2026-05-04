@@ -163,6 +163,29 @@ struct PARoleRLSGuardTests {
                 "Task profile guard must fire for inserts and direct profile changes")
     }
 
+    @Test("Task section ownership cannot be transferred through upserts")
+    func taskSectionOwnershipCannotBeTransferredThroughUpserts() throws {
+        let sql = try source(Self.hardeningMigration).lowercased()
+        #expect(sql.contains("create or replace function public.prevent_task_section_ownership_transfer()"),
+                "PA hardening must block task section ownership transfer")
+        #expect(sql.contains("caller_profile_ids uuid[] := private.user_profile_ids()"),
+                "Task section guard must bind new sections to authenticated caller profile ids")
+        #expect(sql.contains("from public.task_sections s"),
+                "Existing task section upserts must be identified before conflict update")
+        #expect(sql.contains("where s.id = new.id"),
+                "Existing task section upsert allowance must be id-bound")
+        #expect(sql.contains("new.workspace_id is not distinct from existing_workspace_id"),
+                "Existing task section upserts must not change workspace ownership")
+        #expect(sql.contains("new.profile_id is not distinct from existing_profile_id"),
+                "Existing task section upserts must not change profile ownership")
+        #expect(sql.contains("new.workspace_id is distinct from old.workspace_id"),
+                "Direct task section updates must not move workspaces")
+        #expect(sql.contains("new.profile_id is distinct from old.profile_id"),
+                "Direct task section updates must not reassign profile ownership")
+        #expect(sql.contains("before insert or update of workspace_id, profile_id, is_system on public.task_sections"),
+                "Task section ownership guard must fire before inserts and ownership flag changes")
+    }
+
     private func source(_ path: String) throws -> String {
         try String(contentsOf: URL(fileURLWithPath: path))
     }

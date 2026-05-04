@@ -212,6 +212,59 @@ create trigger tasks_prevent_profile_forgery
   for each row
   execute function public.prevent_task_profile_forgery();
 
+create or replace function public.prevent_task_section_ownership_transfer()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  caller_profile_ids uuid[] := private.user_profile_ids();
+  existing_workspace_id uuid;
+  existing_profile_id uuid;
+  existing_is_system boolean;
+begin
+  if auth.role() = 'service_role' then
+    return NEW;
+  end if;
+
+  if TG_OP = 'INSERT' then
+    if NEW.is_system = false
+      and NEW.profile_id = any(caller_profile_ids) then
+      return NEW;
+    end if;
+
+    select s.workspace_id, s.profile_id, s.is_system
+      into existing_workspace_id, existing_profile_id, existing_is_system
+      from public.task_sections s
+      where s.id = NEW.id;
+
+    if FOUND
+      and NEW.workspace_id is not distinct from existing_workspace_id
+      and NEW.profile_id is not distinct from existing_profile_id
+      and NEW.is_system is not distinct from existing_is_system then
+      return NEW;
+    end if;
+
+    raise exception 'task section ownership transfer denied' using errcode = '42501';
+  end if;
+
+  if NEW.workspace_id is distinct from OLD.workspace_id
+    or NEW.profile_id is distinct from OLD.profile_id
+    or NEW.is_system is distinct from OLD.is_system then
+    raise exception 'task section ownership transfer denied' using errcode = '42501';
+  end if;
+
+  return NEW;
+end;
+$$;
+
+drop trigger if exists task_sections_prevent_ownership_transfer on public.task_sections;
+create trigger task_sections_prevent_ownership_transfer
+  before insert or update of workspace_id, profile_id, is_system on public.task_sections
+  for each row
+  execute function public.prevent_task_section_ownership_transfer();
+
 create or replace function public.get_top_observations(
     p_exec_id uuid,
     p_hours integer default 24,

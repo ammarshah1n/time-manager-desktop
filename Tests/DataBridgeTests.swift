@@ -379,6 +379,41 @@ struct DataBridgeTests {
         }
     }
 
+    @Test("saveTaskSections preserves loaded section profile id")
+    func testSaveTaskSectionsPreservesLoadedSectionProfileId() async throws {
+        let recorder = TaskSectionUpsertRecorder()
+
+        try await withAuthenticatedTimedStore { executiveID in
+            let ownerProfileId = UUID()
+            try await withDependencies {
+                var dependency = SupabaseClientDependency()
+                dependency.upsertTaskSection = { row in await recorder.record(row) }
+                $0.supabaseClient = dependency
+            } operation: {
+                let queue = OfflineSyncQueue()
+                let bridge = DataBridge(offlineQueue: queue, automaticallyFlushOfflineReplay: false)
+                let section = TaskSection(
+                    id: UUID(),
+                    profileId: ownerProfileId,
+                    parentSectionId: nil,
+                    title: "Owner section",
+                    canonicalBucketType: "action",
+                    sortOrder: 1,
+                    colorKey: "blue",
+                    isSystem: false,
+                    isArchived: false
+                )
+
+                try await bridge.saveTaskSections([section], workspaceId: executiveID)
+                await bridge.flushOfflineReplay()
+
+                let row = try #require(await recorder.rows().first { $0.id == section.id })
+                #expect(row.workspaceId == executiveID)
+                #expect(row.profileId == ownerProfileId)
+            }
+        }
+    }
+
     @Test("saveTaskSections skips service-owned system rows")
     func testSaveTaskSectionsSkipsSystemRows() async throws {
         let recorder = TaskSectionUpsertRecorder()
