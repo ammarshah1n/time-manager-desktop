@@ -44,6 +44,28 @@ struct PARoleRLSGuardTests {
                 "PA policy must include WITH CHECK so INSERT and UPDATE are denied")
     }
 
+    @Test("PA hardening migration covers behaviour event partitions")
+    func hardeningPolicyCoversBehaviourEventPartitions() throws {
+        let sql = try source(Self.hardeningMigration).lowercased()
+        #expect(sql.contains("from pg_inherits"),
+                "PA deny boundary must cover direct behaviour_events partition access")
+        #expect(sql.contains("inhparent = 'public.behaviour_events'::regclass"),
+                "Behaviour event partition coverage must discover children from the parent relation")
+        #expect(sql.contains("alter table %s force row level security"),
+                "Behaviour event partitions must keep forced RLS enabled")
+    }
+
+    @Test("Top observations RPC is caller scoped")
+    func topObservationsRPCIsCallerScoped() throws {
+        let sql = try source(Self.hardeningMigration).lowercased()
+        #expect(sql.contains("create or replace function public.get_top_observations"),
+                "PA hardening must override the security-definer observation RPC")
+        #expect(sql.contains("auth.role() = 'service_role'"),
+                "Service-role jobs must remain able to call get_top_observations")
+        #expect(sql.contains("p_exec_id = public.get_executive_id(auth.uid())"),
+                "Authenticated users must only request their own top observations")
+    }
+
     @Test("Invite revocation is narrowed to an RPC")
     func inviteRevocationUsesRPC() throws {
         let sql = try source(Self.hardeningMigration).lowercased()

@@ -53,6 +53,69 @@ begin
 end;
 $$;
 
+do $$
+declare
+  partition_name regclass;
+  policy_name text;
+begin
+  if to_regclass('public.behaviour_events') is null then
+    return;
+  end if;
+
+  for partition_name in
+    select inhrelid::regclass
+    from pg_inherits
+    where inhparent = 'public.behaviour_events'::regclass
+  loop
+    policy_name := replace(partition_name::text, 'public.', '') || '_pa_deny';
+    execute format('alter table %s enable row level security', partition_name);
+    execute format('alter table %s force row level security', partition_name);
+    execute format('drop policy if exists %I on %s', policy_name, partition_name);
+    execute format(
+      'create policy %I on %s as restrictive for all to authenticated using (workspace_id <> all(public.pa_workspace_ids())) with check (workspace_id <> all(public.pa_workspace_ids()))',
+      policy_name,
+      partition_name
+    );
+  end loop;
+end;
+$$;
+
+create or replace function public.get_top_observations(
+    p_exec_id uuid,
+    p_hours integer default 24,
+    p_limit integer default 40
+) returns table (
+    id uuid,
+    occurred_at timestamptz,
+    event_type text,
+    summary text,
+    score float
+)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+    select
+        obs.id,
+        obs.occurred_at,
+        obs.event_type,
+        obs.summary,
+        public.score_memory(obs)::float as score
+    from public.tier0_observations obs
+    where obs.profile_id = p_exec_id
+      and (
+        auth.role() = 'service_role'
+        or p_exec_id = public.get_executive_id(auth.uid())
+      )
+      and obs.occurred_at >= now() - (p_hours || ' hours')::interval
+    order by public.score_memory(obs) desc
+    limit greatest(1, least(p_limit, 200));
+$$;
+
+revoke all on function public.get_top_observations(uuid, integer, integer) from public, anon;
+grant execute on function public.get_top_observations(uuid, integer, integer) to authenticated, service_role;
+
 drop policy if exists "workspace_invites_update_owner" on public.workspace_invites;
 
 create or replace function public.revoke_workspace_invite(p_invite_id uuid)
