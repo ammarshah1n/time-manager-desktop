@@ -421,7 +421,7 @@ struct TasksPane: View {
             Image(systemName: activeBucket.icon)
                 .font(.system(size: 32, weight: .light))
                 .foregroundStyle(activeBucket.color.opacity(0.5))
-            Text("No \(title.lowercased())")
+            Text(activeBucket.emptyStateTitle)
                 .font(.system(size: 15, weight: .medium))
             Button("Add Task", systemImage: "plus") {
                 prepareNewTask()

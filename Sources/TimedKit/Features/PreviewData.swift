@@ -119,6 +119,23 @@ enum TaskBucket: String, CaseIterable, Hashable, Codable {
         }
     }
 
+    /// Title for the empty-state view in TasksPane. Calibrated per bucket so
+    /// the copy reads naturally in English — bucket names alone (e.g.,
+    /// "No transit", "No reply email") sound terse or wrong. Anchored by the
+    /// no-bloat principle in CLAUDE.md and docs/UI-RULES.md.
+    var emptyStateTitle: String {
+        switch self {
+        case .reply:        "Nothing to reply to"
+        case .action:       "Nothing to action"
+        case .calls:        "No calls"
+        case .readToday:    "Nothing to read today"
+        case .readThisWeek: "Nothing to read this week"
+        case .transit:      "No transit tasks"
+        case .waiting:      "Nothing waiting"
+        case .ccFyi:        "Nothing archived"
+        }
+    }
+
     var staleAfterDays: Int {
         switch self {
         case .reply:        1
