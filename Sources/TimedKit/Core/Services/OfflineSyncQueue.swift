@@ -25,14 +25,16 @@ actor OfflineSyncQueue {
     private let maxSizeBytes: UInt64 = 50_000_000 // ~50MB
     private var syncHandler: (@Sendable (String, Data) async throws -> Void)?
     private var monitorTask: Task<Void, Never>?
+    private var dbPath: String?
 
     init() {
         do {
-            let dbPath = PlatformPaths.sqlite("offline_queue.sqlite").path
-            let queue = try DatabaseQueue(path: dbPath)
+            let path = PlatformPaths.sqlite("offline_queue.sqlite").path
+            let queue = try DatabaseQueue(path: path)
             try Self.createTableIfNeeded(in: queue)
             dbQueue = queue
-            TimedLogger.dataStore.info("OfflineSyncQueue initialised at \(dbPath, privacy: .public)")
+            dbPath = path
+            TimedLogger.dataStore.info("OfflineSyncQueue initialised at \(path, privacy: .public)")
         } catch {
             TimedLogger.dataStore.error("OfflineSyncQueue init failed: \(error.localizedDescription, privacy: .public)")
         }
@@ -81,9 +83,20 @@ actor OfflineSyncQueue {
 
     private static let maxFailures = 3
 
+    private func openCurrentScopedDatabase() throws {
+        let path = PlatformPaths.sqlite("offline_queue.sqlite").path
+        guard dbPath != path else { return }
+        let queue = try DatabaseQueue(path: path)
+        try Self.createTableIfNeeded(in: queue)
+        dbQueue = queue
+        dbPath = path
+        TimedLogger.dataStore.info("OfflineSyncQueue initialised at \(path, privacy: .public)")
+    }
+
     // MARK: - Enqueue
 
     func enqueue(operationType: String, payload: Data, idempotencyKey: String? = nil) throws {
+        try openCurrentScopedDatabase()
         guard let dbQueue else { throw QueueError.notInitialised }
         let payloadString = String(data: payload, encoding: .utf8) ?? "{}"
         try dbQueue.write { db in
@@ -156,6 +169,12 @@ actor OfflineSyncQueue {
     // MARK: - Flush (called on network restore)
 
     func flush(execute: @Sendable (String, Data) async throws -> Void) async {
+        do {
+            try openCurrentScopedDatabase()
+        } catch {
+            TimedLogger.dataStore.error("Offline queue scope switch failed: \(error.localizedDescription, privacy: .public)")
+            return
+        }
         guard let dbQueue, !isProcessing else { return }
         isProcessing = true
         defer { isProcessing = false }
@@ -229,6 +248,7 @@ actor OfflineSyncQueue {
     // MARK: - Cleanup (remove synced operations older than retention period)
 
     func cleanup() throws {
+        try openCurrentScopedDatabase()
         guard let dbQueue else { return }
         // Age-based: remove synced operations older than retention period
         try dbQueue.write { db in
@@ -259,6 +279,7 @@ actor OfflineSyncQueue {
     // MARK: - Stats
 
     func pendingCount() throws -> Int {
+        try openCurrentScopedDatabase()
         guard let dbQueue else { return 0 }
         return try dbQueue.read { db in
             try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM pending_operations WHERE synced_at IS NULL") ?? 0
@@ -266,6 +287,7 @@ actor OfflineSyncQueue {
     }
 
     func diagnostics() throws -> Diagnostics {
+        try openCurrentScopedDatabase()
         guard let dbQueue else {
             return Diagnostics(pendingCount: 0, activePendingCount: 0, permanentFailureCount: 0)
         }
