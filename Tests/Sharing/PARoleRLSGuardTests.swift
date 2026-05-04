@@ -58,6 +58,10 @@ struct PARoleRLSGuardTests {
     @Test("PA hardening migration covers behaviour event partitions")
     func hardeningPolicyCoversBehaviourEventPartitions() throws {
         let sql = try source(Self.hardeningMigration).lowercased()
+        #expect(sql.contains("alter table public.behaviour_events enable row level security"),
+                "Parent behaviour_events table must enable RLS for PostgREST parent-route access")
+        #expect(sql.contains("alter table public.behaviour_events force row level security"),
+                "Parent behaviour_events table must force RLS so parent policies are active")
         #expect(sql.contains("from pg_inherits"),
                 "PA deny boundary must cover direct behaviour_events partition access")
         #expect(sql.contains("inhparent = 'public.behaviour_events'::regclass"),

@@ -78,6 +78,9 @@ begin
     return;
   end if;
 
+  alter table public.behaviour_events enable row level security;
+  alter table public.behaviour_events force row level security;
+
   for partition_name in
     select inhrelid::regclass
     from pg_inherits
