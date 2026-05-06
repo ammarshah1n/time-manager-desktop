@@ -12,6 +12,12 @@ if [[ ! -d "$SOURCE_APP" ]]; then
 fi
 
 mkdir -p "$TARGET_DIR"
+
+# Quit any running Timed instance so the bundle can be replaced cleanly.
+# Required after every build so the Dock icon reflects the latest binary.
+osascript -e 'tell application "Timed" to quit' 2>/dev/null || true
+sleep 1
+
 rm -rf "$TARGET_APP"
 cp -R "$SOURCE_APP" "$TARGET_APP"
 

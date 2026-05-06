@@ -102,6 +102,7 @@ Read these every session. Mirror copy at `~/Desktop/timed-future-session-tips.md
 7. **Do NOT retire stale branches yet** — they're escape hatches until Track A is verified working end-to-end.
 8. **Permission-hook caveats:** `.claude/hooks/permission-check.sh` hard-denies tool inputs containing dot-env file paths, or the combination of `supabase/migrations/` with remove/rm/unlink keywords. Split Edits to avoid these substrings co-occurring.
 9. **OrbStack closed on this Mac.** Wave 2 backend services (Graphiti, Neo4j, Trigger.dev v4) run on the Linux machine. Trigger.dev tasks deploy to their cloud — no local Docker needed.
+10. **Feature implementation flow: CC plans, JCode workers execute.** Any feature touching ≥3 files MUST go through the saved workflow at `~/Timed-Brain/06 - Context/Workflow — CC plans JCode executes worktree-isolated.md` + the extensions note. The `feature-workflow` skill (`.claude/skills/feature-workflow/SKILL.md`) auto-fires on phrases like "ship feature", "implement X", "execute the plan", "build Y". Workers dispatch via `jcode -C <worktree> --provider <X> --model <Y> run --brief-file <b> --scope-file <s> --summary-out <m> --done-out <d> --failed-out <f> --max-tool-calls <n> --trace-out <t>` (the installed v0.11.16-dev binary has all executor flags). Phase 3.5 review block (`scripts/post-batch-review.sh`) auto-fires GPT-5.5 + Opus 4.7 review per batch. Phase 5 dock reinstall via `scripts/install_app.sh` after every successful merge. Skip the workflow only for single-file edits or typo fixes.
 </important>
 
 ## Next Priorities

@@ -26,3 +26,6 @@ docker-compose.local.yml
 /node_modules/
 /pnpm-lock.yaml
 /.pnpm-store/
+
+# Workflow scratch dir (CC-plans-JCode-executes per-feature briefs + summaries)
+.exec/
